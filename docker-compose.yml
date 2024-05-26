@@ -1,0 +1,16 @@
+version: "3.7"
+
+services:
+  membership-postgresd:
+    image: postgres:14
+    environment:
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=membership
+      - POSTGRES_USER=membership
+    ports:
+      - "5433:5433" # for development
+    networks:
+      - intranet
+
+networks:
+  intranet:
