@@ -4,7 +4,6 @@ mod ctx;
 mod helpers;
 mod http;
 mod middleware;
-mod sdk;
 
 use dotenv::dotenv;
 use envconfig::Envconfig;
