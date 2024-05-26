@@ -30,12 +30,6 @@ impl core::fmt::Display for ApiError {
     }
 }
 
-impl From<askama::Error> for ApiError {
-    fn from(_val: askama::Error) -> Self {
-        Self::InternalServerError
-    }
-}
-
 impl From<sqlx::Error> for ApiError {
     fn from(_val: sqlx::Error) -> Self {
         Self::InternalServerError
