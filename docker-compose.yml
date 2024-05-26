@@ -8,7 +8,7 @@ services:
       - POSTGRES_DB=membership
       - POSTGRES_USER=membership
     ports:
-      - "5433:5433" # for development
+      - "5433:5432" # for development
     networks:
       - intranet
 

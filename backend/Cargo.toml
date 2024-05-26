@@ -9,6 +9,7 @@ edition = "2021"
 axum = { version = "0.7.2", features=["tokio", "macros"]}
 dotenv = "0.15.0"
 envconfig = "0.10.0"
+ory-client = "1.9.0"
 postgres = "0.19.7"
 serde = { version = "1.0.193", features = ["derive"] }
 serde_with = "3.4.0"
