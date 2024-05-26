@@ -1,0 +1,18 @@
+version: '3'
+
+services:
+  db:
+    image: postgres:14
+    environment:
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=boilerplate
+      - POSTGRES_USER=boilerplate
+
+  boilerplate:
+    build:
+      context: .
+      dockerfile: dev.Dockerfile
+    ports:
+      - 80:80
+    volumes:
+      - ~/.ssh:/.ssh

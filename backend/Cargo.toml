@@ -1,0 +1,23 @@
+[package]
+name = "boilerplate"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+askama = { version = "0.12.1", features=["with-axum"]}
+askama_axum = "0.4.0"
+axum = { version = "0.7.2", features=["tokio", "macros"]}
+dotenv = "0.15.0"
+envconfig = "0.10.0"
+postgres = "0.19.7"
+serde = { version = "1.0.193", features = ["derive"] }
+serde_with = "3.4.0"
+sqlx = { version = "0.7.3", features=["postgres", "runtime-tokio", "macros", "chrono", "uuid", "tls-rustls"]}
+tokio = { version = "1.35.0", features = ["full"] }
+tower = "0.4.13"
+tower-http = { version = "0.5.0", features = ["fs"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+validator = { version = "0.16.1", features = ["derive"]}
