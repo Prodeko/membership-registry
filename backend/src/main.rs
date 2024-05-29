@@ -8,6 +8,7 @@ mod middleware;
 use dotenv::dotenv;
 use envconfig::Envconfig;
 use http::serve;
+use ory_client::apis::configuration::Configuration;
 use sqlx;
 
 use helpers::create_pg_pool;
@@ -28,5 +29,10 @@ async fn main() {
         .await
         .expect("Running DB migrations failed");
 
-    serve(pool, config).await;
+    let ory_config = Configuration {
+        base_path: config.ory_base_url.to_owned(),
+        ..Default::default()
+    };
+
+    serve(pool, config, ory_config).await;
 }
