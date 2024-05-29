@@ -4,11 +4,13 @@ mod ctx;
 mod helpers;
 mod http;
 mod middleware;
+mod repositories;
 
 use dotenv::dotenv;
 use envconfig::Envconfig;
 use http::serve;
 use ory_client::apis::configuration::Configuration;
+use repositories::PostgresRepo;
 use sqlx;
 
 use helpers::create_pg_pool;
@@ -29,10 +31,12 @@ async fn main() {
         .await
         .expect("Running DB migrations failed");
 
+    let repo = PostgresRepo::new(pool.clone());
+
     let ory_config = Configuration {
         base_path: config.ory_base_url.to_owned(),
         ..Default::default()
     };
 
-    serve(pool, config, ory_config).await;
+    serve(repo, config, ory_config).await;
 }
