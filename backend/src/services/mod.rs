@@ -21,10 +21,10 @@ impl Services {
         repo: PostgresRepo,
         ory_client_url: String,
     ) -> Self {
-        let member_service = MemberService::new(repo.member);
+      let user_service = user_service::UserService::new(ory_client_url);
+        let member_service = MemberService::new(repo.member, user_service.clone());
         let application_service = ApplicationService::new(repo.application);
         let role_service = role_service::RoleService::new(repo.role, member_service.clone());
-        let user_service = user_service::UserService::new(ory_client_url);
 
         Self {
             member_service,

@@ -7,12 +7,12 @@ use ory_client::{
             create_identity, get_identity, list_identities, CreateIdentityError, GetIdentityError,
             ListIdentitiesError,
         },
-        oidc_api::get_oidc_user_info,
         Error,
     },
     models::{CreateIdentityBody, Identity},
 };
 
+#[derive(Clone)]
 pub struct UserService {
     pub config: Configuration,
 }
