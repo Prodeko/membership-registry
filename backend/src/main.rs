@@ -5,6 +5,7 @@ mod helpers;
 mod http;
 mod middleware;
 mod repositories;
+mod services;
 
 use dotenv::dotenv;
 use envconfig::Envconfig;
