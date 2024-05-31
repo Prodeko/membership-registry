@@ -1,6 +1,7 @@
 // src/member_service.rs
 
 use crate::repositories::member::{Member, MemberRepo, NewMember};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::user_service::UserService;
@@ -11,6 +12,7 @@ pub struct MemberService {
     pub user_service: super::user_service::UserService,
 }
 
+#[derive(Deserialize)]
 pub struct MemberWithoutId {
     pub email: String,
     pub first_name: String,
@@ -18,7 +20,7 @@ pub struct MemberWithoutId {
     pub home_municipality: String,
     pub has_accepted_policies: bool,
 }
-
+#[derive(Serialize)]
 pub struct MemberWithUser {
     pub user_id: Uuid,
     pub first_name: String,
@@ -33,33 +35,42 @@ impl MemberService {
         Self { repo, user_service }
     }
 
-    pub async fn create_member(&self, new_member: MemberWithoutId) -> Result<Member, String> {
+    pub async fn create_member(&self, member_to_add: MemberWithoutId) -> Result<MemberWithUser, String> {
         let user = self
             .user_service
             .create_user(
-                &new_member.email,
-                &new_member.first_name,
-                &new_member.last_name,
+                &member_to_add.email,
+                &member_to_add.first_name,
+                &member_to_add.last_name,
             )
             .await
-            .expect("Could not create user");
+            .map_err(|e| e.to_string());
 
-        match Uuid::parse_str(&user.id) {
-            Ok(user_id) => {
+        match user.map(|u| Uuid::parse_str(&u.id)) {
+            Ok(Ok(user_id)) => {
                 let new_member = NewMember {
                     user_id,
-                    first_name: new_member.first_name,
-                    last_name: new_member.last_name,
-                    home_municipality: new_member.home_municipality,
-                    has_accepted_policies: new_member.has_accepted_policies,
+                    first_name: member_to_add.first_name,
+                    last_name: member_to_add.last_name,
+                    home_municipality: member_to_add.home_municipality,
+                    has_accepted_policies: member_to_add.has_accepted_policies,
                 };
-                return self
+                let member = self
                     .repo
                     .create(new_member)
                     .await
                     .map_err(|e| e.to_string());
+                return member.map(|m| MemberWithUser {
+                    user_id: m.user_id,
+                    first_name: m.first_name,
+                    last_name: m.last_name,
+                    home_municipality: m.home_municipality,
+                    has_accepted_policies: m.has_accepted_policies,
+                    email: member_to_add.email,
+                })
             }
-            Err(_) => return Err("Could not parse user id".to_string()),
+            Ok(Err(_)) => return Err("Could not parse user id".to_string()),
+            Err(e) => return Err(e.to_string()),
         }
     }
 
@@ -70,7 +81,6 @@ impl MemberService {
             .await
             .map_err(|e| e.to_string());
         let members = self.repo.fetch_all().await.map_err(|e| e.to_string());
-
         match (users, members) {
             (Ok(users), Ok(members)) => {
                 let mut members_with_users = Vec::new();
@@ -80,8 +90,8 @@ impl MemberService {
                         .map(|u| u.traits.clone().map(|t| t.get("email").cloned()))
                         .flatten()
                         .flatten();
-                    match (user, email) {
-                        (Some(user), Some(email)) => {
+                    match email {
+                        Some(email) => {
                             members_with_users.push(MemberWithUser {
                                 user_id: member.user_id,
                                 first_name: member.first_name,
@@ -91,8 +101,8 @@ impl MemberService {
                                 email: email.to_string(),
                             });
                         }
-                        _ => {
-                            return Err("Could not find user".to_string());
+                        None => {
+                            return Err(format!("Could not find user {}", member.user_id));
                         }
                     }
                 }
