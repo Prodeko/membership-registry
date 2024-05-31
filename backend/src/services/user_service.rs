@@ -4,12 +4,11 @@ use ory_client::{
     apis::{
         configuration::Configuration,
         identity_api::{
-            create_identity, get_identity, list_identities, CreateIdentityError, GetIdentityError,
-            ListIdentitiesError,
+            create_identity, delete_identity, get_identity, list_identities, update_identity, CreateIdentityError, DeleteIdentityError, GetIdentityError, ListIdentitiesError, UpdateIdentityError
         },
         Error,
     },
-    models::{CreateIdentityBody, Identity},
+    models::{update_identity_body::{self, StateEnum}, CreateIdentityBody, Identity, UpdateIdentityBody},
 };
 
 #[derive(Clone)]
@@ -71,5 +70,34 @@ impl UserService {
         };
 
         create_identity(&self.config, Some(&create_identity_body)).await
+    }
+
+    pub async fn update_user(
+        &self,
+        user_id: &str,
+        email: &str,
+        first_name: &str,
+        last_name: &str,
+    ) -> Result<Identity, Error<UpdateIdentityError>> {
+        let update_identity_body= UpdateIdentityBody {
+            schema_id: "default".to_string(),
+            traits: serde_json::json!({
+              "email": email,
+              "name": {
+                "first": first_name,
+                "last": last_name,
+              }
+            }),
+            credentials: None,
+            metadata_admin: None,
+            metadata_public: None,
+            state: StateEnum::Active,
+        };
+
+        update_identity(&self.config, user_id, Some(&update_identity_body)).await
+    }
+
+    pub async fn delete_user(&self, user_id: &str) -> Result<(), Error<DeleteIdentityError>> {
+        delete_identity(&self.config, user_id).await
     }
 }

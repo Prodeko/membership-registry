@@ -20,7 +20,7 @@ pub struct MemberWithoutId {
     pub home_municipality: String,
     pub has_accepted_policies: bool,
 }
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct MemberWithUser {
     pub user_id: Uuid,
     pub first_name: String,
@@ -35,7 +35,10 @@ impl MemberService {
         Self { repo, user_service }
     }
 
-    pub async fn create_member(&self, member_to_add: MemberWithoutId) -> Result<MemberWithUser, String> {
+    pub async fn create_member(
+        &self,
+        member_to_add: MemberWithoutId,
+    ) -> Result<MemberWithUser, String> {
         let user = self
             .user_service
             .create_user(
@@ -67,7 +70,7 @@ impl MemberService {
                     home_municipality: m.home_municipality,
                     has_accepted_policies: m.has_accepted_policies,
                     email: member_to_add.email,
-                })
+                });
             }
             Ok(Err(_)) => return Err("Could not parse user id".to_string()),
             Err(e) => return Err(e.to_string()),
@@ -145,14 +148,56 @@ impl MemberService {
         }
     }
 
-    pub async fn update_member(&self, updated_member: Member, id: Uuid) -> Result<Member, String> {
-        self.repo
-            .update(updated_member, id, None)
+    pub async fn update_member(
+        &self,
+        updated_member: MemberWithUser,
+    ) -> Result<MemberWithUser, String> {
+        let updated_user = self
+            .user_service
+            .update_user(
+                &updated_member.user_id.to_string(),
+                &updated_member.email,
+                &updated_member.first_name,
+                &updated_member.last_name,
+            )
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string());
+
+        match updated_user {
+            Ok(_) => {
+                let as_member = Member {
+                    user_id: updated_member.user_id,
+                    first_name: updated_member.first_name,
+                    last_name: updated_member.last_name,
+                    home_municipality: updated_member.home_municipality,
+                    has_accepted_policies: updated_member.has_accepted_policies,
+                };
+                self.repo
+                    .update(as_member, updated_member.user_id, None)
+                    .await
+                    .map_err(|e| e.to_string())
+                    .map(|m| MemberWithUser {
+                        user_id: m.user_id,
+                        first_name: m.first_name,
+                        last_name: m.last_name,
+                        home_municipality: m.home_municipality,
+                        has_accepted_policies: m.has_accepted_policies,
+                        email: updated_member.email,
+                    })
+            }
+            Err(e) => Err(e),
+        }
     }
 
     pub async fn delete_member(&self, id: Uuid) -> Result<(), String> {
-        self.repo.delete(id).await.map_err(|e| e.to_string())
+        let user_result = self
+            .user_service
+            .delete_user(&id.to_string())
+            .await
+            .map_err(|e| e.to_string());
+        match user_result {
+            Ok(_) => self.repo.delete(id).await.map_err(|e| e.to_string()),
+            Err(e) => Err(e),
+        }
     }
 }
