@@ -10,8 +10,8 @@ mod services;
 use dotenv::dotenv;
 use envconfig::Envconfig;
 use http::serve;
-use ory_client::apis::configuration::Configuration;
 use repositories::PostgresRepo;
+use services::Services;
 use sqlx;
 
 use helpers::create_pg_pool;
@@ -34,10 +34,7 @@ async fn main() {
 
     let repo = PostgresRepo::new(pool.clone());
 
-    let ory_config = Configuration {
-        base_path: config.ory_base_url.to_owned(),
-        ..Default::default()
-    };
+    let services = Services::new(repo, config.ory_base_url.to_string());
 
-    serve(repo, config, ory_config).await;
+    serve(config, services).await;
 }

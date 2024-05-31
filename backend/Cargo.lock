@@ -1049,6 +1049,7 @@ dependencies = [
  "ory-client",
  "postgres",
  "serde",
+ "serde_json",
  "serde_with",
  "sqlx",
  "tokio",

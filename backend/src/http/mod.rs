@@ -1,27 +1,37 @@
 use std::sync::Arc;
 
 use axum::Router;
-use ory_client::apis::configuration::Configuration;
 
-use crate::{config::Config, repositories::PostgresRepo};
+use crate::{
+    config::Config,
+    repositories::PostgresRepo,
+    services::{
+        appication_service::ApplicationService, member_service::MemberService,
+        role_service::RoleService, user_service::UserService, Services,
+    },
+};
 
+mod api;
 mod index;
 mod static_files;
-mod api;
 
 #[derive(Clone)]
 pub struct AppState {
-    pub db: PostgresRepo,
     pub config: Arc<Config>,
-    pub ory_config: Configuration,
+    pub member_service: Arc<MemberService>,
+    pub application_service: Arc<ApplicationService>,
+    pub role_service: Arc<RoleService>,
+    pub user_service: Arc<UserService>,
 }
 
-pub async fn serve(db: PostgresRepo, config: Config, ory_config: Configuration) {
+pub async fn serve(config: Config, services: Services) {
     let port = config.port.clone();
     let state = AppState {
         config: Arc::new(config),
-        db,
-        ory_config,
+        member_service: Arc::new(services.member_service),
+        application_service: Arc::new(services.application_service),
+        role_service: Arc::new(services.role_service),
+        user_service: Arc::new(services.user_service),
     };
 
     let app: Router = router(state.clone()).with_state(state);

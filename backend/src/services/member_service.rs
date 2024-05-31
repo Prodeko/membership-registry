@@ -3,6 +3,7 @@
 use uuid::Uuid;
 use crate::repositories::member::{MemberRepo, NewMember, Member};
 
+#[derive(Clone)]
 pub struct MemberService {
   pub repo: MemberRepo,
 }
