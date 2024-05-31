@@ -4,6 +4,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
+use uuid::uuid;
 
 use crate::{
     api_types::ApiResult,
@@ -33,7 +34,7 @@ async fn get_members(State(state): State<AppState>) -> ApiResult<Json<Vec<Member
 #[debug_handler]
 async fn create_member(State(state): State<AppState>) -> ApiResult<Json<Member>> {
     let member = NewMember {
-        user_id: "5229864b-1e8f-46ef-9640-4c7c0aabd574".to_string(),
+        user_id: uuid!("5229864b-1e8f-46ef-9640-4c7c0aabd574"),
         first_name: "John".to_string(),
         last_name: "Doe".to_string(),
         home_municipality: "Oslo".to_string(),

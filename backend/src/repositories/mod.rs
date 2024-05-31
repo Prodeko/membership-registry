@@ -3,6 +3,8 @@ use member::MemberRepo;
 
 pub mod application;
 pub mod member;
+pub mod role;
+pub mod role_member;
 
 #[derive(Clone)]
 pub struct PostgresRepo {
