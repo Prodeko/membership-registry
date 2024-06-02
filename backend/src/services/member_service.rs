@@ -189,7 +189,7 @@ impl MemberService {
         }
     }
 
-    pub async fn delete_member(&self, id: Uuid) -> Result<(), String> {
+    pub async fn delete_member(&self, id: Uuid) -> Result<(), String>{
         let user_result = self
             .user_service
             .delete_user(&id.to_string())
@@ -199,5 +199,54 @@ impl MemberService {
             Ok(_) => self.repo.delete(id).await.map_err(|e| e.to_string()),
             Err(e) => Err(e),
         }
+    }
+
+    pub async fn generate_sample_data(&self, amount: usize) -> Result<(), String> {
+        let first_names = vec![
+            "Nikke", "Mikko", "Matti", "Jussi", "Johannes", "Johanna", "Maija", "Liisa", "Kalle",
+            "Pekka",
+        ];
+
+        let last_names = vec![
+            "Virtanen",
+            "Mäkinen",
+            "Korhonen",
+            "Nieminen",
+            "Hämäläinen",
+            "Laine",
+            "Koskinen",
+            "Heikkinen",
+            "Järvinen",
+            "Lehtonen",
+        ];
+
+        let municipalities = vec![
+            "Helsinki",
+            "Espoo",
+            "Vantaa",
+            "Tampere",
+            "Turku",
+            "Oulu",
+            "Lahti",
+            "Kuopio",
+            "Jyväskylä",
+            "Pori",
+        ];
+
+        for i in 0..amount {
+            let first_name = first_names[i];
+            let last_name = last_names[i];
+            let home_municipality = municipalities[i];
+            let email = format!("{}@example.com", first_name.to_lowercase());
+            let member = MemberWithoutId {
+                email,
+                first_name: first_name.to_string(),
+                last_name: last_name.to_string(),
+                home_municipality: home_municipality.to_string(),
+                has_accepted_policies: true,
+            };
+            self.create_member(member).await?;
+        }
+        Ok(())
     }
 }

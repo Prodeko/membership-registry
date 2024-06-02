@@ -6,7 +6,9 @@ mod http;
 mod middleware;
 mod repositories;
 mod services;
+mod cli;
 
+use cli::build_cli;
 use dotenv::dotenv;
 use envconfig::Envconfig;
 use http::serve;
@@ -36,5 +38,21 @@ async fn main() {
 
     let services = Services::new(repo, config.ory_base_url.to_string());
 
-    serve(config, services).await;
+    let matches = build_cli().get_matches();
+
+    match matches.subcommand() {
+        Some(("generate", sub_matches)) => {
+            let amount: usize = sub_matches.get_one::<String>("amount")
+                                           .unwrap()
+                                           .parse()
+                                           .expect("Amount must be a number");
+            println!("Generating {} sample data items...", amount);
+            let _ = services.member_service.generate_sample_data(amount).await;
+        },
+        _ => {
+            println!("Starting Axum server...");
+            serve(config, services).await;
+        }
+    }
+
 }
