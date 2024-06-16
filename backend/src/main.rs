@@ -11,6 +11,7 @@ mod cli;
 use cli::build_cli;
 use dotenv::dotenv;
 use envconfig::Envconfig;
+
 use http::serve;
 use repositories::PostgresRepo;
 use services::Services;
@@ -50,7 +51,6 @@ async fn main() {
             let _ = services.member_service.generate_sample_data(amount).await;
         },
         _ => {
-            println!("Starting Axum server...");
             serve(config, services).await;
         }
     }

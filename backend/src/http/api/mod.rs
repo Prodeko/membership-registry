@@ -3,8 +3,9 @@ use axum::Router;
 use super::AppState;
 
 mod members;
+mod roles;
 mod index;
 
 pub fn router(state: AppState) -> Router<AppState> {
-  index::router().merge(members::router(state.clone()))
+  index::router().merge(members::router(state.clone())).merge(roles::router(state.clone()))
 }

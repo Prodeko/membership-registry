@@ -4,11 +4,16 @@ use ory_client::{
     apis::{
         configuration::Configuration,
         identity_api::{
-            create_identity, delete_identity, get_identity, list_identities, update_identity, CreateIdentityError, DeleteIdentityError, GetIdentityError, ListIdentitiesError, UpdateIdentityError
+            create_identity, delete_identity, get_identity, list_identities, update_identity,
+            CreateIdentityError, DeleteIdentityError, GetIdentityError, ListIdentitiesError,
+            UpdateIdentityError,
         },
         Error,
     },
-    models::{update_identity_body::{self, StateEnum}, CreateIdentityBody, Identity, UpdateIdentityBody},
+    models::{
+        update_identity_body::{self, StateEnum},
+        CreateIdentityBody, ErrorGeneric, GenericErrorContent, Identity, UpdateIdentityBody,
+    },
 };
 
 #[derive(Clone)]
@@ -39,6 +44,25 @@ impl UserService {
             None,
             None,
             None,
+            None,
+            None,
+            None,
+        )
+        .await
+    }
+
+    pub async fn get_many_users(
+        &self,
+        ids: Option<Vec<String>>,
+    ) -> Result<Vec<Identity>, Error<ListIdentitiesError>> {
+        list_identities(
+            &self.config,
+            None,
+            None,
+            None,
+            None,
+            None,
+            ids,
             None,
             None,
             None,
@@ -79,7 +103,7 @@ impl UserService {
         first_name: &str,
         last_name: &str,
     ) -> Result<Identity, Error<UpdateIdentityError>> {
-        let update_identity_body= UpdateIdentityBody {
+        let update_identity_body = UpdateIdentityBody {
             schema_id: "default".to_string(),
             traits: serde_json::json!({
               "email": email,
@@ -99,5 +123,22 @@ impl UserService {
 
     pub async fn delete_user(&self, user_id: &str) -> Result<(), Error<DeleteIdentityError>> {
         delete_identity(&self.config, user_id).await
+    }
+
+    pub async fn delete_all_users(&self) -> Result<(), String> {
+        let users = self
+            .get_all_users()
+            .await
+            .map_err(|_| "Failed to fetch users".to_string())?;
+        for user in users {
+            delete_identity(&self.config, &user.id).await.map_err(|e| {
+                format!(
+                    "Failed to delete user with id {}: {}",
+                    &user.id,
+                    e.to_string()
+                )
+            })?;
+        }
+        Ok(())
     }
 }

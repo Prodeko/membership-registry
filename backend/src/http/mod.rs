@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use axum::Router;
+use axum::{http::Method, Router};
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::{
     config::Config,
@@ -34,12 +35,18 @@ pub async fn serve(config: Config, services: Services) {
         user_service: Arc::new(services.user_service),
     };
 
-    let app: Router = router(state.clone()).with_state(state);
+    let cors = CorsLayer::new()
+        .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
+        .allow_headers(Any)
+        .allow_origin(Any);
+
+    let app: Router = router(state.clone()).with_state(state).layer(cors);
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port.clone()))
         .await
         .unwrap();
 
+    println!("Listening on port {}", port);
     axum::serve(listener, app).await.unwrap();
 }
 

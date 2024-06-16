@@ -1,12 +1,13 @@
 use axum::{
     debug_handler,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{delete, get, post, put},
     Json, Router,
 };
 use uuid::Uuid;
+use serde::Deserialize;
 
-use crate::services::member_service::{MemberWithUser, MemberWithoutId};
+use crate::{repositories::role::RoleMember, services::member_service::{MemberWithRoles, MemberWithUser, MemberWithoutId}};
 
 use super::AppState;
 
@@ -17,12 +18,35 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/members/:user_id", get(get_member))
         .route("/members/:user_id", put(update_member))
         .route("/members/:user_id", delete(delete_member))
+        .route("/members/:user_id/roles", post(add_role))
         .with_state(state)
 }
 
+#[derive(Deserialize)]
+struct MembersQuery {
+    page_size: Option<u64>,
+    offset: Option<u64>,
+    order_by: Option<String>,
+    roles: Option<String>,
+    search: Option<String>,
+}
+
 #[debug_handler]
-async fn get_members(State(state): State<AppState>) -> Result<Json<Vec<MemberWithUser>>, String> {
-    let members = state.member_service.get_all_members().await;
+async fn get_members(
+    State(state): State<AppState>,
+    Query(query): Query<MembersQuery>,
+) -> Result<Json<Vec<MemberWithRoles>>, String> {
+    let roles = query.roles.clone().map(|roles| {
+        roles
+            .split(',')
+            .map(|role| role.to_string())
+            .collect::<Vec<String>>()
+    });
+
+    let members = state
+        .member_service
+        .get_members_with_roles(query.page_size, query.offset, query.order_by, roles, query.search)
+        .await;
 
     if let Err(e) = &members {
         println!("Error fetching members: {:?}", e);
@@ -79,5 +103,35 @@ async fn delete_member(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> Result<(), String> {
-    state.member_service.delete_member(user_id).await.map_err(|e| e.to_string())
+    state
+        .member_service
+        .delete_member(user_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize)]
+struct RoleMemberBody {
+    role_name: String,
+    valid_from: chrono::NaiveDate,
+    valid_until: Option<chrono::NaiveDate>,
+}
+
+
+#[debug_handler]
+async fn add_role(
+    State(state): State<AppState>,
+    Path((user_id,)): Path<(Uuid,)>,
+    Json(query): Json<RoleMemberBody>,
+) -> Result<(), String> {
+    let result = state
+        .role_service
+        .add_role_member(user_id, &query.role_name, query.valid_from, query.valid_until)
+        .await;
+
+    if let Err(e) = &result {
+        println!("Error adding role: {:?}", e);
+    }
+
+    result.map(|_| ()).map_err(|e| e.to_string())
 }
