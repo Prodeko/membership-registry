@@ -1,10 +1,13 @@
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE TABLE Member (
     -- id, email comes from identity service
     user_id uuid primary key,
     first_name text not null,
     last_name text not null,
     home_municipality text not null,
-    has_accepted_policies boolean not null
+    has_accepted_policies boolean not null,
+    full_name TEXT GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED
 );
 
 CREATE TABLE Role (
@@ -30,3 +33,5 @@ CREATE TABLE RoleMember (
     foreign key (user_id) references Member(user_id),
     foreign key (role_name) references Role(name)
 );
+
+CREATE INDEX idx_name_trgm_gin ON Member USING gin (full_name gin_trgm_ops);
