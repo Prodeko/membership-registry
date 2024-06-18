@@ -116,10 +116,12 @@ impl MemberRepo {
         &self,
         page_size: Option<u64>,
         offset: Option<u64>,
-        order_by: Option<String>,
         roles: Option<Vec<String>>,
         search: Option<String>,
+        order_by: Option<String>,
+        order_desc: Option<bool>,
     ) -> Result<Vec<MemberWithRoles>, sqlx::Error> {
+        println!("Sorting by: {:?}", order_by);
         let members_with_roles = sqlx::query_as!(
             MemberWithRoles,
             r#"
@@ -144,17 +146,36 @@ impl MemberRepo {
                 array_length($3::varchar[], 1) = 0 OR 
                 bool_or(RoleMember.role_name = ANY($3::varchar[]))
             ORDER BY
-                Member.full_name
+                CASE WHEN $6 = 'ASC' THEN
+                    CASE $5
+                        WHEN 'last_name' THEN Member.last_name
+                        WHEN 'first_name' THEN Member.first_name
+                        WHEN 'home_municipality' THEN Member.home_municipality
+                        WHEN 'user_id' THEN Member.user_id::varchar
+                        ELSE Member.full_name
+                    END
+                END ASC,
+                CASE WHEN $6 = 'DESC' THEN
+                    CASE $5
+                        WHEN 'last_name' THEN Member.last_name
+                        WHEN 'first_name' THEN Member.first_name
+                        WHEN 'home_municipality' THEN Member.home_municipality
+                        WHEN 'user_id' THEN Member.user_id::varchar
+                        ELSE Member.full_name
+                    END
+                END DESC
             LIMIT $1 OFFSET $2::Integer * $1::Integer
           "#,
             page_size.unwrap_or(10) as i64,
             offset.unwrap_or(0) as i64,
             &roles.unwrap_or_default(),
             search.as_deref().unwrap_or_default(),
+            &order_by.unwrap_or_else(|| "full_name".to_string()),
+            if {order_desc.unwrap_or(false)} { "DESC" } else { "ASC" }
         )
         .fetch_all(&self.pool)
         .await?;
-
+        
         Ok(members_with_roles)
     }
 }

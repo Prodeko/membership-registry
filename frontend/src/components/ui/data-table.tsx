@@ -60,6 +60,7 @@ export function DataTable<TData, TValue>({
     enableRowSelection: true,
     manualPagination: true,
     manualFiltering: true,
+    manualSorting: true,
     pageCount: 10,
     initialState: {
       pagination: {
@@ -83,8 +84,10 @@ export function DataTable<TData, TValue>({
     offset: table.getState().pagination.pageIndex,
     roles: [],
     search: table.getColumn("first_name")?.getFilterValue() as string,
+    sorting: table.getState().sorting[0]?.id,
+    sort_desc: table.getState().sorting[0]?.desc,
   })
-
+  console.log(table.getState().sorting)
   React.useEffect(() => {
     if (fetchedData) {
       setTableData(fetchedData)

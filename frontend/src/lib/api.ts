@@ -19,23 +19,18 @@ interface GetAllMembersParams {
   offset: number;
   roles: string[];
   search: string;
+  sorting: string;
+  sort_desc: boolean;
 }
 
-export function useGetAllMembers({
-  pageSize,
-  offset,
-  roles,
-  search,
-}: GetAllMembersParams){
+export function useGetAllMembers(params: GetAllMembersParams){
   return useQuery<MemberWithRoles[]>({
-    queryKey: [QueryKey.MEMBERS, { pageSize, offset, roles, search }],
+    queryKey: [QueryKey.MEMBERS, params],
     queryFn: async () => {
       const response = await axios_client.get("/members", {
         params: {
-          offset,
-          page_size: pageSize,
-          roles,
-          search,
+          ...params,
+          page_size: params.pageSize,
         },
       });
       return response.data;

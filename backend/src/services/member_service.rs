@@ -284,13 +284,14 @@ impl MemberService {
         &self,
         page_size: Option<u64>,
         offset: Option<u64>,
-        order_by: Option<String>,
         roles: Option<Vec<String>>,
         search: Option<String>,
+        order_by: Option<String>,
+        order_desc: Option<bool>,
     ) -> Result<Vec<MemberWithRoles>, String> {
         let members = self
             .repo
-            .fetch_members_with_roles(page_size, offset, order_by, roles, search)
+            .fetch_members_with_roles(page_size, offset, roles, search, order_by, order_desc)
             .await
             .map_err(|e| e.to_string());
 
