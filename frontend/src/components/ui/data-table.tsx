@@ -30,18 +30,20 @@ import { DataTableToolbar } from "./data-table-toolbar"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
+  initialColumnVisibility?: VisibilityState
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   useFetchData: (x: any) => UseQueryResult<TData[], Error>
 }
 
 export function DataTable<TData, TValue>({
   columns,
-  useFetchData
+  useFetchData,
+  initialColumnVisibility
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState<TData[]>([])
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({})
+    React.useState<VisibilityState>(initialColumnVisibility ?? {})
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
   )
@@ -67,6 +69,7 @@ export function DataTable<TData, TValue>({
         pageSize: 10,
         pageIndex: 0,
       },
+      columnVisibility: initialColumnVisibility, 
     },
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
