@@ -306,7 +306,6 @@ impl MemberService {
             })
             .map_err(|e| e.to_string());
         
-        println!("Members: {:?}", members);
         match (users, members) {
             (Ok(users), Ok(members)) => {
                 let mut members_with_roles = Vec::new();

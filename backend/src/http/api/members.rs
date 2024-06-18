@@ -22,7 +22,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct MembersQuery {
     page_size: Option<u64>,
     offset: Option<u64>,
@@ -42,6 +42,8 @@ async fn get_members(
             .map(|role| role.to_string())
             .collect::<Vec<String>>()
     });
+
+    println!("Query: {:?}", query);
 
     let members = state
         .member_service

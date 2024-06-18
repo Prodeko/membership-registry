@@ -120,8 +120,6 @@ impl MemberRepo {
         roles: Option<Vec<String>>,
         search: Option<String>,
     ) -> Result<Vec<MemberWithRoles>, sqlx::Error> {
-        println!("Roles {:?}", roles);
-        println!("Search {:?}", search);
         let members_with_roles = sqlx::query_as!(
             MemberWithRoles,
             r#"
@@ -138,18 +136,17 @@ impl MemberRepo {
             LEFT JOIN
                 RoleMember ON Member.user_id = RoleMember.user_id
             WHERE 
-                Member.full_name ILIKE '%' || $5 || '%'
+                Member.full_name ILIKE '%' || $4 || '%'
             GROUP BY
                 Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.has_accepted_policies
             HAVING
-                array_length($4::varchar[], 1) IS NULL OR 
-                array_length($4::varchar[], 1) = 0 OR 
-                bool_or(RoleMember.role_name = ANY($4::varchar[]))
+                array_length($3::varchar[], 1) IS NULL OR 
+                array_length($3::varchar[], 1) = 0 OR 
+                bool_or(RoleMember.role_name = ANY($3::varchar[]))
             ORDER BY
-                $1
-            LIMIT $2 OFFSET $3;
+                Member.full_name
+            LIMIT $1 OFFSET $2::Integer * $1::Integer
           "#,
-            "Member.user_id".to_owned(),
             page_size.unwrap_or(10) as i64,
             offset.unwrap_or(0) as i64,
             &roles.unwrap_or_default(),
