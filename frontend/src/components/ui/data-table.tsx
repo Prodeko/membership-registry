@@ -1,6 +1,5 @@
 "use client"
 
-import * as React from "react"
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -11,10 +10,10 @@ import {
   getFacetedRowModel,
   getFacetedUniqueValues,
   getFilteredRowModel,
-  getPaginationRowModel,
   getSortedRowModel,
-  useReactTable,
+  useReactTable
 } from "@tanstack/react-table"
+import * as React from "react"
 
 import {
   Table,
@@ -25,18 +24,21 @@ import {
   TableRow,
 } from "@/components/ui/table"
 
+import { UseQueryResult } from "@tanstack/react-query"
 import { DataTablePagination } from "./data-table-pagination"
 import { DataTableToolbar } from "./data-table-toolbar"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
-  data: TData[]
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  useFetchData: (x: any) => UseQueryResult<TData[], Error>
 }
 
 export function DataTable<TData, TValue>({
   columns,
-  data,
+  useFetchData
 }: DataTableProps<TData, TValue>) {
+  const [tableData, setTableData] = React.useState<TData[]>([])
   const [rowSelection, setRowSelection] = React.useState({})
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>({})
@@ -45,8 +47,9 @@ export function DataTable<TData, TValue>({
   )
   const [sorting, setSorting] = React.useState<SortingState>([])
 
+
   const table = useReactTable({
-    data,
+    data: tableData,
     columns,
     state: {
       sorting,
@@ -55,17 +58,39 @@ export function DataTable<TData, TValue>({
       columnFilters,
     },
     enableRowSelection: true,
+    manualPagination: true,
+    manualFiltering: true,
+    pageCount: 10,
+    initialState: {
+      pagination: {
+        pageSize: 10,
+        pageIndex: 0,
+      },
+    },
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
   })
+
+  const { data: fetchedData, isLoading, error } = useFetchData({
+    pageSize: table.getState().pagination.pageSize,
+    offset: table.getState().pagination.pageIndex,
+    roles: [],
+    search: table.getColumn("first_name")?.getFilterValue() as string,
+  })
+
+  React.useEffect(() => {
+    if (fetchedData) {
+      setTableData(fetchedData)
+    }
+  }, [fetchedData])
+
 
   return (
     <div className="space-y-4">

@@ -1,7 +1,5 @@
 
-export enum QueryKey {
-  MEMBERS = 'members',
-}
+
 
 export interface Member {
   user_id: string;
@@ -11,4 +9,7 @@ export interface Member {
   home_municipality: string;
   has_accepted_policies: boolean;
 }
-  
+
+export interface MemberWithRoles extends Member {
+  roles: string[];
+}

@@ -1,8 +1,8 @@
-import { Member } from "@/common/types";
+import { MemberWithRoles } from "@/common/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTableColumnHeader } from "../ui/column-header";
 
-export const columns: ColumnDef<Member>[] = [
+export const columns: ColumnDef<MemberWithRoles>[] = [
   {
     accessorKey: "user_id",
     header: ({ column }) => (
