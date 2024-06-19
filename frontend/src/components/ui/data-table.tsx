@@ -30,15 +30,18 @@ import { DataTableToolbar } from "./data-table-toolbar"
 
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[]
-  initialColumnVisibility?: VisibilityState
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   useFetchData: (x: any) => UseQueryResult<TData[], Error>
+  initialColumnVisibility?: VisibilityState
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  customFilters?: any
 }
 
 export function DataTable<TData, TValue>({
   columns,
   useFetchData,
-  initialColumnVisibility
+  initialColumnVisibility,
+  customFilters,
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState<TData[]>([])
   const [rowSelection, setRowSelection] = React.useState({})
@@ -85,7 +88,7 @@ export function DataTable<TData, TValue>({
   const { data: fetchedData, isLoading, error } = useFetchData({
     pageSize: table.getState().pagination.pageSize,
     offset: table.getState().pagination.pageIndex,
-    roles: [],
+    roles: customFilters?.roles ?? [],
     search: table.getColumn("first_name")?.getFilterValue() as string,
     sorting: table.getState().sorting[0]?.id,
     sort_desc: table.getState().sorting[0]?.desc,

@@ -306,7 +306,6 @@ impl MemberService {
                     .collect::<HashMap<String, Identity>>()
             })
             .map_err(|e| e.to_string());
-        
         match (users, members) {
             (Ok(users), Ok(members)) => {
                 let mut members_with_roles = Vec::new();

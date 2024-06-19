@@ -1,10 +1,11 @@
-import { MemberWithRoles } from "@/common/types";
+import { MemberWithRoles, Role } from "@/common/types";
 import { useQuery } from "@tanstack/react-query";
 import axios from "axios";
 
 export enum QueryKey {
   MEMBERS = "members",
   MEMBER = "member",
+  ROLES = "roles",
 }
 
 export const axios_client = axios.create({
@@ -30,6 +31,7 @@ export function useGetAllMembers(params: GetAllMembersParams){
       const response = await axios_client.get("/members", {
         params: {
           ...params,
+          roles: params.roles.join(",") || undefined,
           page_size: params.pageSize,
         },
       });
@@ -47,3 +49,14 @@ export const useGetMember = (id: string) => {
     },
   });
 };
+
+
+export const useGetRoles = () => {
+  return useQuery({
+    queryKey: [QueryKey.ROLES],
+    queryFn: async () => {
+      const response = await axios_client.get("/roles");
+      return response.data as Role[];
+    },
+  });
+}

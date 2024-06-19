@@ -1,4 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
+import React from "react";
+import { useEffect } from "react";
 import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
@@ -6,21 +8,20 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 
-export function debounce<T extends (...args: unknown[]) => unknown>(
-  ms: number,
-  callback: T
-): (...args: Parameters<T>) => Promise<ReturnType<T>> {
-  let timer: NodeJS.Timeout | undefined;
+export function useDebounce<T>(value: T, delay?: number): T {
+  const [debouncedValue, setDebouncedValue] = React.useState<T>(value);
 
-  return (...args: Parameters<T>) => {
-    if (timer) {
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedValue(value), delay || 500);
+
+    return () => {
       clearTimeout(timer);
-    }
-    return new Promise<ReturnType<T>>((resolve) => {
-      timer = setTimeout(() => {
-        const returnValue = callback(...args) as ReturnType<T>;
-        resolve(returnValue);
-      }, ms);
-    })
-  };
+    };
+  }, [value, delay]);
+
+  return debouncedValue;
+}
+
+export function capitalizeFirstLetter(string) {
+  return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
 }

@@ -11,5 +11,9 @@ export interface Member {
 }
 
 export interface MemberWithRoles extends Member {
-  roles: string[];
+  role_names: string[];
+}
+
+export interface Role {
+  name: string;
 }

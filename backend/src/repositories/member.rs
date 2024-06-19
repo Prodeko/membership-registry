@@ -121,7 +121,6 @@ impl MemberRepo {
         order_by: Option<String>,
         order_desc: Option<bool>,
     ) -> Result<Vec<MemberWithRoles>, sqlx::Error> {
-        println!("Sorting by: {:?}", order_by);
         let members_with_roles = sqlx::query_as!(
             MemberWithRoles,
             r#"
@@ -139,6 +138,7 @@ impl MemberRepo {
                 RoleMember ON Member.user_id = RoleMember.user_id
             WHERE 
                 Member.full_name ILIKE '%' || $4 || '%'
+                AND (RoleMember.valid_until <= CURRENT_DATE OR RoleMember.valid_until IS NULL)
             GROUP BY
                 Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.has_accepted_policies
             HAVING
@@ -152,6 +152,7 @@ impl MemberRepo {
                         WHEN 'first_name' THEN Member.first_name
                         WHEN 'home_municipality' THEN Member.home_municipality
                         WHEN 'user_id' THEN Member.user_id::varchar
+                        WHEN 'role_names' THEN STRING_AGG(RoleMember.role_name, ', ')
                         ELSE Member.full_name
                     END
                 END ASC,
@@ -161,6 +162,7 @@ impl MemberRepo {
                         WHEN 'first_name' THEN Member.first_name
                         WHEN 'home_municipality' THEN Member.home_municipality
                         WHEN 'user_id' THEN Member.user_id::varchar
+                        WHEN 'role_names' THEN STRING_AGG(RoleMember.role_name, ', ')
                         ELSE Member.full_name
                     END
                 END DESC
