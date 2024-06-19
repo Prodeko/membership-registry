@@ -22,6 +22,18 @@ export function useDebounce<T>(value: T, delay?: number): T {
   return debouncedValue;
 }
 
-export function capitalizeFirstLetter(string) {
+export function capitalizeFirstLetter(string: string) {
   return string.charAt(0).toUpperCase() + string.slice(1).toLowerCase();
+}
+
+export function getDateAsString(date: Date | undefined) {
+  if (!date) {
+    return undefined;
+  }
+
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are zero-indexed, so add 1
+  const day = date.getDate().toString().padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
 }

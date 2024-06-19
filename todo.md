@@ -5,17 +5,18 @@
 - [] Create a new member
 - [] Update a member
 - [] Delete a member
-- [] List all members
-- [] Search for a member by name
+- [x] List all members
+- [x] Search for a member by name
 - [] Search for a member by email
 - [] Membership application form and payment
 - [] Membership renewal form and payment
 - [] Authentication
 - [] Integrating roles with Keto
 - [] Membership application notifications
-- [] Filter by valid date
+- [x] Filter by valid date
 - [] Export single roles members to CSV
 - [] Import members from CSV
+- [] Data validation: no overlapping roles of the same name for the same member
   
 ## Nice to have
 

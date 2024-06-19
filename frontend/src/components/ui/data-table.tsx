@@ -88,11 +88,12 @@ export function DataTable<TData, TValue>({
   const { data: fetchedData, isLoading, error } = useFetchData({
     pageSize: table.getState().pagination.pageSize,
     offset: table.getState().pagination.pageIndex,
-    roles: customFilters?.roles ?? [],
     search: table.getColumn("first_name")?.getFilterValue() as string,
     sorting: table.getState().sorting[0]?.id,
     sort_desc: table.getState().sorting[0]?.desc,
+    customFilters
   })
+  
   console.log(table.getState().sorting)
   React.useEffect(() => {
     if (fetchedData) {

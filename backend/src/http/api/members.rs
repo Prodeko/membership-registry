@@ -29,10 +29,12 @@ pub fn router(state: AppState) -> Router<AppState> {
 struct MembersQuery {
     page_size: Option<u64>,
     offset: Option<u64>,
-    roles: Option<String>,
     search: Option<String>,
     sorting: Option<String>,
     sort_desc: Option<bool>,
+    roles: Option<String>,
+    valid_from: Option<chrono::NaiveDate>,
+    valid_until: Option<chrono::NaiveDate>,
 }
 
 #[debug_handler]
@@ -58,6 +60,8 @@ async fn get_members(
             query.search,
             query.sorting,
             query.sort_desc,
+            query.valid_from,
+            query.valid_until,
         )
         .await;
 

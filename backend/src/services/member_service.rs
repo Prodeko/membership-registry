@@ -1,8 +1,11 @@
 // src/member_service.rs
 
-use std::collections::HashMap;
-use fake::{faker::name::en::{FirstName, LastName}, Fake};
-use rand::seq::SliceRandom;  // Import SliceRandom for easy access to slice methods
+use fake::{
+    faker::name::en::{FirstName, LastName},
+    Fake,
+};
+use rand::seq::SliceRandom;
+use std::collections::HashMap; // Import SliceRandom for easy access to slice methods
 
 use crate::repositories::member::{Member, MemberRepo, NewMember};
 use ory_client::models::Identity;
@@ -66,7 +69,7 @@ impl MemberService {
             )
             .await
             .map_err(|e| e.to_string());
-        
+
         match user.map(|u| Uuid::parse_str(&u.id)) {
             Ok(Ok(user_id)) => {
                 let new_member = NewMember {
@@ -231,7 +234,10 @@ impl MemberService {
     pub async fn generate_sample_data(&self, amount: usize) -> Result<(), String> {
         println!("Generating sample data. Amount of members: {}", amount);
 
-        self.user_service.delete_all_users().await.map_err(|e| e.to_string())?;
+        self.user_service
+            .delete_all_users()
+            .await
+            .map_err(|e| e.to_string())?;
         self.repo.delete_all().await.map_err(|e| e.to_string())?;
 
         let municipalities = vec![
@@ -257,7 +263,6 @@ impl MemberService {
             "yahoo.com",
             "outlook.com",
         ];
-        
 
         let mut rng = rand::thread_rng();
         for i in 0..amount as usize {
@@ -266,7 +271,12 @@ impl MemberService {
             let last_name: String = LastName().fake();
             let home_municipality = municipalities.choose(&mut rng).unwrap();
             let email_domain = emails.choose(&mut rng).unwrap();
-            let email = format!("{}.{}@{}", first_name.to_lowercase(), last_name.to_lowercase(), email_domain);
+            let email = format!(
+                "{}.{}@{}",
+                first_name.to_lowercase(),
+                last_name.to_lowercase(),
+                email_domain
+            );
             let member = MemberWithoutId {
                 email,
                 first_name: first_name.to_string(),
@@ -276,7 +286,7 @@ impl MemberService {
             };
             self.create_member(member).await?;
             println!("Creating member");
-        };
+        }
         Ok(())
     }
 
@@ -288,10 +298,12 @@ impl MemberService {
         search: Option<String>,
         order_by: Option<String>,
         order_desc: Option<bool>,
+        valid_from: Option<chrono::NaiveDate>,
+        valid_until: Option<chrono::NaiveDate>,
     ) -> Result<Vec<MemberWithRoles>, String> {
         let members = self
             .repo
-            .fetch_members_with_roles(page_size, offset, roles, search, order_by, order_desc)
+            .fetch_members_with_roles(page_size, offset, roles, search, order_by, order_desc, valid_from, valid_until)
             .await
             .map_err(|e| e.to_string());
 

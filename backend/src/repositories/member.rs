@@ -120,6 +120,8 @@ impl MemberRepo {
         search: Option<String>,
         order_by: Option<String>,
         order_desc: Option<bool>,
+        valid_from: Option<chrono::NaiveDate>,
+        valid_until: Option<chrono::NaiveDate>,
     ) -> Result<Vec<MemberWithRoles>, sqlx::Error> {
         let members_with_roles = sqlx::query_as!(
             MemberWithRoles,
@@ -138,7 +140,13 @@ impl MemberRepo {
                 RoleMember ON Member.user_id = RoleMember.user_id
             WHERE 
                 Member.full_name ILIKE '%' || $4 || '%'
-                AND (RoleMember.valid_until <= CURRENT_DATE OR RoleMember.valid_until IS NULL)
+                AND (
+                    array_length($3::varchar[], 1) IS NULL OR 
+                    array_length($3::varchar[], 1) = 0  OR
+                    ((RoleMember.valid_until >= $8 OR RoleMember.valid_until is NULL) AND
+                      RoleMember.valid_from <= $7
+                    )
+                )
             GROUP BY
                 Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.has_accepted_policies
             HAVING
@@ -173,11 +181,13 @@ impl MemberRepo {
             &roles.unwrap_or_default(),
             search.as_deref().unwrap_or_default(),
             &order_by.unwrap_or_else(|| "full_name".to_string()),
-            if {order_desc.unwrap_or(false)} { "DESC" } else { "ASC" }
+            if order_desc.unwrap_or(false) { "DESC" } else { "ASC" },
+            valid_from.unwrap_or(chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
+            valid_until.unwrap_or(chrono::NaiveDate::from_ymd_opt(9999, 12, 31).unwrap())
         )
         .fetch_all(&self.pool)
         .await?;
-        
+
         Ok(members_with_roles)
     }
 }
