@@ -103,8 +103,8 @@ impl MemberService {
         self.repo.fetch_all().await.map_err(|e| e.to_string())
     }
 
-    pub async fn get_all_members_with_user(&self) -> Result<Vec<MemberWithUser>, String> {
-        let members = self.repo.fetch_all().await.map_err(|e| e.to_string());
+    pub async fn get_all_members_with_user(&self, user_ids: Option<Vec<Uuid>>) -> Result<Vec<MemberWithUser>, String> {
+        let members = self.repo.fetch_with_ids(user_ids).await.map_err(|e| e.to_string());
         let users = self
             .user_service
             .get_all_users()

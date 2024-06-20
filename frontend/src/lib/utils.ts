@@ -1,3 +1,4 @@
+import { Option } from "@/components/ui/multiple-selector";
 import { type ClassValue, clsx } from "clsx"
 import React from "react";
 import { useEffect } from "react";
@@ -43,4 +44,11 @@ export function confirmAnd(action: () => void, message: string) {
   if (window.confirm(message)) {
     action();
   }
+}
+
+export function stringsToOptions(strings: string[]): Option[] {
+  return strings.map((string) => ({
+    label: capitalizeFirstLetter(string),
+    value: string,
+  }));
 }

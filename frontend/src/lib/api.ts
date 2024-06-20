@@ -4,7 +4,8 @@ import axios from "axios";
 import { getDateAsString } from "./utils";
 
 export enum QueryKey {
-  MEMBERS = "members",
+  MEMBERS_WITH_ROLES = "members_with_roles",
+  MEMBERS_WITH_IDS = "members_with_ids",
   MEMBER = "member",
   ROLES = "roles",
 }
@@ -16,7 +17,6 @@ export const axios_client = axios.create({
   },
 });
 
-
 interface PaginatedQueryParams {
   pageSize: number;
   offset: number;
@@ -26,26 +26,41 @@ interface PaginatedQueryParams {
   customFilters: {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     [key: string]: any;
-  }
+  };
 }
 
-
-export function useGetAllMembers(params: PaginatedQueryParams){
+export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
   return useQuery<MemberWithRoles[]>({
-    queryKey: [QueryKey.MEMBERS, params],
+    queryKey: [QueryKey.MEMBERS_WITH_ROLES, params],
     queryFn: async () => {
       console.log(params);
       const response = await axios_client.get("/members", {
         params: {
           ...params,
           roles: params.customFilters?.roles?.join(",") || undefined,
-          valid_from: getDateAsString(params.customFilters?.valid_from) || undefined,
-          valid_until: getDateAsString(params.customFilters?.valid_until) || undefined,  
+          valid_from:
+            getDateAsString(params.customFilters?.valid_from) || undefined,
+          valid_until:
+            getDateAsString(params.customFilters?.valid_until) || undefined,
           page_size: params.pageSize,
-          customFilters: undefined
+          customFilters: undefined,
         },
       });
-      console.log(response)
+      console.log(response);
+      return response.data;
+    },
+  });
+}
+
+export function useGetMembersWithIds(ids: string[]) {
+  return useQuery<MemberWithRoles[]>({
+    queryKey: [QueryKey.MEMBERS_WITH_IDS, ids],
+    queryFn: async () => {
+      const response = await axios_client.get("/members", {
+        params: {
+          user_ids: ids.join(","),
+        },
+      });
       return response.data;
     },
   });
@@ -53,14 +68,13 @@ export function useGetAllMembers(params: PaginatedQueryParams){
 
 export const useGetMember = (id: string) => {
   return useQuery({
-    queryKey: [QueryKey.MEMBERS, { id }],
+    queryKey: [QueryKey.MEMBERS_WITH_ROLES, { id }],
     queryFn: async () => {
       const response = await axios_client.get(`/members/${id}`);
       return response.data;
     },
   });
 };
-
 
 export const useGetRoles = () => {
   return useQuery({
@@ -70,7 +84,7 @@ export const useGetRoles = () => {
       return response.data as Role[];
     },
   });
-}
+};
 
 export const useDeleteMember = () => {
   return useMutation({
@@ -78,7 +92,7 @@ export const useDeleteMember = () => {
       await axios_client.delete(`/members/${id}`);
     },
   });
-}
+};
 
 export const useDeleteManyMembers = () => {
   return useMutation({
@@ -88,4 +102,26 @@ export const useDeleteManyMembers = () => {
       });
     },
   });
-}
+};
+
+export const useAddMultipleRolesToMembers = () => {
+  return useMutation<
+    void,
+    Error,
+    {
+      userIds: string[];
+      roleNames: string[];
+      validFrom: Date;
+      validUntil: Date;
+    }
+  >({
+    mutationFn: async ({ userIds, roleNames, validFrom, validUntil }) => {
+      await axios_client.post("/members/roles", {
+        user_ids: userIds,
+        role_names: roleNames,
+        valid_from: getDateAsString(validFrom),
+        valid_until: getDateAsString(validUntil),
+      });
+    },
+  });
+};

@@ -63,6 +63,21 @@ impl MemberRepo {
         Ok(members)
     }
 
+    pub async fn fetch_with_ids(&self, ids: Option<Vec<Uuid>>) -> Result<Vec<Member>, sqlx::Error> {
+        let members = sqlx::query_as!(Member,             
+            r#"
+            SELECT * 
+            FROM member 
+            WHERE 
+                array_length($1::uuid[], 1) IS NULL OR 
+                array_length($1::uuid[], 1) = 0  OR 
+                user_id = ANY($1)
+            "#, &ids.unwrap_or_default())
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(members)
+    }
+
     pub async fn fetch_one(&self, id: Uuid) -> Result<Member, sqlx::Error> {
         let member = sqlx::query_as!(Member, "SELECT * FROM member WHERE user_id = $1", id)
             .fetch_one(&self.pool)

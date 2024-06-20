@@ -130,7 +130,7 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
               onClick={async () => {
                 deleteMember(member.user_id, {
                   onSuccess: () => {
-                    queryClient.invalidateQueries({queryKey: [QueryKey.MEMBERS]});
+                    queryClient.invalidateQueries({queryKey: [QueryKey.MEMBERS_WITH_ROLES]});
                   },
                 })
               }}

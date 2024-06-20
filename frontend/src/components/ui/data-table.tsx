@@ -3,8 +3,6 @@
 import {
   ColumnDef,
   ColumnFiltersState,
-  Row,
-  RowSelectionState,
   SortingState,
   VisibilityState,
   flexRender,
@@ -26,16 +24,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
+import type { Table as TableType } from "@tanstack/react-table";
+
 import { UseQueryResult } from "@tanstack/react-query";
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
-import { Button } from "./button";
 
-
-export interface Action<TData> {
-  label: string;
-  onClick: (rows: TData[]) => void;
-}
+type ActionElement<TData> = (
+  table: TableType<TData>,
+  selectedRows: string[]
+) => React.ReactNode;
 interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -43,7 +41,8 @@ interface DataTableProps<TData, TValue> {
   initialColumnVisibility?: VisibilityState;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customFilters?: any;
-  multipleRowActions?: Action<TData>[];
+  multipleRowActionElements?: ActionElement<TData>[];
+  getRowId?: (row: TData) => string;
 }
 
 export function DataTable<TData, TValue>({
@@ -51,7 +50,8 @@ export function DataTable<TData, TValue>({
   useFetchData,
   initialColumnVisibility,
   customFilters,
-  multipleRowActions,
+  multipleRowActionElements,
+  getRowId,
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState<TData[]>([]);
   const [rowSelection, setRowSelection] = React.useState({});
@@ -92,6 +92,7 @@ export function DataTable<TData, TValue>({
     getSortedRowModel: getSortedRowModel(),
     getFacetedRowModel: getFacetedRowModel(),
     getFacetedUniqueValues: getFacetedUniqueValues(),
+    getRowId,
   });
 
   const {
@@ -107,37 +108,25 @@ export function DataTable<TData, TValue>({
     customFilters,
   });
 
-  console.log(table.getState().sorting);
   React.useEffect(() => {
     if (fetchedData) {
       setTableData(fetchedData);
     }
   }, [fetchedData]);
 
-  const handleMultipleRowAction = (action: Action<TData>) => {
-    const rowSelection = table.getState().rowSelection;
-    const rows = table
-      .getRowModel()
-      .rows.filter((row) => rowSelection[row.id])
-      .map((row) => row.original)
-    action.onClick(rows);
-    setRowSelection({});
-  }
+  const parseRowsFromSelection = () => {
+    return Object.entries(table.getState().rowSelection)
+      .filter(([, isSelected]) => isSelected)
+      .map(([id]) => id);
+  };
 
   return (
     <div className="space-y-4 m-8">
       <DataTableToolbar table={table} />
-      {multipleRowActions &&
-        multipleRowActions.map((action) => (
-          <Button
-            key={action.label}
-            disabled={!Object.values(table.getState().rowSelection).some(Boolean)}
-            variant={"outline"}
-            onClick={() => handleMultipleRowAction(action)}
-          >
-            {action.label}
-          </Button>
-        ))}
+      {multipleRowActionElements &&
+        multipleRowActionElements.map((element) =>
+          element(table, parseRowsFromSelection())
+        )}
       <div className="rounded-md border">
         <Table>
           <TableHeader>

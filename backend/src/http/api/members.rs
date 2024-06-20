@@ -19,6 +19,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/members", get(get_members))
         .route("/members", post(post_member))
         .route("/members", delete(delete_many))
+        .route("/members/roles", get(get_members_with_roles))
+        .route("/members/roles", post(add_many_roles))
         .route("/members/:user_id", get(get_member))
         .route("/members/:user_id", put(update_member))
         .route("/members/:user_id", delete(delete_member))
@@ -28,6 +30,38 @@ pub fn router(state: AppState) -> Router<AppState> {
 
 #[derive(Deserialize, Debug)]
 struct MembersQuery {
+    user_ids: Option<String>,
+}
+async fn get_members(
+    State(state): State<AppState>,
+    Query(query): Query<MembersQuery>,
+) -> Result<Json<Vec<MemberWithUser>>, String> {
+    let user_ids = query
+        .user_ids
+        .clone()
+        .map(|s| {
+            s.split(',')
+                .map(|uuid| Uuid::parse_str(uuid).map_err(|e| e.to_string()))
+                .collect::<Result<Vec<Uuid>, _>>().ok()
+        }).flatten();
+
+    println!("User ids: {:?}", user_ids);
+    println!("user ids query: {:?}", query.user_ids.clone());
+
+    let members = state
+        .member_service
+        .get_all_members_with_user(user_ids)
+        .await;
+
+    if let Err(e) = &members {
+        println!("Error fetching members: {:?}", e);
+    }
+
+    members.map(Json).map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize, Debug)]
+struct MembersWithRolesQuery {
     page_size: Option<u64>,
     offset: Option<u64>,
     search: Option<String>,
@@ -39,9 +73,9 @@ struct MembersQuery {
 }
 
 #[debug_handler]
-async fn get_members(
+async fn get_members_with_roles(
     State(state): State<AppState>,
-    Query(query): Query<MembersQuery>,
+    Query(query): Query<MembersWithRolesQuery>,
 ) -> Result<Json<Vec<MemberWithRoles>>, String> {
     let roles = query.roles.clone().map(|roles| {
         roles
@@ -169,6 +203,36 @@ async fn add_role(
 
     if let Err(e) = &result {
         println!("Error adding role: {:?}", e);
+    }
+
+    result.map(|_| ()).map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize)]
+struct AddManyRolesBody {
+    user_ids: Vec<Uuid>,
+    role_names: Vec<String>,
+    valid_from: chrono::NaiveDate,
+    valid_until: Option<chrono::NaiveDate>,
+}
+
+#[debug_handler]
+async fn add_many_roles(
+    State(state): State<AppState>,
+    Json(query): Json<AddManyRolesBody>,
+) -> Result<(), String> {
+    let result = state
+        .role_service
+        .add_many_role_members(
+            query.user_ids,
+            query.role_names,
+            query.valid_from,
+            query.valid_until,
+        )
+        .await;
+
+    if let Err(e) = &result {
+        println!("Error adding roles: {:?}", e);
     }
 
     result.map(|_| ()).map_err(|e| e.to_string())
