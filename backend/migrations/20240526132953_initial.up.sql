@@ -30,7 +30,7 @@ CREATE TABLE RoleMember (
     valid_from date not null,
     valid_until date,
     primary key (user_id, role_name, valid_from),
-    foreign key (user_id) references Member(user_id),
+    foreign key (user_id) references Member(user_id) ON DELETE CASCADE,
     foreign key (role_name) references Role(name)
 );
 
