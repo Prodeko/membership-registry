@@ -35,6 +35,8 @@ export interface DateRangePickerProps {
   locale?: string
   /** Option for showing compare feature */
   showCompare?: boolean
+  /** Option for disabling the DateRangePicker */
+  disabled?: boolean
 }
 
 const formatDate = (date: Date, locale: string = 'en-us'): string => {
@@ -88,6 +90,7 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
   initialCompareFrom,
   initialCompareTo,
   onUpdate,
+  disabled = false,
   align = 'end',
   locale = 'en-US',
   showCompare = true
@@ -264,7 +267,7 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
 
   useEffect(() => {
     checkPreset()
-  }, [range])
+  }, [checkPreset, range])
 
   const PresetButton = ({
     preset,
@@ -305,7 +308,7 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
       openedRangeRef.current = range
       openedRangeCompareRef.current = rangeCompare
     }
-  }, [isOpen])
+  }, [isOpen, range, rangeCompare])
 
   return (
     <Popover
@@ -319,7 +322,7 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
       }}
     >
       <PopoverTrigger asChild>
-        <Button size={'lg'} variant="outline">
+        <Button size={'lg'} variant="outline" disabled={disabled}>
           <div className="text-right">
             <div className="py-1">
               <div>{`${formatDate(range.from, locale)}${

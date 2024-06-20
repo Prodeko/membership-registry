@@ -1,5 +1,5 @@
 import { MemberWithRoles, Role } from "@/common/types";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { getDateAsString } from "./utils";
 
@@ -68,6 +68,14 @@ export const useGetRoles = () => {
     queryFn: async () => {
       const response = await axios_client.get("/roles");
       return response.data as Role[];
+    },
+  });
+}
+
+export const useDeleteMember = () => {
+  return useMutation({
+    mutationFn: async (id: string) => {
+      await axios_client.delete(`/members/${id}`);
     },
   });
 }

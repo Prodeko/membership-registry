@@ -42,6 +42,7 @@ const Members: React.FC = () => {
           }}
           locale="fi"
           showCompare={false}
+          disabled={selectedRoles.length === 0}
         />
       </div>
       <DataTable
