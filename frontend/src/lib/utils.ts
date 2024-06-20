@@ -37,3 +37,10 @@ export function getDateAsString(date: Date | undefined) {
 
   return `${year}-${month}-${day}`;
 }
+
+
+export function confirmAnd(action: () => void, message: string) {
+  if (window.confirm(message)) {
+    action();
+  }
+}

@@ -125,6 +125,15 @@ impl UserService {
         delete_identity(&self.config, user_id).await
     }
 
+    pub async fn delete_many(&self, ids: Vec<String>) -> Result<(), String> {
+        for id in ids {
+            delete_identity(&self.config, &id)
+                .await
+                .map_err(|e| format!("Failed to delete user with id {}: {}", &id, e.to_string()))?;
+        }
+        Ok(())
+    }
+
     pub async fn delete_all_users(&self) -> Result<(), String> {
         let users = self
             .get_all_users()

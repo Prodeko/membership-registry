@@ -231,6 +231,18 @@ impl MemberService {
         }
     }
 
+    pub async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), String> {
+        let user_result = self
+            .user_service
+            .delete_many(ids.iter().map(|id| id.to_string()).collect())
+            .await
+            .map_err(|e| e.to_string());
+        match user_result {
+            Ok(_) => self.repo.delete_many(ids).await.map_err(|e| e.to_string()),
+            Err(e) => Err(e),
+        }
+    }
+
     pub async fn generate_sample_data(&self, amount: usize) -> Result<(), String> {
         println!("Generating sample data. Amount of members: {}", amount);
 

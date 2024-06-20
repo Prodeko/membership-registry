@@ -18,6 +18,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/members", get(get_members))
         .route("/members", post(post_member))
+        .route("/members", delete(delete_many))
         .route("/members/:user_id", get(get_member))
         .route("/members/:user_id", put(update_member))
         .route("/members/:user_id", delete(delete_member))
@@ -123,6 +124,22 @@ async fn delete_member(
     state
         .member_service
         .delete_member(user_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize)]
+struct DeleteManyBody {
+    ids: Vec<Uuid>,
+}
+
+async fn delete_many(
+    State(state): State<AppState>,
+    Json(query): Json<DeleteManyBody>,
+) -> Result<(), String> {
+    state
+        .member_service
+        .delete_many(query.ids)
         .await
         .map_err(|e| e.to_string())
 }

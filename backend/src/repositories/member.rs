@@ -105,6 +105,13 @@ impl MemberRepo {
         Ok(())
     }
 
+    pub async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), sqlx::Error> {
+        sqlx::query!("DELETE FROM member WHERE user_id = ANY($1)", &ids)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn delete_all(&self) -> Result<(), sqlx::Error> {
         sqlx::query!("DELETE FROM member")
             .execute(&self.pool)

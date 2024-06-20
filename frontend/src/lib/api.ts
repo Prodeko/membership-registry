@@ -79,3 +79,13 @@ export const useDeleteMember = () => {
     },
   });
 }
+
+export const useDeleteManyMembers = () => {
+  return useMutation({
+    mutationFn: async (ids: string[]) => {
+      await axios_client.delete(`/members`, {
+        data: { ids },
+      });
+    },
+  });
+}
