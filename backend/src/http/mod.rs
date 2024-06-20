@@ -1,16 +1,17 @@
 use std::sync::Arc;
 
 use axum::{http::Method, Router};
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer};
 
 use crate::{
     config::Config,
-    repositories::PostgresRepo,
     services::{
         appication_service::ApplicationService, member_service::MemberService,
         role_service::RoleService, user_service::UserService, Services,
     },
 };
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, fmt, EnvFilter};
+
 
 mod api;
 mod index;
@@ -40,7 +41,14 @@ pub async fn serve(config: Config, services: Services) {
         .allow_headers(Any)
         .allow_origin(Any);
 
-    let app: Router = router(state.clone()).with_state(state).layer(cors);
+    tracing_subscriber::fmt()
+        .with_max_level(tracing::Level::DEBUG)
+        .init();
+
+    let app: Router = router(state.clone()).with_state(state).layer(cors).layer(
+        TraceLayer::new_for_http()
+    );
+
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port.clone()))
         .await
