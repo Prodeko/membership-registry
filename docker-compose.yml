@@ -10,7 +10,8 @@ services:
     ports:
       - "5433:5432" # for development
     networks:
-      - intranet
+      - auth_intranet
 
 networks:
-  intranet:
+  auth_intranet:
+    external: true
