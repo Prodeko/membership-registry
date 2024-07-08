@@ -133,6 +133,7 @@ impl RoleRepo {
           SELECT user_id, role_name, valid_from, valid_until
           FROM RoleMember
           WHERE user_id = $1
+          ORDER BY valid_from DESC
           "#,
             user_id
         )

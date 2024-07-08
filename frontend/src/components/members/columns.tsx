@@ -15,6 +15,7 @@ import {
 } from "../ui/dropdown-menu";
 import { QueryKey, useDeleteMember } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 
 export const columns: ColumnDef<MemberWithRoles>[] = [
   {
@@ -50,18 +51,39 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="First Name" />
     ),
+    cell: ({ row }) => {
+      return (
+        <Link to={`/members/${row.original.user_id}`} className="flex items-center">
+          {row.original.first_name}
+        </Link>
+      );
+    }
   },
   {
     accessorKey: "last_name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Last Name" />
     ),
+    cell: ({ row }) => {
+      return (
+        <Link to={`/members/${row.original.user_id}`} className="flex items-center">
+          {row.original.last_name}
+        </Link>
+      );
+    }
   },
   {
     accessorKey: "email",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Email" />
     ),
+    cell: ({ row }) => {
+      return (
+        <Link to={`/members/${row.original.user_id}`} className="flex items-center">
+          {row.original.email}
+        </Link>
+      );
+    }
   },
   {
     accessorKey: "role_names",

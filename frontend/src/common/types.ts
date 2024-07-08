@@ -18,3 +18,10 @@ export interface MemberWithRoles extends Member {
 export interface Role {
   name: string;
 }
+
+export interface RoleMember {
+  user_id: string;
+  role_name: string;
+  valid_from: Date;
+  valid_until: Date;
+}

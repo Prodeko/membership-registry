@@ -1,0 +1,91 @@
+import { useGetMember, useGetMemberRoles } from "@/lib/api";
+import { useNavigate, useParams } from "react-router-dom";
+import { Card } from "../ui/card";
+import { Badge } from "../ui/badge";
+import { capitalizeFirstLetter } from "@/lib/utils";
+import AddRolesModal from "./AddRolesModal";
+import { Button } from "../ui/button";
+import DeleteMembersModal from "./DeleteMembersModal";
+
+const Member: React.FC = () => {
+  const { id: userId } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+
+  const {
+    data: member,
+    isLoading: isMemberLoading,
+    error: memberError,
+  } = useGetMember(userId!);
+
+  const {
+    data: roles,
+    isLoading: isRolesLoading,
+    error: rolesError,
+    refetch: refetchRoles,
+  } = useGetMemberRoles(userId!);
+
+  console.log(member);
+
+  if (isMemberLoading || isRolesLoading) {
+    return <div>Loading...</div>;
+  }
+
+  if (memberError || rolesError) {
+    return (
+      <div>
+        Error: {memberError?.message ?? ""}, {rolesError?.message ?? ""}
+      </div>
+    );
+  }
+
+  if (!member) {
+    return <div>Member not found</div>;
+  }
+
+  return (
+    <div className="flex justify-center align-middle p-20">
+      <Card className="p-8 space-y-6">
+        <h1 className="text-4xl">{member.full_name}</h1>
+        <div className="grid grid-cols-2 gap-4">
+          <div>User id:</div>
+          <div>{member.user_id}</div>
+          <div>Email:</div>
+          <div>{member.email}</div>
+          <div>Home municipality:</div>
+          <div>{member.home_municipality}</div>
+          <div>Has accepted policies:</div>
+          <div>{member.has_accepted_policies ? "True" : "False"}</div>
+        </div>
+        <div className="space-y-3">
+          <h2 className="text-2xl space-x-4">
+            <span>Roles</span>{" "}
+            <AddRolesModal
+              userIds={[member.user_id]}
+              disabled={false}
+              onClose={refetchRoles}
+            />{" "}
+          </h2>
+          <ul>
+            {roles?.map((role) => (
+              <li key={role.role_name} className="space-x-4">
+                <Badge>{capitalizeFirstLetter(role.role_name)}</Badge>
+                <span>
+                  {role.valid_from.toLocaleDateString()} -{" "}
+                  {role.valid_until.toLocaleDateString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div className="space-x-4">
+          <Button variant={"outline"} onClick={() => navigate(`/members/${userId}/edit`)}>
+              Edit member
+          </Button>
+          <DeleteMembersModal userIds={[member.user_id]} onClose={() => navigate("/members")} disabled={false} />
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+export default Member;

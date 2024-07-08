@@ -7,10 +7,8 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
-    repositories::role::RoleMember,
-    services::member_service::{MemberWithRoles, MemberWithUser, MemberWithoutId},
-};
+use crate::{repositories::role::RoleMember, services::member_service::{MemberWithRoles, MemberWithUser, MemberWithoutId}};
+
 
 use super::AppState;
 
@@ -24,6 +22,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/members/:user_id", get(get_member))
         .route("/members/:user_id", put(update_member))
         .route("/members/:user_id", delete(delete_member))
+        .route("/members/:user_id/roles", get(get_member_roles))
         .route("/members/:user_id/roles", post(add_role))
         .with_state(state)
 }
@@ -125,14 +124,30 @@ async fn post_member(
 async fn get_member(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-) -> Result<Json<MemberWithUser>, String> {
+) -> Result<Json<MemberWithUser>, axum::http::StatusCode> {
     let member = state.member_service.get_member(user_id).await;
 
     if let Err(e) = &member {
         println!("Error fetching member: {:?}", e);
     }
 
-    member.map(Json).map_err(|e| e.to_string())
+    // TODO: Return proper status code
+    member.map(Json).map_err(|_e| axum::http::StatusCode::NOT_FOUND)
+}
+
+#[debug_handler]
+async fn get_member_roles(
+    State(state): State<AppState>,
+    Path((user_id,)): Path<(Uuid,)>,
+) -> Result<Json<Vec<RoleMember>>, axum::http::StatusCode> {
+    let roles = state.role_service.get_member_roles(user_id).await;
+
+    if let Err(e) = &roles {
+        println!("Error fetching member roles: {:?}", e);
+    }
+
+    // TODO return proper status code
+    roles.map(Json).map_err(|_e|axum::http::StatusCode::NOT_FOUND)
 }
 
 #[debug_handler]

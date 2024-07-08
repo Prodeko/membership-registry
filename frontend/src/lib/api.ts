@@ -1,4 +1,4 @@
-import { MemberWithRoles, Role } from "@/common/types";
+import { Member, MemberWithRoles, Role, RoleMember } from "@/common/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { getDateAsString } from "./utils";
@@ -7,6 +7,7 @@ export enum QueryKey {
   MEMBERS_WITH_ROLES = "members_with_roles",
   MEMBERS_WITH_IDS = "members_with_ids",
   MEMBER = "member",
+  MEMBER_ROLES = "member_roles",
   ROLES = "roles",
 }
 
@@ -34,7 +35,7 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
     queryKey: [QueryKey.MEMBERS_WITH_ROLES, params],
     queryFn: async () => {
       console.log(params);
-      const response = await axios_client.get("/members", {
+      const response = await axios_client.get("/members/roles", {
         params: {
           ...params,
           roles: params.customFilters?.roles?.join(",") || undefined,
@@ -67,14 +68,28 @@ export function useGetMembersWithIds(ids: string[]) {
 }
 
 export const useGetMember = (id: string) => {
-  return useQuery({
-    queryKey: [QueryKey.MEMBERS_WITH_ROLES, { id }],
+  return useQuery<MemberWithRoles>({
+    queryKey: [QueryKey.MEMBER, { id }],
     queryFn: async () => {
       const response = await axios_client.get(`/members/${id}`);
       return response.data;
     },
   });
 };
+
+export const useGetMemberRoles = (id: string) => {
+  return useQuery<RoleMember[]>({
+    queryKey: [QueryKey.MEMBER_ROLES, { id }],
+    queryFn: async () => {
+      const response = await axios_client.get(`/members/${id}/roles`);
+      return response.data.map((role: RoleMember) => ({
+        ...role,
+        valid_from: new Date(role.valid_from),
+        valid_until: new Date(role.valid_until),
+      }));
+    },
+  });
+}
 
 export const useGetRoles = () => {
   return useQuery({

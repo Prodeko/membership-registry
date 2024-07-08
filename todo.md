@@ -4,7 +4,7 @@
 
 - [] Create a new member
 - [] Update a member
-- [] Delete a member
+- [x] Delete a member
 - [x] List all members
 - [x] Search for a member by name
 - [] Search for a member by email
