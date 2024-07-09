@@ -1,6 +1,3 @@
-
-
-
 export interface Member {
   user_id: string;
   first_name: string;
@@ -24,4 +21,14 @@ export interface RoleMember {
   role_name: string;
   valid_from: Date;
   valid_until: Date;
+}
+
+export interface DateRange {
+  from: Date;
+  to: Date | undefined;
+}
+
+export interface Preset {
+  name: string;
+  label: string;
 }

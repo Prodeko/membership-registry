@@ -1,5 +1,5 @@
 import { QueryKey, useAddMultipleRolesToMembers, useGetMembersWithIds, useGetRoles } from "@/lib/api";
-import { stringsToOptions } from "@/lib/utils";
+import { defaultFrom, defaultTo, stringsToOptions } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { FunctionComponent, useState } from "react";
 import { DateRange } from "react-day-picker";
@@ -92,6 +92,8 @@ const AddRolesModal: FunctionComponent<AddRolesModalProps> = ({
             disabled={selectedRoles.length === 0}
             showCompare={false}
             align="center"
+            initialDateFrom={defaultFrom}
+            initialDateTo={defaultTo}
           />
           <DialogClose asChild>
             <Button onClick={handleSubmit}>Add roles</Button>

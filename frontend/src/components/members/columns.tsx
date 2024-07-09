@@ -16,6 +16,7 @@ import {
 import { QueryKey, useDeleteMember } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import RoleBadge from "../ui/role-badge";
 
 export const columns: ColumnDef<MemberWithRoles>[] = [
   {
@@ -93,14 +94,9 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
     cell: ({ row }) => {
       return (
         <div className="flex flex-wrap">
-          {row.original.role_names?.map((role) => (
-            <span
-              key={role}
-              className="px-2 py-1 bg-gray-200 rounded-full whitespace-nowrap"
-            >
-              {role}
-            </span>
-          ))}
+          {row.original.role_names?.map((role) => role ? (
+            <RoleBadge key={role} role={role} />
+          ) : null)}
         </div>
       );
     },

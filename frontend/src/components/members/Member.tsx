@@ -1,11 +1,10 @@
 import { useGetMember, useGetMemberRoles } from "@/lib/api";
 import { useNavigate, useParams } from "react-router-dom";
 import { Card } from "../ui/card";
-import { Badge } from "../ui/badge";
-import { capitalizeFirstLetter } from "@/lib/utils";
 import AddRolesModal from "./AddRolesModal";
 import { Button } from "../ui/button";
 import DeleteMembersModal from "./DeleteMembersModal";
+import RoleBadge from "../ui/role-badge";
 
 const Member: React.FC = () => {
   const { id: userId } = useParams<{ id: string }>();
@@ -68,7 +67,7 @@ const Member: React.FC = () => {
           <ul>
             {roles?.map((role) => (
               <li key={role.role_name} className="space-x-4">
-                <Badge>{capitalizeFirstLetter(role.role_name)}</Badge>
+                <RoleBadge role={role.role_name} />
                 <span>
                   {role.valid_from.toLocaleDateString()} -{" "}
                   {role.valid_until.toLocaleDateString()}

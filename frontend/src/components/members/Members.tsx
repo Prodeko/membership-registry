@@ -1,14 +1,5 @@
-import { MemberWithRoles } from "@/common/types";
-import {
-  QueryKey,
-  useDeleteManyMembers,
-  useGetAllMembersWithRoles,
-  useGetRoles
-} from "@/lib/api";
-import {
-  stringsToOptions
-} from "@/lib/utils";
-import { useQueryClient } from "@tanstack/react-query";
+import { useGetAllMembersWithRoles, useGetRoles } from "@/lib/api";
+import { defaultFrom, defaultTo, stringsToOptions } from "@/lib/utils";
 import React from "react";
 import { DataTable } from "../ui/data-table";
 import { DateRangePicker } from "../ui/date-range-picker";
@@ -19,16 +10,15 @@ import { columns } from "./columns";
 import ExportMembersButton from "./ExportMembersButton";
 
 const Members: React.FC = () => {
+
   const { data: roles, isLoading, error } = useGetRoles();
-  const { mutate: deleteMembersMutation } = useDeleteManyMembers();
-  const queryClient = useQueryClient();
   const [selectedRoles, setSelectedRoles] = React.useState<Option[]>([]);
   const [selectedValidFrom, setSelectedValidFrom] = React.useState<
-    Date | undefined
-  >(undefined);
+    Date
+  >(defaultFrom);
   const [selectedValidUntil, setSelectedValidUntil] = React.useState<
-    Date | undefined
-  >(undefined);
+    Date
+  >(defaultTo);
 
   const onRoleChange = (selectedRoles: Option[]) => {
     setSelectedRoles(selectedRoles);
@@ -42,19 +32,23 @@ const Members: React.FC = () => {
     return <div>Error: {error.message}</div>;
   }
 
+
   return (
-    <div>
-      <h1>Members</h1>
-      <div className="flex">
+    <div className="p-8 space-y-4">
+      <h1 className="text-4xl">Members</h1>
+      <div className="flex space-x-2">
         <MultipleSelector
           options={stringsToOptions(roles?.map((r) => r.name) ?? [])}
           onChange={onRoleChange}
+          placeholder="Filter by role"
         />
         <DateRangePicker
           onUpdate={({ range }) => {
-            setSelectedValidUntil(range.to);
+            setSelectedValidUntil(range.to ?? defaultTo);
             setSelectedValidFrom(range.from);
           }}
+          initialDateFrom={defaultFrom}
+          initialDateTo={defaultTo}
           locale="fi"
           showCompare={false}
           disabled={selectedRoles.length === 0}
