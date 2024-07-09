@@ -2,8 +2,6 @@
 
 ## MVP
 
-- [] Create a new member
-- [] Update a member
 - [x] Delete a member
 - [x] List all members
 - [x] Search for a member by name
@@ -14,9 +12,14 @@
 - [] Integrating roles with Keto
 - [] Membership application notifications
 - [x] Filter by valid date
-- [] Export single roles members to CSV
-- [] Import members from CSV
+- [X] Export single roles members to CSV
 - [] Data validation: no overlapping roles of the same name for the same member
+
+## Backlog
+
+- [] Create a new member
+- [] Import members from CSV
+- [] Update a member
   
 ## Nice to have
 
@@ -29,3 +32,4 @@
 - [] Export all members to CSV
 - [] Save filters
 - [] Fix pagination controls (know when no more pages are available)
+  
