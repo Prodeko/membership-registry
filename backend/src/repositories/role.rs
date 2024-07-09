@@ -1,5 +1,5 @@
 use chrono::NaiveDate;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
@@ -10,12 +10,12 @@ pub struct RoleRepo {
     pub pool: PgPool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Role {
     pub name: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RoleMember {
     pub user_id: Uuid,
     pub role_name: String,
@@ -40,6 +40,14 @@ impl RoleRepo {
             .into_iter()
             .collect();
         Ok(roles)
+    }
+
+    pub async fn fetch_by_name(&self, role_name: &str) -> Result<Role, sqlx::Error> {
+        let role = sqlx::query_as::<_, Role>("SELECT name FROM Role WHERE name = $1")
+            .bind(role_name)
+            .fetch_one(&self.pool)
+            .await?;
+        Ok(role)
     }
 
     pub async fn delete(&self, role_name: &str) -> Result<(), sqlx::Error> {
@@ -125,6 +133,7 @@ impl RoleRepo {
           SELECT user_id, role_name, valid_from, valid_until
           FROM RoleMember
           WHERE user_id = $1
+          ORDER BY valid_from DESC
           "#,
             user_id
         )
@@ -137,7 +146,7 @@ impl RoleRepo {
         let records = sqlx::query_as!(
             Member,
             r#"
-          SELECT Member.user_id, first_name, last_name, home_municipality, has_accepted_policies
+          SELECT Member.user_id, first_name, last_name, full_name, home_municipality, has_accepted_policies
           FROM RoleMember JOIN Member ON RoleMember.user_id = Member.user_id
           WHERE role_name = $1
           "#,

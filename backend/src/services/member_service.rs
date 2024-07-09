@@ -1,6 +1,14 @@
 // src/member_service.rs
 
+use fake::{
+    faker::name::en::{FirstName, LastName},
+    Fake,
+};
+use rand::seq::SliceRandom;
+use std::collections::HashMap; // Import SliceRandom for easy access to slice methods
+
 use crate::repositories::member::{Member, MemberRepo, NewMember};
+use ory_client::models::Identity;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -12,7 +20,7 @@ pub struct MemberService {
     pub user_service: super::user_service::UserService,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct MemberWithoutId {
     pub email: String,
     pub first_name: String,
@@ -25,9 +33,39 @@ pub struct MemberWithUser {
     pub user_id: Uuid,
     pub first_name: String,
     pub last_name: String,
+    pub full_name: Option<String>,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
     pub email: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct MemberWithRoles {
+    pub user_id: Uuid,
+    pub first_name: String,
+    pub last_name: String,
+    pub full_name: Option<String>,
+    pub home_municipality: String,
+    pub has_accepted_policies: bool,
+    pub email: String,
+    pub role_names: serde_json::Value,
+}
+
+
+impl MemberWithRoles {
+    // Method to convert the struct to a CSV row
+    pub fn to_csv_row(&self) -> Vec<String> {
+        vec![
+            self.user_id.to_string(),
+            self.first_name.clone(),
+            self.last_name.clone(),
+            self.full_name.clone().unwrap_or_default(),
+            self.home_municipality.clone(),
+            self.has_accepted_policies.to_string(),
+            self.email.clone(),
+            self.role_names.to_string(),
+        ]
+    }
 }
 
 impl MemberService {
@@ -67,6 +105,7 @@ impl MemberService {
                     user_id: m.user_id,
                     first_name: m.first_name,
                     last_name: m.last_name,
+                    full_name: m.full_name,
                     home_municipality: m.home_municipality,
                     has_accepted_policies: m.has_accepted_policies,
                     email: member_to_add.email,
@@ -77,13 +116,17 @@ impl MemberService {
         }
     }
 
-    pub async fn get_all_members(&self) -> Result<Vec<MemberWithUser>, String> {
+    pub async fn get_all_members(&self) -> Result<Vec<Member>, String> {
+        self.repo.fetch_all().await.map_err(|e| e.to_string())
+    }
+
+    pub async fn get_all_members_with_user(&self, user_ids: Option<Vec<Uuid>>) -> Result<Vec<MemberWithUser>, String> {
+        let members = self.repo.fetch_with_ids(user_ids).await.map_err(|e| e.to_string());
         let users = self
             .user_service
             .get_all_users()
             .await
             .map_err(|e| e.to_string());
-        let members = self.repo.fetch_all().await.map_err(|e| e.to_string());
         match (users, members) {
             (Ok(users), Ok(members)) => {
                 let mut members_with_users = Vec::new();
@@ -99,6 +142,7 @@ impl MemberService {
                                 user_id: member.user_id,
                                 first_name: member.first_name,
                                 last_name: member.last_name,
+                                full_name: member.full_name,
                                 home_municipality: member.home_municipality,
                                 has_accepted_policies: member.has_accepted_policies,
                                 email: email.to_string(),
@@ -136,6 +180,7 @@ impl MemberService {
                             user_id: member.user_id,
                             first_name: member.first_name,
                             last_name: member.last_name,
+                            full_name: member.full_name,
                             home_municipality: member.home_municipality,
                             has_accepted_policies: member.has_accepted_policies,
                             email: email.to_string(),
@@ -169,6 +214,7 @@ impl MemberService {
                     user_id: updated_member.user_id,
                     first_name: updated_member.first_name,
                     last_name: updated_member.last_name,
+                    full_name: updated_member.full_name,
                     home_municipality: updated_member.home_municipality,
                     has_accepted_policies: updated_member.has_accepted_policies,
                 };
@@ -180,6 +226,7 @@ impl MemberService {
                         user_id: m.user_id,
                         first_name: m.first_name,
                         last_name: m.last_name,
+                        full_name: m.full_name,
                         home_municipality: m.home_municipality,
                         has_accepted_policies: m.has_accepted_policies,
                         email: updated_member.email,
@@ -198,6 +245,141 @@ impl MemberService {
         match user_result {
             Ok(_) => self.repo.delete(id).await.map_err(|e| e.to_string()),
             Err(e) => Err(e),
+        }
+    }
+
+    pub async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), String> {
+        let user_result = self
+            .user_service
+            .delete_many(ids.iter().map(|id| id.to_string()).collect())
+            .await
+            .map_err(|e| e.to_string());
+        match user_result {
+            Ok(_) => self.repo.delete_many(ids).await.map_err(|e| e.to_string()),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub async fn generate_sample_data(&self, amount: usize) -> Result<(), String> {
+        println!("Generating sample data. Amount of members: {}", amount);
+
+        self.user_service
+            .delete_all_users()
+            .await
+            .map_err(|e| e.to_string())?;
+        self.repo.delete_all().await.map_err(|e| e.to_string())?;
+
+        let municipalities = vec![
+            "Helsinki",
+            "Espoo",
+            "Vantaa",
+            "Tampere",
+            "Turku",
+            "Oulu",
+            "Lahti",
+            "Kuopio",
+            "Jyväskylä",
+            "Pori",
+        ];
+
+        let emails = vec![
+            "email.com",
+            "example.com",
+            "test.com",
+            "mail.com",
+            "gmail.com",
+            "hotmail.com",
+            "yahoo.com",
+            "outlook.com",
+        ];
+
+        let mut rng = rand::thread_rng();
+        for i in 0..amount as usize {
+            println!("Creating member {}/{}", i + 1, amount);
+            let first_name: String = FirstName().fake();
+            let last_name: String = LastName().fake();
+            let home_municipality = municipalities.choose(&mut rng).unwrap();
+            let email_domain = emails.choose(&mut rng).unwrap();
+            let email = format!(
+                "{}.{}@{}",
+                first_name.to_lowercase(),
+                last_name.to_lowercase(),
+                email_domain
+            );
+            let member = MemberWithoutId {
+                email,
+                first_name: first_name.to_string(),
+                last_name: last_name.to_string(),
+                home_municipality: home_municipality.to_string(),
+                has_accepted_policies: true,
+            };
+            self.create_member(member).await?;
+            println!("Creating member");
+        }
+        Ok(())
+    }
+
+    pub async fn get_members_with_roles(
+        &self,
+        page_size: Option<u64>,
+        offset: Option<u64>,
+        roles: Option<Vec<String>>,
+        search: Option<String>,
+        order_by: Option<String>,
+        order_desc: Option<bool>,
+        valid_from: Option<chrono::NaiveDate>,
+        valid_until: Option<chrono::NaiveDate>,
+    ) -> Result<Vec<MemberWithRoles>, String> {
+        let members = self
+            .repo
+            .fetch_members_with_roles(page_size, offset, roles, search, order_by, order_desc, valid_from, valid_until)
+            .await
+            .map_err(|e| e.to_string());
+
+        let users = self
+            .user_service
+            .get_many_users(None)
+            .await
+            .map(|users| {
+                users
+                    .into_iter()
+                    .map(|u| (u.id.clone(), u))
+                    .collect::<HashMap<String, Identity>>()
+            })
+            .map_err(|e| e.to_string());
+
+        println!("limit: {:?}", page_size);
+        println!("members: {:?}", members);
+        match (users, members) {
+            (Ok(users), Ok(members)) => {
+                let mut members_with_roles = Vec::new();
+                for member in members {
+                    let user = users.get(&member.user_id.to_string());
+                    let email = user
+                        .map(|u| u.traits.clone().map(|t| t.get("email").cloned()))
+                        .flatten()
+                        .flatten();
+                    match email {
+                        Some(email) => {
+                            members_with_roles.push(MemberWithRoles {
+                                user_id: member.user_id,
+                                first_name: member.first_name,
+                                last_name: member.last_name,
+                                full_name: member.full_name,
+                                home_municipality: member.home_municipality,
+                                has_accepted_policies: member.has_accepted_policies,
+                                email: email.to_string(),
+                                role_names: member.role_names,
+                            });
+                        }
+                        None => {
+                            return Err(format!("Could not find user {}", member.user_id));
+                        }
+                    }
+                }
+                return Ok(members_with_roles);
+            }
+            _ => return Err("Could not fetch members".to_string()),
         }
     }
 }

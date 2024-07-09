@@ -60,6 +60,24 @@ impl RoleService {
             .map_err(|e| e.to_string())
     }
 
+    pub async fn add_many_role_members(
+        &self,
+        user_ids: Vec<Uuid>,
+        role_names: Vec<String>,
+        valid_from: chrono::NaiveDate,
+        valid_until: Option<chrono::NaiveDate>,
+    ) -> Result<(), String> {
+        for role_name in role_names {
+            for user_id in &user_ids {
+                self.repo
+                    .create_role_member(*user_id, &role_name, valid_from, valid_until)
+                    .await
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        Ok(())
+    }
+
     pub async fn update_role_member(
         &self,
         user_id: Uuid,
