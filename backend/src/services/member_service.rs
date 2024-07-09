@@ -51,6 +51,23 @@ pub struct MemberWithRoles {
     pub role_names: serde_json::Value,
 }
 
+
+impl MemberWithRoles {
+    // Method to convert the struct to a CSV row
+    pub fn to_csv_row(&self) -> Vec<String> {
+        vec![
+            self.user_id.to_string(),
+            self.first_name.clone(),
+            self.last_name.clone(),
+            self.full_name.clone().unwrap_or_default(),
+            self.home_municipality.clone(),
+            self.has_accepted_policies.to_string(),
+            self.email.clone(),
+            self.role_names.to_string(),
+        ]
+    }
+}
+
 impl MemberService {
     pub fn new(repo: MemberRepo, user_service: UserService) -> Self {
         Self { repo, user_service }
@@ -330,6 +347,9 @@ impl MemberService {
                     .collect::<HashMap<String, Identity>>()
             })
             .map_err(|e| e.to_string());
+
+        println!("limit: {:?}", page_size);
+        println!("members: {:?}", members);
         match (users, members) {
             (Ok(users), Ok(members)) => {
                 let mut members_with_roles = Vec::new();

@@ -1,7 +1,9 @@
+import { Preset } from "@/common/types";
 import { Option } from "@/components/ui/multiple-selector";
 import { type ClassValue, clsx } from "clsx"
 import React from "react";
 import { useEffect } from "react";
+import { DateRange } from "react-day-picker";
 import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {
@@ -52,3 +54,16 @@ export function stringsToOptions(strings: string[]): Option[] {
     value: string,
   }));
 }
+
+export const downloadCsv = (blob: BlobPart, filename: string) => {
+  const url = window.URL.createObjectURL(new Blob([blob]));
+  const link = document.createElement('a');
+  link.href = url;
+  link.setAttribute('download', filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+};
+
+export const defaultFrom = new Date(new Date().getFullYear(), 0, 1, 0, 0, 0, 0);
+export const defaultTo = new Date(new Date().getFullYear(), 11, 31, 23, 59, 59, 999);

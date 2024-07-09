@@ -16,6 +16,7 @@ import MultipleSelector, { Option } from "../ui/multiple-selector";
 import AddRolesModal from "./AddRolesModal";
 import DeleteMembersModal from "./DeleteMembersModal";
 import { columns } from "./columns";
+import ExportMembersButton from "./ExportMembersButton";
 
 const Members: React.FC = () => {
   const { data: roles, isLoading, error } = useGetRoles();
@@ -86,7 +87,17 @@ const Members: React.FC = () => {
               onClose={() => table.setRowSelection({})}
               disabled={ids.length === 0}
             />
-          )
+          ),
+          (table) => (
+            <ExportMembersButton
+              table={table}
+              customFilters={{
+                roles: selectedRoles.map((role) => role.value),
+                valid_until: selectedValidUntil,
+                valid_from: selectedValidFrom,
+              }}
+            />
+          ),
         ]}
         getRowId={(row) => row.user_id}
       />

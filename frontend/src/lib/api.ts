@@ -1,7 +1,7 @@
 import { Member, MemberWithRoles, Role, RoleMember } from "@/common/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios from "axios";
-import { getDateAsString } from "./utils";
+import { downloadCsv, getDateAsString } from "./utils";
 
 export enum QueryKey {
   MEMBERS_WITH_ROLES = "members_with_roles",
@@ -49,6 +49,25 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
       });
       console.log(response);
       return response.data;
+    },
+  });
+}
+
+export function useExportMembersWithRoles() {
+  return useMutation({
+    mutationFn: async (params: PaginatedQueryParams) => {
+      const response = await axios_client.post("/members/roles/export", null, {
+        params: {
+          ...params,
+          roles: params.customFilters?.roles?.join(",") || undefined,
+          valid_from:
+            getDateAsString(params.customFilters?.valid_from) || undefined,
+          valid_until:
+            getDateAsString(params.customFilters?.valid_until) || undefined,
+        },
+        responseType: "blob",
+      });
+      return downloadCsv(response.data, `prodeko_members_${new Date().toISOString()}.csv`);
     },
   });
 }

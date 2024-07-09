@@ -30,7 +30,7 @@ import { UseQueryResult } from "@tanstack/react-query";
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
 
-type ActionElement<TData> = (
+export type ActionElement<TData> = (
   table: TableType<TData>,
   selectedRows: string[]
 ) => React.ReactNode;
@@ -114,19 +114,9 @@ export function DataTable<TData, TValue>({
     }
   }, [fetchedData]);
 
-  const parseRowsFromSelection = () => {
-    return Object.entries(table.getState().rowSelection)
-      .filter(([, isSelected]) => isSelected)
-      .map(([id]) => id);
-  };
-
   return (
-    <div className="space-y-4 m-8">
-      <DataTableToolbar table={table} />
-      {multipleRowActionElements &&
-        multipleRowActionElements.map((element) =>
-          element(table, parseRowsFromSelection())
-        )}
+    <div className="space-y-4">
+      <DataTableToolbar table={table} multipleRowActionElements={multipleRowActionElements}/>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -177,7 +167,7 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table} />
+      <DataTablePagination table={table}/>
     </div>
   );
 }

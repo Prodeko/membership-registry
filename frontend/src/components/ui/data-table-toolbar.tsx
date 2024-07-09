@@ -1,33 +1,44 @@
-"use client"
+"use client";
 
-import { Cross2Icon } from "@radix-ui/react-icons"
-import { Table } from "@tanstack/react-table"
+import { Cross2Icon } from "@radix-ui/react-icons";
+import { Table } from "@tanstack/react-table";
 
-import { Button } from "@/components/ui/button"
-import { DataTableViewOptions } from "@/components/ui/data-table-view-options"
-import { Input } from "@/components/ui/input"
-import { debounce } from "@/lib/utils"
+import { Button } from "@/components/ui/button";
+import { DataTableViewOptions } from "@/components/ui/data-table-view-options";
+import { Input } from "@/components/ui/input";
 
+import { ActionElement } from "./data-table";
 
 interface DataTableToolbarProps<TData> {
-  table: Table<TData>
+  table: Table<TData>;
+  multipleRowActionElements?: ActionElement<TData>[];
 }
 
 export function DataTableToolbar<TData>({
   table,
+  multipleRowActionElements,
+  customFilters
 }: DataTableToolbarProps<TData>) {
-  const isFiltered = table.getState().columnFilters.length > 0
+  const isFiltered = table.getState().columnFilters.length > 0;
+
+  const parseRowsFromSelection = () => {
+    return Object.entries(table.getState().rowSelection)
+      .filter(([, isSelected]) => isSelected)
+      .map(([id]) => id);
+  };
 
   return (
     <div className="flex items-center justify-between">
       <div className="flex flex-1 items-center space-x-2">
         <Input
-          placeholder="Filter members..."
-          value={(table.getColumn("first_name")?.getFilterValue() as string) ?? ""}
+          placeholder="Search"
+          value={
+            (table.getColumn("first_name")?.getFilterValue() as string) ?? ""
+          }
           onChange={(event) =>
             table.getColumn("first_name")?.setFilterValue(event.target.value)
           }
-          className="h-8 w-[150px] lg:w-[250px]"
+          className="mr-2"
         />
         {isFiltered && (
           <Button
@@ -40,7 +51,14 @@ export function DataTableToolbar<TData>({
           </Button>
         )}
       </div>
-      <DataTableViewOptions table={table} />
+      <div className="space-x-2 flex">
+        {multipleRowActionElements &&
+          multipleRowActionElements.map((element) =>
+            element(table, parseRowsFromSelection())
+          )}
+        
+        <DataTableViewOptions table={table} />
+      </div>
     </div>
-  )
+  );
 }

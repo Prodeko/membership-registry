@@ -133,7 +133,7 @@ impl MemberRepo {
             .await?;
         Ok(())
     }
-    
+
     pub async fn fetch_members_with_roles(
         &self,
         page_size: Option<u64>,
@@ -198,7 +198,7 @@ impl MemberRepo {
                 END DESC
             LIMIT $1 OFFSET $2::Integer * $1::Integer
           "#,
-            page_size.unwrap_or(10) as i64,
+            page_size.map(|x| x as i32).unwrap_or(i32::MAX) as i32,
             offset.unwrap_or(0) as i64,
             &roles.unwrap_or_default(),
             search.as_deref().unwrap_or_default(),

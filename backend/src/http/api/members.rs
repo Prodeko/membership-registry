@@ -1,14 +1,22 @@
+use std::mem;
+
 use axum::{
+    body::Body,
     debug_handler,
     extract::{Path, Query, State},
+    http::{HeaderMap, HeaderValue, Response, StatusCode},
     routing::{delete, get, post, put},
     Json, Router,
 };
+use csv::WriterBuilder;
 use serde::Deserialize;
+use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
-use crate::{repositories::role::RoleMember, services::member_service::{MemberWithRoles, MemberWithUser, MemberWithoutId}};
-
+use crate::{
+    repositories::role::RoleMember,
+    services::member_service::{MemberWithRoles, MemberWithUser, MemberWithoutId},
+};
 
 use super::AppState;
 
@@ -19,6 +27,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/members", delete(delete_many))
         .route("/members/roles", get(get_members_with_roles))
         .route("/members/roles", post(add_many_roles))
+        .route("/members/roles/export", post(export_members_with_roles))
         .route("/members/:user_id", get(get_member))
         .route("/members/:user_id", put(update_member))
         .route("/members/:user_id", delete(delete_member))
@@ -41,8 +50,10 @@ async fn get_members(
         .map(|s| {
             s.split(',')
                 .map(|uuid| Uuid::parse_str(uuid).map_err(|e| e.to_string()))
-                .collect::<Result<Vec<Uuid>, _>>().ok()
-        }).flatten();
+                .collect::<Result<Vec<Uuid>, _>>()
+                .ok()
+        })
+        .flatten();
 
     println!("User ids: {:?}", user_ids);
     println!("user ids query: {:?}", query.user_ids.clone());
@@ -83,8 +94,6 @@ async fn get_members_with_roles(
             .collect::<Vec<String>>()
     });
 
-    println!("Query: {:?}", query);
-
     let members = state
         .member_service
         .get_members_with_roles(
@@ -104,6 +113,77 @@ async fn get_members_with_roles(
     }
 
     members.map(Json)
+}
+
+#[debug_handler]
+async fn export_members_with_roles(
+    State(state): State<AppState>,
+    Query(query): Query<MembersWithRolesQuery>,
+) -> Result<Response<Body>, StatusCode> {
+    let roles = query.roles.clone().map(|roles| {
+        roles
+            .split(',')
+            .map(|role| role.to_string())
+            .collect::<Vec<String>>()
+    });
+
+    let members = state
+        .member_service
+        .get_members_with_roles(
+            None, // Ignore pagination
+            None,
+            roles,
+            query.search,
+            query.sorting,
+            query.sort_desc,
+            query.valid_from,
+            query.valid_until,
+        )
+        .await;
+
+    if let Err(e) = &members {
+        println!("Error fetching members: {:?}", e);
+    }
+
+    match members {
+        Ok(members) => {
+            // Write CSV to a string buffer
+            let mut wtr = WriterBuilder::new().from_writer(vec![]);
+            for record in members {
+                wtr.write_record(&record.to_csv_row())
+                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            }
+            let csv_data = wtr
+                .into_inner()
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            // Write the CSV data to a temporary file
+            let mut file = tokio::fs::File::create("/tmp/data.csv")
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            file.write_all(&csv_data)
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            // Read the file and respond with its content
+            let file = tokio::fs::File::open("/tmp/data.csv")
+                .await
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+            let stream = tokio_util::io::ReaderStream::new(file);
+
+            // Create the response
+            let response = Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "text/csv")
+                .header("Content-Disposition", "attachment; filename=\"data.csv\"")
+                .body(Body::from_stream(stream))
+                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+            Ok(response)
+        }
+        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
+    }
 }
 
 #[debug_handler]
@@ -132,7 +212,9 @@ async fn get_member(
     }
 
     // TODO: Return proper status code
-    member.map(Json).map_err(|_e| axum::http::StatusCode::NOT_FOUND)
+    member
+        .map(Json)
+        .map_err(|_e| axum::http::StatusCode::NOT_FOUND)
 }
 
 #[debug_handler]
@@ -147,7 +229,9 @@ async fn get_member_roles(
     }
 
     // TODO return proper status code
-    roles.map(Json).map_err(|_e|axum::http::StatusCode::NOT_FOUND)
+    roles
+        .map(Json)
+        .map_err(|_e| axum::http::StatusCode::NOT_FOUND)
 }
 
 #[debug_handler]
