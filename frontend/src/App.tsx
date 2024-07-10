@@ -5,6 +5,7 @@ import Member from "./components/members/Member";
 import Members from "./components/members/Members";
 import Roles from "./components/roles/Roles";
 import TargetableRoles from "./components/applications/TargetableRoles";
+import ApplicationForm from "./components/application-form/ApplicationForm";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,12 @@ const router = createBrowserRouter([
       <Layout>
         <TargetableRoles />
       </Layout>
+    ),
+  },
+  {
+    path: "/application-form",
+    element: (
+      <ApplicationForm />
     ),
   }
 ]);
