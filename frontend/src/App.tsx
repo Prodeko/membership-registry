@@ -3,6 +3,7 @@ import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import Layout from "./components/layout/Layout";
 import Member from "./components/members/Member";
 import Members from "./components/members/Members";
+import Roles from "./components/roles/Roles";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +32,14 @@ const router = createBrowserRouter([
       </Layout>
     ),
   },
+  {
+    path: "/roles",
+    element: (
+      <Layout>
+        <Roles />
+      </Layout>
+    ),
+  }
 ]);
 
 function App() {

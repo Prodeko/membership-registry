@@ -111,7 +111,7 @@ export const useGetMemberRoles = (id: string) => {
 }
 
 export const useGetRoles = () => {
-  return useQuery({
+  return useQuery<Role[]>({
     queryKey: [QueryKey.ROLES],
     queryFn: async () => {
       const response = await axios_client.get("/roles");
@@ -159,3 +159,37 @@ export const useAddMultipleRolesToMembers = () => {
     },
   });
 };
+
+export const useCreateRole = () => {
+  return useMutation<
+    void,
+    Error,
+    {
+      name: string;
+    }
+  >({
+    mutationFn: async ({ name }) => {
+      await axios_client.post("/roles", {
+        name,
+      });
+    },
+  });
+}
+
+export const useCreateTargetableRole = () => {
+  return useMutation<
+    void,
+    Error,
+    {
+      name: string;
+      target: string;
+    }
+  >({
+    mutationFn: async ({ name, target }) => {
+      await axios_client.post("/application/targetable-roles", {
+        name,
+        target,
+      });
+    },
+  });
+}
