@@ -5,15 +5,17 @@ use uuid::Uuid;
 #[derive(Deserialize, Debug)]
 pub struct NewMember {
     pub user_id: Uuid,
+    pub email: String,
     pub first_name: String,
     pub last_name: String,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Member {
     pub user_id: Uuid,
+    pub email: String,
     pub first_name: String,
     pub last_name: String,
     pub full_name: Option<String>,
@@ -21,15 +23,32 @@ pub struct Member {
     pub has_accepted_policies: bool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct MemberWithRoles {
     pub user_id: Uuid,
+    pub email: String,
     pub first_name: String,
     pub last_name: String,
     pub full_name: Option<String>,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
     pub role_names: Value,
+}
+
+impl MemberWithRoles {
+    // Method to convert the struct to a CSV row
+    pub fn to_csv_row(&self) -> Vec<String> {
+        vec![
+            self.user_id.to_string(),
+            self.first_name.clone(),
+            self.last_name.clone(),
+            self.full_name.clone().unwrap_or_default(),
+            self.home_municipality.clone(),
+            self.has_accepted_policies.to_string(),
+            self.email.clone(),
+            self.role_names.to_string(),
+        ]
+    }
 }
 
 #[derive(Clone)]
@@ -42,11 +61,12 @@ impl MemberRepo {
         let member_created = sqlx::query_as!(
             Member,
             r#"
-            INSERT INTO member (user_id, first_name, last_name, home_municipality, has_accepted_policies)
-            VALUES (CAST($1 AS UUID), $2, $3, $4, $5)
+            INSERT INTO member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies)
+            VALUES (CAST($1 AS UUID), $2, $3, $4, $5, $6)
             RETURNING *
         "#,
         member_to_add.user_id,
+        member_to_add.email,
         member_to_add.first_name,
         member_to_add.last_name,
         member_to_add.home_municipality,
@@ -150,6 +170,7 @@ impl MemberRepo {
             r#"
             SELECT
                 Member.user_id,
+                Member.email,
                 Member.first_name,
                 Member.last_name,
                 Member.full_name,

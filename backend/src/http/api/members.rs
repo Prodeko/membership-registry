@@ -14,8 +14,8 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::{
-    repositories::role::RoleMember,
-    services::member_service::{MemberWithRoles, MemberWithUser, MemberWithoutId},
+    repositories::{member::{Member, MemberWithRoles}, role::RoleMember},
+    services::member_service::MemberWithoutId,
 };
 
 use super::AppState;
@@ -43,7 +43,7 @@ struct MembersQuery {
 async fn get_members(
     State(state): State<AppState>,
     Query(query): Query<MembersQuery>,
-) -> Result<Json<Vec<MemberWithUser>>, String> {
+) -> Result<Json<Vec<Member>>, String> {
     let user_ids = query
         .user_ids
         .clone()
@@ -60,7 +60,7 @@ async fn get_members(
 
     let members = state
         .member_service
-        .get_all_members_with_user(user_ids)
+        .get_members_with_ids(user_ids)
         .await;
 
     if let Err(e) = &members {
@@ -190,7 +190,7 @@ async fn export_members_with_roles(
 async fn post_member(
     State(state): State<AppState>,
     Json(new_member): Json<MemberWithoutId>,
-) -> Result<Json<MemberWithUser>, String> {
+) -> Result<Json<Member>, String> {
     let member = state.member_service.create_member(new_member).await;
 
     if let Err(e) = &member {
@@ -204,7 +204,7 @@ async fn post_member(
 async fn get_member(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-) -> Result<Json<MemberWithUser>, axum::http::StatusCode> {
+) -> Result<Json<Member>, axum::http::StatusCode> {
     let member = state.member_service.get_member(user_id).await;
 
     if let Err(e) = &member {
@@ -238,8 +238,8 @@ async fn get_member_roles(
 async fn update_member(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-    Json(updated_member): Json<MemberWithUser>,
-) -> Result<Json<MemberWithUser>, String> {
+    Json(updated_member): Json<Member>,
+) -> Result<Json<Member>, String> {
     let member = state.member_service.update_member(updated_member).await;
 
     if let Err(e) = &member {

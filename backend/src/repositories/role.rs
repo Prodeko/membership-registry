@@ -146,7 +146,7 @@ impl RoleRepo {
         let records = sqlx::query_as!(
             Member,
             r#"
-          SELECT Member.user_id, first_name, last_name, full_name, home_municipality, has_accepted_policies
+          SELECT Member.user_id, email, first_name, last_name, full_name, home_municipality, has_accepted_policies
           FROM RoleMember JOIN Member ON RoleMember.user_id = Member.user_id
           WHERE role_name = $1
           "#,

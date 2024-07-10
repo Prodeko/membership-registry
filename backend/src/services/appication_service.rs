@@ -30,9 +30,10 @@ impl ApplicationService {
         &self,
         user_id: Uuid,
         role_name: String,
+        valid_until: chrono::NaiveDate,
     ) -> Result<Application, String> {
         self.repo
-            .fetch_one(user_id, role_name)
+            .fetch_one(user_id, role_name, valid_until)
             .await
             .map_err(|e| e.to_string())
     }
@@ -42,16 +43,17 @@ impl ApplicationService {
         updated_application: Application,
         user_id: Uuid,
         role_name: String,
+        valid_until: chrono::NaiveDate
     ) -> Result<Application, String> {
         self.repo
-            .update(updated_application, user_id, role_name)
+            .update(updated_application, user_id, role_name, valid_until)
             .await
             .map_err(|e| e.to_string())
     }
 
-    pub async fn delete_application(&self, user_id: Uuid, role_name: String) -> Result<(), String> {
+    pub async fn delete_application(&self, user_id: Uuid, role_name: String, valid_until: chrono::NaiveDate) -> Result<(), String> {
         self.repo
-            .delete(user_id, role_name)
+            .delete(user_id, role_name, valid_until)
             .await
             .map_err(|e| e.to_string())
     }
