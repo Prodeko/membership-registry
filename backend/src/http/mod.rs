@@ -6,7 +6,7 @@ use tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer};
 use crate::{
     config::Config,
     services::{
-        appication_service::ApplicationService, member_service::MemberService,
+        application_service::ApplicationService, member_service::MemberService,
         role_service::RoleService, user_service::UserService, Services,
     },
 };

@@ -4,8 +4,9 @@ use super::AppState;
 
 mod members;
 mod roles;
+mod applications;
 mod index;
 
 pub fn router(state: AppState) -> Router<AppState> {
-  index::router().merge(members::router(state.clone())).merge(roles::router(state.clone()))
+  index::router().merge(members::router(state.clone())).merge(roles::router(state.clone())).merge(applications::router(state.clone()))
 }

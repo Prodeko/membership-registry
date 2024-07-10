@@ -38,13 +38,14 @@ CREATE TABLE ApplicationTargetableRole (
 );
 
 CREATE TABLE Application (
+    application_id uuid primary key default gen_random_uuid(),
     user_id uuid not null,
     role_name text not null,
     valid_until date not null,
     timestamp timestamptz not null,
     stripe_payment_id text,
     application_text text,
-    primary key (user_id, role_name, valid_until),
+    status text not null,
     foreign key (role_name, valid_until) references ApplicationTargetableRole(role_name, valid_until)
 );
 
