@@ -1,10 +1,13 @@
 import { MemberWithRoles } from "@/common/types";
-import { ColumnDef } from "@tanstack/react-table";
-import { DataTableColumnHeader } from "../ui/column-header";
 import { Checkbox } from "@/components/ui/checkbox";
-import { DeleteIcon, MoreHorizontal, TrashIcon, UserIcon } from "lucide-react";
-import { Button } from "../ui/button";
+import { QueryKey, useDeleteMember } from "@/lib/api";
 import { CopyIcon } from "@radix-ui/react-icons";
+import { useQueryClient } from "@tanstack/react-query";
+import { ColumnDef } from "@tanstack/react-table";
+import { MoreHorizontal, TrashIcon, UserIcon } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Button } from "../ui/button";
+import { DataTableColumnHeader } from "../ui/column-header";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,9 +16,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { QueryKey, useDeleteMember } from "@/lib/api";
-import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import RoleBadge from "../ui/role-badge";
 
 export const columns: ColumnDef<MemberWithRoles>[] = [

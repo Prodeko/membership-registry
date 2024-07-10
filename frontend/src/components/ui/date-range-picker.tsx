@@ -1,12 +1,18 @@
 /* eslint-disable max-lines */
 "use client";
 
-import React, { type FC, useState, useEffect, useRef } from "react";
+import { cn } from "@/lib/utils";
+import {
+  CheckIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+} from "@radix-ui/react-icons";
+import { useEffect, useRef, useState, type FC } from "react";
 import { Button } from "./button";
-import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import { Calendar } from "./calendar";
 import { DateInput } from "./date-input";
 import { Label } from "./label";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 import {
   Select,
   SelectContent,
@@ -15,12 +21,6 @@ import {
   SelectValue,
 } from "./select";
 import { Switch } from "./switch";
-import {
-  ChevronUpIcon,
-  ChevronDownIcon,
-  CheckIcon,
-} from "@radix-ui/react-icons";
-import { cn } from "@/lib/utils";
 
 export interface DateRangePickerProps {
   /** Click handler for applying the updates from DateRangePicker. */
@@ -148,7 +148,6 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
     if (!preset) throw new Error(`Unknown date range preset: ${presetName}`);
     const from = new Date();
     const to = new Date();
-    const first = from.getDate() - from.getDay();
 
     switch (preset.name) {
       case "today":
@@ -210,6 +209,7 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
     }
   };
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const checkPreset = (): void => {
     for (const preset of PRESETS) {
       const presetRange = getPresetRange(preset.name);

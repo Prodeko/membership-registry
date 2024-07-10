@@ -96,9 +96,7 @@ export function DataTable<TData, TValue>({
   });
 
   const {
-    data: fetchedData,
-    isLoading,
-    error,
+    data: fetchedData
   } = useFetchData({
     pageSize: table.getState().pagination.pageSize,
     offset: table.getState().pagination.pageIndex,
