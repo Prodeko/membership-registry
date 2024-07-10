@@ -31,7 +31,7 @@ const Header = () => {
           <NavigationMenuItem>
             <Link to="/applications">
               <NavigationMenuLink className={navigationMenuTriggerStyle()}>
-                Application list
+                Applications
               </NavigationMenuLink>
             </Link>
           </NavigationMenuItem>

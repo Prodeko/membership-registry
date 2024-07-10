@@ -182,7 +182,8 @@ impl MemberRepo {
             LEFT JOIN
                 RoleMember ON Member.user_id = RoleMember.user_id
             WHERE 
-                Member.full_name ILIKE '%' || $4 || '%'
+                (Member.full_name ILIKE '%' || $4 || '%' OR
+                Member.email ILIKE '%' || $4 || '%')
                 AND (
                     array_length($3::varchar[], 1) IS NULL OR 
                     array_length($3::varchar[], 1) = 0  OR

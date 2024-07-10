@@ -21,6 +21,7 @@
 - [] Create a new member
 - [] Import members from CSV
 - [] Update a member
+- [] Ory member info on member page
   
 ## Nice to have
 

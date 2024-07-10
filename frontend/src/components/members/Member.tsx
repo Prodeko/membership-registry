@@ -41,8 +41,9 @@ const Member: React.FC = () => {
     return <div>Member not found</div>;
   }
 
+  console.log(roles);
   return (
-    <div className="flex justify-center align-middle p-20">
+    <div className="flex justify-center align-middle p-14">
       <Card className="p-8 space-y-6">
         <h1 className="text-4xl">{member.full_name}</h1>
         <div className="grid grid-cols-2 gap-4">
@@ -65,7 +66,7 @@ const Member: React.FC = () => {
             />{" "}
           </h2>
           <ul>
-            {roles?.map((role) => (
+            {roles?.length ? roles.map((role) => (
               <li key={role.role_name} className="space-x-4">
                 <RoleBadge role={role.role_name} />
                 <span>
@@ -73,11 +74,11 @@ const Member: React.FC = () => {
                   {role.valid_until.toLocaleDateString()}
                 </span>
               </li>
-            ))}
+            )) : "No roles"}
           </ul>
         </div>
         <div className="space-x-4">
-          <Button variant={"outline"} onClick={() => navigate(`/members/${userId}/edit`)}>
+          <Button className="" variant={"outline"} onClick={() => navigate(`/members/${userId}/edit`)}>
               Edit member
           </Button>
           <DeleteMembersModal userIds={[member.user_id]} onClose={() => navigate("/members")} disabled={false} />
