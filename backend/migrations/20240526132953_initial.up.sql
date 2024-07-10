@@ -1,8 +1,9 @@
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 CREATE TABLE Member (
-    -- id, email comes from identity service
+    -- id comes from identity service
     user_id uuid primary key,
+    email text not null,
     first_name text not null,
     last_name text not null,
     home_municipality text not null,
@@ -11,27 +12,41 @@ CREATE TABLE Member (
 );
 
 CREATE TABLE Role (
-    name text primary key
+    name text primary key,
+    color text
 );
 
-CREATE TABLE Application (
-    user_id uuid not null,
-    role_name text not null,
-    timestamp timestamptz not null,
-    stripe_payment_id text,
-    application_text text,
-    primary key (role_name, user_id),
-    foreign key (role_name) references Role(name)
-);
 
 CREATE TABLE RoleMember (
     user_id uuid not null,
     role_name text not null,
-    valid_from date not null,
+    valid_from date not null default current_date,
     valid_until date,
     primary key (user_id, role_name, valid_from),
     foreign key (user_id) references Member(user_id) ON DELETE CASCADE,
     foreign key (role_name) references Role(name)
 );
 
+-- This table is used to keep track of which roles can be applied to by users 
+-- and to keep consitent valid_until dates for roles that are targetable.
+CREATE TABLE ApplicationTargetableRole (
+    role_name text,
+    valid_until date,
+    active boolean not null default true,
+    primary key (role_name, valid_until),
+    foreign key (role_name) references Role(name) ON DELETE CASCADE
+);
+
+CREATE TABLE Application (
+    user_id uuid not null,
+    role_name text not null,
+    valid_until date not null,
+    timestamp timestamptz not null,
+    stripe_payment_id text,
+    application_text text,
+    primary key (user_id, role_name, valid_until),
+    foreign key (role_name, valid_until) references ApplicationTargetableRole(role_name, valid_until)
+);
+
 CREATE INDEX idx_name_trgm_gin ON Member USING gin (full_name gin_trgm_ops);
+CREATE INDEX idx_email_trgm_gin ON Member USING gin (email gin_trgm_ops);
