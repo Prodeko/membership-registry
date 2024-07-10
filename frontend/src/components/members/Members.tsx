@@ -34,7 +34,7 @@ const Members: React.FC = () => {
 
 
   return (
-    <div className="p-8 space-y-4">
+    <div className="space-y-4">
       <h1 className="text-4xl">Members</h1>
       <div className="flex space-x-2">
         <MultipleSelector
