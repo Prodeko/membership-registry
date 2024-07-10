@@ -1,4 +1,4 @@
-import { Member, MemberWithRoles, Role, RoleMember } from "@/common/types";
+import { ApplicationTargetableRole, Member, MemberWithRoles, Role, RoleMember } from "@/common/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { downloadCsv, getDateAsString } from "./utils";
@@ -9,6 +9,7 @@ export enum QueryKey {
   MEMBER = "member",
   MEMBER_ROLES = "member_roles",
   ROLES = "roles",
+  TARGETABLE_ROLES = "targetable_roles",
 }
 
 export const axios_client = axios.create({
@@ -34,7 +35,6 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
   return useQuery<MemberWithRoles[]>({
     queryKey: [QueryKey.MEMBERS_WITH_ROLES, params],
     queryFn: async () => {
-      console.log(params);
       const response = await axios_client.get("/members/roles", {
         params: {
           ...params,
@@ -47,7 +47,7 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
           customFilters: undefined,
         },
       });
-      console.log(response);
+
       return response.data;
     },
   });
@@ -176,19 +176,29 @@ export const useCreateRole = () => {
   });
 }
 
+export const useGetTargetableRoles = () => {
+  return useQuery<ApplicationTargetableRole[]>({
+    queryKey: [QueryKey.TARGETABLE_ROLES],
+    queryFn: async () => {
+      const response = await axios_client.get("/applications/targetable-roles");
+      return response.data.map((data: ApplicationTargetableRole) => ({
+        ...data,
+        valid_until: new Date(data.valid_until),
+      }));
+    },
+  });
+}
+
 export const useCreateTargetableRole = () => {
   return useMutation<
     void,
     Error,
-    {
-      name: string;
-      target: string;
-    }
+    ApplicationTargetableRole
   >({
-    mutationFn: async ({ name, target }) => {
-      await axios_client.post("/application/targetable-roles", {
-        name,
-        target,
+    mutationFn: async (targetable_role: ApplicationTargetableRole) => {
+      await axios_client.post("/applications/targetable-roles", {
+        ...targetable_role,
+        valid_until: getDateAsString(targetable_role.valid_until),
       });
     },
   });

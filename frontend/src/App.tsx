@@ -4,6 +4,7 @@ import Layout from "./components/layout/Layout";
 import Member from "./components/members/Member";
 import Members from "./components/members/Members";
 import Roles from "./components/roles/Roles";
+import TargetableRoles from "./components/applications/TargetableRoles";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,22 @@ const router = createBrowserRouter([
     element: (
       <Layout>
         <Roles />
+      </Layout>
+    ),
+  },
+  {
+    path: "/applications",
+    element: (
+      <Layout>
+        <Roles />
+      </Layout>
+    ),
+  },
+  {
+    path: "/applications/targetable-roles",
+    element: (
+      <Layout>
+        <TargetableRoles />
       </Layout>
     ),
   }

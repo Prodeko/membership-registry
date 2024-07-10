@@ -14,7 +14,7 @@ pub fn router(state: AppState) -> Router<AppState> {
          // .route("/applications", post(post_application))
         .route("/applications/:application_id", get(get_application))
         .route("/applications/:application_id/status", put(update_application_status))
-        .route("/applications/targetable-roles", get(post_targetable_role))
+        .route("/applications/targetable-roles", get(get_targetable_roles))
         .route("/applications/targetable-roles", post(post_targetable_role))
         .route("/applications/targetable-roles", put(put_targetable_role))
         .with_state(state)

@@ -9,7 +9,12 @@ import {
 import { Separator } from "../ui/separator";
 import { Link } from "react-router-dom";
 import { navigationMenuTriggerStyle } from "../ui/navigation-menu";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../ui/dropdown-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 import { PersonIcon } from "@radix-ui/react-icons";
 import { Button } from "../ui/button";
 
@@ -18,9 +23,9 @@ const Header = () => {
     <NavigationMenu>
       <div className="flex justify-between">
         <NavigationMenuList className="flex space-x-8 px-6 py-4">
-            <Link to="/">
-              <img src="/prodeko.svg" alt="Prodeko" className="h-10" />
-            </Link>
+          <Link to="/">
+            <img src="/prodeko.svg" alt="Prodeko" className="h-10" />
+          </Link>
           <NavigationMenuItem>
             <Link to="/members">
               <NavigationMenuLink className={navigationMenuTriggerStyle()}>
@@ -52,7 +57,7 @@ const Header = () => {
           <DropdownMenuTrigger className="p-4">
             <PersonIcon className="h-6 w-6" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent >
+          <DropdownMenuContent>
             <DropdownMenuItem>
               <Button variant="ghost" onClick={() => console.log("Log out")}>
                 Log out

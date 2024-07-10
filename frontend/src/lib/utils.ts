@@ -30,6 +30,7 @@ export function capitalizeFirstLetter(string: string) {
 }
 
 export function getDateAsString(date: Date | undefined) {
+  console.log("date", date)
   if (!date) {
     return undefined;
   }

@@ -32,3 +32,9 @@ export interface Preset {
   name: string;
   label: string;
 }
+
+export interface ApplicationTargetableRole {
+  role_name: string;
+  valid_until: Date;
+  active: boolean;
+}
