@@ -19,7 +19,7 @@ pub struct MemberService {
 }
 
 #[derive(Deserialize, Debug)]
-pub struct MemberWithoutId {
+pub struct MemberWithoutUserId {
     pub email: String,
     pub first_name: String,
     pub last_name: String,
@@ -34,7 +34,7 @@ impl MemberService {
 
     pub async fn create_member(
         &self,
-        member_to_add: MemberWithoutId,
+        member_to_add: MemberWithoutUserId,
     ) -> Result<Member, String> {
         let user = self
             .user_service
@@ -238,7 +238,7 @@ impl MemberService {
                 last_name.to_lowercase(),
                 email_domain
             );
-            let member = MemberWithoutId {
+            let member = MemberWithoutUserId {
                 email,
                 first_name: first_name.to_string(),
                 last_name: last_name.to_string(),

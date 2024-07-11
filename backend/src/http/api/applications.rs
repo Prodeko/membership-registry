@@ -1,19 +1,32 @@
 use axum::{
-    debug_handler, extract::{Path, State}, routing::{delete, get, post, put}, Json, Router
+    debug_handler,
+    extract::{Path, State},
+    routing::{delete, get, post, put},
+    Json, Router,
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::repositories::application::{Application, ApplicationTargetableRole};
+use crate::{
+    repositories::{
+        application::{Application, ApplicationTargetableRole, NewApplication},
+        member::NewMember,
+    },
+    services::member_service::MemberWithoutUserId,
+};
 
 use super::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/applications", get(get_applications))
-         // .route("/applications", post(post_application))
+        .route("/applications", post(post_application))
         .route("/applications/:application_id", get(get_application))
-        .route("/applications/:application_id/status", put(update_application_status))
+        .route(
+            "/applications/:application_id/status",
+            put(update_application_status),
+        )
+        .route("/applications/:application_id", delete(delete_application))
         .route("/applications/targetable-roles", get(get_targetable_roles))
         .route("/applications/targetable-roles", post(post_targetable_role))
         .route("/applications/targetable-roles", put(put_targetable_role))
@@ -32,14 +45,14 @@ async fn get_applications(State(state): State<AppState>) -> Result<Json<Vec<Appl
 
 #[derive(Deserialize, Debug)]
 struct ApplicationPath {
-    application_id: String,
+    application_id: Uuid,
 }
 
 async fn get_application(
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
 ) -> Result<Json<Application>, String> {
-    let application_id = Uuid::parse_str(&path.application_id).map_err(|e| e.to_string())?;
+    let application_id = path.application_id;
 
     let application = state
         .application_service
@@ -53,6 +66,40 @@ async fn get_application(
     application.map(Json).map_err(|e| e.to_string())
 }
 
+async fn post_application(
+    State(state): State<AppState>,
+    Json(new_application): Json<NewApplication>,
+) -> Result<Json<Application>, String> {
+    let application = state
+        .application_service
+        .create_application(new_application)
+        .await;
+
+    if let Err(e) = &application {
+        println!("Error creating application: {:?}", e);
+    }
+
+    application.map(Json).map_err(|e| e.to_string())
+}
+
+async fn delete_application(
+    Path(path): Path<ApplicationPath>,
+    State(state): State<AppState>,
+) -> Result<Json<()>, String> {
+    let application_id = path.application_id;
+
+    let delete = state
+        .application_service
+        .delete_application(application_id)
+        .await;
+
+    if let Err(e) = &delete {
+        println!("Error deleting application: {:?}", e);
+    }
+
+    delete.map(Json).map_err(|e| e.to_string())
+}
+
 #[derive(Deserialize, Debug)]
 struct UpdateApplicationStatus {
     status: String,
@@ -63,7 +110,7 @@ async fn update_application_status(
     State(state): State<AppState>,
     Json(body): Json<UpdateApplicationStatus>,
 ) -> Result<Json<()>, String> {
-    let application_id = Uuid::parse_str(&path.application_id).map_err(|e| e.to_string())?;
+    let application_id = path.application_id;
     let status = body.status;
 
     let update = state

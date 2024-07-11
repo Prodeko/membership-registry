@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{types::chrono, PgPool};
 use uuid::Uuid;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct NewApplication {
     pub user_id: Uuid,
     pub role_name: String,
@@ -39,20 +39,22 @@ pub struct ApplicationRepo {
 impl ApplicationRepo {
     pub async fn create(
         &self,
-        application_to_add: NewApplication,
+        user_id: Uuid,
+        role_name: String,
+        valid_until: chrono::NaiveDate,
+        application_text: Option<String>,
     ) -> Result<Application, sqlx::Error> {
         let application_created = sqlx::query_as!(
             Application,
             r#"
-            INSERT INTO Application (user_id, role_name, valid_until, stripe_payment_id, application_text, timestamp, status)
-            VALUES ($1, $2, $3, $4, $5, now(), 'pending')
+            INSERT INTO Application (user_id, role_name, valid_until, application_text, timestamp, status)
+            VALUES ($1, $2, $3, $4, now(), 'pending')
             RETURNING *
             "#,
-          application_to_add.user_id,
-          application_to_add.role_name,
-          application_to_add.valid_until,
-          application_to_add.stripe_payment_id,
-          application_to_add.application_text
+          user_id,
+          role_name,
+          valid_until,
+          application_text
         )
         .fetch_one(&self.pool)
         .await?;
@@ -61,7 +63,7 @@ impl ApplicationRepo {
     }
 
     pub async fn fetch_all(&self) -> Result<Vec<Application>, sqlx::Error> {
-        let applications = sqlx::query_as!(Application, "SELECT * FROM Application")
+        let applications = sqlx::query_as!(Application, "SELECT * FROM Application ORDER BY timestamp DESC")
             .fetch_all(&self.pool)
             .await?;
         Ok(applications)
@@ -88,6 +90,25 @@ impl ApplicationRepo {
         .await?;
 
         Ok(())
+    }
+
+    pub async fn fetch_existing(
+        &self,
+        user_id: Uuid,
+        role_name: String,
+        valid_until: chrono::NaiveDate,
+    ) -> Result<Application, sqlx::Error> {
+        let application = sqlx::query_as!(
+            Application,
+            "SELECT * FROM Application WHERE user_id = $1 AND role_name = $2 AND valid_until = $3",
+            user_id,
+            role_name,
+            valid_until
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(application)
     }
 
     pub async fn update_status(

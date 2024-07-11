@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::{
     repositories::{member::{Member, MemberWithRoles}, role::RoleMember},
-    services::member_service::MemberWithoutId,
+    services::member_service::MemberWithoutUserId,
 };
 
 use super::AppState;
@@ -189,7 +189,7 @@ async fn export_members_with_roles(
 #[debug_handler]
 async fn post_member(
     State(state): State<AppState>,
-    Json(new_member): Json<MemberWithoutId>,
+    Json(new_member): Json<MemberWithoutUserId>,
 ) -> Result<Json<Member>, String> {
     let member = state.member_service.create_member(new_member).await;
 

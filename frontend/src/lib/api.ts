@@ -1,4 +1,13 @@
-import { ApplicationTargetableRole, Member, MemberWithRoles, Role, RoleMember } from "@/common/types";
+import {
+  Application,
+  ApplicationTargetableRole,
+  ApplicationWithoutId,
+  Member,
+  MemberWithoutId,
+  MemberWithRoles,
+  Role,
+  RoleMember,
+} from "@/common/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { downloadCsv, getDateAsString } from "./utils";
@@ -10,6 +19,7 @@ export enum QueryKey {
   MEMBER_ROLES = "member_roles",
   ROLES = "roles",
   TARGETABLE_ROLES = "targetable_roles",
+  APPLICATIONS = "applications",
 }
 
 export const axios_client = axios.create({
@@ -67,7 +77,10 @@ export function useExportMembersWithRoles() {
         },
         responseType: "blob",
       });
-      return downloadCsv(response.data, `prodeko_members_${new Date().toISOString()}.csv`);
+      return downloadCsv(
+        response.data,
+        `prodeko_members_${new Date().toISOString()}.csv`
+      );
     },
   });
 }
@@ -108,7 +121,7 @@ export const useGetMemberRoles = (id: string) => {
       }));
     },
   });
-}
+};
 
 export const useGetRoles = () => {
   return useQuery<Role[]>({
@@ -174,7 +187,7 @@ export const useCreateRole = () => {
       });
     },
   });
-}
+};
 
 export const useGetTargetableRoles = () => {
   return useQuery<ApplicationTargetableRole[]>({
@@ -187,19 +200,62 @@ export const useGetTargetableRoles = () => {
       }));
     },
   });
-}
+};
 
 export const useCreateTargetableRole = () => {
-  return useMutation<
-    void,
-    Error,
-    ApplicationTargetableRole
-  >({
+  return useMutation<void, Error, ApplicationTargetableRole>({
     mutationFn: async (targetable_role: ApplicationTargetableRole) => {
       await axios_client.post("/applications/targetable-roles", {
         ...targetable_role,
         valid_until: getDateAsString(targetable_role.valid_until),
       });
+    },
+  });
+};
+
+export const useCreateApplication = () => {
+  return useMutation<void, Error, ApplicationWithoutId>({
+    mutationFn: async (newApplication) => {
+      await axios_client.post("/applications", {
+        ...newApplication,
+        valid_until: getDateAsString(newApplication.valid_until),
+      });
+    },
+  });
+};
+
+export const useCreateMember = () => {
+  return useMutation<Member, Error, MemberWithoutId>({
+    mutationFn: async (member) =>
+      (await axios_client.post<Member>("/members", member)).data,
+  });
+};
+
+export const useGetApplications = () => {
+  return useQuery<Application[]>({
+    queryKey: [QueryKey.APPLICATIONS],
+    queryFn: async () => {
+      const response = await axios_client.get("/applications");
+      return response.data.map((data: ApplicationWithoutId) => ({
+        ...data,
+        valid_until: new Date(data.valid_until),
+      }));
+    },
+  });
+};
+
+export const useDeleteApplication = () => {
+  return useMutation<void, Error, string>({
+    mutationFn: async (id: string) => {
+      await axios_client.delete(`/applications/${id}`);
+    },
+  });
+};
+
+export const useSetApplicationStatus = () => {
+  return useMutation<void, Error, { id: string; status: string }>({
+    mutationFn: async ({ id, status }) => {
+      await axios_client.put(`/applications/${id}/status`, { status });
     },
   });
 }

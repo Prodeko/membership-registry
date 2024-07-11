@@ -6,6 +6,8 @@ import Members from "./components/members/Members";
 import Roles from "./components/roles/Roles";
 import TargetableRoles from "./components/applications/TargetableRoles";
 import ApplicationForm from "./components/application-form/ApplicationForm";
+import SignupForm from "./components/signup-form/SignupForm";
+import Applications from "./components/applications/Applications";
 
 const queryClient = new QueryClient();
 
@@ -46,7 +48,7 @@ const router = createBrowserRouter([
     path: "/applications",
     element: (
       <Layout>
-        <Roles />
+        <Applications />
       </Layout>
     ),
   },
@@ -62,6 +64,12 @@ const router = createBrowserRouter([
     path: "/application-form",
     element: (
       <ApplicationForm />
+    ),
+  },
+  {
+    path: "/signup",
+    element: (
+      <SignupForm />
     ),
   }
 ]);

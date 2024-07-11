@@ -5,6 +5,7 @@ import AddRolesModal from "./AddRolesModal";
 import { Button } from "../ui/button";
 import DeleteMembersModal from "./DeleteMembersModal";
 import RoleBadge from "../ui/role-badge";
+import RenderMemberData from "./RenderUserData";
 
 const Member: React.FC = () => {
   const { id: userId } = useParams<{ id: string }>();
@@ -45,17 +46,7 @@ const Member: React.FC = () => {
   return (
     <div className="flex justify-center align-middle p-14">
       <Card className="p-8 space-y-6">
-        <h1 className="text-4xl">{member.full_name}</h1>
-        <div className="grid grid-cols-2 gap-4">
-          <div>User id:</div>
-          <div>{member.user_id}</div>
-          <div>Email:</div>
-          <div>{member.email}</div>
-          <div>Home municipality:</div>
-          <div>{member.home_municipality}</div>
-          <div>Has accepted policies:</div>
-          <div>{member.has_accepted_policies ? "True" : "False"}</div>
-        </div>
+        <RenderMemberData member={member} />
         <div className="space-y-3">
           <h2 className="text-2xl space-x-4">
             <span>Roles</span>{" "}
