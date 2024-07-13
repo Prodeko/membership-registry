@@ -23,7 +23,7 @@ export enum QueryKey {
 }
 
 export const axios_client = axios.create({
-  baseURL: "http://localhost:80/api",
+  baseURL: process.env.API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
