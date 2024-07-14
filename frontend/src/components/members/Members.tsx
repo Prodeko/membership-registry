@@ -57,6 +57,7 @@ const Members: React.FC = () => {
       <DataTable
         columns={columns}
         useFetchData={useGetAllMembersWithRoles}
+        searchColumn="first_name"
         initialColumnVisibility={{
           user_id: false,
           has_accepted_policies: false,

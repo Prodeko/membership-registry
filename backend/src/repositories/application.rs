@@ -1,3 +1,5 @@
+use axum::http::status;
+use clap::builder::Str;
 use serde::{Deserialize, Serialize};
 use sqlx::{types::chrono, PgPool};
 use uuid::Uuid;
@@ -16,6 +18,20 @@ pub struct NewApplication {
 pub struct Application {
     pub application_id: Uuid,
     pub user_id: Uuid,
+    pub role_name: String,
+    pub valid_until: chrono::NaiveDate,
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub stripe_payment_id: Option<String>,
+    pub application_text: Option<String>,
+    pub status: Option<String>,
+}
+
+#[derive(Debug, sqlx::FromRow, Serialize)]
+pub struct ApplicationWithMember {
+    pub application_id: Uuid,
+    pub user_id: Uuid,
+    pub full_name: Option<String>,
+    pub email: Option<String>,
     pub role_name: String,
     pub valid_until: chrono::NaiveDate,
     pub timestamp: chrono::DateTime<chrono::Utc>,
@@ -79,6 +95,30 @@ impl ApplicationRepo {
         .await?;
 
         Ok(application)
+    }
+
+    pub async fn fetch_with_user_filtered(
+        &self,
+        status: Option<String>,
+        search: Option<String>,
+    ) -> Result<Vec<ApplicationWithMember>, sqlx::Error> {
+        let applications = sqlx::query_as!(
+            ApplicationWithMember,
+            r#"
+            SELECT a.*, m.full_name, m.email
+            FROM Application a
+            JOIN Member m ON a.user_id = m.user_id
+            WHERE ($1 = '' OR a.status = $1)
+            AND ($2 = '' OR m.full_name ILIKE '%' || $2 || '%' OR m.email ILIKE '%' || $2 || '%')
+            ORDER BY a.timestamp DESC
+            "#,
+            status.unwrap_or("".to_string()),
+            search.unwrap_or("".to_string())
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        
+        Ok(applications)
     }
 
     pub async fn delete(&self, application_id: Uuid) -> Result<(), sqlx::Error> {

@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Link } from "react-router-dom";
+import { capitalizeFirstLetter } from "@/lib/utils";
 
 export const columns: ColumnDef<Application>[] = [
   {
@@ -64,6 +65,18 @@ export const columns: ColumnDef<Application>[] = [
     ),
   },
   {
+    accessorKey: "full_name",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Full name" />
+    ),
+  },
+  {
+    accessorKey: "email",
+    header: ({ column }) => (
+      <DataTableColumnHeader column={column} title="Email" />
+    ),
+  },
+  {
     accessorKey: "role_name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Role" />
@@ -74,6 +87,10 @@ export const columns: ColumnDef<Application>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Status" />
     ),
+    cell: ({ row }) => {
+      const application = row.original;
+      return <span>{capitalizeFirstLetter(application.status)}</span>;
+    }
   },
   {
     accessorKey: "valid_until",

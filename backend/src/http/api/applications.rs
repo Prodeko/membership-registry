@@ -1,18 +1,14 @@
 use axum::{
     debug_handler,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     routing::{delete, get, post, put},
     Json, Router,
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{
-    repositories::{
-        application::{Application, ApplicationTargetableRole, NewApplication},
-        member::NewMember,
-    },
-    services::member_service::MemberWithoutUserId,
+use crate::repositories::application::{
+    Application, ApplicationTargetableRole, ApplicationWithMember, NewApplication,
 };
 
 use super::AppState;
@@ -20,6 +16,7 @@ use super::AppState;
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/applications", get(get_applications))
+        .route("/applications/filter", get(get_applications_filtered))
         .route("/applications", post(post_application))
         .route("/applications/:application_id", get(get_application))
         .route(
@@ -35,6 +32,28 @@ pub fn router(state: AppState) -> Router<AppState> {
 
 async fn get_applications(State(state): State<AppState>) -> Result<Json<Vec<Application>>, String> {
     let applications = state.application_service.get_all_applications().await;
+
+    if let Err(e) = &applications {
+        println!("Error fetching applications: {:?}", e);
+    }
+
+    applications.map(Json).map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize, Debug)]
+struct FilteredApplicationsParams {
+    status: Option<String>,
+    search: Option<String>,
+}
+
+async fn get_applications_filtered(
+    State(state): State<AppState>,
+    Query(filter): Query<FilteredApplicationsParams>,
+) -> Result<Json<Vec<ApplicationWithMember>>, String> {
+    let applications = state
+        .application_service
+        .get_applications_with_member_filtered(filter.status, filter.search)
+        .await;
 
     if let Err(e) = &applications {
         println!("Error fetching applications: {:?}", e);

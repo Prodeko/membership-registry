@@ -3,7 +3,7 @@
 use std::clone;
 
 use crate::repositories::application::{
-    self, Application, ApplicationRepo, ApplicationTargetableRole, NewApplication,
+    self, Application, ApplicationRepo, ApplicationTargetableRole, ApplicationWithMember, NewApplication
 };
 use uuid::Uuid;
 
@@ -57,6 +57,17 @@ impl ApplicationService {
     pub async fn get_application(&self, application_id: Uuid) -> Result<Application, String> {
         self.repo
             .fetch_one(application_id)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    pub async fn get_applications_with_member_filtered(
+        &self,
+        status: Option<String>,
+        search: Option<String>,
+    ) -> Result<Vec<ApplicationWithMember>, String> {
+        self.repo
+            .fetch_with_user_filtered(status, search)
             .await
             .map_err(|e| e.to_string())
     }

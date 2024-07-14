@@ -231,11 +231,18 @@ export const useCreateMember = () => {
   });
 };
 
-export const useGetApplications = () => {
+export const useGetApplications = (params: PaginatedQueryParams) => {
   return useQuery<Application[]>({
     queryKey: [QueryKey.APPLICATIONS],
     queryFn: async () => {
-      const response = await axios_client.get("/applications");
+      const response = await axios_client.get("/applications/filter", {
+        params: {
+          ...params,
+          status: params.customFilters?.status,
+          page_size: params.pageSize,
+          customFilters: undefined,
+        }
+      });
       return response.data.map((data: ApplicationWithoutId) => ({
         ...data,
         valid_until: new Date(data.valid_until),

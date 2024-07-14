@@ -510,3 +510,9 @@ export const FINNISH_MUNICIPALITIES = [
 ] as const;
 
 export const REGIONS = [...COUNTRIES, ...FINNISH_MUNICIPALITIES] as const;
+
+export const STATUSES = [
+  "approved",
+  "pending",
+  "rejected",
+] as const;

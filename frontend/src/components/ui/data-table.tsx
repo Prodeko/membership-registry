@@ -43,6 +43,7 @@ interface DataTableProps<TData, TValue> {
   customFilters?: any;
   multipleRowActionElements?: ActionElement<TData>[];
   getRowId?: (row: TData) => string;
+  searchColumn?: string;
 }
 
 export function DataTable<TData, TValue>({
@@ -52,14 +53,12 @@ export function DataTable<TData, TValue>({
   customFilters,
   multipleRowActionElements,
   getRowId,
+  searchColumn
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState<TData[]>([]);
   const [rowSelection, setRowSelection] = React.useState({});
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>(initialColumnVisibility ?? {});
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
-    []
-  );
   const [sorting, setSorting] = React.useState<SortingState>([]);
 
   const table = useReactTable({
@@ -69,7 +68,6 @@ export function DataTable<TData, TValue>({
       sorting,
       columnVisibility,
       rowSelection,
-      columnFilters,
     },
     enableRowSelection: true,
     manualPagination: true,
@@ -85,7 +83,6 @@ export function DataTable<TData, TValue>({
     },
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     onColumnVisibilityChange: setColumnVisibility,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
@@ -100,7 +97,7 @@ export function DataTable<TData, TValue>({
   } = useFetchData({
     pageSize: table.getState().pagination.pageSize,
     offset: table.getState().pagination.pageIndex,
-    search: table.getColumn("first_name")?.getFilterValue() as string,
+    search: searchColumn ? table.getColumn(searchColumn)?.getFilterValue() as string : undefined,
     sorting: table.getState().sorting[0]?.id,
     sort_desc: table.getState().sorting[0]?.desc,
     customFilters,
@@ -114,7 +111,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <DataTableToolbar table={table} multipleRowActionElements={multipleRowActionElements}/>
+      <DataTableToolbar table={table} multipleRowActionElements={multipleRowActionElements} searchColumn={searchColumn}/>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
