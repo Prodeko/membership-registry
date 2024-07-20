@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use axum::{http::Method, Router};
+use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer};
 
 use crate::{
@@ -16,6 +17,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, fmt, Env
 mod api;
 mod index;
 mod static_files;
+mod auth;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -24,17 +26,29 @@ pub struct AppState {
     pub application_service: Arc<ApplicationService>,
     pub role_service: Arc<RoleService>,
     pub user_service: Arc<UserService>,
+    pub oauth2_client: BasicClient,
 }
 
 pub async fn serve(config: Config, services: Services) {
     let port = config.port.clone();
+
+    let oauth2_client = BasicClient::new(
+        ClientId::new(config.oauth_client_id.clone()),
+        Some(ClientSecret::new(config.oauth_client_secret.clone())),
+        AuthUrl::new(format!("{}/oauth2/auth", config.oauth_issuer_url.clone())).unwrap(),
+        Some(TokenUrl::new(format!("{}/oauth2/token", config.oauth_issuer_url.clone())).unwrap()),
+    )
+    .set_redirect_uri(RedirectUrl::new(config.oauth_redirect_url.clone()).unwrap());
+
     let state = AppState {
         config: Arc::new(config),
         member_service: Arc::new(services.member_service),
         application_service: Arc::new(services.application_service),
         role_service: Arc::new(services.role_service),
         user_service: Arc::new(services.user_service),
+        oauth2_client,
     };
+
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
@@ -61,5 +75,6 @@ pub async fn serve(config: Config, services: Services) {
 fn router(state: AppState) -> Router<AppState> {
     index::router()
         .merge(static_files::router())
-        .nest("/api", api::router(state))
+        .nest("/api", api::router(state.clone()))
+        .nest("/auth", auth::create_router(state.clone()))
 }
