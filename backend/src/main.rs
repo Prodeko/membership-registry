@@ -7,6 +7,7 @@ mod middleware;
 mod repositories;
 mod services;
 mod cli;
+mod auth;
 
 use cli::build_cli;
 use dotenv::dotenv;

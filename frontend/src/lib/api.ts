@@ -3,7 +3,6 @@ import {
   ApplicationTargetableRole,
   ApplicationWithoutId,
   Member,
-  MemberWithoutId,
   MemberWithRoles,
   Role,
   RoleMember,
@@ -27,7 +26,18 @@ export const axios_client = axios.create({
   headers: {
     "Content-Type": "application/json",
   },
-});
+  withCredentials: true,
+})
+
+axios_client.interceptors.response.use((res) => res,
+  (error) => {
+    console.log(error);
+    if (error.response.status === 401) {
+      window.location.href = `${process.env.API_BASE_URL}/auth/login`;
+    }
+    return Promise.reject(error);
+  }
+);
 
 interface PaginatedQueryParams {
   pageSize: number;
@@ -241,7 +251,7 @@ export const useGetApplications = (params: PaginatedQueryParams) => {
           status: params.customFilters?.status,
           page_size: params.pageSize,
           customFilters: undefined,
-        }
+        },
       });
       return response.data.map((data: ApplicationWithoutId) => ({
         ...data,
@@ -265,4 +275,20 @@ export const useSetApplicationStatus = () => {
       await axios_client.put(`/applications/${id}/status`, { status });
     },
   });
+};
+
+export interface OauthCallbackParams {
+  code: string;
+  state: string;
 }
+export const useOauthCallback = (params: OauthCallbackParams) => {
+  return useQuery({
+    queryKey: ["oauth_callback"],
+    queryFn: async () => {
+      const response = await axios_client.get("/auth/callback", {
+        params,
+      });
+      return response.data;
+    },
+  });
+};

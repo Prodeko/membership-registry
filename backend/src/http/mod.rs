@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
-use axum::{http::Method, Router};
+use axum::{
+    http::{HeaderValue, Method},
+    Router,
+};
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
-use tower_http::{cors::{Any, CorsLayer}, trace::TraceLayer};
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
     config::Config,
@@ -11,13 +14,11 @@ use crate::{
         role_service::RoleService, user_service::UserService, Services,
     },
 };
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, fmt, EnvFilter};
-
 
 mod api;
+mod auth;
 mod index;
 mod static_files;
-mod auth;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -49,20 +50,19 @@ pub async fn serve(config: Config, services: Services) {
         oauth2_client,
     };
 
-
     let cors = CorsLayer::new()
+        .allow_origin(HeaderValue::from_static("http://127.0.0.1:5173"))
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
-        .allow_headers(Any)
-        .allow_origin(Any);
+        .allow_credentials(true);
 
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::DEBUG)
         .init();
 
-    let app: Router = router(state.clone()).with_state(state).layer(cors).layer(
-        TraceLayer::new_for_http()
-    );
-
+    let app: Router = router(state.clone())
+        .with_state(state)
+        .layer(cors)
+        .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port.clone()))
         .await
@@ -76,5 +76,5 @@ fn router(state: AppState) -> Router<AppState> {
     index::router()
         .merge(static_files::router())
         .nest("/api", api::router(state.clone()))
-        .nest("/auth", auth::create_router(state.clone()))
+        .nest("/api/auth", auth::create_router(state.clone()))
 }

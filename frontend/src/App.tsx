@@ -8,6 +8,7 @@ import TargetableRoles from "./components/applications/TargetableRoles";
 import ApplicationForm from "./components/application-form/ApplicationForm";
 import SignupForm from "./components/signup-form/SignupForm";
 import Applications from "./components/applications/Applications";
+import Callback from "./components/auth/Callback";
 
 const queryClient = new QueryClient();
 
@@ -70,6 +71,12 @@ const router = createBrowserRouter([
     path: "/signup",
     element: (
       <SignupForm />
+    ),
+  },
+  {
+    path: "/auth/callback",
+    element: (
+      <Callback />
     ),
   }
 ]);
