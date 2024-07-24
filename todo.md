@@ -5,9 +5,11 @@
 - [x] Delete a member
 - [x] List all members
 - [x] Search for a member by name
-- [ ] Membership application form and payment
-- [ ] Membership renewal form and payment
-- [ ] Authentication
+- [ ] Membership application form
+- [ ] Membership renewal form
+- [ ] Membership fee payment
+- [x] Authentication
+- [ ] Authorization
 - [ ] Integrating roles with Keto
 - [x] Filter by valid date
 - [X] Export single roles members to CSV
@@ -25,6 +27,8 @@
 - [ ] Error boundary on the frontend
 - [ ] Refactoring of backend code
 - [ ] Membership application notifications
+- [ ] Save filters in query params
+- [ ] Logout button :D
   
 ## Nice to have
 

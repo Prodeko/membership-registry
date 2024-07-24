@@ -1,12 +1,7 @@
 use std::mem;
 
 use axum::{
-    body::Body,
-    debug_handler,
-    extract::{Path, Query, State},
-    http::{HeaderMap, HeaderValue, Response, StatusCode},
-    routing::{delete, get, post, put},
-    Json, Router,
+    body::Body, debug_handler, extract::{Path, Query, State}, http::{HeaderMap, HeaderValue, Response, StatusCode}, routing::{delete, get, post, put}, Extension, Json, Router
 };
 use csv::WriterBuilder;
 use serde::Deserialize;
@@ -94,6 +89,7 @@ async fn get_members_with_roles(
             .collect::<Vec<String>>()
     });
 
+
     let members = state
         .member_service
         .get_members_with_roles(
@@ -104,7 +100,7 @@ async fn get_members_with_roles(
             query.sorting,
             query.sort_desc,
             query.valid_from,
-            query.valid_until,
+            query.valid_until
         )
         .await;
 
@@ -188,10 +184,11 @@ async fn export_members_with_roles(
 
 #[debug_handler]
 async fn post_member(
+    Extension(access_token): Extension<Option<String>>,
     State(state): State<AppState>,
     Json(new_member): Json<MemberWithoutUserId>,
 ) -> Result<Json<Member>, String> {
-    let member = state.member_service.create_member(new_member).await;
+    let member = state.member_service.create_member(new_member, access_token.unwrap()).await;
 
     if let Err(e) = &member {
         println!("Error creating member: {:?}", e);
@@ -202,10 +199,12 @@ async fn post_member(
 
 #[debug_handler]
 async fn get_member(
+    Extension(access_token): Extension<Option<String>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> Result<Json<Member>, axum::http::StatusCode> {
-    let member = state.member_service.get_member(user_id).await;
+    println!("Access token: {:?}", access_token);
+    let member = state.member_service.get_member(user_id, access_token.unwrap()).await;
 
     if let Err(e) = &member {
         println!("Error fetching member: {:?}", e);
@@ -236,11 +235,12 @@ async fn get_member_roles(
 
 #[debug_handler]
 async fn update_member(
+    Extension(access_token): Extension<Option<String>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
 ) -> Result<Json<Member>, String> {
-    let member = state.member_service.update_member(updated_member).await;
+    let member = state.member_service.update_member(updated_member, access_token.unwrap()).await;
 
     if let Err(e) = &member {
         println!("Error updating member: {:?}", e);
@@ -251,12 +251,13 @@ async fn update_member(
 
 #[debug_handler]
 async fn delete_member(
+    Extension(access_token): Extension<Option<String>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> Result<(), String> {
     state
         .member_service
-        .delete_member(user_id)
+        .delete_member(user_id, access_token.unwrap())
         .await
         .map_err(|e| e.to_string())
 }
@@ -267,12 +268,13 @@ struct DeleteManyBody {
 }
 
 async fn delete_many(
+    Extension(access_token): Extension<Option<String>>,
     State(state): State<AppState>,
     Json(query): Json<DeleteManyBody>,
 ) -> Result<(), String> {
     state
         .member_service
-        .delete_many(query.ids)
+        .delete_many(query.ids, access_token.unwrap())
         .await
         .map_err(|e| e.to_string())
 }

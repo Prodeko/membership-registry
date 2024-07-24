@@ -12,7 +12,7 @@ const Callback = () => {
 
   useEffect(() => {
     if (data) {
-      window.location.href = '/protected';
+      window.location.href = '/';
     } else if (error) {
       console.error('Error during OAuth callback:', error);
     }

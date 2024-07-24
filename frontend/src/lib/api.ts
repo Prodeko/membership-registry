@@ -22,7 +22,7 @@ export enum QueryKey {
 }
 
 export const axios_client = axios.create({
-  baseURL: process.env.API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL,
   headers: {
     "Content-Type": "application/json",
   },
@@ -33,7 +33,7 @@ axios_client.interceptors.response.use((res) => res,
   (error) => {
     console.log(error);
     if (error.response.status === 401) {
-      window.location.href = `${process.env.API_BASE_URL}/auth/login`;
+      window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/login`;
     }
     return Promise.reject(error);
   }

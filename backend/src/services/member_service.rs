@@ -35,6 +35,7 @@ impl MemberService {
     pub async fn create_member(
         &self,
         member_to_add: MemberWithoutUserId,
+        access_token: String,
     ) -> Result<Member, String> {
         let user = self
             .user_service
@@ -42,6 +43,7 @@ impl MemberService {
                 &member_to_add.email,
                 &member_to_add.first_name,
                 &member_to_add.last_name,
+                access_token,
             )
             .await
             .map_err(|e| e.to_string());
@@ -93,41 +95,46 @@ impl MemberService {
         return members;
     }
 
-    pub async fn get_member(&self, id: Uuid) -> Result<Member, String> {
+    pub async fn get_member(&self, id: Uuid, access_token: String) -> Result<Member, String> {
         let user = self
             .user_service
-            .get_user(&id.to_string())
+            .get_user(&id.to_string(), access_token)
             .await
-            .map_err(|e| e.to_string());
+            .map_err(|e| e.to_string())?;
 
-        let member = self.repo.fetch_one(id).await.map_err(|e| e.to_string());
-        match (user, member) {
-            (Ok(user), Ok(member)) => {
-                let email = user
-                    .traits
-                    .clone()
-                    .map(|t| t.get("email").cloned())
-                    .flatten();
-                match email {
-                    Some(email) => {
-                        return Ok(Member {
-                            user_id: member.user_id,
-                            first_name: member.first_name,
-                            last_name: member.last_name,
-                            full_name: member.full_name,
-                            home_municipality: member.home_municipality,
-                            has_accepted_policies: member.has_accepted_policies,
-                            email: email.to_string(),
-                        });
-                    }
-                    None => return Err("Could not find email from user".to_string()),
-                }
+        let member = self
+            .repo
+            .fetch_one(id)
+            .await
+            .map_err(|e| e.to_string())?;
+
+        let email = user
+            .traits
+            .clone()
+            .map(|t| t.get("email").cloned())
+            .flatten();
+
+        match email {
+            Some(email) => {
+                return Ok(Member {
+                    user_id: member.user_id,
+                    first_name: member.first_name,
+                    last_name: member.last_name,
+                    full_name: member.full_name,
+                    home_municipality: member.home_municipality,
+                    has_accepted_policies: member.has_accepted_policies,
+                    email: email.to_string(),
+                });
             }
-            _ => return Err("Could not find member".to_string()),
+            None => return Err("Could not find email from user".to_string()),
         }
     }
 
-    pub async fn update_member(&self, updated_member: Member) -> Result<Member, String> {
+    pub async fn update_member(
+        &self,
+        updated_member: Member,
+        access_token: String,
+    ) -> Result<Member, String> {
         let updated_user = self
             .user_service
             .update_user(
@@ -135,6 +142,7 @@ impl MemberService {
                 &updated_member.email,
                 &updated_member.first_name,
                 &updated_member.last_name,
+                access_token,
             )
             .await
             .map_err(|e| e.to_string());
@@ -168,10 +176,10 @@ impl MemberService {
         }
     }
 
-    pub async fn delete_member(&self, id: Uuid) -> Result<(), String> {
+    pub async fn delete_member(&self, id: Uuid, access_token: String) -> Result<(), String> {
         let user_result = self
             .user_service
-            .delete_user(&id.to_string())
+            .delete_user(&id.to_string(), access_token)
             .await
             .map_err(|e| e.to_string());
         match user_result {
@@ -180,10 +188,10 @@ impl MemberService {
         }
     }
 
-    pub async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), String> {
+    pub async fn delete_many(&self, ids: Vec<Uuid>, access_token: String) -> Result<(), String> {
         let user_result = self
             .user_service
-            .delete_many(ids.iter().map(|id| id.to_string()).collect())
+            .delete_many(ids.iter().map(|id| id.to_string()).collect(), access_token)
             .await
             .map_err(|e| e.to_string());
         match user_result {
@@ -196,7 +204,7 @@ impl MemberService {
         println!("Generating sample data. Amount of members: {}", amount);
 
         self.user_service
-            .delete_all_users()
+            .delete_all_users("SHOULD PASS ACCESS TOKEN HERE PLS FIX".to_string())
             .await
             .map_err(|e| e.to_string())?;
         self.repo.delete_all().await.map_err(|e| e.to_string())?;
@@ -245,7 +253,8 @@ impl MemberService {
                 home_municipality: home_municipality.to_string(),
                 has_accepted_policies: true,
             };
-            self.create_member(member).await?;
+            self.create_member(member, "SOMETHING HERE".to_string())
+                .await?;
             println!("Creating member");
         }
         Ok(())
