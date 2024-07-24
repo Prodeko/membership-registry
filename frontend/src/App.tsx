@@ -9,6 +9,7 @@ import ApplicationForm from "./components/application-form/ApplicationForm";
 import SignupForm from "./components/signup-form/SignupForm";
 import Applications from "./components/applications/Applications";
 import Callback from "./components/auth/Callback";
+import Unauthorized from "./components/error/Unauthorized";
 
 const queryClient = new QueryClient();
 
@@ -77,6 +78,12 @@ const router = createBrowserRouter([
     path: "/auth/callback",
     element: (
       <Callback />
+    ),
+  },
+  {
+    path: "/unauthorized",
+    element: (
+      <Unauthorized />
     ),
   }
 ]);

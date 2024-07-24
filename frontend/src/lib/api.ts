@@ -33,7 +33,7 @@ axios_client.interceptors.response.use((res) => res,
   (error) => {
     console.log(error);
     if (error.response.status === 401) {
-      window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/login`;
+      window.location.href = "/unauthorized";
     }
     return Promise.reject(error);
   }

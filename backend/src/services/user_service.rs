@@ -4,15 +4,13 @@
 use reqwest::header;
 use ory_client::{
     apis::{
-        configuration::Configuration,
-        identity_api::{
+        configuration::Configuration, identity_api::{
             create_identity, delete_identity, get_identity, list_identities, update_identity,
             CreateIdentityError, DeleteIdentityError, GetIdentityError, ListIdentitiesError,
             UpdateIdentityError,
-        },
-        Error,
+        }, permission_api, Error
     },
-    models::{update_identity_body::StateEnum, CreateIdentityBody, Identity, UpdateIdentityBody},
+    models::{namespace, update_identity_body::StateEnum, CheckPermissionResult, CreateIdentityBody, Identity, PostCheckPermissionBody, SubjectSet, UpdateIdentityBody},
 };
 use reqwest::{Client, Proxy};
 
@@ -32,9 +30,23 @@ impl UserService {
         }
     }
 
-    fn config_with_access_token(&self, access_token: String) -> Configuration {
+    fn kratos_config_with_access_token(&self, access_token: String) -> Configuration {
+        let proxy = Proxy::http("http://localhost:8080").unwrap();
+        let client = Client::builder().proxy(proxy).build().unwrap();
         Configuration {
-            base_path: self.config.base_path.clone(),
+            base_path: format!("{}/kratos", self.config.base_path.clone()),
+            client: client,
+            bearer_access_token: Some(access_token),
+            ..Default::default()
+        }
+    }
+
+    fn keto_config_with_access_token(&self, access_token: String) -> Configuration {
+        let proxy = Proxy::http("http://localhost:8080").unwrap();
+        let client = Client::builder().proxy(proxy).build().unwrap();
+        Configuration {
+            base_path: format!("{}/keto", self.config.base_path.clone()),
+            client: client,
             bearer_access_token: Some(access_token),
             ..Default::default()
         }
@@ -46,7 +58,7 @@ impl UserService {
         access_token: String,
     ) -> Result<Identity, Error<GetIdentityError>> {
         println!("Accesst token: {}", access_token);
-        get_identity(&self.config_with_access_token(access_token), user_id, None).await
+        get_identity(&self.kratos_config_with_access_token(access_token), user_id, None).await
     }
 
     pub async fn get_all_users(
@@ -54,7 +66,7 @@ impl UserService {
         access_token: String,
     ) -> Result<Vec<Identity>, Error<ListIdentitiesError>> {
         list_identities(
-            &self.config_with_access_token(access_token),
+            &self.kratos_config_with_access_token(access_token),
             None,
             None,
             None,
@@ -74,7 +86,7 @@ impl UserService {
         access_token: String,
     ) -> Result<Vec<Identity>, Error<ListIdentitiesError>> {
         list_identities(
-            &self.config_with_access_token(access_token),
+            &self.kratos_config_with_access_token(access_token),
             None,
             None,
             None,
@@ -113,7 +125,7 @@ impl UserService {
         };
 
         create_identity(
-            &self.config_with_access_token(access_token),
+            &self.kratos_config_with_access_token(access_token),
             Some(&create_identity_body),
         )
         .await
@@ -143,7 +155,7 @@ impl UserService {
         };
 
         update_identity(
-            &self.config_with_access_token(access_token),
+            &self.kratos_config_with_access_token(access_token),
             user_id,
             Some(&update_identity_body),
         )
@@ -155,11 +167,11 @@ impl UserService {
         user_id: &str,
         access_token: String,
     ) -> Result<(), Error<DeleteIdentityError>> {
-        delete_identity(&self.config_with_access_token(access_token), user_id).await
+        delete_identity(&self.kratos_config_with_access_token(access_token), user_id).await
     }
 
     pub async fn delete_many(&self, ids: Vec<String>, access_token: String) -> Result<(), String> {
-        let config = &self.config_with_access_token(access_token);
+        let config = &self.kratos_config_with_access_token(access_token);
         for id in ids {
             delete_identity(config, &id)
                 .await
@@ -173,7 +185,7 @@ impl UserService {
             .get_all_users(access_token.clone())
             .await
             .map_err(|_| "Failed to fetch users".to_string())?;
-        let config = &self.config_with_access_token(access_token.clone());
+        let config = &self.kratos_config_with_access_token(access_token.clone());
         for user in users {
             delete_identity(config, &user.id).await.map_err(|e| {
                 format!(
@@ -184,5 +196,20 @@ impl UserService {
             })?;
         }
         Ok(())
+    }
+
+    pub async fn check_permission(&self, access_scope: String, relation: String, user_id: String, access_token: String) -> Result<bool, String> {
+        let config = &self.keto_config_with_access_token(access_token);
+        permission_api::post_check_permission(config, None, Some( &PostCheckPermissionBody {
+            namespace: Some("AccessScope".to_string()),
+            object: Some(access_scope),
+            relation: Some(relation),
+            subject_id: None,
+            subject_set: Some(Box::new(SubjectSet {
+                namespace: "User".to_string(),
+                object: user_id,
+                relation: "".to_string(),
+            })),
+        })).await.map(|res| res.allowed).map_err(|e| format!("Failed to check permission: {}", e.to_string()))
     }
 }
