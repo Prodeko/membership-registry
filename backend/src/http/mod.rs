@@ -11,7 +11,7 @@ use crate::{
     config::Config,
     services::{
         application_service::ApplicationService, member_service::MemberService,
-        role_service::RoleService, user_service::UserService, Services,
+        role_service::RoleService, ory_service::OryService, Services,
     },
 };
 
@@ -26,7 +26,7 @@ pub struct AppState {
     pub member_service: Arc<MemberService>,
     pub application_service: Arc<ApplicationService>,
     pub role_service: Arc<RoleService>,
-    pub user_service: Arc<UserService>,
+    pub ory_service: Arc<OryService>,
     pub oauth2_client: BasicClient,
 }
 
@@ -46,7 +46,7 @@ pub async fn serve(config: Config, services: Services) {
         member_service: Arc::new(services.member_service),
         application_service: Arc::new(services.application_service),
         role_service: Arc::new(services.role_service),
-        user_service: Arc::new(services.user_service),
+        ory_service: Arc::new(services.ory_service),
         oauth2_client,
     };
 

@@ -288,6 +288,7 @@ struct RoleMemberBody {
 
 #[debug_handler]
 async fn add_role(
+    Extension(access_token): Extension<Option<String>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(query): Json<RoleMemberBody>,
@@ -299,6 +300,7 @@ async fn add_role(
             &query.role_name,
             query.valid_from,
             query.valid_until,
+            access_token.unwrap(),
         )
         .await;
 
@@ -319,6 +321,7 @@ struct AddManyRolesBody {
 
 #[debug_handler]
 async fn add_many_roles(
+    Extension(access_token): Extension<Option<String>>,
     State(state): State<AppState>,
     Json(query): Json<AddManyRolesBody>,
 ) -> Result<(), String> {
@@ -329,6 +332,7 @@ async fn add_many_roles(
             query.role_names,
             query.valid_from,
             query.valid_until,
+            access_token.unwrap(),
         )
         .await;
 

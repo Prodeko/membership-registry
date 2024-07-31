@@ -10,12 +10,12 @@ use crate::repositories::member::{Member, MemberRepo, MemberWithRoles, NewMember
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::user_service::UserService;
+use super::ory_service::OryService;
 
 #[derive(Clone)]
 pub struct MemberService {
     pub repo: MemberRepo,
-    pub user_service: super::user_service::UserService,
+    pub ory_service: super::ory_service::OryService,
 }
 
 #[derive(Deserialize, Debug)]
@@ -28,8 +28,8 @@ pub struct MemberWithoutUserId {
 }
 
 impl MemberService {
-    pub fn new(repo: MemberRepo, user_service: UserService) -> Self {
-        Self { repo, user_service }
+    pub fn new(repo: MemberRepo, ory_service: OryService) -> Self {
+        Self { repo, ory_service }
     }
 
     pub async fn create_member(
@@ -38,7 +38,7 @@ impl MemberService {
         access_token: String,
     ) -> Result<Member, String> {
         let user = self
-            .user_service
+            .ory_service
             .create_user(
                 &member_to_add.email,
                 &member_to_add.first_name,
@@ -97,7 +97,7 @@ impl MemberService {
 
     pub async fn get_member(&self, id: Uuid, access_token: String) -> Result<Member, String> {
         let user = self
-            .user_service
+            .ory_service
             .get_user(&id.to_string(), access_token)
             .await
             .map_err(|e| e.to_string())?;
@@ -136,7 +136,7 @@ impl MemberService {
         access_token: String,
     ) -> Result<Member, String> {
         let updated_user = self
-            .user_service
+            .ory_service
             .update_user(
                 &updated_member.user_id.to_string(),
                 &updated_member.email,
@@ -178,7 +178,7 @@ impl MemberService {
 
     pub async fn delete_member(&self, id: Uuid, access_token: String) -> Result<(), String> {
         let user_result = self
-            .user_service
+            .ory_service
             .delete_user(&id.to_string(), access_token)
             .await
             .map_err(|e| e.to_string());
@@ -190,7 +190,7 @@ impl MemberService {
 
     pub async fn delete_many(&self, ids: Vec<Uuid>, access_token: String) -> Result<(), String> {
         let user_result = self
-            .user_service
+            .ory_service
             .delete_many(ids.iter().map(|id| id.to_string()).collect(), access_token)
             .await
             .map_err(|e| e.to_string());
@@ -203,7 +203,7 @@ impl MemberService {
     pub async fn generate_sample_data(&self, amount: usize) -> Result<(), String> {
         println!("Generating sample data. Amount of members: {}", amount);
 
-        self.user_service
+        self.ory_service
             .delete_all_users("SHOULD PASS ACCESS TOKEN HERE PLS FIX".to_string())
             .await
             .map_err(|e| e.to_string())?;

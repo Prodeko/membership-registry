@@ -2,22 +2,28 @@
 
 use crate::repositories::{
     member::Member,
-    role::{Role, RoleMember, RoleRepo},
+    role::{self, Role, RoleMember, RoleRepo},
 };
+use futures_util::TryFutureExt;
 use uuid::Uuid;
 
-use super::member_service::MemberService;
+use super::{
+    member_service::MemberService,
+    ory_service::{self, OryService},
+};
 
 pub struct RoleService {
     pub repo: RoleRepo,
     pub member_service: MemberService,
+    pub ory_service: OryService,
 }
 
 impl RoleService {
-    pub fn new(repo: RoleRepo, member_service: MemberService) -> Self {
+    pub fn new(repo: RoleRepo, member_service: MemberService, ory_service: OryService) -> Self {
         Self {
             repo,
             member_service,
+            ory_service,
         }
     }
 
@@ -39,7 +45,12 @@ impl RoleService {
         role_name: &str,
         valid_from: chrono::NaiveDate,
         valid_until: Option<chrono::NaiveDate>,
+        access_token: String,
     ) -> Result<(), String> {
+        self.ory_service
+            .add_user_to_group(user_id.to_string(), role_name, access_token)
+            .await?;
+
         self.repo
             .create_role_member(user_id, role_name, valid_from, valid_until)
             .await
@@ -66,13 +77,13 @@ impl RoleService {
         role_names: Vec<String>,
         valid_from: chrono::NaiveDate,
         valid_until: Option<chrono::NaiveDate>,
+        access_token: String,
     ) -> Result<(), String> {
         for role_name in role_names {
             for user_id in &user_ids {
-                self.repo
-                    .create_role_member(*user_id, &role_name, valid_from, valid_until)
-                    .await
-                    .map_err(|e| e.to_string())?;
+                self.add_role_member(*user_id, role_name.as_str(), valid_from, valid_until, access_token.clone())
+                    .map_err(|e| e.to_string())
+                    .await?;
             }
         }
         Ok(())
@@ -96,7 +107,12 @@ impl RoleService {
         user_id: Uuid,
         role_name: &str,
         valid_from: chrono::NaiveDate,
+        access_token: String
     ) -> Result<(), String> {
+        self.ory_service
+            .remove_user_from_group(user_id.to_string(), role_name, access_token)
+            .await?;
+        
         self.repo
             .delete_role_member(user_id, role_name, valid_from)
             .await

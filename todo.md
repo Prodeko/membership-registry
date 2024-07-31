@@ -30,6 +30,7 @@
 - [ ] Save filters in query params
 - [ ] Logout button :D
 - [ ] Dev environment: startup script, startup documentation
+- [ ] Add roles to multiple members fails if one member already has the role
   
 ## Nice to have
 

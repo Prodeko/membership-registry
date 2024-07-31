@@ -1,18 +1,25 @@
 // Service for user operations. Integrates with ory kratos for user management.
 
-
-use reqwest::header;
 use ory_client::{
     apis::{
-        configuration::Configuration, identity_api::{
+        configuration::Configuration,
+        identity_api::{
             create_identity, delete_identity, get_identity, list_identities, update_identity,
             CreateIdentityError, DeleteIdentityError, GetIdentityError, ListIdentitiesError,
             UpdateIdentityError,
-        }, permission_api, Error
+        },
+        permission_api, relationship_api, Error,
     },
-    models::{namespace, update_identity_body::StateEnum, CheckPermissionResult, CreateIdentityBody, Identity, PostCheckPermissionBody, SubjectSet, UpdateIdentityBody},
+    models::{
+        namespace, relationship_patch, update_identity_body::StateEnum, CheckPermissionResult,
+        CreateIdentityBody, Identity, PostCheckPermissionBody, Relationship, RelationshipPatch,
+        SubjectSet, UpdateIdentityBody,
+    },
 };
+use reqwest::header;
 use reqwest::{Client, Proxy};
+
+use crate::helpers::to_kebab_case;
 
 pub struct UserinfoResult {
     pub user_id: String,
@@ -20,11 +27,11 @@ pub struct UserinfoResult {
 }
 
 #[derive(Clone)]
-pub struct UserService {
+pub struct OryService {
     pub config: Configuration,
 }
 
-impl UserService {
+impl OryService {
     pub fn new(ory_base_url: String) -> Self {
         Self {
             config: Configuration {
@@ -35,7 +42,7 @@ impl UserService {
         }
     }
 
-    fn kratos_config_with_access_token(&self, access_token: String) -> Configuration {
+    fn kratos_config(&self, access_token: String) -> Configuration {
         let proxy = Proxy::http("http://localhost:8080").unwrap();
         let client = Client::builder().proxy(proxy).build().unwrap();
         Configuration {
@@ -46,7 +53,17 @@ impl UserService {
         }
     }
 
-    fn keto_config_with_access_token(&self, access_token: String) -> Configuration {
+    fn keto_public_config(&self) -> Configuration {
+        let proxy = Proxy::http("http://localhost:8080").unwrap();
+        let client = Client::builder().proxy(proxy).build().unwrap();
+        Configuration {
+            base_path: format!("{}/keto/public", self.config.base_path.clone()),
+            client: client,
+            ..Default::default()
+        }
+    }
+
+    fn keto_admin_config(&self, access_token: String) -> Configuration {
         let proxy = Proxy::http("http://localhost:8080").unwrap();
         let client = Client::builder().proxy(proxy).build().unwrap();
         Configuration {
@@ -63,7 +80,7 @@ impl UserService {
         access_token: String,
     ) -> Result<Identity, Error<GetIdentityError>> {
         println!("Accesst token: {}", access_token);
-        get_identity(&self.kratos_config_with_access_token(access_token), user_id, None).await
+        get_identity(&self.kratos_config(access_token), user_id, None).await
     }
 
     pub async fn get_all_users(
@@ -71,7 +88,7 @@ impl UserService {
         access_token: String,
     ) -> Result<Vec<Identity>, Error<ListIdentitiesError>> {
         list_identities(
-            &self.kratos_config_with_access_token(access_token),
+            &self.kratos_config(access_token),
             None,
             None,
             None,
@@ -91,7 +108,7 @@ impl UserService {
         access_token: String,
     ) -> Result<Vec<Identity>, Error<ListIdentitiesError>> {
         list_identities(
-            &self.kratos_config_with_access_token(access_token),
+            &self.kratos_config(access_token),
             None,
             None,
             None,
@@ -130,7 +147,7 @@ impl UserService {
         };
 
         create_identity(
-            &self.kratos_config_with_access_token(access_token),
+            &self.kratos_config(access_token),
             Some(&create_identity_body),
         )
         .await
@@ -160,7 +177,7 @@ impl UserService {
         };
 
         update_identity(
-            &self.kratos_config_with_access_token(access_token),
+            &self.kratos_config(access_token),
             user_id,
             Some(&update_identity_body),
         )
@@ -172,11 +189,11 @@ impl UserService {
         user_id: &str,
         access_token: String,
     ) -> Result<(), Error<DeleteIdentityError>> {
-        delete_identity(&self.kratos_config_with_access_token(access_token), user_id).await
+        delete_identity(&self.kratos_config(access_token), user_id).await
     }
 
     pub async fn delete_many(&self, ids: Vec<String>, access_token: String) -> Result<(), String> {
-        let config = &self.kratos_config_with_access_token(access_token);
+        let config = &self.kratos_config(access_token);
         for id in ids {
             delete_identity(config, &id)
                 .await
@@ -190,7 +207,7 @@ impl UserService {
             .get_all_users(access_token.clone())
             .await
             .map_err(|_| "Failed to fetch users".to_string())?;
-        let config = &self.kratos_config_with_access_token(access_token.clone());
+        let config = &self.kratos_config(access_token.clone());
         for user in users {
             delete_identity(config, &user.id).await.map_err(|e| {
                 format!(
@@ -203,19 +220,32 @@ impl UserService {
         Ok(())
     }
 
-    pub async fn check_permission(&self, access_scope: String, relation: String, user_id: String, access_token: String) -> Result<bool, String> {
-        let config = &self.keto_config_with_access_token(access_token);
-        permission_api::post_check_permission(config, None, Some( &PostCheckPermissionBody {
-            namespace: Some("AccessScope".to_string()),
-            object: Some(access_scope),
-            relation: Some(relation),
-            subject_id: None,
-            subject_set: Some(Box::new(SubjectSet {
-                namespace: "User".to_string(),
-                object: user_id,
-                relation: "".to_string(),
-            })),
-        })).await.map(|res| res.allowed).map_err(|e| format!("Failed to check permission: {}", e.to_string()))
+    pub async fn check_permission(
+        &self,
+        access_scope: String,
+        relation: String,
+        user_id: String,
+        access_token: String,
+    ) -> Result<bool, String> {
+        let config = &self.keto_public_config();
+        permission_api::post_check_permission(
+            config,
+            None,
+            Some(&PostCheckPermissionBody {
+                namespace: Some("AccessScope".to_string()),
+                object: Some(access_scope),
+                relation: Some(relation),
+                subject_id: None,
+                subject_set: Some(Box::new(SubjectSet {
+                    namespace: "User".to_string(),
+                    object: user_id,
+                    relation: "".to_string(),
+                })),
+            }),
+        )
+        .await
+        .map(|res| res.allowed)
+        .map_err(|e| format!("Failed to check permission: {}", e.to_string()))
     }
 
     pub async fn userinfo(&self, access_token: String) -> Result<UserinfoResult, String> {
@@ -227,16 +257,78 @@ impl UserService {
             .send()
             .await
             .map_err(|_| "Failed to introspect token".to_string())?;
-        
+
         if !res.status().is_success() {
-            return Err(format!("Failed to introspect token: {}", res.status().to_string()));
+            return Err(format!(
+                "Failed to introspect token: {}",
+                res.status().to_string()
+            ));
         }
 
-        let res_body = res.json::<serde_json::Value>().await.map_err(|e| format!("Failed to parse response: {}", e.to_string()))?;
+        let res_body = res
+            .json::<serde_json::Value>()
+            .await
+            .map_err(|e| format!("Failed to parse response: {}", e.to_string()))?;
         let user_id = res_body["sub"].as_str().unwrap_or("unknown").to_string();
         Ok(UserinfoResult {
             user_id,
             access_token,
         })
+    }
+
+    pub async fn add_user_to_group(
+        &self,
+        user_id: String,
+        group_id: &str,
+        access_token: String,
+    ) -> Result<(), String> {
+        let config = &&self.keto_admin_config(access_token);
+        relationship_api::patch_relationships(
+            config,
+            Some(vec![RelationshipPatch {
+                action: Some(relationship_patch::ActionEnum::Insert),
+                relation_tuple: Some(Box::new(Relationship {
+                    namespace: "AccessGroup".to_string(),
+                    object: to_kebab_case(group_id.to_string()),
+                    relation: "members".to_string(),
+                    subject_set: Some(Box::new(SubjectSet {
+                        namespace: "User".to_string(),
+                        object: user_id,
+                        relation: "".to_string(),
+                    })),
+                    subject_id: None,
+                })),
+            }]),
+        )
+        .await
+        .map_err(|e| format!("Failed to add user to group: {}", e.to_string()))
+    }
+
+    pub async fn remove_user_from_group(
+        &self,
+        user_id: String,
+        group_id: &str,
+        access_token: String,
+    ) -> Result<(), String> {
+        let config = &&self.keto_admin_config(access_token);
+        relationship_api::patch_relationships(
+            config,
+            Some(vec![RelationshipPatch {
+                action: Some(relationship_patch::ActionEnum::Delete),
+                relation_tuple: Some(Box::new(Relationship {
+                    namespace: "AccessGroup".to_string(),
+                    object: to_kebab_case(group_id.to_string()),
+                    relation: "members".to_string(),
+                    subject_set: Some(Box::new(SubjectSet {
+                        namespace: "User".to_string(),
+                        object: user_id,
+                        relation: "".to_string(),
+                    })),
+                    subject_id: None,
+                })),
+            }]),
+        )
+        .await
+        .map_err(|e| format!("Failed to remove user from group: {}", e.to_string()))
     }
 }

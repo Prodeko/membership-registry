@@ -15,17 +15,17 @@ pub async fn check_auth(
     next: Next,
 ) -> Response<Body> {
     let jar = CookieJar::from_headers(req.headers());
-    
+
     if let Some(cookie) = jar.get("access_token") {
         let userinfo = state
-            .user_service
+            .ory_service
             .userinfo(cookie.value().to_string())
             .await;
 
         match userinfo {
             Ok(userinfo) => {
                 let has_access = state
-                    .user_service
+                    .ory_service
                     .check_permission(
                         "membership-registry-admin-scope".to_string(),
                         "access".to_string(),
