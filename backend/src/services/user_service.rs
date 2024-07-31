@@ -14,6 +14,11 @@ use ory_client::{
 };
 use reqwest::{Client, Proxy};
 
+pub struct UserinfoResult {
+    pub user_id: String,
+    pub access_token: String,
+}
+
 #[derive(Clone)]
 pub struct UserService {
     pub config: Configuration,
@@ -211,5 +216,27 @@ impl UserService {
                 relation: "".to_string(),
             })),
         })).await.map(|res| res.allowed).map_err(|e| format!("Failed to check permission: {}", e.to_string()))
+    }
+
+    pub async fn userinfo(&self, access_token: String) -> Result<UserinfoResult, String> {
+        let proxy = Proxy::http("http://localhost:8080").unwrap();
+        let client = Client::builder().proxy(proxy).build().unwrap();
+        let res = client
+            .get("http://127.0.0.1:4444/userinfo")
+            .bearer_auth(access_token.clone())
+            .send()
+            .await
+            .map_err(|_| "Failed to introspect token".to_string())?;
+        
+        if !res.status().is_success() {
+            return Err(format!("Failed to introspect token: {}", res.status().to_string()));
+        }
+
+        let res_body = res.json::<serde_json::Value>().await.map_err(|e| format!("Failed to parse response: {}", e.to_string()))?;
+        let user_id = res_body["sub"].as_str().unwrap_or("unknown").to_string();
+        Ok(UserinfoResult {
+            user_id,
+            access_token,
+        })
     }
 }

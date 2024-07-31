@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use axum::{
-    http::{HeaderValue, Method},
+    http::{HeaderName, HeaderValue, Method},
     Router,
 };
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
-use tower_http::{cors::CorsLayer, trace::TraceLayer};
+use tower_http::{cors::{AllowHeaders, Any, CorsLayer}, trace::TraceLayer};
 
 use crate::{
     config::Config,
@@ -53,6 +53,7 @@ pub async fn serve(config: Config, services: Services) {
     let cors = CorsLayer::new()
         .allow_origin(HeaderValue::from_static("http://127.0.0.1:5173"))
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
+        .allow_headers(AllowHeaders::list([HeaderName::from_static("authorization"), HeaderName::from_static("content-type")]))
         .allow_credentials(true);
 
     tracing_subscriber::fmt()

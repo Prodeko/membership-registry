@@ -9,7 +9,7 @@
 - [ ] Membership renewal form
 - [ ] Membership fee payment
 - [x] Authentication
-- [ ] Authorization
+- [x] Authorization
 - [ ] Integrating roles with Keto
 - [x] Filter by valid date
 - [X] Export single roles members to CSV
@@ -17,7 +17,7 @@
 
 ## Backlog
 
-- [ ] Search for a member by email
+- [x] Search for a member by email
 - [ ] Create a new member
 - [ ] Import members from CSV
 - [ ] Update a member
@@ -29,6 +29,7 @@
 - [ ] Membership application notifications
 - [ ] Save filters in query params
 - [ ] Logout button :D
+- [ ] Dev environment: startup script, startup documentation
   
 ## Nice to have
 
@@ -41,4 +42,5 @@
 - [ ] Export all members to CSV
 - [ ] Save filters
 - [ ] Fix pagination controls (know when no more pages are available)
+- [ ] Dark mode
   

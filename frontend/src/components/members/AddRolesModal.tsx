@@ -1,4 +1,9 @@
-import { QueryKey, useAddMultipleRolesToMembers, useGetMembersWithIds, useGetRoles } from "@/lib/api";
+import {
+  QueryKey,
+  useAddMultipleRolesToMembers,
+  useGetMembersWithIds,
+  useGetRoles,
+} from "@/lib/api";
 import { defaultFrom, defaultTo, stringsToOptions } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { FunctionComponent, useState } from "react";
@@ -28,9 +33,10 @@ const AddRolesModal: FunctionComponent<AddRolesModalProps> = ({
   disabled,
 }) => {
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
-  const [selectedDateRange, setSelectedDateRange] = useState<DateRange | null>(
-    null
-  );
+  const [selectedDateRange, setSelectedDateRange] = useState<DateRange | null>({
+    from: defaultFrom,
+    to: defaultTo,
+  });
   const { data: roles } = useGetRoles();
   const { mutate: addMultipleRolesToMembers } = useAddMultipleRolesToMembers();
   const { data: selectedMembers } = useGetMembersWithIds(userIds);
@@ -56,7 +62,9 @@ const AddRolesModal: FunctionComponent<AddRolesModalProps> = ({
         },
         {
           onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: [QueryKey.MEMBERS_WITH_ROLES] });
+            queryClient.invalidateQueries({
+              queryKey: [QueryKey.MEMBERS_WITH_ROLES],
+            });
             onClose();
           },
         }
@@ -76,7 +84,8 @@ const AddRolesModal: FunctionComponent<AddRolesModalProps> = ({
           <DialogTitle>Add roles</DialogTitle>
           <DialogDescription>
             Select the roles you want to add to the selected members and the
-            dates of the validity. Selected members: {selectedMembers?.map((m) => m.email).join(", ")}
+            dates of the validity. Selected members:{" "}
+            {selectedMembers?.map((m) => m.email).join(", ")}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col space-y-4">

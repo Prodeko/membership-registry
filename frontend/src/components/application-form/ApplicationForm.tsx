@@ -43,9 +43,7 @@ const ApplicationForm = () => {
   });
 
   const { data: targetableRoles } = useGetTargetableRoles();
-  const { data: currentMember } = useGetMember(
-    localStorage.getItem("user_id")!
-  );
+  const { data: currentMember } = useGetMe()
   const { mutate: createApplication } = useCreateApplication();
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
