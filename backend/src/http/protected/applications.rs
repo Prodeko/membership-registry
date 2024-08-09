@@ -1,16 +1,15 @@
 use axum::{
     debug_handler,
-    extract::{Path, Query, State},
+    extract::{Path, State},
     response::Redirect,
-    routing::{delete, get, post, put},
+    routing::{get, post},
     Json, Router,
 };
-use postgres::config;
 use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::repositories::application::{
-    Application, ApplicationTargetableRole, ApplicationWithMember, NewApplication,
+    Application, ApplicationTargetableRole, NewApplication,
 };
 
 use super::AppState;

@@ -1,7 +1,7 @@
 use axum::{
     debug_handler,
-    extract::{Path, Query, State},
-    routing::{delete, get, post, put},
+    extract::{State},
+    routing::{get, post},
     Json, Router,
 };
 

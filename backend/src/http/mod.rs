@@ -5,7 +5,7 @@ use axum::{
     Router,
 };
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
-use tower_http::{cors::{AllowHeaders, Any, CorsLayer}, trace::TraceLayer};
+use tower_http::{cors::{AllowHeaders, CorsLayer}, trace::TraceLayer};
 
 use crate::{
     config::Config,

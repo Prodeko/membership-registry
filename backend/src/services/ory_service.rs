@@ -11,12 +11,11 @@ use ory_client::{
         permission_api, relationship_api, Error,
     },
     models::{
-        namespace, relationship_patch, update_identity_body::StateEnum, CheckPermissionResult,
+        relationship_patch, update_identity_body::StateEnum,
         CreateIdentityBody, Identity, PostCheckPermissionBody, Relationship, RelationshipPatch,
         SubjectSet, UpdateIdentityBody,
     },
 };
-use reqwest::header;
 use reqwest::{Client, Proxy};
 
 use crate::helpers::to_kebab_case;

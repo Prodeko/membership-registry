@@ -1,25 +1,17 @@
-use std::mem;
 
 use axum::{
-    body::Body,
     debug_handler,
-    extract::{Path, Query, Request, State},
-    http::{HeaderMap, HeaderValue, Response, StatusCode},
-    middleware::Next,
-    routing::{delete, get, post, put},
+    extract::{Path, State},
+    routing::{get, put},
     Extension, Json, Router,
 };
-use csv::WriterBuilder;
-use ory_client::models::identity::StateEnum;
-use serde::Deserialize;
-use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::{
     middleware::check_member_access, repositories::{
-        member::{Member, MemberWithRoles},
+        member::{Member},
         role::RoleMember,
-    }, services::{member_service::MemberWithoutUserId, ory_service::Userinfo}
+    }
 };
 
 use super::AppState;

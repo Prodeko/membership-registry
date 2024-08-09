@@ -1,9 +1,8 @@
 // src/application_service.rs
 
-use std::clone;
 
 use crate::repositories::application::{
-    self, Application, ApplicationRepo, ApplicationTargetableRole, ApplicationWithMember, NewApplication
+    Application, ApplicationRepo, ApplicationTargetableRole, ApplicationWithMember, NewApplication
 };
 use uuid::Uuid;
 

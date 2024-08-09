@@ -1,5 +1,5 @@
 use axum::{
-    extract::State, response::Redirect, routing::get, Extension, Json, Router
+    extract::State, response::Redirect, routing::get, Json, Router
 };
 use axum_extra::extract::CookieJar;
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
