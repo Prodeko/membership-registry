@@ -10,15 +10,15 @@ mod roles;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
-        .merge(members::router(state.clone()))
-        .merge(roles::router(state.clone()))
-        .merge(applications::router(state.clone()))
-        .layer(axum::middleware::from_fn_with_state( // Require login
-            state.clone(),
-            check_auth,
-        ))
+        .nest("/members", members::router(state.clone()))
+        .nest("/applications", applications::router(state.clone()))
+        .nest("/roles", roles::router(state.clone()))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             check_permission,
+        ))
+        .layer(axum::middleware::from_fn_with_state( // Require login
+            state.clone(),
+            check_auth,
         ))
 }

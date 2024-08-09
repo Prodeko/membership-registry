@@ -1,7 +1,7 @@
 use axum::{
     debug_handler,
     extract::{Path, State},
-    routing::{get, put},
+    routing::{get, post, put},
     Extension, Json, Router,
 };
 use uuid::Uuid;
@@ -9,21 +9,22 @@ use uuid::Uuid;
 use crate::{
     middleware::check_member_access,
     repositories::{member::Member, role::RoleMember},
-    services::ory_service::AuthInfo,
+    services::{member_service::MemberWithoutUserId, ory_service::AuthInfo},
 };
 
 use super::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/members/:user_id", get(get_member))
-        .route("/members/:user_id", put(update_member))
-        .route("/members/:user_id/roles", get(get_member_roles))
+        .route("/:user_id", get(get_member))
+        .route("/:user_id", put(update_member))
+        .route("/:user_id/roles", get(get_member_roles))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             check_member_access,
         ))
-        .route("/members/me", get(get_me))
+        .route("/", post(post_member))
+        .route("/me", get(get_me))
 }
 
 #[debug_handler]
@@ -32,10 +33,7 @@ async fn get_member(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> Result<Json<Member>, axum::http::StatusCode> {
-    let member = state
-        .member_service
-        .get_member(user_id, user_info.unwrap().access_token)
-        .await;
+    let member = state.member_service.get_member(user_id).await;
 
     if let Err(e) = &member {
         return Err(axum::http::StatusCode::NOT_FOUND);
@@ -52,12 +50,10 @@ async fn get_me(
     Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
 ) -> Result<Json<Member>, axum::http::StatusCode> {
+    println!("Get me:");
     match user_info {
         Some(user_info) => {
-            let member = state
-                .member_service
-                .get_member(user_info.user_id, user_info.access_token)
-                .await;
+            let member = state.member_service.get_member(user_info.user_id).await;
 
             if let Err(e) = &member {
                 println!("Error fetching member: {:?}", e);
@@ -104,6 +100,24 @@ async fn update_member(
 
     if let Err(e) = &member {
         println!("Error updating member: {:?}", e);
+    }
+
+    member.map(Json).map_err(|e| e.to_string())
+}
+
+#[debug_handler]
+async fn post_member(
+    Extension(user_info): Extension<Option<AuthInfo>>,
+    State(state): State<AppState>,
+    Json(new_member): Json<MemberWithoutUserId>,
+) -> Result<Json<Member>, String> {
+    let member = state
+        .member_service
+        .create_member(new_member, user_info.unwrap().access_token)
+        .await;
+
+    if let Err(e) = &member {
+        println!("Error creating member: {:?}", e);
     }
 
     member.map(Json).map_err(|e| e.to_string())

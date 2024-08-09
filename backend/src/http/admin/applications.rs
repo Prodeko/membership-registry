@@ -7,23 +7,18 @@ use axum::{
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::repositories::application::{
-    Application, ApplicationWithMember,
-};
+use crate::repositories::application::{Application, ApplicationWithMember};
 
 use super::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
-    .route("/applications", get(get_applications))
-    .route("/applications/filter", get(get_applications_filtered))
-    .route(
-        "/applications/:application_id/status",
-        put(update_application_status),
-    )
-    .route("/applications/:application_id", delete(delete_application))
-    .route("/applications/targetable-roles", post(post_targetable_role))
-    .route("/applications/targetable-roles", put(put_targetable_role))
+        .route("/", get(get_applications))
+        .route("/filter", get(get_applications_filtered))
+        .route("/:application_id/status", put(update_application_status))
+        .route("/:application_id", delete(delete_application))
+        .route("/targetable-roles", post(post_targetable_role))
+        .route("/targetable-roles", put(put_targetable_role))
         .with_state(state)
 }
 

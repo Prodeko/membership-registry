@@ -95,7 +95,11 @@ impl MemberService {
         return members;
     }
 
-    pub async fn get_member(&self, id: Uuid, access_token: String) -> Result<Member, String> {
+    pub async fn get_member(&self, id: Uuid) -> Result<Member, String> {
+        self.repo.fetch_one(id).await.map_err(|e| e.to_string())
+    }
+
+    pub async fn get_member_with_user(&self, id: Uuid, access_token: String) -> Result<Member, String> {
         let user = self
             .ory_service
             .get_user(&id.to_string(), access_token)

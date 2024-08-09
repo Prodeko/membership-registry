@@ -11,16 +11,18 @@ use super::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/roles", get(get_roles))
-        .route("/roles", post(post_role))
+        .route("/", get(get_roles))
+        .route("/", post(post_role))
         .with_state(state)
 }
 
 async fn get_roles(State(state): State<AppState>) -> Result<Json<Vec<Role>>, String> {
+    println!("Fetching roles");
     let roles = state.role_service.get_all_roles().await;
 
     if let Err(e) = &roles {
         println!("Error fetching roles: {:?}", e);
+        return Err(e.to_string());
     }
 
     roles.map(Json)

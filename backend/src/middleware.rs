@@ -15,7 +15,6 @@ pub async fn check_auth(
     next: Next,
 ) -> Response<Body> {
     let jar = CookieJar::from_headers(req.headers());
-
     if let Some(cookie) = jar.get("access_token") {
         let userinfo = state
             .ory_service
@@ -24,7 +23,7 @@ pub async fn check_auth(
 
         match userinfo {
             Ok(userinfo) => {
-                req.extensions_mut().insert(userinfo);
+                req.extensions_mut().insert(Some(userinfo));
                 next.run(req).await
             }
             Err(_) => Response::builder()

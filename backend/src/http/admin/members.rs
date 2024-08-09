@@ -23,14 +23,13 @@ use super::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/members", get(get_members))
-        .route("/members", post(post_member))
-        .route("/members", delete(delete_many))
-        .route("/members/roles", get(get_members_with_roles))
-        .route("/members/roles", post(add_many_roles))
-        .route("/members/roles/export", post(export_members_with_roles))
-        .route("/members/:user_id", delete(delete_member))
-        .route("/members/:user_id/roles", post(add_role))
+        .route("/", get(get_members))
+        .route("/", delete(delete_many))
+        .route("/roles", get(get_members_with_roles))
+        .route("/roles", post(add_many_roles))
+        .route("/roles/export", post(export_members_with_roles))
+        .route("/:user_id", delete(delete_member))
+        .route("/:user_id/roles", post(add_role))
         .with_state(state)
 }
 
@@ -182,24 +181,6 @@ async fn export_members_with_roles(
 }
 
 #[debug_handler]
-async fn post_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
-    State(state): State<AppState>,
-    Json(new_member): Json<MemberWithoutUserId>,
-) -> Result<Json<Member>, String> {
-    let member = state
-        .member_service
-        .create_member(new_member, user_info.unwrap().access_token)
-        .await;
-
-    if let Err(e) = &member {
-        println!("Error creating member: {:?}", e);
-    }
-
-    member.map(Json).map_err(|e| e.to_string())
-}
-
-#[debug_handler]
 async fn get_member(
     Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
@@ -207,7 +188,7 @@ async fn get_member(
 ) -> Result<Json<Member>, axum::http::StatusCode> {
     let member = state
         .member_service
-        .get_member(user_id, user_info.unwrap().access_token)
+        .get_member_with_user(user_id, user_info.unwrap().access_token)
         .await;
 
     if let Err(e) = &member {

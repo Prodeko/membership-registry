@@ -11,17 +11,17 @@ use ory_client::{
         permission_api, relationship_api, Error,
     },
     models::{
-        relationship_patch, update_identity_body::StateEnum,
-        CreateIdentityBody, Identity, PostCheckPermissionBody, Relationship, RelationshipPatch,
-        SubjectSet, UpdateIdentityBody,
+        relationship_patch, update_identity_body::StateEnum, CreateIdentityBody, Identity,
+        PostCheckPermissionBody, Relationship, RelationshipPatch, SubjectSet, UpdateIdentityBody,
     },
 };
 use reqwest::{Client, Proxy};
+use serde_with::SerializeDisplay;
 use uuid::Uuid;
 
 use crate::helpers::to_kebab_case;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AuthInfo {
     pub user_id: Uuid,
     pub access_token: String,
@@ -221,18 +221,15 @@ impl OryService {
         Ok(())
     }
 
-    pub async fn is_admin(
-        &self,
-        user_id: Uuid,
-    ) -> Result<bool, String> {
+    pub async fn is_admin(&self, user_id: Uuid) -> Result<bool, String> {
         let config = &self.keto_public_config();
         permission_api::post_check_permission(
             config,
             None,
             Some(&PostCheckPermissionBody {
-                namespace: Some("AccessScope".to_string()),
+                namespace: Some("Scope".to_string()),
                 object: Some("membership-registry-admin-scope".to_string()),
-                relation: Some("access".to_string(),),
+                relation: Some("access".to_string()),
                 subject_id: None,
                 subject_set: Some(Box::new(SubjectSet {
                     namespace: "User".to_string(),
@@ -267,10 +264,15 @@ impl OryService {
             .json::<serde_json::Value>()
             .await
             .map_err(|e| format!("Failed to parse response: {}", e.to_string()))?;
-        let user_id = res_body["sub"].as_str().map(|x| Uuid::parse_str(x).ok()).flatten();
+        let user_id = res_body["sub"]
+            .as_str()
+            .map(|x| Uuid::parse_str(x).ok())
+            .flatten();
         let user_id = match user_id {
             Some(id) => id,
-            None => return Err("Failed to parse user id".to_string()),
+            None => {
+                println!("Its not a focking uuid"); 
+                return Err("Failed to parse user id".to_string())},
         };
         Ok(AuthInfo {
             user_id,
@@ -290,7 +292,7 @@ impl OryService {
             Some(vec![RelationshipPatch {
                 action: Some(relationship_patch::ActionEnum::Insert),
                 relation_tuple: Some(Box::new(Relationship {
-                    namespace: "AccessGroup".to_string(),
+                    namespace: "Group".to_string(),
                     object: to_kebab_case(group_id.to_string()),
                     relation: "members".to_string(),
                     subject_set: Some(Box::new(SubjectSet {
@@ -318,7 +320,7 @@ impl OryService {
             Some(vec![RelationshipPatch {
                 action: Some(relationship_patch::ActionEnum::Delete),
                 relation_tuple: Some(Box::new(Relationship {
-                    namespace: "AccessGroup".to_string(),
+                    namespace: "Group".to_string(),
                     object: to_kebab_case(group_id.to_string()),
                     relation: "members".to_string(),
                     subject_set: Some(Box::new(SubjectSet {
