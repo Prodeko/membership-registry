@@ -4,12 +4,15 @@ import {
   ApplicationWithoutId,
   Member,
   MemberWithRoles,
+  NewApplication,
+  NewMember,
   Role,
   RoleMember,
 } from "@/common/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios from "axios";
 import { downloadCsv, getDateAsString } from "./utils";
+
 
 export enum QueryKey {
   MEMBERS_WITH_ROLES = "members_with_roles",
@@ -19,6 +22,8 @@ export enum QueryKey {
   ROLES = "roles",
   TARGETABLE_ROLES = "targetable_roles",
   APPLICATIONS = "applications",
+  OAUTH = "oauth_callback",
+  ME = "me",
 }
 
 export const axios_client = axios.create({
@@ -27,9 +32,10 @@ export const axios_client = axios.create({
     "Content-Type": "application/json",
   },
   withCredentials: true,
-})
+});
 
-axios_client.interceptors.response.use((res) => res,
+axios_client.interceptors.response.use(
+  (res) => res,
   (error) => {
     console.log(error);
     if (error.response.status === 401) {
@@ -224,7 +230,7 @@ export const useCreateTargetableRole = () => {
 };
 
 export const useCreateApplication = () => {
-  return useMutation<void, Error, ApplicationWithoutId>({
+  return useMutation<void, Error, NewApplication>({
     mutationFn: async (newApplication) => {
       await axios_client.post("/applications", {
         ...newApplication,
@@ -235,7 +241,7 @@ export const useCreateApplication = () => {
 };
 
 export const useCreateMember = () => {
-  return useMutation<Member, Error, MemberWithoutId>({
+  return useMutation<Member, Error, NewMember>({
     mutationFn: async (member) =>
       (await axios_client.post<Member>("/members", member)).data,
   });
@@ -283,11 +289,24 @@ export interface OauthCallbackParams {
 }
 export const useOauthCallback = (params: OauthCallbackParams) => {
   return useQuery({
-    queryKey: ["oauth_callback"],
+    queryKey: [QueryKey.OAUTH],
     queryFn: async () => {
       const response = await axios_client.get("/auth/callback", {
         params,
       });
+      return response.data;
+    },
+  });
+};
+
+export const useGetMe = () => {
+  return useQuery<Member>({
+    queryKey: [QueryKey.ME],
+    queryFn: async () => {
+      const response = await axios_client.get(
+        "/members/me"
+      )
+      console.log("Data: ", response.data);
       return response.data;
     },
   });

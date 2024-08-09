@@ -9,10 +9,11 @@ import {
 } from "@/components/ui/form";
 import {
   useCreateApplication,
-  useGetMember,
-  useGetTargetableRoles,
+  useGetMe,
+  useGetTargetableRoles
 } from "@/lib/api";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import RenderMemberData from "../members/RenderUserData";
@@ -24,8 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { Textarea } from "../ui/textarea";
 import { Separator } from "../ui/separator";
+import { Textarea } from "../ui/textarea";
 
 const formSchema = z.object({
   application_text: z.string({
@@ -42,9 +43,10 @@ const ApplicationForm = () => {
     resolver: zodResolver(formSchema),
   });
 
-  const { data: targetableRoles } = useGetTargetableRoles();
-  const { data: currentMember } = useGetMe()
+  const { data: currentMember, isLoading: isMeLoading } = useGetMe();
+  const { data: targetableRoles, isLoading: isRolesLoading } = useGetTargetableRoles();
   const { mutate: createApplication } = useCreateApplication();
+  const [paymentLink, setPaymentLink] = useState<string | null>(null);
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     if (!currentMember) {
@@ -57,8 +59,16 @@ const ApplicationForm = () => {
     });
   };
 
-  if (!currentMember || !targetableRoles) {
+  if (isRolesLoading || isMeLoading) {
     return <div>Loading...</div>;
+  }
+
+  if (!targetableRoles) {
+    return <div>No roles to apply to!</div>;
+  }
+
+  if (!currentMember) {
+    return <div>No member found!</div>;
   }
 
   return (
@@ -83,9 +93,11 @@ const ApplicationForm = () => {
                   <FormLabel>Membership type</FormLabel>
                   <Select
                     onValueChange={(value) => {
-                      const validUntil = targetableRoles?.find(
+                      const targetableRole = targetableRoles?.find(
                         (role) => role.role_name === value
-                      )?.valid_until;
+                      );
+                      const validUntil = targetableRole?.valid_until;
+                      const paymentLink = targetableRole?.payment_link;
 
                       if (!validUntil) {
                         throw new Error(
@@ -93,6 +105,7 @@ const ApplicationForm = () => {
                         );
                       }
 
+                      setPaymentLink(paymentLink ?? null)
                       form.setValue("valid_until", validUntil);
                       return field.onChange(value);
                     }}
@@ -131,7 +144,13 @@ const ApplicationForm = () => {
                 </FormItem>
               )}
             />
-            <Button type="submit">Submit</Button>
+            <Button type="submit">{
+              paymentLink ? (
+                "Proceed to payment"
+              ) : (
+                "Submit application"
+              )
+              }</Button>
           </form>
         </Form>
       </Card>

@@ -41,14 +41,19 @@ export interface ApplicationTargetableRole {
   role_name: string;
   valid_until: Date;
   active: boolean;
+  payment_link: string;
+  optional_roles: string[];
 }
 
-export interface Application {
-  application_id: string;
+export interface NewApplication {
   user_id: string;
   application_text: string;
   role_name: string;
   valid_until: Date;
+}
+
+export interface Application extends NewApplication {
+  application_id: string;
   status: "pending" | "approved" | "rejected";
   timestamp: Date;
 }
