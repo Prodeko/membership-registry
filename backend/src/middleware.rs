@@ -7,7 +7,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use uuid::Uuid;
 
-use crate::{http::AppState, services::ory_service::Userinfo};
+use crate::{http::AppState, services::ory_service::AuthInfo};
 
 pub async fn check_auth(
     State(state): State<AppState>,
@@ -42,7 +42,7 @@ pub async fn check_auth(
 
 pub async fn check_permission(
     State(state): State<AppState>,
-    Extension(userinfo): Extension<Option<Userinfo>>,
+    Extension(userinfo): Extension<Option<AuthInfo>>,
     req: Request,
     next: Next,
 ) -> Response<Body> {
@@ -70,7 +70,7 @@ pub async fn check_permission(
  * or if the user is an admin
  */
 pub async fn check_member_access(
-    Extension(userinfo): Extension<Option<Userinfo>>,
+    Extension(userinfo): Extension<Option<AuthInfo>>,
     Path((user_id,)): Path<(Uuid,)>,
     State(state): State<AppState>,
     req: Request,
@@ -84,7 +84,7 @@ pub async fn check_member_access(
                 .await
                 .unwrap_or(false);
 
-            if !is_admin || userinfo.user_id != user_id.to_string() {
+            if !is_admin || userinfo.user_id != user_id {
                 return Response::builder()
                     .status(StatusCode::FORBIDDEN)
                     .body(Body::empty())

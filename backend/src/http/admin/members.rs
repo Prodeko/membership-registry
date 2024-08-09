@@ -1,6 +1,10 @@
-
 use axum::{
-    body::Body, debug_handler, extract::{Path, Query, State}, http::{Response, StatusCode}, routing::{delete, get, post}, Extension, Json, Router
+    body::Body,
+    debug_handler,
+    extract::{Path, Query, State},
+    http::{Response, StatusCode},
+    routing::{delete, get, post},
+    Extension, Json, Router,
 };
 use csv::WriterBuilder;
 use serde::Deserialize;
@@ -8,8 +12,11 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::{
-    repositories::{member::{Member, MemberWithRoles}, role::RoleMember},
-    services::member_service::MemberWithoutUserId,
+    repositories::{
+        member::{Member, MemberWithRoles},
+        role::RoleMember,
+    },
+    services::{member_service::MemberWithoutUserId, ory_service::AuthInfo},
 };
 
 use super::AppState;
@@ -49,10 +56,7 @@ async fn get_members(
     println!("User ids: {:?}", user_ids);
     println!("user ids query: {:?}", query.user_ids.clone());
 
-    let members = state
-        .member_service
-        .get_members_with_ids(user_ids)
-        .await;
+    let members = state.member_service.get_members_with_ids(user_ids).await;
 
     if let Err(e) = &members {
         println!("Error fetching members: {:?}", e);
@@ -85,7 +89,6 @@ async fn get_members_with_roles(
             .collect::<Vec<String>>()
     });
 
-
     let members = state
         .member_service
         .get_members_with_roles(
@@ -96,7 +99,7 @@ async fn get_members_with_roles(
             query.sorting,
             query.sort_desc,
             query.valid_from,
-            query.valid_until
+            query.valid_until,
         )
         .await;
 
@@ -180,11 +183,14 @@ async fn export_members_with_roles(
 
 #[debug_handler]
 async fn post_member(
-    Extension(access_token): Extension<Option<String>>,
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(new_member): Json<MemberWithoutUserId>,
 ) -> Result<Json<Member>, String> {
-    let member = state.member_service.create_member(new_member, access_token.unwrap()).await;
+    let member = state
+        .member_service
+        .create_member(new_member, user_info.unwrap().access_token)
+        .await;
 
     if let Err(e) = &member {
         println!("Error creating member: {:?}", e);
@@ -195,12 +201,14 @@ async fn post_member(
 
 #[debug_handler]
 async fn get_member(
-    Extension(access_token): Extension<Option<String>>,
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> Result<Json<Member>, axum::http::StatusCode> {
-    println!("Access token: {:?}", access_token);
-    let member = state.member_service.get_member(user_id, access_token.unwrap()).await;
+    let member = state
+        .member_service
+        .get_member(user_id, user_info.unwrap().access_token)
+        .await;
 
     if let Err(e) = &member {
         println!("Error fetching member: {:?}", e);
@@ -231,12 +239,15 @@ async fn get_member_roles(
 
 #[debug_handler]
 async fn update_member(
-    Extension(access_token): Extension<Option<String>>,
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
 ) -> Result<Json<Member>, String> {
-    let member = state.member_service.update_member(updated_member, access_token.unwrap()).await;
+    let member = state
+        .member_service
+        .update_member(updated_member, user_info.unwrap().access_token)
+        .await;
 
     if let Err(e) = &member {
         println!("Error updating member: {:?}", e);
@@ -247,13 +258,13 @@ async fn update_member(
 
 #[debug_handler]
 async fn delete_member(
-    Extension(access_token): Extension<Option<String>>,
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> Result<(), String> {
     state
         .member_service
-        .delete_member(user_id, access_token.unwrap())
+        .delete_member(user_id, user_info.unwrap().access_token)
         .await
         .map_err(|e| e.to_string())
 }
@@ -264,13 +275,13 @@ struct DeleteManyBody {
 }
 
 async fn delete_many(
-    Extension(access_token): Extension<Option<String>>,
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(query): Json<DeleteManyBody>,
 ) -> Result<(), String> {
     state
         .member_service
-        .delete_many(query.ids, access_token.unwrap())
+        .delete_many(query.ids, user_info.unwrap().access_token)
         .await
         .map_err(|e| e.to_string())
 }
@@ -284,7 +295,7 @@ struct RoleMemberBody {
 
 #[debug_handler]
 async fn add_role(
-    Extension(access_token): Extension<Option<String>>,
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(query): Json<RoleMemberBody>,
@@ -296,7 +307,7 @@ async fn add_role(
             &query.role_name,
             query.valid_from,
             query.valid_until,
-            access_token.unwrap(),
+            user_info.unwrap().access_token,
         )
         .await;
 
@@ -317,7 +328,7 @@ struct AddManyRolesBody {
 
 #[debug_handler]
 async fn add_many_roles(
-    Extension(access_token): Extension<Option<String>>,
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(query): Json<AddManyRolesBody>,
 ) -> Result<(), String> {
@@ -328,7 +339,7 @@ async fn add_many_roles(
             query.role_names,
             query.valid_from,
             query.valid_until,
-            access_token.unwrap(),
+            user_info.unwrap().access_token,
         )
         .await;
 

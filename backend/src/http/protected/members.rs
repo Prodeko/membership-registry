@@ -1,4 +1,3 @@
-
 use axum::{
     debug_handler,
     extract::{Path, State},
@@ -8,10 +7,9 @@ use axum::{
 use uuid::Uuid;
 
 use crate::{
-    middleware::check_member_access, repositories::{
-        member::{Member},
-        role::RoleMember,
-    }
+    middleware::check_member_access,
+    repositories::{member::Member, role::RoleMember},
+    services::ory_service::AuthInfo,
 };
 
 use super::AppState;
@@ -25,28 +23,54 @@ pub fn router(state: AppState) -> Router<AppState> {
             state.clone(),
             check_member_access,
         ))
+        .route("/members/me", get(get_me))
 }
 
 #[debug_handler]
 async fn get_member(
-    Extension(access_token): Extension<Option<String>>,
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> Result<Json<Member>, axum::http::StatusCode> {
-    println!("Access token: {:?}", access_token);
     let member = state
         .member_service
-        .get_member(user_id, access_token.unwrap())
+        .get_member(user_id, user_info.unwrap().access_token)
         .await;
 
     if let Err(e) = &member {
-        println!("Error fetching member: {:?}", e);
+        return Err(axum::http::StatusCode::NOT_FOUND);
     }
 
     // TODO: Return proper status code
     member
         .map(Json)
         .map_err(|_e| axum::http::StatusCode::NOT_FOUND)
+}
+
+#[debug_handler]
+async fn get_me(
+    Extension(user_info): Extension<Option<AuthInfo>>,
+    State(state): State<AppState>,
+) -> Result<Json<Member>, axum::http::StatusCode> {
+    match user_info {
+        Some(user_info) => {
+            let member = state
+                .member_service
+                .get_member(user_info.user_id, user_info.access_token)
+                .await;
+
+            if let Err(e) = &member {
+                println!("Error fetching member: {:?}", e);
+            }
+
+            return member
+                .map(Json)
+                .map_err(|_e| axum::http::StatusCode::NOT_FOUND);
+        }
+        None => {
+            return Err(axum::http::StatusCode::UNAUTHORIZED);
+        }
+    }
 }
 
 #[debug_handler]
@@ -68,14 +92,14 @@ async fn get_member_roles(
 
 #[debug_handler]
 async fn update_member(
-    Extension(access_token): Extension<Option<String>>,
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
 ) -> Result<Json<Member>, String> {
     let member = state
         .member_service
-        .update_member(updated_member, access_token.unwrap())
+        .update_member(updated_member, user_info.unwrap().access_token)
         .await;
 
     if let Err(e) = &member {
