@@ -137,4 +137,15 @@ impl ApplicationService {
             .await
             .map_err(|e| e.to_string())
     }
+
+    pub async fn update_payment_id(
+        &self,
+        application_id: Uuid,
+        stripe_payment_id: String,
+    ) -> Result<(), String> {
+        self.repo
+            .update_payment_id(application_id, stripe_payment_id)
+            .await
+            .map_err(|e| e.to_string())
+    }
 }

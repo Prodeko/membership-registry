@@ -29,4 +29,8 @@ pub struct Config {
     #[envconfig(from = "OAUTH_REDIRECT_URL")]
     #[validate(length(min = 1, max = 1024))]
     pub oauth_redirect_url: String,
+
+    #[envconfig(from = "STRIPE_ENDPOINT_SECRET")]
+    #[validate(length(min = 1, max = 1024))]
+    pub stripe_endpoint_secret: String,
 }

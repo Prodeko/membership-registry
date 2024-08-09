@@ -17,6 +17,7 @@ use crate::{
 
 mod api;
 mod auth;
+mod stripe;
 mod index;
 mod static_files;
 
@@ -78,4 +79,5 @@ fn router(state: AppState) -> Router<AppState> {
         .merge(static_files::router())
         .nest("/api", api::router(state.clone()))
         .nest("/api/auth", auth::create_router(state.clone()))
+        .nest("/api/stripe", stripe::router(state.clone()))
 }

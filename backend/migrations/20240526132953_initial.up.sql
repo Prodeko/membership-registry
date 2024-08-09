@@ -33,6 +33,8 @@ CREATE TABLE ApplicationTargetableRole (
     role_name text,
     valid_until date,
     active boolean not null default true,
+    payment_link text,
+    optional_roles text[],
     primary key (role_name, valid_until),
     foreign key (role_name) references Role(name) ON DELETE CASCADE
 );

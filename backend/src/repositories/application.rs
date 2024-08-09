@@ -13,7 +13,6 @@ pub struct NewApplication {
     pub application_text: Option<String>,
 }
 
-
 #[derive(Debug, sqlx::FromRow, Serialize)]
 pub struct Application {
     pub application_id: Uuid,
@@ -45,6 +44,8 @@ pub struct ApplicationTargetableRole {
     pub role_name: String,
     pub valid_until: chrono::NaiveDate,
     pub active: bool,
+    pub optional_roles: Option<Vec<String>>,
+    pub payment_link: Option<String>,
 }
 
 #[derive(Clone)]
@@ -79,9 +80,12 @@ impl ApplicationRepo {
     }
 
     pub async fn fetch_all(&self) -> Result<Vec<Application>, sqlx::Error> {
-        let applications = sqlx::query_as!(Application, "SELECT * FROM Application ORDER BY timestamp DESC")
-            .fetch_all(&self.pool)
-            .await?;
+        let applications = sqlx::query_as!(
+            Application,
+            "SELECT * FROM Application ORDER BY timestamp DESC"
+        )
+        .fetch_all(&self.pool)
+        .await?;
         Ok(applications)
     }
 
@@ -117,7 +121,7 @@ impl ApplicationRepo {
         )
         .fetch_all(&self.pool)
         .await?;
-        
+
         Ok(applications)
     }
 
@@ -208,6 +212,22 @@ impl ApplicationRepo {
             role_name,
             valid_until,
             active
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
+    pub async fn update_payment_id(
+        &self,
+        application_id: Uuid,
+        stripe_payment_id: String,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "UPDATE Application SET stripe_payment_id = $2 WHERE application_id = $1",
+            application_id,
+            stripe_payment_id
         )
         .execute(&self.pool)
         .await?;
