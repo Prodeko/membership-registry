@@ -3,11 +3,10 @@ mod config;
 mod ctx;
 mod helpers;
 mod http;
-mod middleware;
 mod repositories;
 mod services;
 mod cli;
-mod auth;
+mod middleware;
 
 use cli::build_cli;
 use dotenv::dotenv;

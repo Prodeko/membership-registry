@@ -183,6 +183,22 @@ impl ApplicationRepo {
         Ok(targetable_roles)
     }
 
+    pub async fn fetch_targetable_role(
+        &self,
+        role_name: String,
+        valid_until: chrono::NaiveDate,
+    ) -> Result<ApplicationTargetableRole, sqlx::Error> {
+        let targetable_role = sqlx::query_as!(
+            ApplicationTargetableRole,
+            "SELECT * FROM ApplicationTargetableRole WHERE role_name = $1 AND valid_until = $2",
+            role_name,
+            valid_until
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(targetable_role)
+    }
+
     pub async fn create_targetable_role(
         &self,
         role_name: String,

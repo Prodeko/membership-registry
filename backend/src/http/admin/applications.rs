@@ -8,25 +8,22 @@ use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::repositories::application::{
-    Application, ApplicationTargetableRole, ApplicationWithMember, NewApplication,
+    Application, ApplicationWithMember,
 };
 
 use super::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/applications", get(get_applications))
-        .route("/applications/filter", get(get_applications_filtered))
-        .route("/applications", post(post_application))
-        .route("/applications/:application_id", get(get_application))
-        .route(
-            "/applications/:application_id/status",
-            put(update_application_status),
-        )
-        .route("/applications/:application_id", delete(delete_application))
-        .route("/applications/targetable-roles", get(get_targetable_roles))
-        .route("/applications/targetable-roles", post(post_targetable_role))
-        .route("/applications/targetable-roles", put(put_targetable_role))
+    .route("/applications", get(get_applications))
+    .route("/applications/filter", get(get_applications_filtered))
+    .route(
+        "/applications/:application_id/status",
+        put(update_application_status),
+    )
+    .route("/applications/:application_id", delete(delete_application))
+    .route("/applications/targetable-roles", post(post_targetable_role))
+    .route("/applications/targetable-roles", put(put_targetable_role))
         .with_state(state)
 }
 
@@ -65,40 +62,6 @@ async fn get_applications_filtered(
 #[derive(Deserialize, Debug)]
 struct ApplicationPath {
     application_id: Uuid,
-}
-
-async fn get_application(
-    Path(path): Path<ApplicationPath>,
-    State(state): State<AppState>,
-) -> Result<Json<Application>, String> {
-    let application_id = path.application_id;
-
-    let application = state
-        .application_service
-        .get_application(application_id)
-        .await;
-
-    if let Err(e) = &application {
-        println!("Error fetching application: {:?}", e);
-    }
-
-    application.map(Json).map_err(|e| e.to_string())
-}
-
-async fn post_application(
-    State(state): State<AppState>,
-    Json(new_application): Json<NewApplication>,
-) -> Result<Json<Application>, String> {
-    let application = state
-        .application_service
-        .create_application(new_application)
-        .await;
-
-    if let Err(e) = &application {
-        println!("Error creating application: {:?}", e);
-    }
-
-    application.map(Json).map_err(|e| e.to_string())
 }
 
 async fn delete_application(
@@ -142,19 +105,6 @@ async fn update_application_status(
     }
 
     update.map(Json).map_err(|e| e.to_string())
-}
-
-#[debug_handler]
-async fn get_targetable_roles(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<ApplicationTargetableRole>>, String> {
-    let targetable_roles = state.application_service.fetch_all_targetable_roles().await;
-
-    if let Err(e) = &targetable_roles {
-        println!("Error fetching targetable roles: {:?}", e);
-    }
-
-    targetable_roles.map(Json).map_err(|e| e.to_string())
 }
 
 #[derive(Deserialize, Debug)]

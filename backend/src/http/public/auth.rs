@@ -1,16 +1,16 @@
 use axum::{
-    extract::State, response::Redirect, routing::get, Json, Router
+    extract::State, response::Redirect, routing::get, Extension, Json, Router
 };
 use axum_extra::extract::CookieJar;
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use reqwest::Client;
 use serde_json::Value;
 
-use crate::auth::set_session_cookie;
+use crate::helpers::set_session_cookie;
 
 use super::AppState;
 
-pub fn create_router(state: AppState) -> Router<AppState> {
+pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/login", get(login))
         .route("/callback", get(callback))

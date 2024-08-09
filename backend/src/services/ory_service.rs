@@ -21,7 +21,8 @@ use reqwest::{Client, Proxy};
 
 use crate::helpers::to_kebab_case;
 
-pub struct UserinfoResult {
+#[derive(Clone)]
+pub struct Userinfo {
     pub user_id: String,
     pub access_token: String,
 }
@@ -220,12 +221,9 @@ impl OryService {
         Ok(())
     }
 
-    pub async fn check_permission(
+    pub async fn is_admin(
         &self,
-        access_scope: String,
-        relation: String,
         user_id: String,
-        access_token: String,
     ) -> Result<bool, String> {
         let config = &self.keto_public_config();
         permission_api::post_check_permission(
@@ -233,8 +231,8 @@ impl OryService {
             None,
             Some(&PostCheckPermissionBody {
                 namespace: Some("AccessScope".to_string()),
-                object: Some(access_scope),
-                relation: Some(relation),
+                object: Some("membership-registry-admin-scope".to_string()),
+                relation: Some("access".to_string(),),
                 subject_id: None,
                 subject_set: Some(Box::new(SubjectSet {
                     namespace: "User".to_string(),
@@ -248,7 +246,7 @@ impl OryService {
         .map_err(|e| format!("Failed to check permission: {}", e.to_string()))
     }
 
-    pub async fn userinfo(&self, access_token: String) -> Result<UserinfoResult, String> {
+    pub async fn userinfo(&self, access_token: String) -> Result<Userinfo, String> {
         let proxy = Proxy::http("http://localhost:8080").unwrap();
         let client = Client::builder().proxy(proxy).build().unwrap();
         let res = client
@@ -270,7 +268,7 @@ impl OryService {
             .await
             .map_err(|e| format!("Failed to parse response: {}", e.to_string()))?;
         let user_id = res_body["sub"].as_str().unwrap_or("unknown").to_string();
-        Ok(UserinfoResult {
+        Ok(Userinfo {
             user_id,
             access_token,
         })

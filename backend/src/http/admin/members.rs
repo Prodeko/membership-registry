@@ -23,10 +23,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/members/roles", get(get_members_with_roles))
         .route("/members/roles", post(add_many_roles))
         .route("/members/roles/export", post(export_members_with_roles))
-        .route("/members/:user_id", get(get_member))
-        .route("/members/:user_id", put(update_member))
         .route("/members/:user_id", delete(delete_member))
-        .route("/members/:user_id/roles", get(get_member_roles))
         .route("/members/:user_id/roles", post(add_role))
         .with_state(state)
 }

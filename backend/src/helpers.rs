@@ -1,3 +1,5 @@
+use axum_extra::extract::CookieJar;
+use cookie::{Cookie, SameSite};
 use sqlx::{postgres::PgPoolOptions, Error, Pool, Postgres};
 
 pub async fn create_pg_pool(db_url: &str, max_connections: u32) -> Result<Pool<Postgres>, Error> {
@@ -18,4 +20,15 @@ pub fn to_kebab_case(s: String) -> String {
             }
         })
         .collect()
+}
+
+pub fn set_session_cookie(jar: &CookieJar, token: &str) -> CookieJar {
+    let base_cookie = Cookie::new("access_token", token.to_string());
+    let cookie = Cookie::build(base_cookie)
+        .path("/")
+        .secure(true) // Set to true if using HTTPS
+        .http_only(true)
+        .same_site(SameSite::None); // Allows the cookie to be sent with requests from other sites
+
+    jar.clone().add(cookie)
 }

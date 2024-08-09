@@ -148,4 +148,15 @@ impl ApplicationService {
             .await
             .map_err(|e| e.to_string())
     }
+
+    pub async fn get_targetable_role(
+        &self,
+        role_name: String,
+        valid_until: chrono::NaiveDate,
+    ) -> Result<ApplicationTargetableRole, String> {
+        self.repo
+            .fetch_targetable_role(role_name, valid_until)
+            .await
+            .map_err(|e| e.to_string())
+    }
 }

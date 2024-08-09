@@ -15,9 +15,9 @@ use crate::{
     },
 };
 
-mod api;
-mod auth;
-mod stripe;
+mod admin;
+mod public;
+mod protected;
 mod index;
 mod static_files;
 
@@ -76,8 +76,9 @@ pub async fn serve(config: Config, services: Services) {
 
 fn router(state: AppState) -> Router<AppState> {
     index::router()
+        .nest("/api/", admin::router(state.clone()))
+        .nest("/api", protected::router(state.clone()))
+        .nest("/api", public::router(state.clone()))
         .merge(static_files::router())
-        .nest("/api", api::router(state.clone()))
-        .nest("/api/auth", auth::create_router(state.clone()))
-        .nest("/api/stripe", stripe::router(state.clone()))
+        
 }
