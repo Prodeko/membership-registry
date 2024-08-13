@@ -8,8 +8,8 @@ use uuid::Uuid;
 
 use crate::{
     middleware::check_member_access,
-    repositories::{member::Member, role::RoleMember},
-    services::{member_service::MemberWithoutUserId, ory_service::AuthInfo},
+    repositories::{member::{Member, NewMember}, role::RoleMember},
+    services::ory_service::AuthInfo,
 };
 
 use super::AppState;
@@ -109,7 +109,7 @@ async fn update_member(
 async fn post_member(
     Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
-    Json(new_member): Json<MemberWithoutUserId>,
+    Json(new_member): Json<NewMember>,
 ) -> Result<Json<Member>, String> {
     let member = state
         .member_service

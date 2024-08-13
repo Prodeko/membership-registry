@@ -1,9 +1,3 @@
-// src/member_service.rs
-
-use fake::{
-    faker::name::en::{FirstName, LastName},
-    Fake,
-};
 use rand::seq::SliceRandom;
 
 use crate::repositories::member::{Member, MemberRepo, MemberWithRoles, NewMember};
@@ -18,15 +12,6 @@ pub struct MemberService {
     pub ory_service: super::ory_service::OryService,
 }
 
-#[derive(Deserialize, Debug)]
-pub struct MemberWithoutUserId {
-    pub email: String,
-    pub first_name: String,
-    pub last_name: String,
-    pub home_municipality: String,
-    pub has_accepted_policies: bool,
-}
-
 impl MemberService {
     pub fn new(repo: MemberRepo, ory_service: OryService) -> Self {
         Self { repo, ory_service }
@@ -34,46 +19,21 @@ impl MemberService {
 
     pub async fn create_member(
         &self,
-        member_to_add: MemberWithoutUserId,
+        member_to_add: NewMember,
         access_token: String,
     ) -> Result<Member, String> {
         let user = self
             .ory_service
-            .create_user(
-                &member_to_add.email,
-                &member_to_add.first_name,
-                &member_to_add.last_name,
-                access_token,
-            )
+            .get_user(member_to_add.user_id.to_string().as_str(), access_token)
             .await
             .map_err(|e| e.to_string());
 
-        match user.map(|u| Uuid::parse_str(&u.id)) {
-            Ok(Ok(user_id)) => {
-                let new_member = NewMember {
-                    user_id,
-                    email: member_to_add.email,
-                    first_name: member_to_add.first_name,
-                    last_name: member_to_add.last_name,
-                    home_municipality: member_to_add.home_municipality,
-                    has_accepted_policies: member_to_add.has_accepted_policies,
-                };
-                let member = self
-                    .repo
-                    .create(new_member)
-                    .await
-                    .map_err(|e| e.to_string());
-                return member.map(|m| Member {
-                    user_id: m.user_id,
-                    email: m.email,
-                    first_name: m.first_name,
-                    last_name: m.last_name,
-                    full_name: m.full_name,
-                    home_municipality: m.home_municipality,
-                    has_accepted_policies: m.has_accepted_policies,
-                });
-            }
-            Ok(Err(_)) => return Err("Could not parse user id".to_string()),
+        match user {
+            Ok(_user) => self
+                .repo
+                .create(member_to_add)
+                .await
+                .map_err(|e| e.to_string()),
             Err(e) => return Err(e.to_string()),
         }
     }
@@ -99,18 +59,18 @@ impl MemberService {
         self.repo.fetch_one(id).await.map_err(|e| e.to_string())
     }
 
-    pub async fn get_member_with_user(&self, id: Uuid, access_token: String) -> Result<Member, String> {
+    pub async fn get_member_with_user(
+        &self,
+        id: Uuid,
+        access_token: String,
+    ) -> Result<Member, String> {
         let user = self
             .ory_service
             .get_user(&id.to_string(), access_token)
             .await
             .map_err(|e| e.to_string())?;
 
-        let member = self
-            .repo
-            .fetch_one(id)
-            .await
-            .map_err(|e| e.to_string())?;
+        let member = self.repo.fetch_one(id).await.map_err(|e| e.to_string())?;
 
         let email = user
             .traits
@@ -202,66 +162,6 @@ impl MemberService {
             Ok(_) => self.repo.delete_many(ids).await.map_err(|e| e.to_string()),
             Err(e) => Err(e),
         }
-    }
-
-    pub async fn generate_sample_data(&self, amount: usize) -> Result<(), String> {
-        println!("Generating sample data. Amount of members: {}", amount);
-
-        self.ory_service
-            .delete_all_users("SHOULD PASS ACCESS TOKEN HERE PLS FIX".to_string())
-            .await
-            .map_err(|e| e.to_string())?;
-        self.repo.delete_all().await.map_err(|e| e.to_string())?;
-
-        let municipalities = vec![
-            "Helsinki",
-            "Espoo",
-            "Vantaa",
-            "Tampere",
-            "Turku",
-            "Oulu",
-            "Lahti",
-            "Kuopio",
-            "Jyväskylä",
-            "Pori",
-        ];
-
-        let emails = vec![
-            "email.com",
-            "example.com",
-            "test.com",
-            "mail.com",
-            "gmail.com",
-            "hotmail.com",
-            "yahoo.com",
-            "outlook.com",
-        ];
-
-        let mut rng = rand::thread_rng();
-        for i in 0..amount as usize {
-            println!("Creating member {}/{}", i + 1, amount);
-            let first_name: String = FirstName().fake();
-            let last_name: String = LastName().fake();
-            let home_municipality = municipalities.choose(&mut rng).unwrap();
-            let email_domain = emails.choose(&mut rng).unwrap();
-            let email = format!(
-                "{}.{}@{}",
-                first_name.to_lowercase(),
-                last_name.to_lowercase(),
-                email_domain
-            );
-            let member = MemberWithoutUserId {
-                email,
-                first_name: first_name.to_string(),
-                last_name: last_name.to_string(),
-                home_municipality: home_municipality.to_string(),
-                has_accepted_policies: true,
-            };
-            self.create_member(member, "SOMETHING HERE".to_string())
-                .await?;
-            println!("Creating member");
-        }
-        Ok(())
     }
 
     pub async fn get_members_with_roles(

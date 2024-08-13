@@ -2,7 +2,9 @@ use axum::{
     body::Body,
     extract::{Path, Request, State},
     http::{Response, StatusCode},
-    middleware::Next, Extension,
+    middleware::Next,
+    response::{IntoResponse, Redirect},
+    Extension,
 };
 use axum_extra::extract::CookieJar;
 use uuid::Uuid;
@@ -16,10 +18,7 @@ pub async fn check_auth(
 ) -> Response<Body> {
     let jar = CookieJar::from_headers(req.headers());
     if let Some(cookie) = jar.get("access_token") {
-        let userinfo = state
-            .ory_service
-            .userinfo(cookie.value().to_string())
-            .await;
+        let userinfo = state.ory_service.userinfo(cookie.value().to_string()).await;
 
         match userinfo {
             Ok(userinfo) => {
@@ -32,10 +31,7 @@ pub async fn check_auth(
                 .unwrap(),
         }
     } else {
-        Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Body::empty())
-            .unwrap()
+        Redirect::to(format!("{}/login", state.config.ory_base_url).as_str()).into_response()
     }
 }
 
@@ -49,9 +45,7 @@ pub async fn check_permission(
 
     let has_access = state
         .ory_service
-        .is_admin(
-            userinfo.user_id.clone(),
-        )
+        .is_admin(userinfo.user_id.clone())
         .await
         .unwrap_or(false);
     if has_access {
@@ -98,4 +92,3 @@ pub async fn check_member_access(
             .unwrap(),
     }
 }
-
