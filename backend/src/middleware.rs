@@ -25,13 +25,13 @@ pub async fn check_auth(
                 req.extensions_mut().insert(Some(userinfo));
                 next.run(req).await
             }
-            Err(_) => Response::builder()
-                .status(StatusCode::UNAUTHORIZED)
-                .body(Body::empty())
-                .unwrap(),
+            Err(e) => {
+                println!("Error fetching userinfo {}", e);
+                StatusCode::UNAUTHORIZED.into_response()
+            },
         }
     } else {
-        Redirect::to(format!("{}/login", state.config.ory_base_url).as_str()).into_response()
+        StatusCode::UNAUTHORIZED.into_response()
     }
 }
 
@@ -51,10 +51,7 @@ pub async fn check_permission(
     if has_access {
         next.run(req).await
     } else {
-        Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Body::empty())
-            .unwrap()
+        StatusCode::FORBIDDEN.into_response()
     }
 }
 
@@ -78,17 +75,14 @@ pub async fn check_member_access(
                 .unwrap_or(false);
 
             if !is_admin || userinfo.user_id != user_id {
-                return Response::builder()
-                    .status(StatusCode::FORBIDDEN)
-                    .body(Body::empty())
-                    .unwrap();
+                return StatusCode::FORBIDDEN.into_response();
             }
 
             next.run(req).await
         }
-        None => Response::builder()
-            .status(StatusCode::UNAUTHORIZED)
-            .body(Body::empty())
-            .unwrap(),
+        None => {
+            println!("No userinfo!");
+            StatusCode::UNAUTHORIZED.into_response()
+        }
     }
 }

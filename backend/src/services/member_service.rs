@@ -22,20 +22,10 @@ impl MemberService {
         member_to_add: NewMember,
         access_token: String,
     ) -> Result<Member, String> {
-        let user = self
-            .ory_service
-            .get_user(member_to_add.user_id.to_string().as_str(), access_token)
+        self.repo
+            .create(member_to_add)
             .await
-            .map_err(|e| e.to_string());
-
-        match user {
-            Ok(_user) => self
-                .repo
-                .create(member_to_add)
-                .await
-                .map_err(|e| e.to_string()),
-            Err(e) => return Err(e.to_string()),
-        }
+            .map_err(|e| e.to_string())
     }
 
     pub async fn get_all_members(&self) -> Result<Vec<Member>, String> {

@@ -22,6 +22,8 @@ async fn login(State(state): State<AppState>) -> Redirect {
         .oauth2_client
         .authorize_url(CsrfToken::new_random)
         .add_scope(Scope::new("openid".into()))
+        .add_scope(Scope::new("email".into()))
+        .add_scope(Scope::new("profile".into()))
         .url();
 
     Redirect::temporary(auth_url.to_string().as_str())

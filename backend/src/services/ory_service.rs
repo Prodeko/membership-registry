@@ -16,15 +16,19 @@ use ory_client::{
     },
 };
 use reqwest::{Client, Proxy};
+use serde::Deserialize;
 use serde_with::SerializeDisplay;
 use uuid::Uuid;
 
 use crate::helpers::to_kebab_case;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct AuthInfo {
     pub user_id: Uuid,
     pub access_token: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub email: String,
 }
 
 #[derive(Clone)]
@@ -271,13 +275,25 @@ impl OryService {
         let user_id = match user_id {
             Some(id) => id,
             None => {
-                println!("Its not a focking uuid"); 
-                return Err("Failed to parse user id".to_string())},
+                println!("Its not a focking uuid");
+                return Err("Failed to parse user id".to_string());
+            }
         };
-        Ok(AuthInfo {
-            user_id,
-            access_token,
-        })
+
+        let first_name = res_body.get("given_name").map(|s| s.to_string());
+        let last_name = res_body.get("family_name").map(|s| s.to_string());
+        let email = res_body.get("email").map(|s| s.to_string());
+
+        match (first_name, last_name, email) {
+            (Some(first_name), Some(last_name), Some(email)) => Ok(AuthInfo {
+                first_name: first_name.replace("\"", ""),
+                last_name: last_name.replace("\"", ""),
+                email: email.replace("\"", ""),
+                user_id,
+                access_token
+            }),
+            _ => Err("Did not find profile or email data from userinfo!".to_string()),
+        }
     }
 
     pub async fn add_user_to_group(

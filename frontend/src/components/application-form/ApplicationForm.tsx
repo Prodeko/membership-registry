@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/form";
 import {
   useCreateApplication,
-  useGetMe,
+  useGetMeMember,
   useGetTargetableRoles
 } from "@/lib/api";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -43,7 +43,7 @@ const ApplicationForm = () => {
     resolver: zodResolver(formSchema),
   });
 
-  const { data: currentMember, isLoading: isMeLoading } = useGetMe();
+  const { data: currentMember, isLoading: isMeLoading } = useGetMeMember();
   const { data: targetableRoles, isLoading: isRolesLoading } = useGetTargetableRoles();
   const { mutate: createApplication } = useCreateApplication();
   const [paymentLink, setPaymentLink] = useState<string | null>(null);

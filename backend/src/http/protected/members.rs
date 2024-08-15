@@ -1,14 +1,21 @@
 use axum::{
     debug_handler,
     extract::{Path, State},
+    http::StatusCode,
+    response::{IntoResponse, Redirect, Response},
     routing::{get, post, put},
     Extension, Json, Router,
 };
+use chrono::format;
 use uuid::Uuid;
 
 use crate::{
+    api_types::ApiResult,
     middleware::check_member_access,
-    repositories::{member::{Member, NewMember}, role::RoleMember},
+    repositories::{
+        member::{Member, NewMember},
+        role::RoleMember,
+    },
     services::ory_service::AuthInfo,
 };
 
@@ -49,22 +56,20 @@ async fn get_member(
 async fn get_me(
     Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
-) -> Result<Json<Member>, axum::http::StatusCode> {
-    println!("Get me:");
+) -> Response {
     match user_info {
         Some(user_info) => {
             let member = state.member_service.get_member(user_info.user_id).await;
 
             if let Err(e) = &member {
-                println!("Error fetching member: {:?}", e);
+                println!("Error fetching member: {}", e);
+                return StatusCode::NOT_FOUND.into_response();
             }
 
-            return member
-                .map(Json)
-                .map_err(|_e| axum::http::StatusCode::NOT_FOUND);
+            return member.map(Json).into_response();
         }
         None => {
-            return Err(axum::http::StatusCode::UNAUTHORIZED);
+            return StatusCode::UNAUTHORIZED.into_response();
         }
     }
 }
@@ -111,9 +116,18 @@ async fn post_member(
     State(state): State<AppState>,
     Json(new_member): Json<NewMember>,
 ) -> Result<Json<Member>, String> {
+    let user_info = match user_info {
+        None => return Err("Not signed in".to_string()),
+        Some(user_info) => user_info
+    };
+
+    if user_info.user_id != new_member.user_id {
+        return Err("The signed user and new member user_ids do not match".to_string());
+    }
+
     let member = state
         .member_service
-        .create_member(new_member, user_info.unwrap().access_token)
+        .create_member(new_member, user_info.access_token)
         .await;
 
     if let Err(e) = &member {

@@ -2,6 +2,7 @@ import {
   Application,
   ApplicationTargetableRole,
   ApplicationWithoutId,
+  AuthInfo,
   Member,
   MemberWithRoles,
   NewApplication,
@@ -10,9 +11,9 @@ import {
   RoleMember,
 } from "@/common/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import axios from "axios";
+import axios, { AxiosError, AxiosResponse } from "axios";
 import { downloadCsv, getDateAsString } from "./utils";
-
+import { useNavigate } from "react-router-dom";
 
 export enum QueryKey {
   MEMBERS_WITH_ROLES = "members_with_roles",
@@ -33,17 +34,6 @@ export const axios_client = axios.create({
   },
   withCredentials: true,
 });
-
-axios_client.interceptors.response.use(
-  (res) => res,
-  (error) => {
-    console.log(error);
-    if (error.response.status === 401) {
-      window.location.href = "/unauthorized";
-    }
-    return Promise.reject(error);
-  }
-);
 
 interface PaginatedQueryParams {
   pageSize: number;
@@ -299,15 +289,38 @@ export const useOauthCallback = (params: OauthCallbackParams) => {
   });
 };
 
-export const useGetMe = () => {
+export const useGetMeMember = () => {
+  const navigate = useNavigate();
   return useQuery<Member>({
     queryKey: [QueryKey.ME],
     queryFn: async () => {
-      const response = await axios_client.get(
-        "/members/me"
-      )
-      console.log("Data: ", response.data);
+      const response = await axios_client
+        .get("/members/me")
+        .catch((e: AxiosError) => {
+          console.log("Response", e);
+          if (e.response?.status == 404) {
+            navigate("/signup");
+          } else if (e.response?.status == 403) {
+            navigate("/unauthorized")
+          } else if (e.response?.status == 401) {
+            navigate("/unauthorized")
+          }
+
+
+        });
+
       return response.data;
     },
   });
 };
+
+export const useGetMeUser = () => {
+  return useQuery<AuthInfo>({
+    queryKey: [QueryKey.ME],
+    queryFn: async () => {
+      const response = await axios_client
+        .get("/users/me");
+      return response.data;
+    },
+  });
+}

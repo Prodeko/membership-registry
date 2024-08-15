@@ -11,7 +11,6 @@ export interface Member extends NewMember {
   full_name: string;
 }
 
-
 export interface MemberWithRoles extends Member {
   role_names: string[];
 }
@@ -59,3 +58,11 @@ export interface Application extends NewApplication {
 }
 
 export type ApplicationWithoutId = Omit<Application, "application_id">;
+
+export interface AuthInfo {
+  user_id: string;
+  access_token: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+}
