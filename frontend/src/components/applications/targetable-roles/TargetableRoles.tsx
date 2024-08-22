@@ -1,5 +1,7 @@
 import { useGetTargetableRoles } from "@/lib/api";
-import CreateTargetableRolesModal from "./CreateTargetableRolesModal";
+import CreateTargetableRolesModal from "../CreateTargetableRolesModal";
+import { DataTable } from "@/components/ui/data-table";
+import { columns } from "./columns";
 
 const TargetableRoles = () => {
   const { data: targetableRoles, isLoading } = useGetTargetableRoles();
@@ -9,19 +11,12 @@ const TargetableRoles = () => {
   }
 
   return (
-    <div>
+    <div className="space-y-4">
       <div className="flex justify-between">
         <h1 className="text-4xl">Targetable Roles</h1>
         <CreateTargetableRolesModal />
       </div>
-      <ul>
-        {targetableRoles?.map((targetableRole) => (
-          <div>
-            {targetableRole.role_name}{" "}
-            {targetableRole.valid_until?.toDateString()}
-          </div>
-        ))}
-      </ul>
+      <DataTable columns={columns} useFetchData={useGetTargetableRoles} searchColumn="role_name"/>
     </div>
   );
 };

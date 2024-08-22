@@ -2,7 +2,6 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
-
 use super::member::Member;
 
 #[derive(Clone)]
@@ -13,6 +12,7 @@ pub struct RoleRepo {
 #[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
 pub struct Role {
     pub name: String,
+    pub color: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -23,27 +23,36 @@ pub struct RoleMember {
     pub valid_until: Option<NaiveDate>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct RoleStats {
+    pub name: String,
+    pub color: Option<String>,
+    
+    pub member_count: Option<i64>,
+    pub active_member_count: Option<i64>,
+}
+
 impl RoleRepo {
-    pub async fn create(&self, role_name: &str) -> Result<Role, sqlx::Error> {
-        let created =
-            sqlx::query_as::<_, Role>("INSERT INTO Role (name) VALUES ($1) RETURNING name")
-                .bind(role_name)
-                .fetch_one(&self.pool)
-                .await?;
+    pub async fn create(&self, role: Role) -> Result<Role, sqlx::Error> {
+        let created = sqlx::query_as::<_, Role>(
+            "INSERT INTO Role (name, color) VALUES ($1, $2) RETURNING *",
+        )
+        .bind(role.name)
+        .bind(role.color)
+        .fetch_one(&self.pool)
+        .await?;
         Ok(created)
     }
 
     pub async fn fetch_all(&self) -> Result<Vec<Role>, sqlx::Error> {
-        let roles = sqlx::query_as::<_, Role>("SELECT name FROM Role")
+        let roles = sqlx::query_as::<_, Role>("SELECT * FROM Role")
             .fetch_all(&self.pool)
-            .await?
-            .into_iter()
-            .collect();
+            .await?;
         Ok(roles)
     }
 
     pub async fn fetch_by_name(&self, role_name: &str) -> Result<Role, sqlx::Error> {
-        let role = sqlx::query_as::<_, Role>("SELECT name FROM Role WHERE name = $1")
+        let role = sqlx::query_as::<_, Role>("SELECT * FROM Role WHERE name = $1")
             .bind(role_name)
             .fetch_one(&self.pool)
             .await?;
@@ -151,6 +160,32 @@ impl RoleRepo {
           WHERE role_name = $1
           "#,
             role_name
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(records)
+    }
+
+    pub async fn fetch_roles_with_stats(&self) -> Result<Vec<RoleStats>, sqlx::Error> {
+        let records = sqlx::query_as!(
+            RoleStats,
+            r#"
+            SELECT 
+                Role.*,
+                COUNT(RoleMember.user_id) as member_count,
+                COUNT(
+                    CASE WHEN (
+                        valid_until IS NULL OR (
+                            valid_until >= CURRENT_DATE AND
+                            valid_from <= CURRENT_DATE
+                        )
+                    ) THEN 1
+                    END
+                ) as active_member_count
+            FROM Role LEFT JOIN RoleMember ON Role.name = RoleMember.role_name
+            GROUP BY Role.name, Role.color
+            ORDER BY Role.name
+          "#
         )
         .fetch_all(&self.pool)
         .await?;

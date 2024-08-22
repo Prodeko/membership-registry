@@ -2,15 +2,12 @@
 
 use crate::repositories::{
     member::Member,
-    role::{Role, RoleMember, RoleRepo},
+    role::{Role, RoleMember, RoleRepo, RoleStats},
 };
 use futures_util::TryFutureExt;
 use uuid::Uuid;
 
-use super::{
-    member_service::MemberService,
-    ory_service::{OryService},
-};
+use super::{member_service::MemberService, ory_service::OryService};
 
 pub struct RoleService {
     pub repo: RoleRepo,
@@ -27,8 +24,8 @@ impl RoleService {
         }
     }
 
-    pub async fn create_role(&self, role_name: &str) -> Result<Role, String> {
-        self.repo.create(role_name).await.map_err(|e| e.to_string())
+    pub async fn create_role(&self, new_role: Role) -> Result<Role, String> {
+        self.repo.create(new_role).await.map_err(|e| e.to_string())
     }
 
     pub async fn get_all_roles(&self) -> Result<Vec<Role>, String> {
@@ -81,9 +78,15 @@ impl RoleService {
     ) -> Result<(), String> {
         for role_name in role_names {
             for user_id in &user_ids {
-                self.add_role_member(*user_id, role_name.as_str(), valid_from, valid_until, access_token.clone())
-                    .map_err(|e| e.to_string())
-                    .await?;
+                self.add_role_member(
+                    *user_id,
+                    role_name.as_str(),
+                    valid_from,
+                    valid_until,
+                    access_token.clone(),
+                )
+                .map_err(|e| e.to_string())
+                .await?;
             }
         }
         Ok(())
@@ -107,14 +110,21 @@ impl RoleService {
         user_id: Uuid,
         role_name: &str,
         valid_from: chrono::NaiveDate,
-        access_token: String
+        access_token: String,
     ) -> Result<(), String> {
         self.ory_service
             .remove_user_from_group(user_id.to_string(), role_name, access_token)
             .await?;
-        
+
         self.repo
             .delete_role_member(user_id, role_name, valid_from)
+            .await
+            .map_err(|e| e.to_string())
+    }
+
+    pub async fn get_role_stats(&self) -> Result<Vec<RoleStats>, String> {
+        self.repo
+            .fetch_roles_with_stats()
             .await
             .map_err(|e| e.to_string())
     }

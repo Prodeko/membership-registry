@@ -9,6 +9,7 @@ import {
   NewMember,
   Role,
   RoleMember,
+  RoleStats,
 } from "@/common/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios, { AxiosError, AxiosResponse } from "axios";
@@ -145,6 +146,16 @@ export const useGetRoles = () => {
     queryFn: async () => {
       const response = await axios_client.get("/roles");
       return response.data as Role[];
+    },
+  });
+};
+
+export const useGetRolesStats = () => {
+  return useQuery<Role[]>({
+    queryKey: [QueryKey.ROLES],
+    queryFn: async () => {
+      const response = await axios_client.get("/roles/stats");
+      return response.data as RoleStats[];
     },
   });
 };

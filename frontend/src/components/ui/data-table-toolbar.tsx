@@ -60,14 +60,17 @@ export function DataTableToolbar<TData>({
         </div>
         <DataTableViewOptions table={table} />
       </div>
-      {table.getSelectedRowModel().rows.length ? (
-        <div className="space-x-2 flex">
-          {multipleRowActionElements &&
-            multipleRowActionElements.map((element) =>
-              element(table, parseRowsFromSelection())
-            )}
-        </div>
-      ): <div className="h-10"></div>}
+      {multipleRowActionElements &&
+        (table.getSelectedRowModel().rows.length ? (
+          <div className="space-x-2 flex">
+            {multipleRowActionElements &&
+              multipleRowActionElements.map((element) =>
+                element(table, parseRowsFromSelection())
+              )}
+          </div>
+        ) : (
+          <div className="h-10"></div>
+        ))}
     </div>
   );
 }

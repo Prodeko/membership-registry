@@ -10,10 +10,11 @@
 - [ ] Membership fee payment
 - [x] Authentication
 - [x] Authorization
-- [ ] Integrating roles with Keto
+- [x] Integrating roles with Keto
 - [x] Filter by valid date
 - [X] Export single roles members to CSV
 - [x] Favicon
+- [ ] CRON job to remove ORY roles when membership expires
 
 ## Backlog
 

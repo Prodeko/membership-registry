@@ -17,6 +17,12 @@ export interface MemberWithRoles extends Member {
 
 export interface Role {
   name: string;
+  color: string;
+}
+
+export interface RoleStats extends Role {
+  member_count: number;
+  active_member_count: number;
 }
 
 export interface RoleMember {
