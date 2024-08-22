@@ -36,7 +36,7 @@ const Members: React.FC = () => {
   return (
     <div className="space-y-4">
       <h1 className="text-4xl">Members</h1>
-      <div className="flex space-x-2">
+      <div className="flex space-x-2 flex-wrap">
         <MultipleSelector
           options={stringsToOptions(roles?.map((r) => r.name) ?? [])}
           onChange={onRoleChange}

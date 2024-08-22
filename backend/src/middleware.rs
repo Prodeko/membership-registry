@@ -31,6 +31,7 @@ pub async fn check_auth(
             },
         }
     } else {
+        println!("No access token in cookie");
         StatusCode::UNAUTHORIZED.into_response()
     }
 }
