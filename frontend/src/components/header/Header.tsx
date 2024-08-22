@@ -27,31 +27,41 @@ const Header = () => {
             <img src="/prodeko.svg" alt="Prodeko" className="h-10" />
           </Link>
           <NavigationMenuItem>
-            <Link to="/members">
-              <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-                Member list
-              </NavigationMenuLink>
-            </Link>
-          </NavigationMenuItem>
-          <NavigationMenuItem>
-            <Link to="/applications">
-              <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-                Applications
-              </NavigationMenuLink>
-            </Link>
-          </NavigationMenuItem>
-          <NavigationMenuItem>
-            <Link to="/roles">
-              <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-                Roles
-              </NavigationMenuLink>
-            </Link>
-          </NavigationMenuItem>
-          <Link to="/logs">
-            <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-              Logs
+            <NavigationMenuLink
+              asChild
+              className={navigationMenuTriggerStyle()}
+            >
+              <Link to="/members">Member list</Link>
             </NavigationMenuLink>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
+            <Link to="/applications">
+                Applications
+            </Link>
+              </NavigationMenuLink>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+              <NavigationMenuLink
+                asChild
+                className={navigationMenuTriggerStyle()}
+              >
+            <Link to="/roles">
+                Roles
+            </Link>
+              </NavigationMenuLink>
+          </NavigationMenuItem>
+            <NavigationMenuLink
+              asChild
+              className={navigationMenuTriggerStyle()}
+            >
+          <Link to="/logs">
+              Logs
           </Link>
+            </NavigationMenuLink>
         </NavigationMenuList>
         <DropdownMenu>
           <DropdownMenuTrigger className="p-4">
