@@ -27,64 +27,62 @@ const router = createBrowserRouter([
       </Layout>
     ),
     errorElement: <Error />,
-    children: [
-      {
-        path: "/members",
-        element: (
-          <Layout>
-            <Members />
-          </Layout>
-        ),
-      },
-      {
-        path: "/members/:id",
-        element: (
-          <Layout>
-            <Member />
-          </Layout>
-        ),
-      },
-      {
-        path: "/roles",
-        element: (
-          <Layout>
-            <Roles />
-          </Layout>
-        ),
-      },
-      {
-        path: "/applications",
-        element: (
-          <Layout>
-            <Applications />
-          </Layout>
-        ),
-      },
-      {
-        path: "/applications/targetable-roles",
-        element: (
-          <Layout>
-            <TargetableRoles />
-          </Layout>
-        ),
-      },
-      {
-        path: "/application-form",
-        element: <ApplicationForm />,
-      },
-      {
-        path: "/signup",
-        element: <SignupForm />,
-      },
-      {
-        path: "/auth/callback",
-        element: <Callback />,
-      },
-      {
-        path: "/unauthorized",
-        element: <Unauthorized />,
-      },
-    ],
+  },
+  {
+    path: "/members",
+    element: (
+      <Layout>
+        <Members />
+      </Layout>
+    ),
+  },
+  {
+    path: "/members/:id",
+    element: (
+      <Layout>
+        <Member />
+      </Layout>
+    ),
+  },
+  {
+    path: "/roles",
+    element: (
+      <Layout>
+        <Roles />
+      </Layout>
+    ),
+  },
+  {
+    path: "/applications",
+    element: (
+      <Layout>
+        <Applications />
+      </Layout>
+    ),
+  },
+  {
+    path: "/applications/targetable-roles",
+    element: (
+      <Layout>
+        <TargetableRoles />
+      </Layout>
+    ),
+  },
+  {
+    path: "/application-form",
+    element: <ApplicationForm />,
+  },
+  {
+    path: "/signup",
+    element: <SignupForm />,
+  },
+  {
+    path: "/auth/callback",
+    element: <Callback />,
+  },
+  {
+    path: "/unauthorized",
+    element: <Unauthorized />,
   },
 ]);
 

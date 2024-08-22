@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 const Callback = () => {
+  console.log("Heree i aam")
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const code = params.get('code')!;
@@ -12,14 +13,12 @@ const Callback = () => {
 
   useEffect(() => {
     if (data) {
+      // TODO redirect dynamically
       window.location.href = '/';
     } else if (error) {
       console.error('Error during OAuth callback:', error);
-    }
-
+    } 
   }, [data, error]);
-
-  
 
   return <div>Loading...</div>;
 };

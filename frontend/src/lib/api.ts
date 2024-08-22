@@ -300,25 +300,11 @@ export const useOauthCallback = (params: OauthCallbackParams) => {
 };
 
 export const useGetMeMember = () => {
-  const navigate = useNavigate();
   return useQuery<Member>({
     queryKey: [QueryKey.ME],
     queryFn: async () => {
       const response = await axios_client
         .get("/members/me")
-        .catch((e: AxiosError) => {
-          console.log("Response", e);
-          if (e.response?.status == 404) {
-            navigate("/signup");
-          } else if (e.response?.status == 403) {
-            navigate("/unauthorized")
-          } else if (e.response?.status == 401) {
-            navigate("/unauthorized")
-          }
-
-
-        });
-
       return response.data;
     },
   });
