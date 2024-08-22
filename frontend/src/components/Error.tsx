@@ -93,26 +93,32 @@ const Error = () => {
   const error = useRouteError();
   const { status } = useParams();
 
-  const getErrorDetails = () => {
+  const getStatus = () => {
     if (isRouteErrorResponse(error)) {
-      return errorDetails.get(error.status) || defaultDetails;
+      return error.status;
     } else if (!isNaN(Number(status))) {
-      return errorDetails.get(Number(status)) || defaultDetails;
+      return Number(status);
     } else {
-      return defaultDetails;
+      return undefined
     }
   };
+
+  const getErrorDetails = () => {
+    const status = getStatus()
+    return status ? errorDetails.get(status) || defaultDetails : defaultDetails;
+  }
 
   const details = getErrorDetails();
 
   return (
     <div className="flex flex-col items-center justify-center text-center h-screen p-10 space-y-8">
-      <h1 className="text-4xl">{details.title}</h1>
+      <img src="/prodeko.svg" alt="Prodeko" className="h-28" />
+      <h1 className="text-4xl">{`${getStatus()} ${details.title}`}</h1>
       <div className="space-y-8 h-30 flex flex-col justify-between items-center text-center">
       {details.details}
       </div>
     </div>
-  );
+  )
 };
 
 export default Error;
