@@ -35,6 +35,16 @@ export const axios_client = axios.create({
   withCredentials: true,
 });
 
+axios_client.interceptors.response.use(
+  (response: AxiosResponse) => {
+    return response;
+  },
+  (error: AxiosError) => {
+    console.error("Axios error: ", error);
+    window.location.href = `/error/${error.response?.status || '500'}`;
+  }
+);
+
 interface PaginatedQueryParams {
   pageSize: number;
   offset: number;

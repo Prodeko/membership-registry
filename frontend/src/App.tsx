@@ -10,10 +10,15 @@ import SignupForm from "./components/signup-form/SignupForm";
 import Applications from "./components/applications/Applications";
 import Callback from "./components/auth/Callback";
 import Unauthorized from "./components/error/Unauthorized";
+import Error from "./components/Error";
 
 const queryClient = new QueryClient();
 
 const router = createBrowserRouter([
+  {
+    path: "/error/:status",
+    element: <Error />,
+  },
   {
     path: "/",
     element: (
@@ -21,71 +26,66 @@ const router = createBrowserRouter([
         <Members />
       </Layout>
     ),
+    errorElement: <Error />,
+    children: [
+      {
+        path: "/members",
+        element: (
+          <Layout>
+            <Members />
+          </Layout>
+        ),
+      },
+      {
+        path: "/members/:id",
+        element: (
+          <Layout>
+            <Member />
+          </Layout>
+        ),
+      },
+      {
+        path: "/roles",
+        element: (
+          <Layout>
+            <Roles />
+          </Layout>
+        ),
+      },
+      {
+        path: "/applications",
+        element: (
+          <Layout>
+            <Applications />
+          </Layout>
+        ),
+      },
+      {
+        path: "/applications/targetable-roles",
+        element: (
+          <Layout>
+            <TargetableRoles />
+          </Layout>
+        ),
+      },
+      {
+        path: "/application-form",
+        element: <ApplicationForm />,
+      },
+      {
+        path: "/signup",
+        element: <SignupForm />,
+      },
+      {
+        path: "/auth/callback",
+        element: <Callback />,
+      },
+      {
+        path: "/unauthorized",
+        element: <Unauthorized />,
+      },
+    ],
   },
-  {
-    path: "/members",
-    element: (
-      <Layout>
-        <Members />
-      </Layout>
-    ),
-  },
-  {
-    path: "/members/:id",
-    element: (
-      <Layout>
-        <Member />
-      </Layout>
-    ),
-  },
-  {
-    path: "/roles",
-    element: (
-      <Layout>
-        <Roles />
-      </Layout>
-    ),
-  },
-  {
-    path: "/applications",
-    element: (
-      <Layout>
-        <Applications />
-      </Layout>
-    ),
-  },
-  {
-    path: "/applications/targetable-roles",
-    element: (
-      <Layout>
-        <TargetableRoles />
-      </Layout>
-    ),
-  },
-  {
-    path: "/application-form",
-    element: (
-      <ApplicationForm />
-    ),
-  },
-  {
-    path: "/signup",
-    element: (
-      <SignupForm />
-    ),
-  },
-  {
-    path: "/auth/callback",
-    element: (
-      <Callback />
-    ),
-  },
-  {
-    path: "/unauthorized",
-    element: (
-      <Unauthorized />
-    ),
-  }
 ]);
 
 function App() {
