@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import ApplicationForm from "./components/application-form/ApplicationForm";
 import Applications from "./components/applications/Applications";
-import TargetableRoles from "./components/applications/TargetableRoles";
+import TargetableRoles from "./components/applications/targetable-roles/TargetableRoles";
 import Callback from "./components/auth/Callback";
 import Error from "./components/Error";
 import Layout from "./components/layout/Layout";
@@ -10,6 +10,7 @@ import Member from "./components/members/Member";
 import Members from "./components/members/Members";
 import Roles from "./components/roles/Roles";
 import SignupForm from "./components/signup-form/SignupForm";
+import { ThemeProvider } from "./components/theme-provider";
 
 const queryClient = new QueryClient();
 
@@ -78,14 +79,16 @@ const router = createBrowserRouter([
   {
     path: "/auth/callback",
     element: <Callback />,
-  }
+  },
 ]);
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <RouterProvider router={router} />
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 
