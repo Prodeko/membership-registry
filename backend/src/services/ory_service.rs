@@ -48,8 +48,9 @@ impl OryService {
     }
 
     fn kratos_config(&self, access_token: String) -> Configuration {
-        let proxy = Proxy::http("http://localhost:8080").unwrap();
-        let client = Client::builder().proxy(proxy).build().unwrap();
+        //let proxy = Proxy::http("http://localhost:8080").unwrap();
+        // let client = Client::builder().proxy(proxy).build().unwrap();
+        let client = Client::new();
         Configuration {
             base_path: format!("{}/kratos", self.config.base_path.clone()),
             client: client,
@@ -59,8 +60,9 @@ impl OryService {
     }
 
     fn keto_public_config(&self) -> Configuration {
-        let proxy = Proxy::http("http://localhost:8080").unwrap();
-        let client = Client::builder().proxy(proxy).build().unwrap();
+        //let proxy = Proxy::http("http://localhost:8080").unwrap();
+        //let client = Client::builder().proxy(proxy).build().unwrap();
+        let client = Client::new();
         Configuration {
             base_path: format!("{}/keto/public", self.config.base_path.clone()),
             client: client,
@@ -69,8 +71,9 @@ impl OryService {
     }
 
     fn keto_admin_config(&self, access_token: String) -> Configuration {
-        let proxy = Proxy::http("http://localhost:8080").unwrap();
-        let client = Client::builder().proxy(proxy).build().unwrap();
+        //let proxy = Proxy::http("http://localhost:8080").unwrap();
+        //let client = Client::builder().proxy(proxy).build().unwrap();
+        let client = Client::new();
         Configuration {
             base_path: format!("{}/keto", self.config.base_path.clone()),
             client: client,
@@ -248,10 +251,11 @@ impl OryService {
     }
 
     pub async fn userinfo(&self, access_token: String) -> Result<AuthInfo, String> {
-        let proxy = Proxy::http("http://localhost:8080").unwrap();
-        let client = Client::builder().proxy(proxy).build().unwrap();
+        // let proxy = Proxy::http("http://localhost:8080").unwrap();
+        // let client = Client::builder().proxy(proxy).build().unwrap();
+        let client = Client::new();
         let res = client
-            .get("http://127.0.0.1:4444/userinfo")
+            .get("http://127.0.0.1:4455/.ory/hydra/public/userinfo")
             .bearer_auth(access_token.clone())
             .send()
             .await
