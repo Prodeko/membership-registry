@@ -13,6 +13,7 @@ pub struct RoleRepo {
 pub struct Role {
     pub name: String,
     pub color: Option<String>,
+    pub description: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -27,7 +28,7 @@ pub struct RoleMember {
 pub struct RoleStats {
     pub name: String,
     pub color: Option<String>,
-    
+    pub description: Option<String>,
     pub member_count: Option<i64>,
     pub active_member_count: Option<i64>,
 }

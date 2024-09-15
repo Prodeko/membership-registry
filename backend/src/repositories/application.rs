@@ -19,6 +19,7 @@ pub struct Application {
     pub valid_until: chrono::NaiveDate,
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub stripe_payment_id: Option<String>,
+    pub optional_roles: Option<Vec<String>>,
     pub application_text: Option<String>,
     pub status: Option<String>,
 }
@@ -33,6 +34,7 @@ pub struct ApplicationWithMember {
     pub valid_until: chrono::NaiveDate,
     pub timestamp: chrono::DateTime<chrono::Utc>,
     pub stripe_payment_id: Option<String>,
+    pub optional_roles: Option<Vec<String>>,
     pub application_text: Option<String>,
     pub status: Option<String>,
 }
