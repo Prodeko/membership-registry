@@ -1,7 +1,7 @@
 import { QueryKey, useCreateTargetableRole, useGetRoles } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { DatePicker } from "../ui/date-picker";
+import { DatePicker } from "../../ui/date-picker";
 import {
   Dialog,
   DialogClose,
@@ -10,22 +10,27 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "../ui/dialog";
+} from "../../ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "../ui/select";
-import { Button } from "../ui/button";
+} from "../../ui/select";
+import { Button } from "../../ui/button";
 import { Link } from "react-router-dom";
+import { stringsToOptions } from "@/lib/utils";
+import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
+import { Input } from "@/components/ui/input";
 
 const CreateTargetableRolesModal = () => {
   const [selectedRole, setSelectedRole] = useState<string>("");
   const [selectedValidUntil, setSelectedValidUntil] = useState<
     Date | undefined
   >(undefined);
+  const [selectedPaymentLink, setSelectedPaymentLink] = useState<string>("");
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const { data: roles } = useGetRoles();
 
   const { mutate: createTargetableRole } = useCreateTargetableRole();
@@ -34,10 +39,13 @@ const CreateTargetableRolesModal = () => {
 
   const handleSubmit = () => {
     if (selectedRole && selectedValidUntil) {
+      // TODO: Add validation for payment link
       createTargetableRole(
         {
           role_name: selectedRole,
           valid_until: selectedValidUntil,
+          payment_link: selectedPaymentLink,
+          optional_roles: selectedRoles,
           active: true,
         },
         {
@@ -49,6 +57,10 @@ const CreateTargetableRolesModal = () => {
         }
       );
     }
+  };
+
+  const onRoleChange = (selectedRoles: Option[]) => {
+    setSelectedRoles(selectedRoles.map((r) => r.value));
   };
 
   return (
@@ -83,6 +95,17 @@ const CreateTargetableRolesModal = () => {
             title="Valid until"
           />
         </div>
+        <Input
+          type="text"
+          placeholder="Payment link"
+          value={selectedPaymentLink}
+          onChange={(e) => setSelectedPaymentLink(e.target.value)}
+        />
+        <MultipleSelector
+          options={stringsToOptions(roles?.map((r) => r.name) ?? [])}
+          onChange={onRoleChange}
+          placeholder="Optional roles"
+        />
         <DialogClose asChild>
           <Button onClick={handleSubmit}>Create</Button>
         </DialogClose>

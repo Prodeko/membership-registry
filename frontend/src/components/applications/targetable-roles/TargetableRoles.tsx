@@ -1,15 +1,9 @@
 import { useGetTargetableRoles } from "@/lib/api";
-import CreateTargetableRolesModal from "../CreateTargetableRolesModal";
+import CreateTargetableRolesModal from "./CreateTargetableRolesModal";
 import { DataTable } from "@/components/ui/data-table";
 import { columns } from "./columns";
 
 const TargetableRoles = () => {
-  const { data: targetableRoles, isLoading } = useGetTargetableRoles();
-
-  if (isLoading) {
-    return <div>Loading...</div>;
-  }
-
   return (
     <div className="space-y-4">
       <div className="flex justify-between">

@@ -1,8 +1,9 @@
 import { ColumnDef } from "@tanstack/react-table";
 import {
   CopyIcon,
+  DollarSignIcon,
   FileIcon,
-  MoreHorizontal
+  MoreHorizontal,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../../ui/button";
@@ -61,8 +62,10 @@ export const columns: ColumnDef<ApplicationTargetableRole>[] = [
     ),
     cell: ({ row }) => {
       const role = row.original as ApplicationTargetableRole;
-      return role.valid_until ? new Date(role.valid_until).toLocaleDateString() : "Never";
-    }
+      return role.valid_until
+        ? new Date(role.valid_until).toLocaleDateString()
+        : "Never";
+    },
   },
   {
     accessorKey: "payment_link",
@@ -79,12 +82,12 @@ export const columns: ColumnDef<ApplicationTargetableRole>[] = [
       const role = row.original as ApplicationTargetableRole;
       return (
         <div className="flex flex-wrap gap-1">
-          {role.optional_roles.map((roleName) => (
+          {role.optional_roles?.map((roleName) => (
             <RoleBadge key={roleName} role={roleName} />
           ))}
         </div>
       );
-    }
+    },
   },
   {
     accessorKey: "actions",
@@ -114,11 +117,16 @@ export const columns: ColumnDef<ApplicationTargetableRole>[] = [
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="flex items-center justify-between">
-              <Link to={`/roles/${role.role_name}`}>
-                View role
-              </Link>
+              <Link to={`/roles/${role.role_name}`}>View role</Link>
               <FileIcon className="w-4 h-4 ml-2" />
             </DropdownMenuItem>
+            {role.payment_link && (
+              <DropdownMenuItem className="flex items-center justify-between">
+                {/* TODO fix the url */}
+                <a href={`/roles/${role.role_name}`}>View payment link in Stripe</a>
+                <DollarSignIcon className="w-4 h-4 ml-2" />
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       );
