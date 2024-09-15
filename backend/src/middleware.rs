@@ -75,7 +75,9 @@ pub async fn check_member_access(
                 .await
                 .unwrap_or(false);
 
-            if !is_admin || userinfo.user_id != user_id {
+            println!("Is admin: {}", is_admin);
+
+            if !(is_admin || userinfo.user_id == user_id) {
                 return StatusCode::FORBIDDEN.into_response();
             }
 
