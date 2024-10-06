@@ -9,6 +9,7 @@ pub struct NewApplication {
     pub valid_until: chrono::NaiveDate,
     pub stripe_payment_id: Option<String>,
     pub application_text: Option<String>,
+    pub optional_roles: Option<Vec<String>>,
 }
 
 #[derive(Debug, sqlx::FromRow, Serialize)]
@@ -60,18 +61,20 @@ impl ApplicationRepo {
         role_name: String,
         valid_until: chrono::NaiveDate,
         application_text: Option<String>,
+        optional_roles: Option<Vec<String>>,
     ) -> Result<Application, sqlx::Error> {
         let application_created = sqlx::query_as!(
             Application,
             r#"
-            INSERT INTO Application (user_id, role_name, valid_until, application_text, timestamp, status)
-            VALUES ($1, $2, $3, $4, now(), 'pending')
+            INSERT INTO Application (user_id, role_name, valid_until, application_text, optional_roles, timestamp, status)
+            VALUES ($1, $2, $3, $4, $5, now(), 'pending')
             RETURNING *
             "#,
           user_id,
           role_name,
           valid_until,
-          application_text
+          application_text,
+          optional_roles.as_deref()
         )
         .fetch_one(&self.pool)
         .await?;

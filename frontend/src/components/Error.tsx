@@ -89,7 +89,6 @@ const defaultDetails = {
 };
 
 const Error = () => {
-  console.log("Error boundary");
   const error = useRouteError();
   const { status } = useParams();
 

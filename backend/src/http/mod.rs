@@ -37,8 +37,8 @@ pub async fn serve(config: Config, services: Services) {
     let oauth2_client = BasicClient::new(
         ClientId::new(config.oauth_client_id.clone()),
         Some(ClientSecret::new(config.oauth_client_secret.clone())),
-        AuthUrl::new(format!("{}/oauth2/auth", config.oauth_issuer_url.clone())).unwrap(),
-        Some(TokenUrl::new(format!("{}/oauth2/token", config.oauth_issuer_url.clone())).unwrap()),
+        AuthUrl::new(format!("{}/hydra/public/oauth2/auth", config.ory_base_url.clone())).unwrap(),
+        Some(TokenUrl::new(format!("{}/hydra/public/oauth2/token", config.ory_base_url.clone())).unwrap()),
     )
     .set_redirect_uri(RedirectUrl::new(config.oauth_redirect_url.clone()).unwrap());
 
@@ -52,7 +52,7 @@ pub async fn serve(config: Config, services: Services) {
     };
 
     let cors = CorsLayer::new()
-        .allow_origin(HeaderValue::from_static("http://127.0.0.1:5173"))
+        .allow_origin(HeaderValue::from_static("http://127.0.0.1:5173")) // TODO: Change this to the frontend URL
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
         .allow_headers(AllowHeaders::list([HeaderName::from_static("authorization"), HeaderName::from_static("content-type")]))
         .allow_credentials(true);

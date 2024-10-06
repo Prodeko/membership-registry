@@ -26,10 +26,6 @@ pub struct Config {
     #[validate(length(min = 1, max = 1024))]
     pub oauth_client_secret: String,
 
-    #[envconfig(from = "OAUTH_ISSUER_URL")]
-    #[validate(length(min = 1, max = 1024))]
-    pub oauth_issuer_url: String,
-
     #[envconfig(from = "OAUTH_REDIRECT_URL")]
     #[validate(length(min = 1, max = 1024))]
     pub oauth_redirect_url: String,

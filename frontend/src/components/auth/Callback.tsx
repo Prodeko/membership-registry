@@ -4,7 +4,6 @@ import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 
 const Callback = () => {
-  console.log("Heree i aam")
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const code = params.get('code')!;

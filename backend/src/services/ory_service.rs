@@ -8,7 +8,7 @@ use ory_client::{
             CreateIdentityError, DeleteIdentityError, GetIdentityError, ListIdentitiesError,
             UpdateIdentityError,
         },
-        permission_api, relationship_api, Error,
+        o_auth2_api, oidc_api, permission_api, relationship_api, Error,
     },
     models::{
         relationship_patch, update_identity_body::StateEnum, CreateIdentityBody, Identity,
@@ -47,10 +47,25 @@ impl OryService {
         }
     }
 
+    fn _client_factory(&self) -> Client {
+        let proxy = std::env::var("HTTP_PROXY");
+        println!("Proxy: {:?}", proxy);
+        match proxy {
+            Ok(port) => {
+                let proxy = Proxy::http(format!("http://localhost:{}", port)).unwrap();
+                let mut headers = reqwest::header::HeaderMap::new();
+                headers.insert(
+                    reqwest::header::AUTHORIZATION,
+                    reqwest::header::HeaderValue::from_static("Bearer 123"),
+                );
+                Client::builder().proxy(proxy).default_headers(headers).build().unwrap()
+            }
+            Err(_) => Client::new(),
+        }
+    }
+
     fn kratos_config(&self, access_token: String) -> Configuration {
-        //let proxy = Proxy::http("http://localhost:8080").unwrap();
-        // let client = Client::builder().proxy(proxy).build().unwrap();
-        let client = Client::new();
+        let client = self._client_factory();
         Configuration {
             base_path: format!("{}/kratos", self.config.base_path.clone()),
             client: client,
@@ -60,9 +75,7 @@ impl OryService {
     }
 
     fn keto_public_config(&self) -> Configuration {
-        //let proxy = Proxy::http("http://localhost:8080").unwrap();
-        //let client = Client::builder().proxy(proxy).build().unwrap();
-        let client = Client::new();
+        let client = self._client_factory();
         Configuration {
             base_path: format!("{}/keto/public", self.config.base_path.clone()),
             client: client,
@@ -71,13 +84,21 @@ impl OryService {
     }
 
     fn keto_admin_config(&self, access_token: String) -> Configuration {
-        //let proxy = Proxy::http("http://localhost:8080").unwrap();
-        //let client = Client::builder().proxy(proxy).build().unwrap();
-        let client = Client::new();
+        let client = self._client_factory();
         Configuration {
             base_path: format!("{}/keto", self.config.base_path.clone()),
             client: client,
             bearer_access_token: Some(access_token),
+            ..Default::default()
+        }
+    }
+
+    fn hydra_public_config(&self, access_token: Option<String>) -> Configuration {
+        let client = self._client_factory();
+        Configuration {
+            base_path: format!("{}/hydra/public", self.config.base_path.clone()),
+            client: client,
+            bearer_access_token: access_token,
             ..Default::default()
         }
     }
@@ -251,9 +272,8 @@ impl OryService {
     }
 
     pub async fn userinfo(&self, access_token: String) -> Result<AuthInfo, String> {
-        // let proxy = Proxy::http("http://localhost:8080").unwrap();
-        // let client = Client::builder().proxy(proxy).build().unwrap();
-        let client = Client::new();
+        let proxy = Proxy::http("http://localhost:8181").unwrap();
+        let client = Client::builder().proxy(proxy).build().unwrap();
         let res = client
             .get("http://127.0.0.1:4455/.ory/hydra/public/userinfo")
             .bearer_auth(access_token.clone())
@@ -297,6 +317,28 @@ impl OryService {
                 access_token
             }),
             _ => Err("Did not find profile or email data from userinfo!".to_string()),
+        }
+    }
+
+    pub async fn _userinfo(&self, access_token: String) -> Result<AuthInfo, String> {
+        println!("Access token: {}", access_token);
+        let config = &self.hydra_public_config(Some(access_token.clone()));
+        let res = oidc_api::get_oidc_user_info(config).await;
+
+        match res {
+            Ok(res) => {
+                let user_id = Uuid::parse_str(res.sub.unwrap().as_str()).map_err(|e| {
+                    format!("Failed to parse user id from userinfo: {}", e.to_string())
+                })?;
+                Ok(AuthInfo {
+                    user_id,
+                    access_token,
+                    first_name: res.given_name.unwrap_or("".to_string()),
+                    last_name: res.family_name.unwrap_or("".to_string()),
+                    email: res.email.unwrap_or("".to_string()),
+                })
+            }
+            Err(e) => Err(format!("Failed to fetch userinfo: {}", e.to_string())),
         }
     }
 

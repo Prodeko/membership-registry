@@ -1,6 +1,4 @@
-use axum::{
-    extract::State, response::Redirect, routing::get, Json, Router
-};
+use axum::{extract::State, response::Redirect, routing::get, Json, Router};
 use axum_extra::extract::CookieJar;
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use reqwest::Client;
@@ -34,7 +32,9 @@ async fn callback(
     query: axum::extract::Query<std::collections::HashMap<String, String>>,
     jar: CookieJar,
 ) -> (CookieJar, Json<String>) {
+    println!("Running callback");
     if let (Some(code), Some(_state_param)) = (query.get("code"), query.get("state")) {
+        println!("Code: {}", code);
         let token_result = state
             .oauth2_client
             .exchange_code(AuthorizationCode::new(code.clone()))
@@ -44,32 +44,15 @@ async fn callback(
 
         match token_result {
             Ok(token) => {
-                println!("Token: {:?}", token.access_token().secret());
-                // Retrieve user info from OIDC provider
-                let client = Client::new();
-                match client
-                    .get("http://127.0.0.1:4444/userinfo")
-                    .bearer_auth(token.access_token().secret())
-                    .send()
-                    .await
-                {
-                    Ok(response) => match response.json::<Value>().await {
-                        Ok(user_info) => {
-                            if let Some(_user_id) = user_info["sub"].as_str() {
-                                let jar = set_session_cookie(&jar, token.access_token().secret());
-                                return (jar, Json(token.access_token().secret().to_string()));
-                            } else {
-                                return (
-                                    jar,
-                                    Json("Error: Missing user ID in response".to_string()),
-                                );
-                            }
-                        }
-                        Err(err) => {
-                            eprintln!("Failed to parse user info: {:?}", err);
-                            return (jar, Json("Error: Failed to parse user info".to_string()));
-                        }
-                    },
+                let userinfo = state
+                    .ory_service
+                    .userinfo(token.access_token().secret().clone())
+                    .await;
+                match userinfo {
+                    Ok(response) => {
+                        let jar = set_session_cookie(&jar, token.access_token().secret());
+                        return (jar, Json(token.access_token().secret().to_string()));
+                    }
                     Err(err) => {
                         eprintln!("Failed to retrieve user info: {:?}", err);
                         return (jar, Json("Error: Failed to retrieve user info".to_string()));
@@ -82,6 +65,7 @@ async fn callback(
             }
         }
     } else {
+        println!("Missing code or state");
         (jar, Json("Missing code or state".to_string()))
     }
 }

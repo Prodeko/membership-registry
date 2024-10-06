@@ -44,6 +44,7 @@ impl ApplicationService {
                 new_application.role_name,
                 new_application.valid_until,
                 new_application.application_text,
+                new_application.optional_roles,
             )
             .await
             .map_err(|e| e.to_string())
