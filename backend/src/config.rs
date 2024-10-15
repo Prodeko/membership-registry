@@ -1,7 +1,7 @@
 use envconfig::Envconfig;
 use validator::Validate;
 
-#[derive(Envconfig, Validate)]
+#[derive(Envconfig, Validate, Clone)]
 pub struct Config {
     #[envconfig(from = "PORT")]
     pub port: u16,

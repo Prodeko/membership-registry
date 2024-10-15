@@ -1,7 +1,7 @@
 use application_service::ApplicationService;
 use member_service::MemberService;
 
-use crate::repositories::PostgresRepo;
+use crate::{config::Config, repositories::PostgresRepo};
 
 pub mod application_service;
 pub mod member_service;
@@ -17,8 +17,8 @@ pub struct Services {
 }
 
 impl Services {
-    pub fn new(repo: PostgresRepo, ory_client_url: String) -> Self {
-        let ory_service = ory_service::OryService::new(ory_client_url);
+    pub fn new(repo: PostgresRepo, config: Config) -> Self {
+        let ory_service = ory_service::OryService::new(config.ory_base_url, config.oauth_issuer_url);
         let member_service = MemberService::new(repo.member, ory_service.clone());
         let application_service = ApplicationService::new(repo.application);
         let role_service =

@@ -35,7 +35,7 @@ async fn main() {
 
     let repo = PostgresRepo::new(pool.clone());
 
-    let services = Services::new(repo, config.ory_base_url.to_string());
+    let services = Services::new(repo, config.clone());
 
     serve(config, services).await;
 }

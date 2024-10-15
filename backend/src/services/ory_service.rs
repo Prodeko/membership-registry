@@ -35,12 +35,14 @@ pub struct AuthInfo {
 
 #[derive(Clone)]
 pub struct OryService {
+    pub oauth_issuer_url: String,
     pub config: Configuration,
 }
 
 impl OryService {
-    pub fn new(ory_base_url: String) -> Self {
+    pub fn new(ory_base_url: String, oauth_issuer_url: String) -> Self {
         Self {
+            oauth_issuer_url,
             config: Configuration {
                 base_path: ory_base_url,
                 bearer_access_token: None,
@@ -86,7 +88,7 @@ impl OryService {
     fn hydra_public_config(&self, access_token: Option<String>) -> Configuration {
         let client = self._client_factory();
         Configuration {
-            base_path: "http://localhost:4444".to_string(),
+            base_path: self.oauth_issuer_url.clone(),
             client: client,
             oauth_access_token: access_token,
             ..Default::default()
