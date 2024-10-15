@@ -38,8 +38,8 @@ pub async fn serve(config: Config, services: Services) {
     let oauth2_client = BasicClient::new(
         ClientId::new(config.oauth_client_id.clone()),
         Some(ClientSecret::new(config.oauth_client_secret.clone())),
-        AuthUrl::new(format!("{}/hydra/public/oauth2/auth", config.ory_base_url.clone())).unwrap(),
-        Some(TokenUrl::new(format!("{}/hydra/public/oauth2/token", config.ory_base_url.clone())).unwrap()),
+        AuthUrl::new(format!("{}/oauth2/auth", config.oauth_issuer_url.clone())).unwrap(),
+        Some(TokenUrl::new(format!("{}/oauth2/token", config.oauth_issuer_url.clone())).unwrap()),
     )
     .set_redirect_uri(RedirectUrl::new(config.oauth_redirect_url.clone()).unwrap());
 
