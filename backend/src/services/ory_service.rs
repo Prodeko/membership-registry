@@ -50,20 +50,8 @@ impl OryService {
     }
 
     fn _client_factory(&self) -> Client {
-        let proxy = std::env::var("HTTP_PROXY");
-        println!("Proxy: {:?}", proxy);
-        match proxy {
-            Ok(port) => {
-                let proxy = Proxy::http(format!("http://localhost:{}", port)).unwrap();
-                let mut headers = reqwest::header::HeaderMap::new();
-                headers.insert(
-                    reqwest::header::AUTHORIZATION,
-                    reqwest::header::HeaderValue::from_static("Bearer 123"),
-                );
-                Client::builder().proxy(proxy).default_headers(headers).build().unwrap()
-            }
-            Err(_) => Client::new(),
-        }
+        let proxy = Proxy::http("http://localhost:8181").unwrap();
+        Client::builder().proxy(proxy).build().unwrap()
     }
 
     fn kratos_config(&self, access_token: String) -> Configuration {
@@ -98,9 +86,9 @@ impl OryService {
     fn hydra_public_config(&self, access_token: Option<String>) -> Configuration {
         let client = self._client_factory();
         Configuration {
-            base_path: format!("{}/hydra/public", self.config.base_path.clone()),
+            base_path: "http://localhost:4444".to_string(),
             client: client,
-            bearer_access_token: access_token,
+            oauth_access_token: access_token,
             ..Default::default()
         }
     }
@@ -274,60 +262,6 @@ impl OryService {
     }
 
     pub async fn userinfo(&self, access_token: String) -> ServiceResult<AuthInfo> {
-        let proxy = Proxy::http("http://localhost:8181").unwrap();
-        let client = Client::builder().proxy(proxy).build().unwrap();
-        let res = client
-            .get("http://127.0.0.1:4455/.ory/hydra/public/userinfo") // TODO use config
-            .bearer_auth(access_token.clone())
-            .send()
-            .await
-            .map_err(|e| ServiceError::OryError)?;
-
-        if !res.status().is_success() {
-            print!(
-                "Failed to introspect token: {}",
-                res.status().to_string()
-            );
-            return Err(ServiceError::OryError);
-        }
-
-        let res_body = res
-            .json::<serde_json::Value>()
-            .await
-            .map_err(|e| {
-                println!("Failed to parse response: {:?}", e);
-                ServiceError::OryError
-            })?;
-        let user_id = res_body["sub"]
-            .as_str()
-            .map(|x| Uuid::parse_str(x).ok())
-            .flatten();
-        let user_id = match user_id {
-            Some(id) => id,
-            None => {
-                println!("Its not a focking uuid");
-                return Err(ServiceError::OryError);
-            }
-        };
-
-        let first_name = res_body.get("given_name").map(|s| s.to_string());
-        let last_name = res_body.get("family_name").map(|s| s.to_string());
-        let email = res_body.get("email").map(|s| s.to_string());
-
-        match (first_name, last_name, email) {
-            (Some(first_name), Some(last_name), Some(email)) => Ok(AuthInfo {
-                first_name: first_name.replace("\"", ""),
-                last_name: last_name.replace("\"", ""),
-                email: email.replace("\"", ""),
-                user_id,
-                access_token
-            }),
-            _ => Err(ServiceError::InvalidInput),
-        }
-    }
-
-    pub async fn _userinfo(&self, access_token: String) -> ServiceResult<AuthInfo> {
-        println!("Access token: {}", access_token);
         let config = &self.hydra_public_config(Some(access_token.clone()));
         let res = oidc_api::get_oidc_user_info(config).await;
 
