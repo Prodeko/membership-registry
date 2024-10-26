@@ -1,10 +1,15 @@
 use std::str::FromStr;
 
-use crate::http::errors::HttpResult;
+use crate::http::errors::{ApiError, ApiResult};
 
 use super::AppState;
 use axum::{
-    debug_handler, extract::{Json, State}, http::StatusCode, response::IntoResponse, routing::post, Router
+    debug_handler,
+    extract::{Json, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::post,
+    Router,
 };
 use serde_json::{self, Value};
 use stripe::{CheckoutSession, EventObject};
@@ -21,7 +26,7 @@ async fn stripe_webhook(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     body: String,
-) -> HttpResult<(StatusCode, Json<Value>)> {
+) -> ApiResult<Json<Value>> {
     let sig_header = headers
         .get("stripe-signature")
         .and_then(|v| v.to_str().ok())
@@ -35,10 +40,7 @@ async fn stripe_webhook(
         Ok(event) => event,
         Err(err) => {
             println!("Invalid signature, {}", err);
-            return Ok((
-                StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({"error": "Invalid signature."})),
-            ));
+            return Err(ApiError::Unauthorized);
         }
     };
 
@@ -48,9 +50,8 @@ async fn stripe_webhook(
                 EventObject::CheckoutSession(session) => session,
                 _ => {
                     println!("Unhandled event object");
-                    return Ok((
-                        StatusCode::BAD_REQUEST,
-                        Json(serde_json::json!({"error": "Unhandled event object."})),
+                    return Ok(Json(
+                        serde_json::json!({"success": true, "message": "Unhandled event object."}),
                     ));
                 }
             };
@@ -62,12 +63,7 @@ async fn stripe_webhook(
             {
                 Some(id) => *id,
                 None => {
-                    return Ok((
-                        StatusCode::BAD_REQUEST,
-                        Json(
-                            serde_json::json!({"error": "Failed to parse application ID. It must be a valid UUID."}),
-                        ),
-                    ));
+                    return Err(ApiError::BadRequest);
                 }
             };
 
@@ -77,16 +73,15 @@ async fn stripe_webhook(
                     application_id,
                     checkout.payment_intent.unwrap().id().to_string(),
                 )
-                .await.map_err(|e| e.into_response());
+                .await
+                .map_err(|e| e.into_response());
 
-            Ok((
-                StatusCode::OK,
-                Json(serde_json::json!({"success": true, "message": "Payment ID updated."})),
+            Ok(Json(
+                serde_json::json!({"success": true, "message": "Payment ID updated."}),
             ))
         }
-        _ => Ok((
-            StatusCode::OK,
-            Json(serde_json::json!({"success": true, "message": "Unhandled event type."})),
+        _ => Ok(Json(
+            serde_json::json!({"success": true, "message": "Unhandled event type."}),
         )),
     }
 }

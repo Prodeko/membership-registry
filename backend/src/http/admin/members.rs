@@ -3,6 +3,7 @@ use axum::{
     debug_handler,
     extract::{Path, Query, State},
     http::{Response, StatusCode},
+    response::IntoResponse,
     routing::{delete, get, post},
     Extension, Json, Router,
 };
@@ -12,6 +13,7 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::{
+    http::errors::{ApiError, ApiResult},
     repositories::{
         member::{Member, MemberWithRoles},
         role::RoleMember,
@@ -40,13 +42,15 @@ struct MembersQuery {
 async fn get_members(
     State(state): State<AppState>,
     Query(query): Query<MembersQuery>,
-) -> Result<Json<Vec<Member>>, String> {
+) -> ApiResult<Json<Vec<Member>>> {
     let user_ids = query
         .user_ids
         .clone()
         .map(|s| {
             s.split(',')
-                .map(|uuid| Uuid::parse_str(uuid).map_err(|e| e.to_string()))
+                .map(|uuid| {
+                    Uuid::parse_str(uuid).map_err(|e| (StatusCode::BAD_REQUEST, "Invalid UUID"))
+                })
                 .collect::<Result<Vec<Uuid>, _>>()
                 .ok()
         })
@@ -55,13 +59,13 @@ async fn get_members(
     println!("User ids: {:?}", user_ids);
     println!("user ids query: {:?}", query.user_ids.clone());
 
-    let members = state.member_service.get_members_with_ids(user_ids).await;
+    let members = state
+        .member_service
+        .get_members_with_ids(user_ids)
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &members {
-        println!("Error fetching members: {:?}", e);
-    }
-
-    members.map(Json).map_err(|e| e.to_string())
+    Ok(members)
 }
 
 #[derive(Deserialize, Debug)]
@@ -80,7 +84,7 @@ struct MembersWithRolesQuery {
 async fn get_members_with_roles(
     State(state): State<AppState>,
     Query(query): Query<MembersWithRolesQuery>,
-) -> Result<Json<Vec<MemberWithRoles>>, String> {
+) -> ApiResult<Json<Vec<MemberWithRoles>>> {
     let roles = query.roles.clone().map(|roles| {
         roles
             .split(',')
@@ -100,20 +104,17 @@ async fn get_members_with_roles(
             query.valid_from,
             query.valid_until,
         )
-        .await;
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &members {
-        println!("Error fetching members: {:?}", e);
-    }
-
-    members.map(Json)
+    Ok(members)
 }
 
 #[debug_handler]
 async fn export_members_with_roles(
     State(state): State<AppState>,
     Query(query): Query<MembersWithRolesQuery>,
-) -> Result<Response<Body>, StatusCode> {
+) -> ApiResult<Response<Body>> {
     let roles = query.roles.clone().map(|roles| {
         roles
             .split(',')
@@ -133,51 +134,44 @@ async fn export_members_with_roles(
             query.valid_from,
             query.valid_until,
         )
-        .await;
+        .await?;
 
-    if let Err(e) = &members {
-        println!("Error fetching members: {:?}", e);
+    // TODO make this more general, CSV is needed elsewhere also
+    // Write CSV to a string buffer
+    let mut wtr = WriterBuilder::new().from_writer(vec![]);
+    for record in members {
+        wtr.write_record(&record.to_csv_row())
+            .map_err(|_| ApiError::InternalServerError)?; 
     }
+    let csv_data = wtr
+        .into_inner()
+        .map_err(|_| ApiError::InternalServerError)?; 
 
-    match members {
-        Ok(members) => {
-            // Write CSV to a string buffer
-            let mut wtr = WriterBuilder::new().from_writer(vec![]);
-            for record in members {
-                wtr.write_record(&record.to_csv_row())
-                    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            }
-            let csv_data = wtr
-                .into_inner()
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Write the CSV data to a temporary file
+    let mut file = tokio::fs::File::create("/tmp/data.csv")
+        .await
+        .map_err(|_| ApiError::InternalServerError)?; 
 
-            // Write the CSV data to a temporary file
-            let mut file = tokio::fs::File::create("/tmp/data.csv")
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    file.write_all(&csv_data)
+        .await
+        .map_err(|_| ApiError::InternalServerError)?; 
 
-            file.write_all(&csv_data)
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Read the file and respond with its content
+    let file = tokio::fs::File::open("/tmp/data.csv")
+        .await
+        .map_err(|_| ApiError::InternalServerError)?; 
 
-            // Read the file and respond with its content
-            let file = tokio::fs::File::open("/tmp/data.csv")
-                .await
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-            let stream = tokio_util::io::ReaderStream::new(file);
+    let stream = tokio_util::io::ReaderStream::new(file);
 
-            // Create the response
-            let response = Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "text/csv")
-                .header("Content-Disposition", "attachment; filename=\"data.csv\"")
-                .body(Body::from_stream(stream))
-                .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    // Create the response
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", "text/csv")
+        .header("Content-Disposition", "attachment; filename=\"data.csv\"")
+        .body(Body::from_stream(stream))
+        .map_err(|_| ApiError::InternalServerError)?;
 
-            Ok(response)
-        }
-        Err(_e) => Err(StatusCode::INTERNAL_SERVER_ERROR),
-    }
+    Ok(response)
 }
 
 #[debug_handler]
@@ -185,37 +179,28 @@ async fn get_member(
     Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-) -> Result<Json<Member>, axum::http::StatusCode> {
+) -> ApiResult<Json<Member>> {
     let member = state
         .member_service
         .get_member_with_user(user_id, user_info.unwrap().access_token)
-        .await;
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &member {
-        println!("Error fetching member: {:?}", e);
-    }
-
-    // TODO: Return proper status code
-    member
-        .map(Json)
-        .map_err(|_e| axum::http::StatusCode::NOT_FOUND)
+    Ok(member)
 }
 
 #[debug_handler]
 async fn get_member_roles(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-) -> Result<Json<Vec<RoleMember>>, axum::http::StatusCode> {
-    let roles = state.role_service.get_member_roles(user_id).await;
+) -> ApiResult<Json<Vec<RoleMember>>> {
+    let roles = state
+        .role_service
+        .get_member_roles(user_id)
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &roles {
-        println!("Error fetching member roles: {:?}", e);
-    }
-
-    // TODO return proper status code
-    roles
-        .map(Json)
-        .map_err(|_e| axum::http::StatusCode::NOT_FOUND)
+    Ok(roles)
 }
 
 #[debug_handler]
@@ -224,17 +209,14 @@ async fn update_member(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
-) -> Result<Json<Member>, String> {
-    let member = state
+) -> ApiResult<Json<Member>> {
+    let result = state
         .member_service
         .update_member(updated_member, user_info.unwrap().access_token)
-        .await;
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &member {
-        println!("Error updating member: {:?}", e);
-    }
-
-    member.map(Json).map_err(|e| e.to_string())
+    Ok(result)
 }
 
 #[debug_handler]
@@ -242,12 +224,13 @@ async fn delete_member(
     Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-) -> Result<(), String> {
-    state
+) -> ApiResult<()> {
+    let result = state
         .member_service
         .delete_member(user_id, user_info.unwrap().access_token)
-        .await
-        .map_err(|e| e.to_string())
+        .await?;
+
+    Ok(result)
 }
 
 #[derive(Deserialize)]
@@ -259,12 +242,13 @@ async fn delete_many(
     Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(query): Json<DeleteManyBody>,
-) -> Result<(), String> {
-    state
+) -> ApiResult<()> {
+    let result = state
         .member_service
         .delete_many(query.ids, user_info.unwrap().access_token)
-        .await
-        .map_err(|e| e.to_string())
+        .await?;
+
+    Ok(result)
 }
 
 #[derive(Deserialize)]
@@ -280,7 +264,7 @@ async fn add_role(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(query): Json<RoleMemberBody>,
-) -> Result<(), String> {
+) -> ApiResult<()> {
     let result = state
         .role_service
         .add_role_member(
@@ -290,13 +274,9 @@ async fn add_role(
             query.valid_until,
             user_info.unwrap().access_token,
         )
-        .await;
+        .await?;
 
-    if let Err(e) = &result {
-        println!("Error adding role: {:?}", e);
-    }
-
-    result.map(|_| ()).map_err(|e| e.to_string())
+    Ok(result)
 }
 
 #[derive(Deserialize)]
@@ -312,7 +292,7 @@ async fn add_many_roles(
     Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(query): Json<AddManyRolesBody>,
-) -> Result<(), String> {
+) -> ApiResult<()> {
     let result = state
         .role_service
         .add_many_role_members(
@@ -322,11 +302,7 @@ async fn add_many_roles(
             query.valid_until,
             user_info.unwrap().access_token,
         )
-        .await;
+        .await?;
 
-    if let Err(e) = &result {
-        println!("Error adding roles: {:?}", e);
-    }
-
-    result.map(|_| ()).map_err(|e| e.to_string())
+    Ok(result)
 }

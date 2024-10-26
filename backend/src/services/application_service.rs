@@ -35,7 +35,7 @@ impl ApplicationService {
             .await;
 
         if let Ok(application) = old_application {
-            return Err(E::ApplicationAlreadyExists);
+            return Err(E::AlreadyExists);
         }
 
         let result = self
@@ -87,7 +87,7 @@ impl ApplicationService {
 
         if let Some(app_status) = application.status {
             if app_status != "pending" {
-                return Err(E::ApplicationAlreadyExists);
+                return Err(E::ApplicationAlreadyProcessed);
             }
         }
 

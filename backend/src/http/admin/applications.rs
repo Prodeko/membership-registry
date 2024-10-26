@@ -1,10 +1,17 @@
 use axum::{
-    debug_handler, extract::{Path, Query, State}, response::IntoResponse, routing::{delete, get, post, put}, Json, Router
+    debug_handler,
+    extract::{Path, Query, State},
+    response::IntoResponse,
+    routing::{delete, get, post, put},
+    Json, Router,
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::{http::errors::HttpResult, repositories::application::{Application, ApplicationWithMember}};
+use crate::{
+    http::errors::ApiResult,
+    repositories::application::{Application, ApplicationWithMember},
+};
 
 use super::AppState;
 
@@ -19,14 +26,14 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-async fn get_applications(State(state): State<AppState>) -> HttpResult<Json<Vec<Application>>> {
-    let applications = state.application_service.get_all_applications().await;
+async fn get_applications(State(state): State<AppState>) -> ApiResult<Json<Vec<Application>>> {
+    let applications = state
+        .application_service
+        .get_all_applications()
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &applications {
-        println!("Error fetching applications: {:?}", e);
-    }
-
-    applications.map(Json).map_err(|e| e.into_response())
+    Ok(applications)
 }
 
 #[derive(Deserialize, Debug)]
@@ -38,17 +45,14 @@ struct FilteredApplicationsParams {
 async fn get_applications_filtered(
     State(state): State<AppState>,
     Query(filter): Query<FilteredApplicationsParams>,
-) -> HttpResult<Json<Vec<ApplicationWithMember>>> {
+) -> ApiResult<Json<Vec<ApplicationWithMember>>> {
     let applications = state
         .application_service
         .get_applications_with_member_filtered(filter.status, filter.search)
-        .await;
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &applications {
-        println!("Error fetching applications: {:?}", e);
-    }
-
-    applications.map(Json).map_err(|e| e.into_response())
+    Ok(applications)
 }
 
 #[derive(Deserialize, Debug)]
@@ -59,19 +63,16 @@ struct ApplicationPath {
 async fn delete_application(
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
-) -> HttpResult<Json<()>> {
+) -> ApiResult<Json<()>> {
     let application_id = path.application_id;
 
     let delete = state
         .application_service
         .delete_application(application_id)
-        .await;
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &delete {
-        println!("Error deleting application: {:?}", e);
-    }
-
-    delete.map(Json).map_err(|e| e.into_response())
+    Ok(delete)
 }
 
 #[derive(Deserialize, Debug)]
@@ -83,20 +84,17 @@ async fn update_application_status(
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
     Json(body): Json<UpdateApplicationStatus>,
-) -> HttpResult<Json<()>> {
+) -> ApiResult<Json<()>> {
     let application_id = path.application_id;
     let status = body.status;
 
     let update = state
         .application_service
         .update_application_status(application_id, status)
-        .await;
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &update {
-        println!("Error updating application status: {:?}", e);
-    }
-
-    update.map(Json).map_err(|e| e.into_response())
+    Ok(update)
 }
 
 #[derive(Deserialize, Debug)]
@@ -108,20 +106,17 @@ struct PostTargetableRole {
 async fn post_targetable_role(
     State(state): State<AppState>,
     Json(body): Json<PostTargetableRole>,
-) -> HttpResult<Json<()>> {
+) -> ApiResult<Json<()>> {
     let role_name = body.role_name;
     let valid_until = body.valid_until;
 
     let targetable_role = state
         .application_service
         .create_targetable_role(role_name, valid_until, Some(true))
-        .await;
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &targetable_role {
-        println!("Error creating targetable role: {:?}", e);
-    }
-
-    targetable_role.map(Json).map_err(|e| e.into_response())
+    Ok(targetable_role)
 }
 
 #[derive(Deserialize, Debug)]
@@ -134,7 +129,7 @@ struct PutTargetableRole {
 async fn put_targetable_role(
     State(state): State<AppState>,
     Json(body): Json<PutTargetableRole>,
-) -> HttpResult<Json<()>> {
+) -> ApiResult<Json<()>> {
     let role_name = body.role_name;
     let valid_until = body.valid_until;
     let active = body.active;
@@ -142,11 +137,8 @@ async fn put_targetable_role(
     let targetable_role = state
         .application_service
         .update_targetable_role(role_name, valid_until, Some(active))
-        .await;
-
-    if let Err(e) = &targetable_role {
-        println!("Error updating targetable role: {:?}", e);
-    }
-
-    targetable_role.map(Json).map_err(|e| e.into_response())
+        .await
+        .map(Json)?;
+    
+    Ok(targetable_role)
 }

@@ -1,14 +1,17 @@
 use axum::{
     debug_handler,
     extract::{Path, State},
-    response::Redirect,
+    response::{IntoResponse, Redirect},
     routing::{get, post},
     Json, Router,
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::repositories::application::{Application, ApplicationTargetableRole, NewApplication};
+use crate::{
+    http::errors::ApiResult,
+    repositories::application::{Application, ApplicationTargetableRole, NewApplication},
+};
 
 use super::AppState;
 
@@ -28,66 +31,57 @@ struct ApplicationPath {
 async fn get_application(
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
-) -> Result<Json<Application>, String> {
+) -> ApiResult<Json<Application>> {
     let application_id = path.application_id;
 
     let application = state
         .application_service
         .get_application(application_id)
-        .await;
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &application {
-        println!("Error fetching application: {:?}", e);
-    }
-
-    application.map(Json).map_err(|e| e.to_string())
+    Ok(application)
 }
 
 #[debug_handler]
 async fn get_targetable_roles(
     State(state): State<AppState>,
-) -> Result<Json<Vec<ApplicationTargetableRole>>, String> {
-    let targetable_roles = state.application_service.fetch_all_targetable_roles().await;
+) -> ApiResult<Json<Vec<ApplicationTargetableRole>>> {
+    let targetable_roles = state
+        .application_service
+        .fetch_all_targetable_roles()
+        .await
+        .map(Json)?;
 
-    if let Err(e) = &targetable_roles {
-        println!("Error fetching targetable roles: {:?}", e);
-    }
-
-    targetable_roles.map(Json).map_err(|e| e.to_string())
+    Ok(targetable_roles)
 }
 
 async fn post_application(
     State(state): State<AppState>,
     Json(new_application): Json<NewApplication>,
-) -> Result<Redirect, String> {
+) -> ApiResult<Redirect> {
     let application = state
         .application_service
         .create_application(new_application.clone())
-        .await;
+        .await?;
 
     let targetable_role = state
         .application_service
         .get_targetable_role(new_application.role_name, new_application.valid_until)
-        .await;
+        .await?;
 
-    if let Err(e) = &application {
-        println!("Error creating application: {:?}", e);
-    }
-
-    match targetable_role.map(|t| t.payment_link).ok().flatten() {
+    match targetable_role.payment_link {
         Some(link) => Ok(Redirect::to(
             format!(
                 "{}?client_reference_id={}",
-                link,
-                application.unwrap().application_id
+                link, application.application_id
             )
             .as_str(),
         )),
         None => Ok(Redirect::to(
             format!(
                 "{}/applications/{}",
-                state.config.frontend_url,
-                application.unwrap().application_id
+                state.config.frontend_url, application.application_id
             )
             .as_str(),
         )),
