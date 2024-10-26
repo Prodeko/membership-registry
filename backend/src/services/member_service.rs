@@ -1,10 +1,12 @@
+use std::f64::consts::E;
+
 use rand::seq::SliceRandom;
 
 use crate::repositories::member::{Member, MemberRepo, MemberWithRoles, NewMember};
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::ory_service::OryService;
+use super::{errors::{ServiceError, ServiceResult}, ory_service::OryService};
 
 #[derive(Clone)]
 pub struct MemberService {
@@ -21,46 +23,43 @@ impl MemberService {
         &self,
         member_to_add: NewMember,
         access_token: String,
-    ) -> Result<Member, String> {
+    ) -> ServiceResult<Member> {
         self.repo
             .create(member_to_add)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.into())
     }
 
-    pub async fn get_all_members(&self) -> Result<Vec<Member>, String> {
-        self.repo.fetch_all().await.map_err(|e| e.to_string())
+    pub async fn get_all_members(&self) -> ServiceResult<Vec<Member>> {
+        self.repo.fetch_all().await.map_err(|e| e.into())
     }
 
     pub async fn get_members_with_ids(
         &self,
         user_ids: Option<Vec<Uuid>>,
-    ) -> Result<Vec<Member>, String> {
-        let members = self
+    ) -> ServiceResult<Vec<Member>> {
+         self
             .repo
             .fetch_with_ids(user_ids)
             .await
-            .map_err(|e| e.to_string());
-
-        return members;
+            .map_err(|e| e.into())
     }
 
-    pub async fn get_member(&self, id: Uuid) -> Result<Member, String> {
-        self.repo.fetch_one(id).await.map_err(|e| e.to_string())
+    pub async fn get_member(&self, id: Uuid) -> ServiceResult<Member> {
+        self.repo.fetch_one(id).await.map_err(|e| e.into())
     }
 
     pub async fn get_member_with_user(
         &self,
         id: Uuid,
         access_token: String,
-    ) -> Result<Member, String> {
+    ) -> ServiceResult<Member> {
         let user = self
             .ory_service
             .get_user(&id.to_string(), access_token)
-            .await
-            .map_err(|e| e.to_string())?;
+            .await?;
 
-        let member = self.repo.fetch_one(id).await.map_err(|e| e.to_string())?;
+        let member = self.repo.fetch_one(id).await?;
 
         let email = user
             .traits
@@ -80,7 +79,7 @@ impl MemberService {
                     email: email.to_string(),
                 });
             }
-            None => return Err("Could not find email from user".to_string()),
+            None => Err(ServiceError::NotFound),
         }
     }
 
@@ -88,7 +87,7 @@ impl MemberService {
         &self,
         updated_member: Member,
         access_token: String,
-    ) -> Result<Member, String> {
+    ) -> ServiceResult<Member> {
         let updated_user = self
             .ory_service
             .update_user(
@@ -98,8 +97,7 @@ impl MemberService {
                 &updated_member.last_name,
                 access_token,
             )
-            .await
-            .map_err(|e| e.to_string());
+            .await;
 
         match updated_user {
             Ok(_) => {
@@ -115,7 +113,6 @@ impl MemberService {
                 self.repo
                     .update(as_member, updated_member.user_id, None)
                     .await
-                    .map_err(|e| e.to_string())
                     .map(|m| Member {
                         user_id: m.user_id,
                         email: m.email,
@@ -124,33 +121,35 @@ impl MemberService {
                         full_name: m.full_name,
                         home_municipality: m.home_municipality,
                         has_accepted_policies: m.has_accepted_policies,
-                    })
+                    }).map_err(|e| e.into())
             }
-            Err(e) => Err(e),
+            Err(e) => Err(e.into()),
         }
     }
 
-    pub async fn delete_member(&self, id: Uuid, access_token: String) -> Result<(), String> {
+    pub async fn delete_member(&self, id: Uuid, access_token: String) -> ServiceResult<()> {
         let user_result = self
             .ory_service
             .delete_user(&id.to_string(), access_token)
-            .await
-            .map_err(|e| e.to_string());
+            .await;
+
         match user_result {
-            Ok(_) => self.repo.delete(id).await.map_err(|e| e.to_string()),
-            Err(e) => Err(e),
+            Ok(_) => self.repo.delete(id).await.map_err(|e| e.into()),
+            Err(e) => Err(e.into()),
         }
     }
 
-    pub async fn delete_many(&self, ids: Vec<Uuid>, access_token: String) -> Result<(), String> {
+    pub async fn delete_many(&self, ids: Vec<Uuid>, access_token: String) -> ServiceResult<()> {
         let user_result = self
             .ory_service
-            .delete_many(ids.iter().map(|id| id.to_string()).collect(), access_token)
-            .await
-            .map_err(|e| e.to_string());
+            .delete_many(
+                ids.iter().map(|id| id.to_string()).collect(), access_token
+            )
+            .await;
+
         match user_result {
-            Ok(_) => self.repo.delete_many(ids).await.map_err(|e| e.to_string()),
-            Err(e) => Err(e),
+            Ok(_) => self.repo.delete_many(ids).await.map_err(|e| e.into()),
+            Err(e) => Err(ServiceError::OryError),
         }
     }
 
@@ -164,8 +163,8 @@ impl MemberService {
         order_desc: Option<bool>,
         valid_from: Option<chrono::NaiveDate>,
         valid_until: Option<chrono::NaiveDate>,
-    ) -> Result<Vec<MemberWithRoles>, String> {
-        let members = self
+    ) -> ServiceResult<Vec<MemberWithRoles>> {
+        self
             .repo
             .fetch_members_with_roles(
                 page_size,
@@ -177,9 +176,6 @@ impl MemberService {
                 valid_from,
                 valid_until,
             )
-            .await
-            .map_err(|e| e.to_string());
-
-        return members;
+            .await.map_err(|e| e.into())
     }
 }

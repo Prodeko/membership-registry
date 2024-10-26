@@ -8,7 +8,7 @@ use ory_client::{
             CreateIdentityError, DeleteIdentityError, GetIdentityError, ListIdentitiesError,
             UpdateIdentityError,
         },
-        o_auth2_api, oidc_api, permission_api, relationship_api, Error,
+        o_auth2_api, oidc_api, permission_api, relationship_api::{self, PatchRelationshipsError}, Error,
     },
     models::{
         relationship_patch, update_identity_body::StateEnum, CreateIdentityBody, Identity,
@@ -20,7 +20,9 @@ use serde::Deserialize;
 use serde_with::SerializeDisplay;
 use uuid::Uuid;
 
-use crate::helpers::to_kebab_case;
+use crate::{helpers::to_kebab_case, services::errors::ServiceError};
+
+use super::errors::ServiceResult;
 
 #[derive(Clone, Debug, Deserialize, serde::Serialize)]
 pub struct AuthInfo {
@@ -271,27 +273,31 @@ impl OryService {
         .map_err(|e| format!("Failed to check permission: {}", e.to_string()))
     }
 
-    pub async fn userinfo(&self, access_token: String) -> Result<AuthInfo, String> {
+    pub async fn userinfo(&self, access_token: String) -> ServiceResult<AuthInfo> {
         let proxy = Proxy::http("http://localhost:8181").unwrap();
         let client = Client::builder().proxy(proxy).build().unwrap();
         let res = client
-            .get("http://127.0.0.1:4455/.ory/hydra/public/userinfo")
+            .get("http://127.0.0.1:4455/.ory/hydra/public/userinfo") // TODO use config
             .bearer_auth(access_token.clone())
             .send()
             .await
-            .map_err(|_| "Failed to introspect token".to_string())?;
+            .map_err(|e| ServiceError::OryError)?;
 
         if !res.status().is_success() {
-            return Err(format!(
+            print!(
                 "Failed to introspect token: {}",
                 res.status().to_string()
-            ));
+            );
+            return Err(ServiceError::OryError);
         }
 
         let res_body = res
             .json::<serde_json::Value>()
             .await
-            .map_err(|e| format!("Failed to parse response: {}", e.to_string()))?;
+            .map_err(|e| {
+                println!("Failed to parse response: {:?}", e);
+                ServiceError::OryError
+            })?;
         let user_id = res_body["sub"]
             .as_str()
             .map(|x| Uuid::parse_str(x).ok())
@@ -300,7 +306,7 @@ impl OryService {
             Some(id) => id,
             None => {
                 println!("Its not a focking uuid");
-                return Err("Failed to parse user id".to_string());
+                return Err(ServiceError::OryError);
             }
         };
 
@@ -316,11 +322,11 @@ impl OryService {
                 user_id,
                 access_token
             }),
-            _ => Err("Did not find profile or email data from userinfo!".to_string()),
+            _ => Err(ServiceError::InvalidInput),
         }
     }
 
-    pub async fn _userinfo(&self, access_token: String) -> Result<AuthInfo, String> {
+    pub async fn _userinfo(&self, access_token: String) -> ServiceResult<AuthInfo> {
         println!("Access token: {}", access_token);
         let config = &self.hydra_public_config(Some(access_token.clone()));
         let res = oidc_api::get_oidc_user_info(config).await;
@@ -328,7 +334,8 @@ impl OryService {
         match res {
             Ok(res) => {
                 let user_id = Uuid::parse_str(res.sub.unwrap().as_str()).map_err(|e| {
-                    format!("Failed to parse user id from userinfo: {}", e.to_string())
+                    println!("Failed to parse user id: {:?}", e);
+                    ServiceError::OryError
                 })?;
                 Ok(AuthInfo {
                     user_id,
@@ -338,7 +345,10 @@ impl OryService {
                     email: res.email.unwrap_or("".to_string()),
                 })
             }
-            Err(e) => Err(format!("Failed to fetch userinfo: {}", e.to_string())),
+            Err(e) => {
+                println!("Failed to get user info: {:?}", e);
+                Err(ServiceError::OryError)
+            }
         }
     }
 
@@ -347,7 +357,7 @@ impl OryService {
         user_id: String,
         group_id: &str,
         access_token: String,
-    ) -> Result<(), String> {
+    ) -> Result<(), Error<PatchRelationshipsError>> {
         let config = &&self.keto_admin_config(access_token);
         relationship_api::patch_relationships(
             config,
@@ -367,7 +377,7 @@ impl OryService {
             }]),
         )
         .await
-        .map_err(|e| format!("Failed to add user to group: {}", e.to_string()))
+        .map_err(|e| e.into())
     }
 
     pub async fn remove_user_from_group(
@@ -375,7 +385,7 @@ impl OryService {
         user_id: String,
         group_id: &str,
         access_token: String,
-    ) -> Result<(), String> {
+    ) -> ServiceResult<()> {
         let config = &&self.keto_admin_config(access_token);
         relationship_api::patch_relationships(
             config,
@@ -395,6 +405,6 @@ impl OryService {
             }]),
         )
         .await
-        .map_err(|e| format!("Failed to remove user from group: {}", e.to_string()))
+        .map_err(|e| e.into())
     }
 }

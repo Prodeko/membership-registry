@@ -7,7 +7,7 @@ use crate::repositories::{
 use futures_util::TryFutureExt;
 use uuid::Uuid;
 
-use super::{member_service::MemberService, ory_service::OryService};
+use super::{errors::ServiceResult, member_service::MemberService, ory_service::OryService};
 
 pub struct RoleService {
     pub repo: RoleRepo,
@@ -24,16 +24,16 @@ impl RoleService {
         }
     }
 
-    pub async fn create_role(&self, new_role: Role) -> Result<Role, String> {
-        self.repo.create(new_role).await.map_err(|e| e.to_string())
+    pub async fn create_role(&self, new_role: Role) -> ServiceResult<Role> {
+        self.repo.create(new_role).await.map_err(|e| e.into())
     }
 
-    pub async fn get_all_roles(&self) -> Result<Vec<Role>, String> {
-        self.repo.fetch_all().await.map_err(|e| e.to_string())
+    pub async fn get_all_roles(&self) -> ServiceResult<Vec<Role>> {
+        self.repo.fetch_all().await.map_err(|e| e.into())
     }
 
-    pub async fn delete_role(&self, role_name: &str) -> Result<(), String> {
-        self.repo.delete(role_name).await.map_err(|e| e.to_string())
+    pub async fn delete_role(&self, role_name: &str) -> ServiceResult<()> {
+        self.repo.delete(role_name).await.map_err(|e| e.into())
     }
 
     pub async fn add_role_member(
@@ -43,7 +43,7 @@ impl RoleService {
         valid_from: chrono::NaiveDate,
         valid_until: Option<chrono::NaiveDate>,
         access_token: String,
-    ) -> Result<(), String> {
+    ) -> ServiceResult<()> {
         self.ory_service
             .add_user_to_group(user_id.to_string(), role_name, access_token)
             .await?;
@@ -51,21 +51,21 @@ impl RoleService {
         self.repo
             .create_role_member(user_id, role_name, valid_from, valid_until)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.into())
     }
 
-    pub async fn get_member_roles(&self, user_id: Uuid) -> Result<Vec<RoleMember>, String> {
+    pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<RoleMember>> {
         self.repo
             .fetch_roles_by_member(user_id)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.into())
     }
 
-    pub async fn get_role_members(&self, role_name: &str) -> Result<Vec<Member>, String> {
+    pub async fn get_role_members(&self, role_name: &str) -> ServiceResult<Vec<Member>> {
         self.repo
             .fetch_members_by_role(role_name)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.into())
     }
 
     pub async fn add_many_role_members(
@@ -75,7 +75,7 @@ impl RoleService {
         valid_from: chrono::NaiveDate,
         valid_until: Option<chrono::NaiveDate>,
         access_token: String,
-    ) -> Result<(), String> {
+    ) -> ServiceResult<()> {
         for role_name in role_names {
             for user_id in &user_ids {
                 self.add_role_member(
@@ -85,7 +85,6 @@ impl RoleService {
                     valid_until,
                     access_token.clone(),
                 )
-                .map_err(|e| e.to_string())
                 .await?;
             }
         }
@@ -98,11 +97,11 @@ impl RoleService {
         role_name: &str,
         valid_from: chrono::NaiveDate,
         new_valid_until: chrono::NaiveDate,
-    ) -> Result<(), String> {
+    ) -> ServiceResult<()> {
         self.repo
             .update_valid_until(user_id, role_name, valid_from, new_valid_until)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.into())
     }
 
     pub async fn delete_role_membership(
@@ -111,7 +110,7 @@ impl RoleService {
         role_name: &str,
         valid_from: chrono::NaiveDate,
         access_token: String,
-    ) -> Result<(), String> {
+    ) -> ServiceResult<()> {
         self.ory_service
             .remove_user_from_group(user_id.to_string(), role_name, access_token)
             .await?;
@@ -119,13 +118,13 @@ impl RoleService {
         self.repo
             .delete_role_member(user_id, role_name, valid_from)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.into())
     }
 
-    pub async fn get_role_stats(&self) -> Result<Vec<RoleStats>, String> {
+    pub async fn get_role_stats(&self) -> ServiceResult<Vec<RoleStats>> {
         self.repo
             .fetch_roles_with_stats()
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.into())
     }
 }

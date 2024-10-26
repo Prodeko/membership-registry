@@ -1,5 +1,4 @@
 #![allow(unused)] // TODO remove this and fix the warnings
-pub mod api_types;
 mod config;
 mod ctx;
 mod helpers;

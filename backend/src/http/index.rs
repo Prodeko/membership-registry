@@ -1,5 +1,4 @@
-use super::AppState;
-use crate::api_types::ApiResult;
+use super::{errors::ApiResult, AppState};
 use axum::{response::Html, routing::get, Router};
 
 pub fn router() -> Router<AppState> {

@@ -20,6 +20,7 @@ mod public;
 mod protected;
 mod index;
 mod static_files;
+mod errors;
 
 #[derive(Clone)]
 pub struct AppState {
