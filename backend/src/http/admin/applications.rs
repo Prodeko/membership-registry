@@ -1,13 +1,10 @@
 use axum::{
-    debug_handler,
-    extract::{Path, Query, State},
-    routing::{delete, get, post, put},
-    Json, Router,
+    debug_handler, extract::{Path, Query, State}, response::IntoResponse, routing::{delete, get, post, put}, Json, Router
 };
 use serde::Deserialize;
 use uuid::Uuid;
 
-use crate::repositories::application::{Application, ApplicationWithMember};
+use crate::{http::errors::HttpResult, repositories::application::{Application, ApplicationWithMember}};
 
 use super::AppState;
 
@@ -22,14 +19,14 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-async fn get_applications(State(state): State<AppState>) -> Result<Json<Vec<Application>>, String> {
+async fn get_applications(State(state): State<AppState>) -> HttpResult<Json<Vec<Application>>> {
     let applications = state.application_service.get_all_applications().await;
 
     if let Err(e) = &applications {
         println!("Error fetching applications: {:?}", e);
     }
 
-    applications.map(Json).map_err(|e| e.to_string())
+    applications.map(Json).map_err(|e| e.into_response())
 }
 
 #[derive(Deserialize, Debug)]
@@ -41,7 +38,7 @@ struct FilteredApplicationsParams {
 async fn get_applications_filtered(
     State(state): State<AppState>,
     Query(filter): Query<FilteredApplicationsParams>,
-) -> Result<Json<Vec<ApplicationWithMember>>, String> {
+) -> HttpResult<Json<Vec<ApplicationWithMember>>> {
     let applications = state
         .application_service
         .get_applications_with_member_filtered(filter.status, filter.search)
@@ -51,7 +48,7 @@ async fn get_applications_filtered(
         println!("Error fetching applications: {:?}", e);
     }
 
-    applications.map(Json).map_err(|e| e.to_string())
+    applications.map(Json).map_err(|e| e.into_response())
 }
 
 #[derive(Deserialize, Debug)]
@@ -62,7 +59,7 @@ struct ApplicationPath {
 async fn delete_application(
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
-) -> Result<Json<()>, String> {
+) -> HttpResult<Json<()>> {
     let application_id = path.application_id;
 
     let delete = state
@@ -74,7 +71,7 @@ async fn delete_application(
         println!("Error deleting application: {:?}", e);
     }
 
-    delete.map(Json).map_err(|e| e.to_string())
+    delete.map(Json).map_err(|e| e.into_response())
 }
 
 #[derive(Deserialize, Debug)]
@@ -86,7 +83,7 @@ async fn update_application_status(
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
     Json(body): Json<UpdateApplicationStatus>,
-) -> Result<Json<()>, String> {
+) -> HttpResult<Json<()>> {
     let application_id = path.application_id;
     let status = body.status;
 
@@ -99,7 +96,7 @@ async fn update_application_status(
         println!("Error updating application status: {:?}", e);
     }
 
-    update.map(Json).map_err(|e| e.to_string())
+    update.map(Json).map_err(|e| e.into_response())
 }
 
 #[derive(Deserialize, Debug)]
@@ -111,7 +108,7 @@ struct PostTargetableRole {
 async fn post_targetable_role(
     State(state): State<AppState>,
     Json(body): Json<PostTargetableRole>,
-) -> Result<Json<()>, String> {
+) -> HttpResult<Json<()>> {
     let role_name = body.role_name;
     let valid_until = body.valid_until;
 
@@ -124,7 +121,7 @@ async fn post_targetable_role(
         println!("Error creating targetable role: {:?}", e);
     }
 
-    targetable_role.map(Json).map_err(|e| e.to_string())
+    targetable_role.map(Json).map_err(|e| e.into_response())
 }
 
 #[derive(Deserialize, Debug)]
@@ -137,7 +134,7 @@ struct PutTargetableRole {
 async fn put_targetable_role(
     State(state): State<AppState>,
     Json(body): Json<PutTargetableRole>,
-) -> Result<Json<()>, String> {
+) -> HttpResult<Json<()>> {
     let role_name = body.role_name;
     let valid_until = body.valid_until;
     let active = body.active;
@@ -151,5 +148,5 @@ async fn put_targetable_role(
         println!("Error updating targetable role: {:?}", e);
     }
 
-    targetable_role.map(Json).map_err(|e| e.to_string())
+    targetable_role.map(Json).map_err(|e| e.into_response())
 }

@@ -1,12 +1,10 @@
 use std::str::FromStr;
 
+use crate::http::errors::HttpResult;
+
 use super::AppState;
 use axum::{
-    debug_handler,
-    extract::{Json, State},
-    http::StatusCode,
-    routing::post,
-    Router,
+    debug_handler, extract::{Json, State}, http::StatusCode, response::IntoResponse, routing::post, Router
 };
 use serde_json::{self, Value};
 use stripe::{CheckoutSession, EventObject};
@@ -23,7 +21,7 @@ async fn stripe_webhook(
     State(state): State<AppState>,
     headers: axum::http::HeaderMap,
     body: String,
-) -> Result<(StatusCode, Json<Value>), String> {
+) -> HttpResult<(StatusCode, Json<Value>)> {
     let sig_header = headers
         .get("stripe-signature")
         .and_then(|v| v.to_str().ok())
@@ -79,7 +77,7 @@ async fn stripe_webhook(
                     application_id,
                     checkout.payment_intent.unwrap().id().to_string(),
                 )
-                .await?;
+                .await.map_err(|e| e.into_response());
 
             Ok((
                 StatusCode::OK,

@@ -7,6 +7,7 @@ pub mod application_service;
 pub mod member_service;
 pub mod ory_service;
 pub mod role_service;
+pub mod errors;
 
 pub struct Services {
     pub member_service: member_service::MemberService,

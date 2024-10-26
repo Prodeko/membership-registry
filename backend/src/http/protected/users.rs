@@ -10,7 +10,6 @@ use chrono::format;
 use uuid::Uuid;
 
 use crate::{
-    api_types::ApiResult,
     middleware::check_member_access,
     repositories::{
         member::{Member, NewMember},
