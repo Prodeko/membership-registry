@@ -1,8 +1,8 @@
+use super::member::Member;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
-use super::member::Member;
 
 #[derive(Clone)]
 pub struct RoleRepo {
@@ -35,13 +35,12 @@ pub struct RoleStats {
 
 impl RoleRepo {
     pub async fn create(&self, role: Role) -> Result<Role, sqlx::Error> {
-        let created = sqlx::query_as::<_, Role>(
-            "INSERT INTO Role (name, color) VALUES ($1, $2) RETURNING *",
-        )
-        .bind(role.name)
-        .bind(role.color)
-        .fetch_one(&self.pool)
-        .await?;
+        let created =
+            sqlx::query_as::<_, Role>("INSERT INTO Role (name, color) VALUES ($1, $2) RETURNING *")
+                .bind(role.name)
+                .bind(role.color)
+                .fetch_one(&self.pool)
+                .await?;
         Ok(created)
     }
 
@@ -167,11 +166,18 @@ impl RoleRepo {
         Ok(records)
     }
 
-    pub async fn fetch_roles_with_stats(&self) -> Result<Vec<RoleStats>, sqlx::Error> {
+    pub async fn fetch_roles_with_stats(
+        &self,
+        page_size: Option<u64>,
+        offset: Option<u64>,
+        search: Option<String>,
+        order_by: Option<String>,
+        order_desc: Option<bool>,
+    ) -> Result<Vec<RoleStats>, sqlx::Error> {
         let records = sqlx::query_as!(
             RoleStats,
             r#"
-            SELECT 
+            SELECT
                 Role.*,
                 COUNT(RoleMember.user_id) as member_count,
                 COUNT(
@@ -184,9 +190,55 @@ impl RoleRepo {
                     END
                 ) as active_member_count
             FROM Role LEFT JOIN RoleMember ON Role.name = RoleMember.role_name
+            WHERE 
+                Role.name ILIKE '%' || $3 || '%'
             GROUP BY Role.name, Role.color
-            ORDER BY Role.name
-          "#
+            ORDER BY
+                CASE WHEN $5 = 'ASC' THEN
+                    CASE $4
+                        WHEN 'name' THEN Role.name
+                        WHEN 'color' THEN Role.color
+                        WHEN 'description' THEN Role.description
+                        WHEN 'member_count' THEN COUNT(RoleMember.user_id)::text
+                        WHEN 'active_member_cout' THEN 
+                            COUNT(
+                                CASE WHEN (
+                                    valid_until IS NULL OR (
+                                        valid_until >= CURRENT_DATE AND
+                                        valid_from <= CURRENT_DATE
+                                    )
+                                ) THEN 1
+                                END
+                            )::text
+                        ELSE Role.name
+                    END
+                END ASC,
+                CASE WHEN $5 = 'DESC' THEN
+                    CASE $4
+                        WHEN 'name' THEN Role.name
+                        WHEN 'color' THEN Role.color
+                        WHEN 'description' THEN Role.description
+                        WHEN 'member_count' THEN COUNT(RoleMember.user_id)::text
+                        WHEN 'active_member_cout' THEN 
+                            COUNT(
+                                CASE WHEN (
+                                    valid_until IS NULL OR (
+                                        valid_until >= CURRENT_DATE AND
+                                        valid_from <= CURRENT_DATE
+                                    )
+                                ) THEN 1
+                                END
+                            )::text
+                        ELSE Role.name
+                    END
+                END DESC
+            LIMIT $1 OFFSET $2::Integer * $1::Integer
+          "#,
+            page_size.map(|x| x as i32).unwrap_or(i32::MAX) as i32,
+            offset.unwrap_or(0) as i64,
+            search.as_deref().unwrap_or_default(),
+            &order_by.unwrap_or_else(|| "full_name".to_string()),
+            if order_desc.unwrap_or(false) { "DESC" } else { "ASC" },
         )
         .fetch_all(&self.pool)
         .await?;

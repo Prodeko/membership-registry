@@ -121,9 +121,20 @@ impl RoleService {
             .map_err(|e| e.into())
     }
 
-    pub async fn get_role_stats(&self) -> ServiceResult<Vec<RoleStats>> {
+    pub async fn get_role_stats(
+        &self,
+        page_size: Option<u64>,
+        offset: Option<u64>,
+        search: Option<String>,
+        order_by: Option<String>,
+        order_desc: Option<bool>,
+    ) -> ServiceResult<Vec<RoleStats>> {
         self.repo
-            .fetch_roles_with_stats()
+            .fetch_roles_with_stats(page_size,
+                offset,
+                search,
+                order_by,
+                order_desc)
             .await
             .map_err(|e| e.into())
     }

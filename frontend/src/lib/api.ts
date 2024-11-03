@@ -150,11 +150,17 @@ export const useGetRoles = () => {
   });
 };
 
-export const useGetRolesStats = () => {
+export const useGetRolesStats = (params: PaginatedQueryParams) => {
   return useQuery<Role[]>({
-    queryKey: [QueryKey.ROLES],
+    queryKey: [QueryKey.ROLES, params],
     queryFn: async () => {
-      const response = await axios_client.get("/roles/stats");
+      const response = await axios_client.get("/roles/stats", {
+        params: {
+          ...params,
+          page_size: params.pageSize,
+          customFilters: undefined,
+        }, 
+      });
       return response.data as RoleStats[];
     },
   });

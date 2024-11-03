@@ -1,11 +1,12 @@
 use axum::{
     debug_handler,
-    extract::State,
+    extract::{Query, State},
     response::IntoResponse,
     routing::{get, post},
     Json, Router,
 };
 use futures_util::FutureExt;
+use serde::Deserialize;
 
 use crate::{
     http::errors::ApiResult,
@@ -28,8 +29,26 @@ async fn get_roles(State(state): State<AppState>) -> ApiResult<Json<Vec<Role>>> 
     Ok(roles)
 }
 
-async fn get_roles_stats(State(state): State<AppState>) -> ApiResult<Json<Vec<RoleStats>>> {
-    let result = state.role_service.get_role_stats().await.map(Json)?;
+#[derive(Deserialize, Debug)]
+struct RolesWithStatsQuery {
+    page_size: Option<u64>,
+    offset: Option<u64>,
+    search: Option<String>,
+    sorting: Option<String>,
+    sort_desc: Option<bool>,
+}
+
+async fn get_roles_stats(
+    State(state): State<AppState>,
+    Query(query): Query<RolesWithStatsQuery>,
+) -> ApiResult<Json<Vec<RoleStats>>> {
+    let result = state.role_service.get_role_stats(
+        query.page_size,
+        query.offset,
+        query.search,
+        query.sorting,
+        query.sort_desc,
+    ).await.map(Json)?;
 
     Ok(result)
 }
