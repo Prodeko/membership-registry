@@ -7,3 +7,9 @@
 - Peruuta migraatio: `sqlx migrate revert`
 - Luo SQL-kyselyistä tyypit CI:tä varten `cargo sqlx prepare -- --release --all-targets --all-features`
 - Luo testidataa `cargo run -- generate --amount [amount]`
+
+# Tiedostorakenne
+
+Lähdekoodin alakansiot ovat seuraavat: http, repositories ja services.
+
+http kansio sisältää http rajapinnan määrittelyn, repositories tietokantakyselyt ja services kaiken logiikan. Tarkoitus on, että http kansion alla olevat tiedostot kutsuvat vain services kansion tiedostoja, jotka kutsuvat sitten repositories tiedostoja tai muite servicejä. Repositories kansion tiedostot kutsuvat vain tietokantaa. 
