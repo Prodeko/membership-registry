@@ -53,5 +53,16 @@ CREATE TABLE Application (
     foreign key (role_name, valid_until) references ApplicationTargetableRole(role_name, valid_until)
 );
 
+CREATE TABLE SavedFilter (
+    name text primary key,
+    filtered_model text not null,
+    owner_user_id uuid not null,
+    visible_for_all boolean not null default false,
+    search text,
+    sorting_col text,
+    sorting_desc boolean,
+    custom_filters JSON
+);
+
 CREATE INDEX idx_name_trgm_gin ON Member USING gin (full_name gin_trgm_ops);
 CREATE INDEX idx_email_trgm_gin ON Member USING gin (email gin_trgm_ops);
