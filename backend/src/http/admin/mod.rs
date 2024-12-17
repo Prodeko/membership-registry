@@ -7,12 +7,14 @@ use super::AppState;
 mod applications;
 mod members;
 mod roles;
+mod saved_filters;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .nest("/members", members::router(state.clone()))
         .nest("/applications", applications::router(state.clone()))
         .nest("/roles", roles::router(state.clone()))
+        .nest("/saved-filters", saved_filters::router(state.clone()))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             check_permission,

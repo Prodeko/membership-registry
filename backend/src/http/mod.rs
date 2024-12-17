@@ -10,8 +10,7 @@ use tower_http::{cors::{AllowHeaders, CorsLayer}, trace::TraceLayer};
 use crate::{
     config::Config,
     services::{
-        application_service::ApplicationService, member_service::MemberService,
-        role_service::RoleService, ory_service::OryService, Services,
+        application_service::ApplicationService, member_service::MemberService, ory_service::OryService, role_service::RoleService, saved_filter::SavedFilterService, Services
     },
 };
 
@@ -29,7 +28,8 @@ pub struct AppState {
     pub application_service: Arc<ApplicationService>,
     pub role_service: Arc<RoleService>,
     pub ory_service: Arc<OryService>,
-    pub oauth2_client: BasicClient,
+    pub saved_filter_service: Arc<SavedFilterService>,
+    pub oauth2_client: BasicClient
 }
 
 pub async fn serve(config: Config, services: Services) {
@@ -49,6 +49,7 @@ pub async fn serve(config: Config, services: Services) {
         application_service: Arc::new(services.application_service),
         role_service: Arc::new(services.role_service),
         ory_service: Arc::new(services.ory_service),
+        saved_filter_service: Arc::new(services.saved_filter_service),
         oauth2_client,
     };
 
