@@ -58,10 +58,10 @@ CREATE TABLE SavedFilter (
     filtered_model text not null,
     owner_user_id uuid not null,
     visible_for_all boolean not null default false,
-    search text,
-    sorting_col text,
-    sorting_desc boolean,
-    custom_filters JSON
+    search text null,
+    sorting_col text null,
+    sorting_desc boolean not null default false,
+    custom_filters JSON null
 );
 
 CREATE INDEX idx_name_trgm_gin ON Member USING gin (full_name gin_trgm_ops);
