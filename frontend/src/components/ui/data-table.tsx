@@ -2,7 +2,6 @@
 
 import {
   ColumnDef,
-  ColumnFiltersState,
   SortingState,
   VisibilityState,
   flexRender,
@@ -29,6 +28,7 @@ import type { Table as TableType } from "@tanstack/react-table";
 import { UseQueryResult } from "@tanstack/react-query";
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
+import { SavedFilter } from "@/common/types";
 
 export type ActionElement<TData> = (
   table: TableType<TData>,
@@ -42,6 +42,8 @@ interface DataTableProps<TData, TValue> {
   initialColumnVisibility?: VisibilityState;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customFilters?: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setCustomFilters?: (x: any) => void;
   multipleRowActionElements?: ActionElement<TData>[];
   getRowId?: (row: TData) => string;
   searchColumn?: string;
@@ -53,9 +55,10 @@ export function DataTable<TData, TValue>({
   useFetchData,
   initialColumnVisibility,
   customFilters,
+  setCustomFilters,
   multipleRowActionElements,
   getRowId,
-  searchColumn
+  searchColumn,
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState<TData[]>([]);
   const [rowSelection, setRowSelection] = React.useState({});
@@ -94,16 +97,33 @@ export function DataTable<TData, TValue>({
     getRowId,
   });
 
-  const {
-    data: fetchedData
-  } = useFetchData({
+  const { data: fetchedData } = useFetchData({
     pageSize: table.getState().pagination.pageSize,
     offset: table.getState().pagination.pageIndex,
-    search: searchColumn ? table.getColumn(searchColumn)?.getFilterValue() as string : undefined,
+    search: searchColumn
+      ? (table.getColumn(searchColumn)?.getFilterValue() as string)
+      : undefined,
     sorting: table.getState().sorting[0]?.id,
     sort_desc: table.getState().sorting[0]?.desc,
     customFilters,
   });
+
+  const setFilter = (savedFilter: SavedFilter) => {
+    if (searchColumn) {
+      table.getColumn(searchColumn)?.setFilterValue(savedFilter.search ?? "");
+    }
+    if (savedFilter.sorting_col) {
+      table.setSorting([
+        {
+          id: savedFilter.sorting_col,
+          desc: savedFilter.sorting_desc,
+        },
+      ]);
+    }
+    if (setCustomFilters) {
+      setCustomFilters(savedFilter.custom_filters);
+    }
+  }
 
   React.useEffect(() => {
     if (fetchedData) {
@@ -113,7 +133,14 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <DataTableToolbar table={table} multipleRowActionElements={multipleRowActionElements} searchColumn={searchColumn} modelName={modelName}/>
+      <DataTableToolbar
+        table={table}
+        multipleRowActionElements={multipleRowActionElements}
+        searchColumn={searchColumn}
+        modelName={modelName}
+        customFilters={customFilters}
+        setFilter={setFilter}
+      />
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -164,7 +191,7 @@ export function DataTable<TData, TValue>({
           </TableBody>
         </Table>
       </div>
-      <DataTablePagination table={table}/>
+      <DataTablePagination table={table} />
     </div>
   );
 }

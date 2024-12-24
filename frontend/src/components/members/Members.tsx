@@ -40,6 +40,7 @@ const Members: React.FC = () => {
         <MultipleSelector
           options={stringsToOptions(roles?.map((r) => r.name) ?? [])}
           onChange={onRoleChange}
+          value={selectedRoles}
           placeholder="Filter by role"
         />
         <DateRangePicker
@@ -47,8 +48,8 @@ const Members: React.FC = () => {
             setSelectedValidUntil(range.to ?? defaultTo);
             setSelectedValidFrom(range.from);
           }}
-          initialDateFrom={defaultFrom}
-          initialDateTo={defaultTo}
+          initialDateFrom={selectedValidFrom}
+          initialDateTo={selectedValidUntil}
           locale="fi"
           showCompare={false}
           disabled={selectedRoles.length === 0}
@@ -68,6 +69,14 @@ const Members: React.FC = () => {
           roles: selectedRoles.map((role) => role.value),
           valid_until: selectedValidUntil,
           valid_from: selectedValidFrom,
+        }}
+        setCustomFilters={(filters) => {
+          console.log(filters);
+          setSelectedRoles(
+            stringsToOptions(filters.roles ?? [])
+          );
+          setSelectedValidFrom(filters?.valid_from ?? defaultFrom);
+          setSelectedValidUntil(filters?.valid_until ?? defaultTo);
         }}
         multipleRowActionElements={[
           (table, ids) => (

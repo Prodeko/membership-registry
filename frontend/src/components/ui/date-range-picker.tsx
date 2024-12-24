@@ -143,6 +143,17 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
     };
   }, []);
 
+  useEffect(() => {
+    if (initialDateFrom && initialDateTo) {
+      setRange({
+        from: getDateAdjustedForTimezone(initialDateFrom),
+        to: initialDateTo
+          ? getDateAdjustedForTimezone(initialDateTo)
+          : getDateAdjustedForTimezone(initialDateFrom),
+      });
+    }
+  }, [initialDateFrom, initialDateTo]);
+
   const getPresetRange = (presetName: string): DateRange => {
     const preset = PRESETS.find(({ name }) => name === presetName);
     if (!preset) throw new Error(`Unknown date range preset: ${presetName}`);
@@ -314,7 +325,7 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
       openedRangeRef.current = range;
       openedRangeCompareRef.current = rangeCompare;
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
   return (
@@ -539,10 +550,7 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
           <Button
             onClick={() => {
               setIsOpen(false);
-              console.log(
-                "range",
-                range, openedRangeRef.current
-              );
+              console.log("range", range, openedRangeRef.current);
               if (
                 !areRangesEqual(range, openedRangeRef.current) ||
                 !areRangesEqual(rangeCompare, openedRangeCompareRef.current)

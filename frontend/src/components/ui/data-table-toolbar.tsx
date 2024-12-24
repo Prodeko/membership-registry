@@ -8,36 +8,47 @@ import { DataTableViewOptions } from "@/components/ui/data-table-view-options";
 import { Input } from "@/components/ui/input";
 
 import { ActionElement } from "./data-table";
-import { useCreateSavedFilter, useGetSavedFilters } from "@/lib/api";
+import { useGetSavedFilters } from "@/lib/api";
 import { Badge } from "./badge";
+import { NewSavedFilter, SavedFilter } from "@/common/types";
+import CreateSavedFilterModal from "../saved-filter/CreateSavedFilterModal";
+import { useState } from "react";
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
   searchColumn?: string;
   multipleRowActionElements?: ActionElement<TData>[];
   modelName: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  customFilters?: any;
+  setFilter: (filter: SavedFilter) => void;
 }
 
 export function DataTableToolbar<TData>({
   table,
   searchColumn,
   multipleRowActionElements,
-  modelName
+  modelName,
+  customFilters,
+  setFilter,
 }: DataTableToolbarProps<TData>) {
+  const [selectedFilter, setSelectedFilter] =
+    useState<SavedFilter | null>();
   const isFiltered = table.getState().columnFilters.length > 0;
   const savedFilters = useGetSavedFilters(modelName);
-  const saveFilterMutation = useCreateSavedFilter();
 
-  const saveFilter = async () => {
-    const filter = {
-      name: "test",
-      visible_for_all: true,
-      filtered_model: modelName,
-      sorting_desc: false
-    };
-    await saveFilterMutation.mutateAsync(filter);
-    savedFilters.refetch();
+  const newSavedFilter: NewSavedFilter = {
+    name: "",
+    filtered_model: modelName,
+    visible_for_all: false,
+    search: searchColumn
+      ? (table.getColumn(searchColumn)?.getFilterValue() as string)
+      : undefined,
+    sorting_col: table.getState().sorting[0]?.id,
+    sorting_desc: table.getState().sorting[0]?.desc ?? false,
+    custom_filters: customFilters,
   };
+
 
   const parseRowsFromSelection = () => {
     return Object.entries(table.getState().rowSelection)
@@ -45,7 +56,10 @@ export function DataTableToolbar<TData>({
       .map(([id]) => id);
   };
 
-
+  const handleFilterSelection = (filter: SavedFilter) => {
+    setFilter(filter);
+    setSelectedFilter(filter);
+  };
 
   return (
     <div className="space-y-2">
@@ -78,29 +92,38 @@ export function DataTableToolbar<TData>({
           )}
         </div>
         <DataTableViewOptions table={table} />
-        <Button onClick={saveFilter}>Save filter</Button>
+        <CreateSavedFilterModal
+          newSavedFilter={newSavedFilter}
+          refetchSavedFilters={savedFilters.refetch}
+        />
       </div>
       <div>
-          {savedFilters.data?.map((filter) => (
-            <Badge key={filter.name} color="blue">
+        {savedFilters.data?.map((filter) => {
+          const isSelected = selectedFilter?.name === filter.name;
+          return (
+            <Badge
+              key={filter.name}
+              variant={isSelected ? "default" : "outline"}
+              onClick={() => handleFilterSelection(filter)}
+            >
               {filter.name}
             </Badge>
-          ))}
-        </div>
+          );
+        })}
+      </div>
       <div>
-
-      {multipleRowActionElements &&
-        (table.getSelectedRowModel().rows.length ? (
-          <div className="space-x-2 flex">
-            {multipleRowActionElements &&
-              multipleRowActionElements.map((element) =>
-                element(table, parseRowsFromSelection())
-            )}
-          </div>
-        ) : (
-          <div className="h-10"></div>
-        ))}
-        </div>
+        {multipleRowActionElements &&
+          (table.getSelectedRowModel().rows.length ? (
+            <div className="space-x-2 flex">
+              {multipleRowActionElements &&
+                multipleRowActionElements.map((element) =>
+                  element(table, parseRowsFromSelection())
+                )}
+            </div>
+          ) : (
+            <div className="h-10"></div>
+          ))}
+      </div>
     </div>
   );
 }
