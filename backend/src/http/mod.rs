@@ -6,6 +6,7 @@ use axum::{
 };
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use tower_http::{cors::{AllowHeaders, CorsLayer}, trace::TraceLayer};
+use tracing_subscriber::EnvFilter;
 
 use crate::{
     config::Config,
@@ -60,7 +61,11 @@ pub async fn serve(config: Config, services: Services) {
         .allow_credentials(true);
 
     tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
+        .with_env_filter(EnvFilter::from_default_env()) // Allows filtering with RUST_LOG
+        .with_target(false) // Hides the module path in logs
+        .with_thread_ids(false) // Hides thread IDs
+        .with_level(true) // Shows log levels
+        .compact() // Use a compact log format
         .init();
 
     let app: Router = router(state.clone())
