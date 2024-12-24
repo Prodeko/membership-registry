@@ -72,3 +72,16 @@ export interface AuthInfo {
   last_name: string;
   email: string;
 }
+
+
+export interface SavedFilter {
+  name: string;
+  model: string;
+  owner_user_id: string;
+  visible_to_all: boolean;
+  search: string;
+  sorting_col: string;
+  sorting_desc: boolean;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  custom_filters: any;
+}

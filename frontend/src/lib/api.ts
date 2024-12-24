@@ -10,11 +10,11 @@ import {
   Role,
   RoleMember,
   RoleStats,
+  SavedFilter,
 } from "@/common/types";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { downloadCsv, getDateAsString } from "./utils";
-import { useNavigate } from "react-router-dom";
 
 export enum QueryKey {
   MEMBERS_WITH_ROLES = "members_with_roles",
@@ -26,6 +26,7 @@ export enum QueryKey {
   APPLICATIONS = "applications",
   OAUTH = "oauth_callback",
   ME = "me",
+  SAVED_FILTERS = "saved_filters",
 }
 
 export const axios_client = axios.create({
@@ -333,6 +334,16 @@ export const useGetMeUser = () => {
     queryFn: async () => {
       const response = await axios_client
         .get("/users/me");
+      return response.data;
+    },
+  });
+}
+
+export const useGetSavedFilters = () => {
+  return useQuery<SavedFilter[]>({
+    queryKey: [QueryKey.SAVED_FILTERS],
+    queryFn: async () => {
+      const response = await axios_client.get("/saved-filters");
       return response.data;
     },
   });
