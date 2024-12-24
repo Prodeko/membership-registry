@@ -7,6 +7,7 @@ import {
   MemberWithRoles,
   NewApplication,
   NewMember,
+  NewSavedFilter,
   Role,
   RoleMember,
   RoleStats,
@@ -339,12 +340,24 @@ export const useGetMeUser = () => {
   });
 }
 
-export const useGetSavedFilters = () => {
+export const useGetSavedFilters = (model: string) => {
   return useQuery<SavedFilter[]>({
     queryKey: [QueryKey.SAVED_FILTERS],
     queryFn: async () => {
-      const response = await axios_client.get("/saved-filters");
+      const response = await axios_client.get("/saved-filters", {
+        params: {
+          model,
+        },
+      });
       return response.data;
     },
   });
 }
+
+export const useCreateSavedFilter = () => {
+  return useMutation<void, Error, NewSavedFilter>({
+    mutationFn: async (filter) => {
+      await axios_client.post("/saved-filters", filter);
+    },
+  });
+};

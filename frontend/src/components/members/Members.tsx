@@ -55,6 +55,7 @@ const Members: React.FC = () => {
         />
       </div>
       <DataTable
+        modelName="members"
         columns={columns}
         useFetchData={useGetAllMembersWithRoles}
         searchColumn="first_name"

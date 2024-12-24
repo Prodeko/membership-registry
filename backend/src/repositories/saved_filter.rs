@@ -25,7 +25,7 @@ pub struct SavedFilter {
 pub struct NewSavedFilter {
     pub name: String,
     pub filtered_model: String,
-    pub visible_for_all: Option<bool>,
+    pub visible_for_all: bool,
     pub search: Option<String>,
     pub sorting_col: Option<String>,
     pub sorting_desc: bool,

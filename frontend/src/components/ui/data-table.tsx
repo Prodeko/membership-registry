@@ -35,6 +35,7 @@ export type ActionElement<TData> = (
   selectedRows: string[]
 ) => React.ReactNode;
 interface DataTableProps<TData, TValue> {
+  modelName: string;
   columns: ColumnDef<TData, TValue>[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   useFetchData: (x: any) => UseQueryResult<TData[], Error>;
@@ -47,6 +48,7 @@ interface DataTableProps<TData, TValue> {
 }
 
 export function DataTable<TData, TValue>({
+  modelName,
   columns,
   useFetchData,
   initialColumnVisibility,
@@ -111,7 +113,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="space-y-4">
-      <DataTableToolbar table={table} multipleRowActionElements={multipleRowActionElements} searchColumn={searchColumn}/>
+      <DataTableToolbar table={table} multipleRowActionElements={multipleRowActionElements} searchColumn={searchColumn} modelName={modelName}/>
       <div className="rounded-md border">
         <Table>
           <TableHeader>

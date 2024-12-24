@@ -76,12 +76,14 @@ export interface AuthInfo {
 
 export interface SavedFilter {
   name: string;
-  model: string;
+  filtered_model: string;
   owner_user_id: string;
-  visible_to_all: boolean;
-  search: string;
-  sorting_col: string;
+  visible_for_all: boolean;
+  search?: string;
+  sorting_col?: string;
   sorting_desc: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  custom_filters: any;
+  custom_filters?: any;
 }
+
+export type NewSavedFilter = Omit<SavedFilter, "owner_user_id">;
