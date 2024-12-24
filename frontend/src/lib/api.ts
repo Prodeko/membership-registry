@@ -361,3 +361,12 @@ export const useCreateSavedFilter = () => {
     },
   });
 };
+
+
+export const useDeleteSavedFilter = () => {
+  return useMutation<void, Error, string>({
+    mutationFn: async (name) => {
+      await axios_client.delete(`/saved-filters/${name}`);
+    },
+  });
+};

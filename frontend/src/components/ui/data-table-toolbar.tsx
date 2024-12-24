@@ -8,7 +8,7 @@ import { DataTableViewOptions } from "@/components/ui/data-table-view-options";
 import { Input } from "@/components/ui/input";
 
 import { ActionElement } from "./data-table";
-import { useGetSavedFilters } from "@/lib/api";
+import { useDeleteSavedFilter, useGetSavedFilters } from "@/lib/api";
 import { Badge } from "./badge";
 import { NewSavedFilter, SavedFilter } from "@/common/types";
 import CreateSavedFilterModal from "../saved-filter/CreateSavedFilterModal";
@@ -32,10 +32,10 @@ export function DataTableToolbar<TData>({
   customFilters,
   setFilter,
 }: DataTableToolbarProps<TData>) {
-  const [selectedFilter, setSelectedFilter] =
-    useState<SavedFilter | null>();
+  const [selectedFilter, setSelectedFilter] = useState<SavedFilter | null>();
   const isFiltered = table.getState().columnFilters.length > 0;
   const savedFilters = useGetSavedFilters(modelName);
+  const deleteSavedFilter = useDeleteSavedFilter();
 
   const newSavedFilter: NewSavedFilter = {
     name: "",
@@ -48,7 +48,6 @@ export function DataTableToolbar<TData>({
     sorting_desc: table.getState().sorting[0]?.desc ?? false,
     custom_filters: customFilters,
   };
-
 
   const parseRowsFromSelection = () => {
     return Object.entries(table.getState().rowSelection)
@@ -107,6 +106,18 @@ export function DataTableToolbar<TData>({
               onClick={() => handleFilterSelection(filter)}
             >
               {filter.name}
+              <Button
+                variant="ghost"
+                className="h-8 px-2 lg:px-3"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  deleteSavedFilter.mutate(filter.name, {
+                    onSuccess: () => savedFilters.refetch(),
+                  });
+                }}
+              >
+                <Cross2Icon className="h-4 w-4" />
+              </Button>
             </Badge>
           );
         })}

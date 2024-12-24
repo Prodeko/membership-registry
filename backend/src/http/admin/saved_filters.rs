@@ -1,6 +1,6 @@
 use axum::{
     debug_handler,
-    extract::{Query, State},
+    extract::{Path, Query, State},
     response::IntoResponse,
     routing::{delete, get, post},
     Extension, Json, Router,
@@ -20,7 +20,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_saved_filters))
         .route("/", post(post_saved_filter))
-        .route("/", delete(delete_saved_filter))
+        .route("/:name", delete(delete_saved_filter))
         .with_state(state)
 }
 
@@ -60,20 +60,15 @@ async fn post_saved_filter(
     Ok(saved_filter)
 }
 
-#[derive(Deserialize)]
-struct DeleteSavedFilterParams {
-    name: String,
-}
-
 #[debug_handler]
 async fn delete_saved_filter(
     State(state): State<AppState>,
     Extension(user_info): Extension<Option<AuthInfo>>,
-    Query(params): Query<DeleteSavedFilterParams>,
+    Path((name,)): Path<(String,)>,
 ) -> ApiResult<Json<()>> {
     state
         .saved_filter_service
-        .delete(&params.name, user_info.unwrap().user_id)
+        .delete(&name, user_info.unwrap().user_id)
         .await?;
 
     Ok(Json(()))
