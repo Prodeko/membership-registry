@@ -1,16 +1,14 @@
 import random
-from flask import Flask, request, jsonify, redirect
-from authomatic import Authomatic
-from faker import Faker
-import psycopg2
-from dotenv import load_dotenv
-from requests.auth import HTTPBasicAuth
 import os
 from urllib.parse import urlparse
 import webbrowser
 import secrets
-
+from flask import Flask, request, redirect
+import psycopg2
+from dotenv import load_dotenv
+from requests.auth import HTTPBasicAuth
 import requests
+from psycopg2.errors import UniqueViolation
 
 load_dotenv()
 
@@ -35,36 +33,55 @@ db_config = {
 }
 
 roles = [
-    {'name': "prodeko-external-member", 'color': "#ffffff", 'description': "Prodeko external member"},
-    {'name': "prodeko-full-member", 'color': "#fffff0", 'description': "Prodeko external member"},
-    {'name': "prodeko-alumni", 'color': "#ffff0f", 'description': "Prodeko external member"},
-    {'name': "pora-member", 'color': "#fff0ff", 'description': "Prodeko external member"},
-    {'name': "root-users", 'color': "#ff0fff", 'description': "Prodeko external member"},
-    {'name': "prodeko-board", 'color': "#f0ffff", 'description': "Prodeko external member"},
-    {'name': "prodeko-official", 'color': "#ff0fff", 'description': "Prodeko external member"},
-    {'name': "prodeko-webbitiimi", 'color': "#0fffff", 'description': "Prodeko external member"}
+    {'name': "prodeko-external-member", 'color': "#ffffff",
+        'description': "Prodeko external member"},
+    {'name': "prodeko-full-member", 'color': "#fffff0",
+        'description': "Prodeko external member"},
+    {'name': "prodeko-alumni", 'color': "#ffff0f",
+        'description': "Prodeko external member"},
+    {'name': "pora-member", 'color': "#fff0ff",
+        'description': "Prodeko external member"},
+    {'name': "root-users", 'color': "#ff0fff",
+        'description': "Prodeko external member"},
+    {'name': "prodeko-board", 'color': "#f0ffff",
+        'description': "Prodeko external member"},
+    {'name': "prodeko-official", 'color': "#ff0fff",
+        'description': "Prodeko external member"},
+    {'name': "prodeko-webbitiimi", 'color': "#0fffff",
+        'description': "Prodeko external member"}
 ]
 
-targetable_roles = ["prodeko-external-member", "prodeko-full-member", "prodeko-alumni", "pora-member"]
+role_member_date_choices = [
+    ('2021-01-01', '2022-01-01'),
+    ('2022-01-01', '2023-01-01'),
+    ('2023-01-01', '2024-01-01'),
+    ('2024-01-01', '2025-01-01')
+]
 
-# Authomatic configuration
-authomatic = Authomatic({}, os.getenv('AUTHOMATIC_SECRET', 'some-random-secret'))
+targetable_roles = [
+    "prodeko-external-member",
+    "prodeko-full-member",
+    "prodeko-alumni",
+    "pora-member"
+]
 
 app = Flask(__name__)
 
 # Global variable to store tokens
 tokens = {}
 
+
 @app.route('/')
 def home():
     return "Welcome to the Fake Data Generator. Use /login to start the OAuth flow."
+
 
 @app.route('/login', methods=['GET'])
 def login():
     # Generate a secure state parameter
     state = secrets.token_urlsafe(16)
     tokens['state'] = state  # Store state to validate in callback
-    
+
     # Redirect user to the OAuth provider for login
     auth_url = (
         f"{oauth2_config['auth_url']}?response_type=code&client_id={oauth2_config['client_id']}"
@@ -72,6 +89,7 @@ def login():
     )
 
     return redirect(auth_url)
+
 
 @app.route('/auth/callback', methods=['GET'])
 def auth_callback():
@@ -93,7 +111,8 @@ def auth_callback():
     response = requests.post(
         oauth2_config['token_url'],
         data=data,
-        auth=HTTPBasicAuth(oauth2_config['client_id'], oauth2_config['client_secret']),
+        auth=HTTPBasicAuth(
+            oauth2_config['client_id'], oauth2_config['client_secret']),
         timeout=10
     )
     response.raise_for_status()
@@ -107,11 +126,10 @@ def fetch_identities(token):
     print("Token is: ", token)
     headers = {'Authorization': f'Bearer {token}'}
 
-    response = requests.get(api_url, headers=headers)
+    response = requests.get(api_url, headers=headers, timeout=10)
     response.raise_for_status()
     print(response.json())
     return response.json()
-
 
 
 @app.route('/generate-data', methods=['GET'])
@@ -124,22 +142,25 @@ def generate_data():
     identities = fetch_identities(token)
 
     # Generate fake data
-    faker = Faker()
-    user_rows = []
-    role_member_rows = []
-    random_municipality = random.choice(["Espoo", "Helsinki", "Vantaa", "Kauniainen"])
+    random_municipality = random.choice(
+        ["Espoo", "Helsinki", "Vantaa", "Kauniainen"])
 
     conn = psycopg2.connect(**db_config)
     cursor = conn.cursor()
 
     # Truncate tables
-    cursor.execute("TRUNCATE TABLE Application, ApplicationTargetableRole, Role, RoleMember, Member CASCADE;")
-    print("Identities: ", identities[0])
+    cursor.execute(
+        "TRUNCATE TABLE Application, ApplicationTargetableRole, Role, RoleMember, Member CASCADE;")
+    
     # Insert Members
     for user in identities:
         cursor.execute(
-            "INSERT INTO Member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies) VALUES (%s, %s, %s, %s, %s, %s);",
-            (user['id'], user['traits']['email'], user['traits']['name']['first'], user['traits']['name']['last'], random_municipality, True)
+            """
+            INSERT INTO Member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies) 
+            VALUES (%s, %s, %s, %s, %s, %s);
+            """,
+            (user['id'], user['traits']['email'], user['traits']['name']
+             ['first'], user['traits']['name']['last'], random_municipality, True)
         )
 
     # Insert Roles
@@ -150,21 +171,29 @@ def generate_data():
         )
 
     # Insert RoleMembers
-    date_choices = [
-        ('2021-01-01', '2022-01-01'), ('2022-01-01', '2023-01-01'), ('2023-01-01', '2024-01-01'), ('2024-01-01', '2025-01-01')
-    ]
     for user in identities:
-        date_choice = random.choice(date_choices)
-        role = random.choice(roles)
-        cursor.execute(
-            "INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until) VALUES (%s, %s, %s, %s);",
-            (user['id'], role['name'], date_choice[0], date_choice[1])
-        )
+        for _ in range(random.randint(0, 4)):
+            date_choice = random.choice(role_member_date_choices)
+            role = random.choice(roles)
+            try:
+                cursor.execute(
+                    """
+                    INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until)
+                    VALUES (%s, %s, %s, %s);
+                    """,
+                    (user['id'], role['name'], date_choice[0], date_choice[1])
+                )
+            except UniqueViolation:
+                # Skip if the RoleMember already exists
+                pass
 
     # Insert ApplicationTargetableRoles
     for role in targetable_roles:
         cursor.execute(
-            "INSERT INTO ApplicationTargetableRole (role_name, valid_until, active, payment_link, optional_roles) VALUES (%s, %s, %s, %s, %s);",
+            """
+            INSERT INTO ApplicationTargetableRole (role_name, valid_until, active, payment_link, optional_roles) 
+            VALUES (%s, %s, %s, %s, %s);
+            """,
             (role, '2025-01-01', True, '', '{"pora-member"}')
         )
 
@@ -174,31 +203,10 @@ def generate_data():
 
     return "Fake data generation completed and inserted into the database!"
 
-def insert_into_postgres(fake_data):
-    conn = psycopg2.connect(**db_config)
-    cursor = conn.cursor()
-
-    insert_query = """
-    INSERT INTO fake_identities (original_id, fake_name, fake_email, fake_phone, fake_address)
-    VALUES (%s, %s, %s, %s, %s)
-    """
-
-    for entry in fake_data:
-        cursor.execute(insert_query, (
-            entry['original_id'],
-            entry['fake_name'],
-            entry['fake_email'],
-            entry['fake_phone'],
-            entry['fake_address'],
-        ))
-
-    conn.commit()
-    cursor.close()
-    conn.close()
 
 if __name__ == "__main__":
     # Automatically open the browser for the login endpoint
-    login_url = "http://127.0.0.1:8080/login"
-    webbrowser.open(login_url)    
-    
+    LOGIN_URL = "http://127.0.0.1:8080/login"
+    webbrowser.open(LOGIN_URL)
+
     app.run(debug=True, port=8080)
