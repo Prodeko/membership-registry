@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use uuid::Uuid;
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct NewMember {
     pub user_id: Uuid,
     pub email: String,
@@ -48,6 +48,24 @@ impl MemberWithRoles {
             self.email.clone(),
             self.role_names.to_string(),
         ]
+    }
+}
+
+#[derive(Default)]
+pub struct MembersWithRolesParams {
+    pub valid_from: Option<chrono::NaiveDate>,
+    pub valid_until: Option<chrono::NaiveDate>,
+    pub roles: Option<Vec<String>>,
+    pub search: Option<String>,
+    pub order_by: Option<String>,
+    pub order_desc: Option<bool>,
+    pub page_size: Option<u64>,
+    pub offset: Option<u64>,
+}
+
+impl MembersWithRolesParams {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 
@@ -154,16 +172,10 @@ impl MemberRepo {
         Ok(())
     }
 
+
     pub async fn fetch_members_with_roles(
         &self,
-        page_size: Option<u64>,
-        offset: Option<u64>,
-        roles: Option<Vec<String>>,
-        search: Option<String>,
-        order_by: Option<String>,
-        order_desc: Option<bool>,
-        valid_from: Option<chrono::NaiveDate>,
-        valid_until: Option<chrono::NaiveDate>,
+        params: MembersWithRolesParams,
     ) -> Result<Vec<MemberWithRoles>, sqlx::Error> {
         let members_with_roles = sqlx::query_as!(
             MemberWithRoles,
@@ -220,14 +232,14 @@ impl MemberRepo {
                 END DESC
             LIMIT $1 OFFSET $2::Integer * $1::Integer
           "#,
-            page_size.map(|x| x as i32).unwrap_or(i32::MAX) as i32,
-            offset.unwrap_or(0) as i64,
-            &roles.unwrap_or_default(),
-            search.as_deref().unwrap_or_default(),
-            &order_by.unwrap_or_else(|| "full_name".to_string()),
-            if order_desc.unwrap_or(false) { "DESC" } else { "ASC" },
-            valid_from.unwrap_or(chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
-            valid_until.unwrap_or(chrono::NaiveDate::from_ymd_opt(9999, 12, 31).unwrap())
+            params.page_size.map(|x| x as i32).unwrap_or(i32::MAX) as i32,
+            params.offset.unwrap_or(0) as i64,
+            &params.roles.unwrap_or_default(),
+            params.search.as_deref().unwrap_or_default(),
+            &params.order_by.unwrap_or_else(|| "full_name".to_string()),
+            if params.order_desc.unwrap_or(false) { "DESC" } else { "ASC" },
+            params.valid_from.unwrap_or(chrono::NaiveDate::from_ymd_opt(1970, 1, 1).unwrap()),
+            params.valid_until.unwrap_or(chrono::NaiveDate::from_ymd_opt(9999, 12, 31).unwrap())
         )
         .fetch_all(&self.pool)
         .await?;
