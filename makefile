@@ -6,4 +6,8 @@ up:
 	echo "$$(bash ../scripts/create-oauth-client.sh -n membership-registry --format dotenv)" >> backend/.env
 	cd frontend; npm install
 	cd backend; sqlx migrate run
-	cd backend; cargo run -- generate --amount 50
+
+devdata:
+	cd backend; sqlx migrate run
+	cd backend; pip install flask psycopg2 python-dotenv requests
+	cd backend; python create_dev_data.py
