@@ -1,23 +1,27 @@
-import ory_hydra_client
-from ory_hydra_client import ApiClient, Configuration
-from ory_hydra_client.api.oauth2_api import OAuth2Api
-from ory_hydra_client.model.token_response import TokenResponse
+import random
+from flask import Flask, request, jsonify, redirect
+from authomatic import Authomatic
 from faker import Faker
 import psycopg2
 from dotenv import load_dotenv
+from requests.auth import HTTPBasicAuth
 import os
 from urllib.parse import urlparse
+import webbrowser
+import secrets
 
-# Load environment variables
+import requests
+
 load_dotenv()
 
 # Configuration
 oauth2_config = {
     'client_id': os.getenv('OAUTH_CLIENT_ID'),
     'client_secret': os.getenv('OAUTH_CLIENT_SECRET'),
-    'redirect_uri': os.getenv('OAUTH_REDIRECT_URI'),
-    'scope': os.getenv('OAUTH_SCOPE'),
-    'hydra_url': os.getenv('OAUTH_HYDRA_URL')
+    'redirect_uri': 'http://127.0.0.1:8080/auth/callback',
+    'scope': 'openid profile email',
+    'auth_url': os.getenv('OAUTH_ISSUER_URL') + '/oauth2/auth',
+    'token_url': os.getenv('OAUTH_ISSUER_URL') + '/oauth2/token',
 }
 
 db_url = os.getenv('DATABASE_URL')
@@ -30,46 +34,145 @@ db_config = {
     'port': parsed_db_url.port
 }
 
-def get_oauth2_token():
-    configuration = Configuration(
-        host=oauth2_config['hydra_url']
+roles = [
+    {'name': "prodeko-external-member", 'color': "#ffffff", 'description': "Prodeko external member"},
+    {'name': "prodeko-full-member", 'color': "#fffff0", 'description': "Prodeko external member"},
+    {'name': "prodeko-alumni", 'color': "#ffff0f", 'description': "Prodeko external member"},
+    {'name': "pora-member", 'color': "#fff0ff", 'description': "Prodeko external member"},
+    {'name': "root-users", 'color': "#ff0fff", 'description': "Prodeko external member"},
+    {'name': "prodeko-board", 'color': "#f0ffff", 'description': "Prodeko external member"},
+    {'name': "prodeko-official", 'color': "#ff0fff", 'description': "Prodeko external member"},
+    {'name': "prodeko-webbitiimi", 'color': "#0fffff", 'description': "Prodeko external member"}
+]
+
+targetable_roles = ["prodeko-external-member", "prodeko-full-member", "prodeko-alumni", "pora-member"]
+
+# Authomatic configuration
+authomatic = Authomatic({}, os.getenv('AUTHOMATIC_SECRET', 'some-random-secret'))
+
+app = Flask(__name__)
+
+# Global variable to store tokens
+tokens = {}
+
+@app.route('/')
+def home():
+    return "Welcome to the Fake Data Generator. Use /login to start the OAuth flow."
+
+@app.route('/login', methods=['GET'])
+def login():
+    # Generate a secure state parameter
+    state = secrets.token_urlsafe(16)
+    tokens['state'] = state  # Store state to validate in callback
+    
+    # Redirect user to the OAuth provider for login
+    auth_url = (
+        f"{oauth2_config['auth_url']}?response_type=code&client_id={oauth2_config['client_id']}"
+        f"&redirect_uri={oauth2_config['redirect_uri']}&scope={oauth2_config['scope']}&state={state}"
     )
-    with ApiClient(configuration) as api_client:
-        oauth2_api = OAuth2Api(api_client)
 
-        token_response = oauth2_api.oauth2_token(
-            grant_type="client_credentials",
-            client_id=oauth2_config['client_id'],
-            client_secret=oauth2_config['client_secret'],
-            scope=oauth2_config['scope']
-        )
+    return redirect(auth_url)
 
-    return token_response.access_token
+@app.route('/auth/callback', methods=['GET'])
+def auth_callback():
+    # Validate state parameter
+    state = request.args.get('state')
+    if state != tokens.get('state'):
+        return "Invalid or missing state parameter.", 400
+
+    # Capture token
+    code = request.args.get('code')
+    if not code:
+        return "Missing access code in the response.", 400
+
+    data = {
+        'grant_type': 'authorization_code',
+        'code': code,
+        'redirect_uri': oauth2_config['redirect_uri'],
+    }
+    response = requests.post(
+        oauth2_config['token_url'],
+        data=data,
+        auth=HTTPBasicAuth(oauth2_config['client_id'], oauth2_config['client_secret']),
+        timeout=10
+    )
+    response.raise_for_status()
+    tokens['access_token'] = response.json()['access_token']
+    print("Access token is: ", tokens['access_token'])
+    return redirect('/generate-data')
+
 
 def fetch_identities(token):
-    api_url = f"{oauth2_config['hydra_url']}/identities"
+    api_url = f"{os.getenv('ORY_BASE_URL')}/kratos/admin/identities"
+    print("Token is: ", token)
     headers = {'Authorization': f'Bearer {token}'}
 
     response = requests.get(api_url, headers=headers)
     response.raise_for_status()
-
+    print(response.json())
     return response.json()
 
-def generate_fake_data(identities):
+
+
+@app.route('/generate-data', methods=['GET'])
+def generate_data():
+    token = tokens.get('access_token')
+    if not token:
+        return redirect('/login')
+
+    # Fetch identities
+    identities = fetch_identities(token)
+
+    # Generate fake data
     faker = Faker()
-    fake_data = []
+    user_rows = []
+    role_member_rows = []
+    random_municipality = random.choice(["Espoo", "Helsinki", "Vantaa", "Kauniainen"])
 
-    for identity in identities:
-        fake_entry = {
-            'original_id': identity['id'],
-            'fake_name': faker.name(),
-            'fake_email': faker.email(),
-            'fake_phone': faker.phone_number(),
-            'fake_address': faker.address(),
-        }
-        fake_data.append(fake_entry)
+    conn = psycopg2.connect(**db_config)
+    cursor = conn.cursor()
 
-    return fake_data
+    # Truncate tables
+    cursor.execute("TRUNCATE TABLE Application, ApplicationTargetableRole, Role, RoleMember, Member CASCADE;")
+    print("Identities: ", identities[0])
+    # Insert Members
+    for user in identities:
+        cursor.execute(
+            "INSERT INTO Member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies) VALUES (%s, %s, %s, %s, %s, %s);",
+            (user['id'], user['traits']['email'], user['traits']['name']['first'], user['traits']['name']['last'], random_municipality, True)
+        )
+
+    # Insert Roles
+    for role in roles:
+        cursor.execute(
+            "INSERT INTO Role (name, color, description) VALUES (%s, %s, %s);",
+            (role['name'], role['color'], role['description'])
+        )
+
+    # Insert RoleMembers
+    date_choices = [
+        ('2021-01-01', '2022-01-01'), ('2022-01-01', '2023-01-01'), ('2023-01-01', '2024-01-01'), ('2024-01-01', '2025-01-01')
+    ]
+    for user in identities:
+        date_choice = random.choice(date_choices)
+        role = random.choice(roles)
+        cursor.execute(
+            "INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until) VALUES (%s, %s, %s, %s);",
+            (user['id'], role['name'], date_choice[0], date_choice[1])
+        )
+
+    # Insert ApplicationTargetableRoles
+    for role in targetable_roles:
+        cursor.execute(
+            "INSERT INTO ApplicationTargetableRole (role_name, valid_until, active, payment_link, optional_roles) VALUES (%s, %s, %s, %s, %s);",
+            (role, '2025-01-01', True, '', '{"pora-member"}')
+        )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return "Fake data generation completed and inserted into the database!"
 
 def insert_into_postgres(fake_data):
     conn = psycopg2.connect(**db_config)
@@ -93,22 +196,9 @@ def insert_into_postgres(fake_data):
     cursor.close()
     conn.close()
 
-def main():
-    print("Starting the fake data generator...")
-
-    # Step 1: Sign in and get token
-    token = get_oauth2_token()
-
-    # Step 2: Fetch identities
-    identities = fetch_identities(token)
-
-    # Step 3: Generate fake data
-    fake_data = generate_fake_data(identities)
-
-    # Step 4: Insert fake data into PostgreSQL
-    insert_into_postgres(fake_data)
-
-    print("Fake data generation completed!")
-
 if __name__ == "__main__":
-    main()
+    # Automatically open the browser for the login endpoint
+    login_url = "http://127.0.0.1:8080/login"
+    webbrowser.open(login_url)    
+    
+    app.run(debug=True, port=8080)
