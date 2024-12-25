@@ -6,6 +6,8 @@ pub mod member;
 pub mod role;
 pub mod saved_filter;
 
+pub mod tests;
+
 #[derive(Clone)]
 pub struct PostgresRepo {
     pub member: MemberRepo,

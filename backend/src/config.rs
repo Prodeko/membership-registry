@@ -10,6 +10,10 @@ pub struct Config {
     #[validate(length(min = 1, max = 1024))]
     pub database_url: String,
 
+    #[envconfig(from = "TEST_DATABASE_URL")]
+    #[validate(length(min = 1, max = 1024))]
+    pub test_database_url: String,
+
     #[envconfig(from = "FRONTEND_URL")]
     #[validate(length(min = 1, max = 1024))]
     pub frontend_url: String,
