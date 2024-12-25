@@ -6,9 +6,18 @@
 - Aja migraatiot: `sqlx migrate run`
 - Peruuta migraatio: `sqlx migrate revert`
 - Luo SQL-kyselyistä tyypit CI:tä varten `cargo sqlx prepare -- --release --all-targets --all-features`
-- Luo testidataa `cargo run -- generate --amount [amount]`
 
-# Tiedostorakenne
+
+## Devdatan luominen
+
+- Luo .env tiedosto .env_template pohjalta
+- Aja `python create-dev-data.py`
+- Kirjaudu sisään aukeavaan browser ikkunaan
+- Dev datan pitäisi olla ajettuna sisään tietokantaan
+- Sulje browser ikkuna ja terminal prosessi
+
+
+## Tiedostorakenne
 
 Lähdekoodin alakansiot ovat seuraavat: http, repositories ja services.
 
