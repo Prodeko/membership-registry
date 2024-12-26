@@ -4,7 +4,7 @@ mod test_role {
     use uuid::Uuid;
 
     use crate::repositories::{
-        role::Role,
+        role::{Role, RolesWithStatsParams},
         tests::{cleanup_test_db, setup_test_db},
     };
     const ROLE_NAME: &str = "prodeko-external-member";
@@ -86,17 +86,77 @@ mod test_role {
     }
 
     #[tokio::test]
-    async fn test_fetch_role_by_name() {
-        // Test get_role
-    }
-
-    #[tokio::test]
     async fn test_fetch_role_by_member() {
-        // Test get_roles
+        let (repo, db_url) = setup_test_db().await;
+
+        let role_members = repo.role.fetch_roles_by_member(&_get_user_id()).await;
+
+        assert!(role_members.unwrap().len() == 3);
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
     }
 
     #[tokio::test]
-    async fn test_fetch_role_with_stats() {
-        // Test get_roles_with_status
+    async fn test_fetch_roles_with_stats() {
+        let (repo, db_url) = setup_test_db().await;
+
+        let roles = repo
+            .role
+            .fetch_roles_with_stats(RolesWithStatsParams::new())
+            .await;
+        let roles = roles.unwrap();
+        assert!(roles.len() == 8);
+        assert!(roles[0].name == "pora-member".to_string());
+        assert!(roles[0].member_count.unwrap() == 2);
+        assert!(roles[0].active_member_count.unwrap() == 1);
     }
+
+    #[tokio::test]
+    async fn test_fetch_roles_with_stats_pagination() {
+        let (repo, db_url) = setup_test_db().await;
+
+        let roles = repo
+            .role
+            .fetch_roles_with_stats(RolesWithStatsParams {
+                page_size: Some(2),
+                offset: Some(1),
+                ..Default::default()
+            })
+            .await;
+        let roles = roles.unwrap();
+        assert!(roles.len() == 2);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_roles_with_stats_search() {
+        let (repo, db_url) = setup_test_db().await;
+
+        let roles = repo
+            .role
+            .fetch_roles_with_stats(RolesWithStatsParams {
+                search: Some("prodeko".to_string()),
+                ..Default::default()
+            })
+            .await;
+        let roles = roles.unwrap();
+        assert!(roles.len() == 6);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_roles_with_stats_order() {
+        let (repo, db_url) = setup_test_db().await;
+
+        let roles = repo
+            .role
+            .fetch_roles_with_stats(RolesWithStatsParams {
+                order_by: Some("Description".to_string()),
+                order_desc: Some(false),
+                ..Default::default()
+            })
+            .await;
+        let roles = roles.unwrap();
+        assert!(roles.len() == 8);
+        assert!(roles[0].name == "root-users".to_string());
+    }
+
 }

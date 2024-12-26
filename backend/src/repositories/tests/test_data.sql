@@ -15,8 +15,8 @@ INSERT INTO Role (name, color, description) VALUES
 ('prodeko-external-member', '#ffffff', 'Prodeko external member'),
 ('prodeko-full-member', '#fffff0', 'Prodeko external member'),
 ('prodeko-alumni', '#ffff0f', 'Prodeko external member'),
-('pora-member', '#fff0ff', 'Prodeko external member'),
-('root-users', '#ff0fff', 'Prodeko external member'),
+('pora-member', '#fff0ff', 'Pora member'),
+('root-users', '#ff0fff', 'Admins'),
 ('prodeko-board', '#f0ffff', 'Prodeko external member'),
 ('prodeko-official', '#ff0fff', 'Prodeko external member'),
 ('prodeko-webbitiimi', '#0fffff', 'Prodeko external member');
@@ -32,7 +32,9 @@ INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until) VALUES
 ('11880220-c535-4afe-87a2-c59e213f87f4', 'prodeko-board', '2021-01-01', '2022-01-01'),
 ('e27ea8f8-76a3-4386-a09e-694c5581915e', 'prodeko-webbitiimi', '2023-01-01', '2024-01-01'),
 ('b20e5370-f0ae-4c8f-bdf0-5743b8f85c7a', 'root-users', '2023-01-01', '2024-01-01'),
-('9842528d-e376-42ed-9416-af820bb397b7', 'pora-member', '2024-01-01', '2025-01-01'),
+('9842528d-e376-42ed-9416-af820bb397b7', 'pora-member', '2024-01-01', '2999-01-01'),
+('9842528d-e376-42ed-9416-af820bb397b7', 'pora-member', '2023-01-01', '2024-01-01'),
+('b20e5370-f0ae-4c8f-bdf0-5743b8f85c7a', 'pora-member', '2022-01-01', '2023-01-01'),
 ('b20e5370-f0ae-4c8f-bdf0-5743b8f85c7a', 'prodeko-full-member', '2020-01-01', '2021-01-01');
 
 INSERT INTO ApplicationTargetableRole (role_name, valid_until, active, payment_link, optional_roles) VALUES

@@ -33,6 +33,22 @@ pub struct RoleStats {
     pub active_member_count: Option<i64>,
 }
 
+
+#[derive(Default)]
+pub struct RolesWithStatsParams {
+    pub page_size: Option<u64>,
+    pub offset: Option<u64>,
+    pub search: Option<String>,
+    pub order_by: Option<String>,
+    pub order_desc: Option<bool>,
+}
+
+impl RolesWithStatsParams {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
 impl RoleRepo {
     pub async fn create(&self, role: Role) -> Result<Role, sqlx::Error> {
         let created =
@@ -168,18 +184,20 @@ impl RoleRepo {
 
     pub async fn fetch_roles_with_stats(
         &self,
-        page_size: Option<u64>,
-        offset: Option<u64>,
-        search: Option<String>,
-        order_by: Option<String>,
-        order_desc: Option<bool>,
+        RolesWithStatsParams {
+            page_size,
+            offset,
+            search,
+            order_by,
+            order_desc,
+        }: RolesWithStatsParams,
     ) -> Result<Vec<RoleStats>, sqlx::Error> {
         let records = sqlx::query_as!(
             RoleStats,
-            r#"
+            r#"-- sql
             SELECT
                 Role.*,
-                COUNT(RoleMember.user_id) as member_count,
+                COUNT(DISTINCT RoleMember.user_id) as member_count,
                 COUNT(
                     CASE WHEN (
                         valid_until IS NULL OR (
@@ -191,15 +209,15 @@ impl RoleRepo {
                 ) as active_member_count
             FROM Role LEFT JOIN RoleMember ON Role.name = RoleMember.role_name
             WHERE 
-                Role.name ILIKE '%' || $3 || '%'
+                $3::varchar IS NULL OR Role.name ILIKE '%' || $3 || '%'
             GROUP BY Role.name, Role.color
             ORDER BY
                 CASE WHEN $5 = 'ASC' THEN
-                    CASE $4
+                    CASE LOWER($4)
                         WHEN 'name' THEN Role.name
                         WHEN 'color' THEN Role.color
                         WHEN 'description' THEN Role.description
-                        WHEN 'member_count' THEN COUNT(RoleMember.user_id)::text
+                        WHEN 'member_count' THEN COUNT(DISTINCT RoleMember.user_id)::text
                         WHEN 'active_member_cout' THEN 
                             COUNT(
                                 CASE WHEN (
@@ -214,7 +232,7 @@ impl RoleRepo {
                     END
                 END ASC,
                 CASE WHEN $5 = 'DESC' THEN
-                    CASE $4
+                    CASE LOWER($4)
                         WHEN 'name' THEN Role.name
                         WHEN 'color' THEN Role.color
                         WHEN 'description' THEN Role.description
@@ -236,8 +254,8 @@ impl RoleRepo {
           "#,
             page_size.map(|x| x as i32).unwrap_or(i32::MAX) as i32,
             offset.unwrap_or(0) as i64,
-            search.as_deref().unwrap_or_default(),
-            &order_by.unwrap_or_else(|| "full_name".to_string()),
+            search,
+            order_by,
             if order_desc.unwrap_or(false) { "DESC" } else { "ASC" },
         )
         .fetch_all(&self.pool)

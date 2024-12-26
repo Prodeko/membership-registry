@@ -2,7 +2,7 @@
 
 use crate::repositories::{
     member::Member,
-    role::{Role, RoleMember, RoleRepo, RoleStats},
+    role::{Role, RoleMember, RoleRepo, RoleStats, RolesWithStatsParams},
 };
 use futures_util::TryFutureExt;
 use uuid::Uuid;
@@ -130,11 +130,13 @@ impl RoleService {
         order_desc: Option<bool>,
     ) -> ServiceResult<Vec<RoleStats>> {
         self.repo
-            .fetch_roles_with_stats(page_size,
+            .fetch_roles_with_stats(RolesWithStatsParams {
+                page_size,
                 offset,
                 search,
                 order_by,
-                order_desc)
+                order_desc,
+            })
             .await
             .map_err(|e| e.into())
     }
