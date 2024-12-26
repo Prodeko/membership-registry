@@ -9,7 +9,7 @@ pub struct RoleRepo {
     pub pool: PgPool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, Default)]
 pub struct Role {
     pub name: String,
     pub color: Option<String>,
@@ -69,7 +69,7 @@ impl RoleRepo {
 
     pub async fn create_role_member(
         &self,
-        user_id: Uuid,
+        user_id: &Uuid,
         role_name: &str,
         valid_from: NaiveDate,
         valid_until: Option<NaiveDate>,
@@ -91,7 +91,7 @@ impl RoleRepo {
 
     pub async fn update_valid_until(
         &self,
-        user_id: Uuid,
+        user_id: &Uuid,
         role_name: &str,
         valid_from: NaiveDate,
         new_valid_until: NaiveDate,
@@ -114,7 +114,7 @@ impl RoleRepo {
 
     pub async fn delete_role_member(
         &self,
-        user_id: Uuid,
+        user_id: &Uuid,
         role_name: &str,
         valid_from: NaiveDate,
     ) -> Result<(), sqlx::Error> {
@@ -134,7 +134,7 @@ impl RoleRepo {
 
     pub async fn fetch_roles_by_member(
         &self,
-        user_id: Uuid,
+        user_id: &Uuid,
     ) -> Result<Vec<RoleMember>, sqlx::Error> {
         let records = sqlx::query_as!(
             RoleMember,

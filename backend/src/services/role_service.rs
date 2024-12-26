@@ -45,18 +45,18 @@ impl RoleService {
         access_token: String,
     ) -> ServiceResult<()> {
         self.ory_service
-            .add_user_to_group(user_id.to_string(), role_name, access_token)
+            .add_user_to_group(&user_id, role_name, access_token)
             .await?;
 
         self.repo
-            .create_role_member(user_id, role_name, valid_from, valid_until)
+            .create_role_member(&user_id, role_name, valid_from, valid_until)
             .await
             .map_err(|e| e.into())
     }
 
     pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<RoleMember>> {
         self.repo
-            .fetch_roles_by_member(user_id)
+            .fetch_roles_by_member(&user_id)
             .await
             .map_err(|e| e.into())
     }
@@ -99,7 +99,7 @@ impl RoleService {
         new_valid_until: chrono::NaiveDate,
     ) -> ServiceResult<()> {
         self.repo
-            .update_valid_until(user_id, role_name, valid_from, new_valid_until)
+            .update_valid_until(&user_id, role_name, valid_from, new_valid_until)
             .await
             .map_err(|e| e.into())
     }
@@ -112,11 +112,11 @@ impl RoleService {
         access_token: String,
     ) -> ServiceResult<()> {
         self.ory_service
-            .remove_user_from_group(user_id.to_string(), role_name, access_token)
+            .remove_user_from_group(&user_id, role_name, access_token)
             .await?;
 
         self.repo
-            .delete_role_member(user_id, role_name, valid_from)
+            .delete_role_member(&user_id, role_name, valid_from)
             .await
             .map_err(|e| e.into())
     }
