@@ -1,4 +1,5 @@
 mod member;
+mod role;
 
 use sqlx::{migrate::MigrateDatabase, PgPool, Postgres};
 use dotenv::dotenv;

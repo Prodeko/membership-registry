@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod test_member {
-    use ory_client::models::Pagination;
     use uuid::Uuid;
 
     use crate::repositories::{
