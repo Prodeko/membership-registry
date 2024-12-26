@@ -9,7 +9,7 @@ INSERT INTO Member (user_id, email, first_name, last_name, home_municipality, ha
 ('281114a8-98f6-43ca-9cb7-7cf563dc4b96', 'olivia81@example.net', 'Ilmari', 'Suhonen', 'Espoo', true),
 ('9707582e-c149-45a7-bae1-4b0f4de4b06f', 'joelsuominen@example.net', 'Antti', 'Nyberg', 'Espoo', true),
 ('b20e5370-f0ae-4c8f-bdf0-5743b8f85c7a', 'karoliinaylonen@example.net', 'Karoliina', 'Karppinen', 'Espoo', true),
-('473d18ff-6fdc-468f-9fcf-66533da375da', 'eemilmakinen@example.org', 'Santeri', 'Kurki', 'Espoo', true);
+('473d18ff-6fdc-468f-9fcf-66533da375da', 'eemilmakinen@example.org', 'Zanteri', 'Kurki', 'Espoo', true);
 
 INSERT INTO Role (name, color, description) VALUES
 ('prodeko-external-member', '#ffffff', 'Prodeko external member'),
@@ -33,7 +33,7 @@ INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until) VALUES
 ('e27ea8f8-76a3-4386-a09e-694c5581915e', 'prodeko-webbitiimi', '2023-01-01', '2024-01-01'),
 ('b20e5370-f0ae-4c8f-bdf0-5743b8f85c7a', 'root-users', '2023-01-01', '2024-01-01'),
 ('9842528d-e376-42ed-9416-af820bb397b7', 'pora-member', '2024-01-01', '2025-01-01'),
-('b20e5370-f0ae-4c8f-bdf0-5743b8f85c7a', 'prodeko-full-member', '2024-01-01', '2025-01-01');
+('b20e5370-f0ae-4c8f-bdf0-5743b8f85c7a', 'prodeko-full-member', '2020-01-01', '2021-01-01');
 
 INSERT INTO ApplicationTargetableRole (role_name, valid_until, active, payment_link, optional_roles) VALUES
 ('prodeko-external-member', '2025-01-01', true, '', '{"pora-member"}'),
