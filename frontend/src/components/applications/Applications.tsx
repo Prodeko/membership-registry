@@ -42,6 +42,7 @@ const Applications = () => {
           status: selectedStatus,
         }}
         searchColumn="full_name"
+        modelName="applications"
       />
     </div>
   );

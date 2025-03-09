@@ -56,6 +56,10 @@ const ApplicationForm = () => {
     createApplication({
       ...values,
       user_id: currentMember?.user_id,
+    }, {
+      onSuccess: (data: {redirect_to: string}) => {
+        window.location.href = data.redirect_to // TODO: Is this ok?
+      }
     });
   };
 
@@ -117,7 +121,7 @@ const ApplicationForm = () => {
                     </FormControl>
                     <SelectContent>
                       {targetableRoles?.map((role) => (
-                        <SelectItem value={role.role_name} key={role.role_name}>
+                        <SelectItem value={role.role_name} key={role.role_name+role.valid_until}>
                           {role.role_name}{" "}
                           <span>
                             (Valid until {role.valid_until.toLocaleDateString()}

@@ -6,6 +6,7 @@ use axum::{
     Json, Router,
 };
 use serde::Deserialize;
+use stripe::generated::checkout::payment_link;
 use uuid::Uuid;
 
 use crate::{
@@ -101,6 +102,7 @@ async fn update_application_status(
 struct PostTargetableRole {
     role_name: String,
     valid_until: chrono::NaiveDate,
+    payment_link: Option<String>,
 }
 #[debug_handler]
 async fn post_targetable_role(
@@ -109,10 +111,11 @@ async fn post_targetable_role(
 ) -> ApiResult<Json<()>> {
     let role_name = body.role_name;
     let valid_until = body.valid_until;
+    let payment_link = body.payment_link;
 
     let targetable_role = state
         .application_service
-        .create_targetable_role(role_name, valid_until, Some(true))
+        .create_targetable_role(role_name, valid_until, Some(true), payment_link)
         .await
         .map(Json)?;
 

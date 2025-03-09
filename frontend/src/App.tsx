@@ -11,6 +11,7 @@ import Members from "./components/members/Members";
 import Roles from "./components/roles/Roles";
 import SignupForm from "./components/signup-form/SignupForm";
 import { ThemeProvider } from "./components/theme-provider";
+import Success from "./components/application-form/Success";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +72,10 @@ const router = createBrowserRouter([
   {
     path: "/application-form",
     element: <ApplicationForm />,
+  },
+  {
+    path: "/application-form/success",
+    element: <Success />,
   },
   {
     path: "/signup",
