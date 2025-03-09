@@ -38,3 +38,8 @@ cargo run
 # In frontend/
 npm run dev
 ```
+
+**Run a proxy between backend and ory for debuging**
+```bash
+mitmweb --listen-port 8081
+```
