@@ -207,12 +207,14 @@ impl ApplicationRepo {
         role_name: String,
         valid_until: chrono::NaiveDate,
         active: Option<bool>,
+        payment_link: Option<String>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
-            "INSERT INTO ApplicationTargetableRole (role_name, valid_until, active) VALUES ($1, $2, $3)",
+            "INSERT INTO ApplicationTargetableRole (role_name, valid_until, active, payment_link) VALUES ($1, $2, $3, $4)",
             role_name,
             valid_until,
-            active
+            active,
+            payment_link
         )
         .execute(&self.pool)
         .await?;

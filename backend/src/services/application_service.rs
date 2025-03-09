@@ -106,9 +106,10 @@ impl ApplicationService {
         role_name: String,
         valid_until: chrono::NaiveDate,
         active: Option<bool>,
+        payment_link: Option<String>,
     ) -> ServiceResult<()> {
         self.repo
-            .create_targetable_role(role_name, valid_until, active)
+            .create_targetable_role(role_name, valid_until, active, payment_link)
             .await
             .map_err(|e| e.into())
     }

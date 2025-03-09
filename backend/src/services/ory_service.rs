@@ -52,9 +52,8 @@ impl OryService {
     }
 
     fn _client_factory(&self) -> Client {
-        // let proxy = Proxy::http("http://localhost:8181").unwrap();
-        // Client::builder().proxy(proxy).build().unwrap()
-        Client::new()
+        let proxy = Proxy::http("http://127.0.0.1:8181").unwrap();
+        Client::builder().proxy(proxy).build().unwrap()
     }
 
     fn kratos_config(&self, access_token: String) -> Configuration {

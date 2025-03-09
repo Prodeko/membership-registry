@@ -249,12 +249,13 @@ export const useCreateTargetableRole = () => {
 };
 
 export const useCreateApplication = () => {
-  return useMutation<void, Error, NewApplication>({
+  return useMutation<{redirect_to: string}, Error, NewApplication>({
     mutationFn: async (newApplication) => {
-      await axios_client.post("/applications", {
+      const data = await axios_client.post("/applications", {
         ...newApplication,
         valid_until: getDateAsString(newApplication.valid_until),
       });
+      return data.data;
     },
   });
 };

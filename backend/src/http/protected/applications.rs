@@ -5,7 +5,7 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
@@ -56,10 +56,16 @@ async fn get_targetable_roles(
     Ok(targetable_roles)
 }
 
+#[derive(Serialize, Debug)]
+struct CreateApplicationResponse {
+    redirect_to: String,
+}
+
+#[debug_handler]
 async fn post_application(
     State(state): State<AppState>,
     Json(new_application): Json<NewApplication>,
-) -> ApiResult<Redirect> {
+) -> ApiResult<Json<CreateApplicationResponse>> {
     let application = state
         .application_service
         .create_application(new_application.clone())
@@ -70,20 +76,10 @@ async fn post_application(
         .get_targetable_role(new_application.role_name, new_application.valid_until)
         .await?;
 
-    match targetable_role.payment_link {
-        Some(link) => Ok(Redirect::to(
-            format!(
-                "{}?client_reference_id={}",
-                link, application.application_id
-            )
-            .as_str(),
-        )),
-        None => Ok(Redirect::to(
-            format!(
-                "{}/applications/{}",
-                state.config.frontend_url, application.application_id
-            )
-            .as_str(),
-        )),
-    }
+    let redirect_to = match targetable_role.payment_link {
+        Some(link) => format!("{}?client_reference_id={}", link, application.application_id),
+        None => format!("{}/application-form/success", state.config.frontend_url),
+    };
+
+    Ok(Json(CreateApplicationResponse { redirect_to }))
 }
