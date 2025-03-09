@@ -290,7 +290,7 @@ impl OryService {
 
     pub async fn add_user_to_group(
         &self,
-        user_id: String,
+        user_id: &Uuid,
         group_id: &str,
         access_token: String,
     ) -> Result<(), Error<PatchRelationshipsError>> {
@@ -305,7 +305,7 @@ impl OryService {
                     relation: "members".to_string(),
                     subject_set: Some(Box::new(SubjectSet {
                         namespace: "User".to_string(),
-                        object: user_id,
+                        object: user_id.to_string(),
                         relation: "".to_string(),
                     })),
                     subject_id: None,
@@ -318,7 +318,7 @@ impl OryService {
 
     pub async fn remove_user_from_group(
         &self,
-        user_id: String,
+        user_id: &Uuid,
         group_id: &str,
         access_token: String,
     ) -> ServiceResult<()> {
@@ -333,7 +333,7 @@ impl OryService {
                     relation: "members".to_string(),
                     subject_set: Some(Box::new(SubjectSet {
                         namespace: "User".to_string(),
-                        object: user_id,
+                        object: user_id.to_string(),
                         relation: "".to_string(),
                     })),
                     subject_id: None,

@@ -2,7 +2,7 @@ use std::f64::consts::E;
 
 use rand::seq::SliceRandom;
 
-use crate::repositories::member::{Member, MemberRepo, MemberWithRoles, NewMember};
+use crate::repositories::member::{Member, MemberRepo, MemberWithRoles, MembersWithRolesParams, NewMember};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -167,14 +167,16 @@ impl MemberService {
         self
             .repo
             .fetch_members_with_roles(
-                page_size,
-                offset,
-                roles,
-                search,
-                order_by,
-                order_desc,
-                valid_from,
-                valid_until,
+                MembersWithRolesParams {
+                    valid_from,
+                    valid_until,
+                    roles,
+                    page_size,
+                    offset,
+                    search,
+                    order_by,
+                    order_desc,
+                },
             )
             .await.map_err(|e| e.into())
     }
