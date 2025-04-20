@@ -1,6 +1,6 @@
 up:
 	docker compose up -d
-	rm backend/.env
+	rm -f backend/.env
 	cp backend/.env.template backend/.env
 	echo "" >> backend/.env
 	echo "" >> backend/.env
@@ -10,5 +10,5 @@ up:
 
 devdata:
 	cd backend; sqlx migrate run
-	cd backend; pip install flask psycopg2 python-dotenv requests
-	cd backend; python create_dev_data.py
+	cd backend; pip3 install flask psycopg2 python-dotenv requests
+	cd backend; python3 create_dev_data.py

@@ -122,7 +122,7 @@ def auth_callback():
 
 
 def fetch_identities(token):
-    api_url = f"{os.getenv('ORY_BASE_URL')}/kratos/admin/identities"
+    api_url = f"{os.getenv('ORY_BASE_URL')}/admin/identities"
     print("Token is: ", token)
     headers = {'Authorization': f'Bearer {token}'}
 
