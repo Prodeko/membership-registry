@@ -8,17 +8,16 @@ import AddRolesModal from "./AddRolesModal";
 import DeleteMembersModal from "./DeleteMembersModal";
 import { columns } from "./columns";
 import ExportMembersButton from "./ExportMembersButton";
+import { Button } from "../ui/button";
 
 const Members: React.FC = () => {
-
   const { data: roles, isLoading, error } = useGetRoles();
   const [selectedRoles, setSelectedRoles] = React.useState<Option[]>([]);
-  const [selectedValidFrom, setSelectedValidFrom] = React.useState<
-    Date
-  >(defaultFrom);
-  const [selectedValidUntil, setSelectedValidUntil] = React.useState<
-    Date
-  >(defaultTo);
+  const [filterVisible, setFilterVisible] = React.useState(false);
+  const [selectedValidFrom, setSelectedValidFrom] =
+    React.useState<Date>(defaultFrom);
+  const [selectedValidUntil, setSelectedValidUntil] =
+    React.useState<Date>(defaultTo);
 
   const onRoleChange = (selectedRoles: Option[]) => {
     setSelectedRoles(selectedRoles);
@@ -32,29 +31,35 @@ const Members: React.FC = () => {
     return <div>Error: {error.message}</div>;
   }
 
-
   return (
     <div className="space-y-4">
+      <div className="flex space-x-8">
       <h1 className="text-4xl">Members</h1>
-      <div className="flex space-x-2 flex-wrap">
-        <MultipleSelector
-          options={stringsToOptions(roles?.map((r) => r.name) ?? [])}
-          onChange={onRoleChange}
-          value={selectedRoles}
-          placeholder="Filter by role"
-        />
-        <DateRangePicker
-          onUpdate={({ range }) => {
-            setSelectedValidUntil(range.to ?? defaultTo);
-            setSelectedValidFrom(range.from);
-          }}
-          initialDateFrom={selectedValidFrom}
-          initialDateTo={selectedValidUntil}
-          locale="fi"
-          showCompare={false}
-          disabled={selectedRoles.length === 0}
-        />
+      <Button variant={"outline"} onClick={() => setFilterVisible((e) => !e)}>
+        { filterVisible ? "Hide filters" : "Show filters" }
+      </Button>
       </div>
+      {filterVisible && (
+        <div className="flex space-x-2 flex-wrap">
+          <MultipleSelector
+            options={stringsToOptions(roles?.map((r) => r.name) ?? [])}
+            onChange={onRoleChange}
+            value={selectedRoles}
+            placeholder="Filter by role"
+          />
+          <DateRangePicker
+            onUpdate={({ range }) => {
+              setSelectedValidUntil(range.to ?? defaultTo);
+              setSelectedValidFrom(range.from);
+            }}
+            initialDateFrom={selectedValidFrom}
+            initialDateTo={selectedValidUntil}
+            locale="fi"
+            showCompare={false}
+            disabled={selectedRoles.length === 0}
+          />
+        </div>
+      )}
       <DataTable
         modelName="members"
         columns={columns}
@@ -65,16 +70,14 @@ const Members: React.FC = () => {
           has_accepted_policies: false,
           home_municipality: false,
         }}
+        filterVisible={filterVisible}
         customFilters={{
           roles: selectedRoles.map((role) => role.value),
           valid_until: selectedValidUntil,
           valid_from: selectedValidFrom,
         }}
         setCustomFilters={(filters) => {
-          console.log(filters);
-          setSelectedRoles(
-            stringsToOptions(filters.roles ?? [])
-          );
+          setSelectedRoles(stringsToOptions(filters.roles ?? []));
           setSelectedValidFrom(filters?.valid_from ?? defaultFrom);
           setSelectedValidUntil(filters?.valid_until ?? defaultTo);
         }}

@@ -47,6 +47,7 @@ interface DataTableProps<TData, TValue> {
   multipleRowActionElements?: ActionElement<TData>[];
   getRowId?: (row: TData) => string;
   searchColumn?: string;
+  filterVisible?: boolean;
 }
 
 export function DataTable<TData, TValue>({
@@ -59,6 +60,7 @@ export function DataTable<TData, TValue>({
   multipleRowActionElements,
   getRowId,
   searchColumn,
+  filterVisible,
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState<TData[]>([]);
   const [rowSelection, setRowSelection] = React.useState({});
@@ -140,6 +142,7 @@ export function DataTable<TData, TValue>({
         modelName={modelName}
         customFilters={customFilters}
         setFilter={setFilter}
+        filterVisible={filterVisible}
       />
       <div className="rounded-md border">
         <Table>
