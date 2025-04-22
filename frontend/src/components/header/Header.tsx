@@ -17,6 +17,7 @@ import {
 } from "../ui/dropdown-menu";
 import { PersonIcon } from "@radix-ui/react-icons";
 import { Button } from "../ui/button";
+import { Logout } from "./Logout";
 
 const Header = () => {
   return (
@@ -35,33 +36,24 @@ const Header = () => {
             </NavigationMenuLink>
           </NavigationMenuItem>
           <NavigationMenuItem>
-              <NavigationMenuLink
-                asChild
-                className={navigationMenuTriggerStyle()}
-              >
-            <Link to="/applications">
-                Applications
-            </Link>
-              </NavigationMenuLink>
-          </NavigationMenuItem>
-          <NavigationMenuItem>
-              <NavigationMenuLink
-                asChild
-                className={navigationMenuTriggerStyle()}
-              >
-            <Link to="/roles">
-                Roles
-            </Link>
-              </NavigationMenuLink>
-          </NavigationMenuItem>
             <NavigationMenuLink
               asChild
               className={navigationMenuTriggerStyle()}
             >
-          <Link to="/logs">
-              Logs
-          </Link>
+              <Link to="/applications">Applications</Link>
             </NavigationMenuLink>
+          </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuLink
+              asChild
+              className={navigationMenuTriggerStyle()}
+            >
+              <Link to="/roles">Roles</Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
+          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+            <Link to="/logs">Logs</Link>
+          </NavigationMenuLink>
         </NavigationMenuList>
         <DropdownMenu>
           <DropdownMenuTrigger className="p-4">
@@ -69,9 +61,7 @@ const Header = () => {
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem>
-              <Button variant="ghost" onClick={() => console.log("Log out")}>
-                Log out
-              </Button>
+              <Logout />
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

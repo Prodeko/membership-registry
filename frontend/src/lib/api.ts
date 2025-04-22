@@ -13,9 +13,10 @@ import {
   RoleStats,
   SavedFilter,
 } from "@/common/types";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { downloadCsv, getDateAsString } from "./utils";
+import { useNavigate } from "react-router-dom";
 
 export enum QueryKey {
   MEMBERS_WITH_ROLES = "members_with_roles",
@@ -28,6 +29,7 @@ export enum QueryKey {
   OAUTH = "oauth_callback",
   ME = "me",
   SAVED_FILTERS = "saved_filters",
+  LOGOUT = "logout",
 }
 
 export const axios_client = axios.create({
@@ -44,7 +46,7 @@ axios_client.interceptors.response.use(
   },
   (error: AxiosError) => {
     console.error("Axios error: ", error);
-    window.location.href = `/error/${error.response?.status || '500'}`;
+    window.location.href = `/error/${error.response?.status || "500"}`;
   }
 );
 
@@ -161,7 +163,7 @@ export const useGetRolesStats = (params: PaginatedQueryParams) => {
           ...params,
           page_size: params.pageSize,
           customFilters: undefined,
-        }, 
+        },
       });
       return response.data as RoleStats[];
     },
@@ -249,7 +251,7 @@ export const useCreateTargetableRole = () => {
 };
 
 export const useCreateApplication = () => {
-  return useMutation<{redirect_to: string}, Error, NewApplication>({
+  return useMutation<{ redirect_to: string }, Error, NewApplication>({
     mutationFn: async (newApplication) => {
       const data = await axios_client.post("/applications", {
         ...newApplication,
@@ -323,8 +325,7 @@ export const useGetMeMember = () => {
   return useQuery<Member>({
     queryKey: [QueryKey.ME],
     queryFn: async () => {
-      const response = await axios_client
-        .get("/members/me")
+      const response = await axios_client.get("/members/me");
       return response.data;
     },
   });
@@ -334,12 +335,11 @@ export const useGetMeUser = () => {
   return useQuery<AuthInfo>({
     queryKey: [QueryKey.ME],
     queryFn: async () => {
-      const response = await axios_client
-        .get("/users/me");
+      const response = await axios_client.get("/users/me");
       return response.data;
     },
   });
-}
+};
 
 export const useGetSavedFilters = (model: string) => {
   return useQuery<SavedFilter[]>({
@@ -353,7 +353,7 @@ export const useGetSavedFilters = (model: string) => {
       return response.data;
     },
   });
-}
+};
 
 export const useCreateSavedFilter = () => {
   return useMutation<void, Error, NewSavedFilter>({
@@ -363,11 +363,28 @@ export const useCreateSavedFilter = () => {
   });
 };
 
-
 export const useDeleteSavedFilter = () => {
   return useMutation<void, Error, string>({
     mutationFn: async (name) => {
       await axios_client.delete(`/saved-filters/${name}`);
+    },
+  });
+};
+
+export const useLogout = () => {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const response = await axios_client.get("/auth/logout");
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.removeQueries();
+      navigate(0);
+    },
+    onError: (error) => {
+      console.error("Logout failed", error);
     },
   });
 };

@@ -12,6 +12,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/login", get(login))
         .route("/callback", get(callback))
+        .route("/logout", get(logout))
         .with_state(state)
 }
 
@@ -25,6 +26,11 @@ async fn login(State(state): State<AppState>) -> Redirect {
         .url();
 
     Redirect::temporary(auth_url.to_string().as_str())
+}
+
+async fn logout(State(state): State<AppState>, jar: CookieJar) -> (CookieJar, Json<String>) {
+    let jar = set_session_cookie(&jar, "");
+    (jar, Json("Logged out".to_string()))
 }
 
 async fn callback(
