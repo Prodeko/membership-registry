@@ -1,4 +1,4 @@
-# membership-registry
+# Membership registry
 
 ## Bootstrapping the development environment
 
