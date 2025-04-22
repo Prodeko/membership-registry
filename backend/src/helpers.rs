@@ -28,7 +28,7 @@ pub fn set_session_cookie(jar: &CookieJar, token: &str) -> CookieJar {
         .path("/")
         .secure(true) // Set to true if using HTTPS
         .http_only(true)
-        .same_site(SameSite::None); // Allows the cookie to be sent with requests from other sites
+        .same_site(SameSite::Lax);
 
     jar.clone().add(cookie)
 }
