@@ -49,8 +49,7 @@ CREATE TABLE Application (
     stripe_payment_id text,
     application_text text,
     status text not null,
-    optional_roles text[],
-    foreign key (role_name, valid_until) references ApplicationTargetableRole(role_name, valid_until)
+    optional_roles text[]
 );
 
 CREATE TABLE SavedFilter (

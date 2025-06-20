@@ -240,6 +240,22 @@ impl ApplicationRepo {
         Ok(())
     }
 
+    pub async fn delete_targetable_role(
+        &self,
+        role_name: String,
+        valid_until: chrono::NaiveDate,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query!(
+            "DELETE FROM ApplicationTargetableRole WHERE role_name = $1 AND valid_until = $2",
+            role_name,
+            valid_until
+        )
+        .execute(&self.pool)
+        .await?;
+
+        Ok(())
+    }
+
     pub async fn update_payment_id(
         &self,
         application_id: Uuid,

@@ -135,6 +135,28 @@ impl ApplicationService {
             .map_err(|e| e.into())
     }
 
+    pub async fn get_targetable_role(
+        &self,
+        role_name: String,
+        valid_until: chrono::NaiveDate,
+    ) -> ServiceResult<ApplicationTargetableRole> {
+        self.repo
+            .fetch_targetable_role(role_name, valid_until)
+            .await
+            .map_err(|e| e.into())
+    }
+
+    pub async fn delete_targetable_role(
+        &self,
+        role_name: String,
+        valid_until: chrono::NaiveDate,
+    ) -> ServiceResult<()> {
+        self.repo
+            .delete_targetable_role(role_name, valid_until)
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub async fn update_payment_id(
         &self,
         application_id: Uuid,
@@ -146,14 +168,4 @@ impl ApplicationService {
             .map_err(|e| e.into())
     }
 
-    pub async fn get_targetable_role(
-        &self,
-        role_name: String,
-        valid_until: chrono::NaiveDate,
-    ) -> ServiceResult<ApplicationTargetableRole> {
-        self.repo
-            .fetch_targetable_role(role_name, valid_until)
-            .await
-            .map_err(|e| e.into())
-    }
 }

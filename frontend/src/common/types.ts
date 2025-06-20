@@ -42,12 +42,18 @@ export interface Preset {
   label: string;
 }
 
+
 export interface ApplicationTargetableRole {
   role_name: string;
   valid_until: Date;
   active: boolean;
   payment_link?: string;
   optional_roles?: string[];
+}
+
+export interface ApplicationTargetableRolePK {
+  role_name: string;
+  valid_until: Date;
 }
 
 export interface NewApplication {

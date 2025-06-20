@@ -24,6 +24,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/:application_id", delete(delete_application))
         .route("/targetable-roles", post(post_targetable_role))
         .route("/targetable-roles", put(put_targetable_role))
+        .route("/targetable-roles", delete(delete_targetable_role))
         .with_state(state)
 }
 
@@ -144,4 +145,27 @@ async fn put_targetable_role(
         .map(Json)?;
     
     Ok(targetable_role)
+}
+
+#[derive(Deserialize, Debug)]
+struct DeleteTargetableRoleQuery {
+    role_name: String,
+    valid_until: chrono::NaiveDate,
+}
+
+#[debug_handler]
+async fn delete_targetable_role(
+    State(state): State<AppState>,
+    Query(query): Query<DeleteTargetableRoleQuery>,
+) -> ApiResult<Json<()>> {
+    let delete = state
+        .application_service
+        .delete_targetable_role(
+            query.role_name,
+            query.valid_until,
+        )
+        .await
+        .map(Json)?;
+
+    Ok(delete)
 }

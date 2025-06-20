@@ -1,6 +1,7 @@
 import {
   Application,
   ApplicationTargetableRole,
+  ApplicationTargetableRolePK,
   ApplicationWithoutId,
   AuthInfo,
   Member,
@@ -250,6 +251,19 @@ export const useCreateTargetableRole = () => {
   });
 };
 
+export const useDeleteTargetableRole = () => {
+  return useMutation<void, Error, ApplicationTargetableRolePK>({
+    mutationFn: async (id: ApplicationTargetableRolePK) => {
+      await axios_client.delete(`/applications/targetable-roles`, {
+        params: {
+          role_name: id.role_name,
+          valid_until: getDateAsString(id.valid_until),
+        },
+      });
+    },
+  });
+};
+
 export const useCreateApplication = () => {
   return useMutation<{ redirect_to: string }, Error, NewApplication>({
     mutationFn: async (newApplication) => {
@@ -388,3 +402,4 @@ export const useLogout = () => {
     },
   });
 };
+
