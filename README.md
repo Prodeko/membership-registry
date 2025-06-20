@@ -5,29 +5,12 @@
 **Make sure to bootstrap the ory environment first**
 For more information check out [auth/README.md](../README.md)
 
-**Copy the .env.template-files**
+**Run setup**
+Run the setup script to install the dependencies, create the database, and run the migrations.
 ```bash
-cp backend/.env.template backend/.env
-cp frontend/.env.template frontend/.env
+make up
 ```
 
-**Run npm install**
-```bash
-cd frontend
-npm install
-```
-
-**Run backend migrations**
-You need to install cargo and sqlx. For more information check out [backend/README.md](./backend/README.md)
-```bash
-sqlx migrate run
-```
-
-**Optionally create test data**
-```bash
-cd backend
-cargo run -- generate --amount [amount]
-```
 
 **Start the dev servers**
 ```bash

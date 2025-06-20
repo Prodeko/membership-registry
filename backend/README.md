@@ -1,4 +1,4 @@
-# membership-registry
+# Backend
 
 - Asenna sqlx-cli `cargo install sqlx-cli`
 
@@ -10,7 +10,7 @@
 ## Devdatan luominen
 
 - Luo .env tiedosto .env_template pohjalta
-- Aja `make devdata`
+- Aja `make devdata` projektin juuressa
 - Kirjaudu sisään aukeavaan browser ikkunaan
 - Dev datan pitäisi olla ajettuna sisään tietokantaan
 - Sulje browser ikkuna ja terminal prosessi
