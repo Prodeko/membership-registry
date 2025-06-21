@@ -34,7 +34,7 @@ impl IntoResponse for ApiError {
 impl IntoResponse for ServiceError {
     fn into_response(self) -> Response {
         tracing::error!("ServiceError: {:?}", self);
-        
+
         match self {
             ServiceError::AlreadyExists => {
                 (StatusCode::BAD_REQUEST, "Application already exists").into_response()
@@ -60,6 +60,7 @@ impl IntoResponse for ServiceError {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
             }
             ServiceError::OryError => (StatusCode::BAD_GATEWAY, "Ory error").into_response(),
+            ServiceError::NotActive => (StatusCode::BAD_REQUEST, "Role is not active").into_response(),
         }
     }
 }
@@ -79,6 +80,7 @@ impl From<ServiceError> for ApiError {
             ServiceError::Forbidden => ApiError::Forbidden,
             ServiceError::DatabaseError => ApiError::InternalServerError,
             ServiceError::OryError => ApiError::ServiceError(ServiceError::OryError),
+            ServiceError::NotActive => ApiError::BadRequest,
         }
     }
 }

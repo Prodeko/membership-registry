@@ -511,8 +511,9 @@ export const FINNISH_MUNICIPALITIES = [
 
 export const REGIONS = [...COUNTRIES, ...FINNISH_MUNICIPALITIES] as const;
 
-export const STATUSES = [
+export const APPLICATION_STATUSES = [
   "pending",
+  "unpaid",
   "approved",
   "rejected",
 ] as const;

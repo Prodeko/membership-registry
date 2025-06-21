@@ -11,6 +11,7 @@ pub enum ServiceError {
     InvalidInput,
     ApplicationAlreadyProcessed,
     NotFound,
+    NotActive,
     DatabaseError,
     Unauthorized,
     Forbidden,

@@ -1,7 +1,7 @@
 import { QueryKey, useGetApplications } from "@/lib/api";
 import { DataTable } from "../ui/data-table";
 import { columns } from "./columns";
-import { STATUSES } from "@/lib/constants";
+import { APPLICATION_STATUSES } from "@/lib/constants";
 import { Badge } from "../ui/badge";
 import { useEffect, useState } from "react";
 import { capitalizeFirstLetter } from "@/lib/utils";
@@ -20,7 +20,7 @@ const Applications = () => {
     <div className="space-y-4">
       <h1 className="text-4xl">Applications</h1>
       <div className="flex space-x-2">
-        {STATUSES.map((status) => (
+        {APPLICATION_STATUSES.map((status) => (
           <Badge
             key={status}
             variant={selectedStatus === status ? "default" : "outline"}

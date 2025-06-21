@@ -62,19 +62,21 @@ impl ApplicationRepo {
         valid_until: chrono::NaiveDate,
         application_text: Option<String>,
         optional_roles: Option<Vec<String>>,
+        status: String
     ) -> Result<Application, sqlx::Error> {
         let application_created = sqlx::query_as!(
             Application,
             r#"
             INSERT INTO Application (user_id, role_name, valid_until, application_text, optional_roles, timestamp, status)
-            VALUES ($1, $2, $3, $4, $5, now(), 'pending')
+            VALUES ($1, $2, $3, $4, $5, now(), $6)
             RETURNING *
             "#,
           user_id,
           role_name,
           valid_until,
           application_text,
-          optional_roles.as_deref()
+          optional_roles.as_deref(),
+          status
         )
         .fetch_one(&self.pool)
         .await?;

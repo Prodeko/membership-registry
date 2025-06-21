@@ -65,7 +65,7 @@ export interface NewApplication {
 
 export interface Application extends NewApplication {
   application_id: string;
-  status: "pending" | "approved" | "rejected";
+  status: "pending" | "unpaid" | "approved" | "rejected";
   timestamp: Date;
   stripe_payment_id?: string;
 }

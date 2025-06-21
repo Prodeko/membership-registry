@@ -44,7 +44,7 @@ const CreateTargetableRolesModal = () => {
         {
           role_name: selectedRole,
           valid_until: selectedValidUntil,
-          payment_link: selectedPaymentLink,
+          payment_link: selectedPaymentLink || undefined,
           optional_roles: selectedRoles,
           active: true,
         },

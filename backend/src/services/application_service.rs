@@ -47,6 +47,29 @@ impl ApplicationService {
             return Err(E::AlreadyExists);
         }
 
+        let mut status = "pending".to_string();
+
+        let targetable_role = self
+            .repo
+            .fetch_targetable_role(
+                new_application.role_name.clone(),
+                new_application.valid_until,
+            )
+            .await;
+
+        if let Ok(role) = targetable_role {
+            if !role.active {
+                return Err(E::NotActive);
+            }
+            tracing::debug!(
+                "Targetable role found: {:?}, payment link: {:?}",
+                role.role_name, role.payment_link
+            );
+            if role.payment_link.is_some() && new_application.stripe_payment_id.is_none() {
+                status = "unpaid".to_string();
+            }
+        }
+
         let result = self
             .repo
             .create(
@@ -55,6 +78,7 @@ impl ApplicationService {
                 new_application.valid_until,
                 new_application.application_text,
                 new_application.optional_roles,
+                status.clone(),
             )
             .await;
 
@@ -105,13 +129,16 @@ impl ApplicationService {
 
         let today = Local::now().naive_local().date();
 
-        self.role_service.add_role_member(
-            application.user_id,
-            application.role_name.as_str(),
-            today,
-            Some(application.valid_until),
-            access_token,
-        ).await.map_err(|e| e.into())
+        self.role_service
+            .add_role_member(
+                application.user_id,
+                application.role_name.as_str(),
+                today,
+                Some(application.valid_until),
+                access_token,
+            )
+            .await
+            .map_err(|e| e.into())
     }
 
     pub async fn delete_application(&self, application_id: Uuid) -> ServiceResult<()> {
