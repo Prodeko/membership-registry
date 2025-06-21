@@ -33,6 +33,8 @@ impl IntoResponse for ApiError {
 
 impl IntoResponse for ServiceError {
     fn into_response(self) -> Response {
+        tracing::error!("ServiceError: {:?}", self);
+        
         match self {
             ServiceError::AlreadyExists => {
                 (StatusCode::BAD_REQUEST, "Application already exists").into_response()
