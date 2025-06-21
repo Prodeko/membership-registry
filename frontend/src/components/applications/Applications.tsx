@@ -8,7 +8,7 @@ import { capitalizeFirstLetter } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 
 const Applications = () => {
-  const [selectedStatus, setSelectedStatus] = useState<string | null>('approved');
+  const [selectedStatus, setSelectedStatus] = useState<string | null>('pending');
 
   const queryClient = useQueryClient();
 
