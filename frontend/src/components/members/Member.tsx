@@ -58,8 +58,10 @@ const Member: React.FC = () => {
           </h2>
           <ul>
             {roles?.length ? roles.map((role) => (
-              <li key={role.role_name} className="space-x-4">
+              <li key={role.role_name} className="space-y-2 grid grid-cols-2">
+                <span>
                 <RoleBadge role={role.role_name} />
+                </span>
                 <span>
                   {role.valid_from.toLocaleDateString()} -{" "}
                   {role.valid_until.toLocaleDateString()}
