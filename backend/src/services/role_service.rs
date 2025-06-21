@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use super::{errors::ServiceResult, member_service::MemberService, ory_service::OryService};
 
+#[derive(Clone)]
 pub struct RoleService {
     pub repo: RoleRepo,
     pub member_service: MemberService,

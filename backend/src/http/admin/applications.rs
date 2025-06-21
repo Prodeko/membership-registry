@@ -1,9 +1,5 @@
 use axum::{
-    debug_handler,
-    extract::{Path, Query, State},
-    response::IntoResponse,
-    routing::{delete, get, post, put},
-    Json, Router,
+    debug_handler, extract::{Path, Query, State}, response::IntoResponse, routing::{delete, get, post, put}, Extension, Json, Router
 };
 use serde::Deserialize;
 use stripe::generated::checkout::payment_link;
@@ -11,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     http::errors::ApiResult,
-    repositories::application::{Application, ApplicationWithMember},
+    repositories::application::{Application, ApplicationWithMember}, services::ory_service::AuthInfo,
 };
 
 use super::AppState;
@@ -83,6 +79,7 @@ struct UpdateApplicationStatus {
 }
 
 async fn update_application_status(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
     Json(body): Json<UpdateApplicationStatus>,
@@ -92,7 +89,7 @@ async fn update_application_status(
 
     let update = state
         .application_service
-        .update_application_status(application_id, status)
+        .update_application_status(application_id, status, user_info.unwrap().access_token)
         .await
         .map(Json)?;
 

@@ -1,23 +1,32 @@
 // src/application_service.rs
 
-use crate::repositories::application::{
-    Application, ApplicationRepo, ApplicationTargetableRole, ApplicationWithMember, NewApplication,
+use crate::repositories::{
+    application::{
+        Application, ApplicationRepo, ApplicationTargetableRole, ApplicationWithMember,
+        NewApplication,
+    },
+    role::RoleRepo,
 };
+use chrono::Local;
 use serde::Serialize;
 use serde_with::serde_as;
 use uuid::Uuid;
 
-use super::errors::{ServiceError as E, ServiceResult};
+use super::{
+    errors::{ServiceError as E, ServiceResult},
+    role_service::RoleService,
+};
 
-const VALID_STATUSES: [&str; 3] = ["pending", "approved", "rejected"];
+const VALID_STATUSES: [&str; 4] = ["unpaid", "pending", "approved", "rejected"];
 
 pub struct ApplicationService {
     pub repo: ApplicationRepo,
+    pub role_service: RoleService,
 }
 
 impl ApplicationService {
-    pub fn new(repo: ApplicationRepo) -> Self {
-        Self { repo }
+    pub fn new(repo: ApplicationRepo, role_service: RoleService) -> Self {
+        Self { repo, role_service }
     }
 
     pub async fn create_application(
@@ -78,6 +87,7 @@ impl ApplicationService {
         &self,
         application_id: Uuid,
         status: String,
+        access_token: String,
     ) -> ServiceResult<()> {
         if !VALID_STATUSES.contains(&status.as_str()) {
             return Err(E::InvalidStatus);
@@ -85,16 +95,23 @@ impl ApplicationService {
 
         let application = self.get_application(application_id).await?;
 
-        if let Some(app_status) = application.status {
+        if let Some(ref app_status) = application.status {
             if app_status != "pending" {
                 return Err(E::ApplicationAlreadyProcessed);
             }
         }
 
-        self.repo
-            .update_status(application_id, status)
-            .await
-            .map_err(|e| e.into())
+        self.repo.update_status(application_id, status).await?;
+
+        let today = Local::now().naive_local().date();
+
+        self.role_service.add_role_member(
+            application.user_id,
+            application.role_name.as_str(),
+            today,
+            Some(application.valid_until),
+            access_token,
+        ).await.map_err(|e| e.into())
     }
 
     pub async fn delete_application(&self, application_id: Uuid) -> ServiceResult<()> {
@@ -167,5 +184,4 @@ impl ApplicationService {
             .await
             .map_err(|e| e.into())
     }
-
 }

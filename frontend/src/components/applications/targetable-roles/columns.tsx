@@ -1,7 +1,6 @@
 import { ColumnDef } from "@tanstack/react-table";
 import {
   CopyIcon,
-  DeleteIcon,
   DollarSignIcon,
   FileIcon,
   MoreHorizontal,

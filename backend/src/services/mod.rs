@@ -4,10 +4,10 @@ use member_service::MemberService;
 use crate::{config::Config, repositories::PostgresRepo};
 
 pub mod application_service;
+pub mod errors;
 pub mod member_service;
 pub mod ory_service;
 pub mod role_service;
-pub mod errors;
 pub mod saved_filter;
 
 pub struct Services {
@@ -20,11 +20,12 @@ pub struct Services {
 
 impl Services {
     pub fn new(repo: PostgresRepo, config: Config) -> Self {
-        let ory_service = ory_service::OryService::new(config.ory_base_url, config.oauth_issuer_url);
+        let ory_service =
+            ory_service::OryService::new(config.ory_base_url, config.oauth_issuer_url);
         let member_service = MemberService::new(repo.member, ory_service.clone());
-        let application_service = ApplicationService::new(repo.application);
         let role_service =
             role_service::RoleService::new(repo.role, member_service.clone(), ory_service.clone());
+        let application_service = ApplicationService::new(repo.application, role_service.clone());
         let saved_filter_service = saved_filter::SavedFilterService::new(repo.saved_filter);
 
         Self {
