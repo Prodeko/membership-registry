@@ -24,6 +24,7 @@ import {
   FileIcon,
   CheckIcon,
   BanIcon,
+  DollarSignIcon,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Link } from "react-router-dom";
@@ -90,7 +91,7 @@ export const columns: ColumnDef<Application>[] = [
     cell: ({ row }) => {
       const application = row.original;
       return <span>{capitalizeFirstLetter(application.status)}</span>;
-    }
+    },
   },
   {
     accessorKey: "valid_until",
@@ -155,43 +156,58 @@ export const columns: ColumnDef<Application>[] = [
               Copy user ID
               <CopyIcon className="w-4 h-4 ml-2" />
             </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={async () => {
-                updateApplicationStatus(
-                  { id: application.application_id, status: "approved" },
-                  {
-                    onSuccess: () => {
-                      queryClient.invalidateQueries({
-                        queryKey: [QueryKey.APPLICATIONS],
-                      });
-                    },
-                  }
-                );
-              }}
-              className="flex items-center justify-between"
-            >
-              Approve application
-              <CheckIcon className="w-4 h-4 ml-2" />
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={async () => {
-                updateApplicationStatus(
-                  { id: application.application_id, status: "reject" },
-                  {
-                    onSuccess: () => {
-                      queryClient.invalidateQueries({
-                        queryKey: [QueryKey.APPLICATIONS],
-                      });
-                    },
-                  }
-                );
-              }}
-              className="flex items-center justify-between"
-            >
-              Reject application
-              <BanIcon className="w-4 h-4 ml-2" />
-            </DropdownMenuItem>
+            {application.stripe_payment_id && (
+              <DropdownMenuItem className="flex items-center justify-between">
+                <Link
+                  to={`https://dashboard.stripe.com/payments/${application.stripe_payment_id}`}
+                  target="_blank"
+                >
+                  View payment
+                </Link>
+                <DollarSignIcon className="w-4 h-4 ml-2" />
+              </DropdownMenuItem>
+            )}
+            {application.status === "pending" && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={async () => {
+                    updateApplicationStatus(
+                      { id: application.application_id, status: "approved" },
+                      {
+                        onSuccess: () => {
+                          queryClient.invalidateQueries({
+                            queryKey: [QueryKey.APPLICATIONS],
+                          });
+                        },
+                      }
+                    );
+                  }}
+                  className="flex items-center justify-between"
+                >
+                  Approve application
+                  <CheckIcon className="w-4 h-4 ml-2" />
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={async () => {
+                    updateApplicationStatus(
+                      { id: application.application_id, status: "reject" },
+                      {
+                        onSuccess: () => {
+                          queryClient.invalidateQueries({
+                            queryKey: [QueryKey.APPLICATIONS],
+                          });
+                        },
+                      }
+                    );
+                  }}
+                  className="flex items-center justify-between"
+                >
+                  Reject application
+                  <BanIcon className="w-4 h-4 ml-2" />
+                </DropdownMenuItem>
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="flex items-center justify-between">
               <Link to={`/applications/${application.application_id}`}>

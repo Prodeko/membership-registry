@@ -67,6 +67,7 @@ export interface Application extends NewApplication {
   application_id: string;
   status: "pending" | "approved" | "rejected";
   timestamp: Date;
+  stripe_payment_id?: string;
 }
 
 export type ApplicationWithoutId = Omit<Application, "application_id">;
