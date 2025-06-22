@@ -42,7 +42,21 @@ const UserApplications = () => {
                       {app.role_name} - Role valid until:{" "}
                       {getDateAsString(app.valid_until)}
                     </h4>
-                    <div className="text-sm">Status: {app.status}</div>
+                    <div className="text-sm">
+                      Status:
+                      <Badge
+                        variant={
+                          app.status === "approved"
+                            ? "default"
+                            : app.status === "rejected"
+                            ? "destructive"
+                            : "secondary"
+                        }
+                        className="ml-2"
+                      >
+                        {app.status}
+                      </Badge>
+                    </div>
                   </div>
                   {role?.payment_link && !app.stripe_payment_id && (
                     <Badge
