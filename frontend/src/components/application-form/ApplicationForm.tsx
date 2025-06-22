@@ -16,7 +16,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import RenderMemberData from "../members/RenderUserData";
+import RenderMemberData from "../members/RenderMemberData";
 import { Card } from "../ui/card";
 import {
   Select,
@@ -81,7 +81,7 @@ const ApplicationForm = () => {
       <Card className="p-10 space-y-4 h-fit">
         <h1 className="text-4xl">Application form</h1>
         <Separator />
-        <RenderMemberData member={currentMember} />
+        <RenderMemberData member={currentMember} variant="enduser"/>
         <div>
           Confirm that the information above is correct before submitting the
           application. If not, please update your information in the profile

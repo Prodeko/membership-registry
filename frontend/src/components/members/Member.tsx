@@ -5,7 +5,7 @@ import AddRolesModal from "./AddRolesModal";
 import { Button } from "../ui/button";
 import DeleteMembersModal from "./DeleteMembersModal";
 import RoleBadge from "../ui/role-badge";
-import RenderMemberData from "./RenderUserData";
+import RenderMemberData from "./RenderMemberData";
 
 const Member: React.FC = () => {
   const { id: userId } = useParams<{ id: string }>();
@@ -46,7 +46,7 @@ const Member: React.FC = () => {
   return (
     <div className="flex justify-center align-middle p-14">
       <Card className="p-8 space-y-6">
-        <RenderMemberData member={member} />
+        <RenderMemberData member={member} variant="admin"/>
         <div className="space-y-3">
           <h2 className="text-2xl space-x-4">
             <span>Roles</span>{" "}
