@@ -41,6 +41,13 @@ export function getDateAsString(date: Date | undefined) {
   return `${year}-${month}-${day}`;
 }
 
+export function kebabCaseToTitleCase(str: string): string {
+  return str
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
 
 export function confirmAnd(action: () => void, message: string) {
   if (window.confirm(message)) {

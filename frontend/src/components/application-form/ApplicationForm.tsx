@@ -30,6 +30,7 @@ import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
 import UserApplications from "./UserApplications";
 import InfoTooltip from "../ui/info-tooltip";
+import { kebabCaseToTitleCase } from "@/lib/utils";
 
 const formSchema = z.object({
   application_text: z.string({
@@ -151,7 +152,7 @@ const ApplicationForm = () => {
                             key={role.role_name + role.valid_until}
                             disabled={!!existing}
                           >
-                            {role.role_name}{" "}
+                            {kebabCaseToTitleCase(role.role_name)}{" "}
                             <span>
                               (Valid until{" "}
                               {role.valid_until.toLocaleDateString()})

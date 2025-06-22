@@ -1,5 +1,5 @@
 import { useGetTargetableRoles, useGetUserApplications } from "@/lib/api";
-import { getDateAsString } from "@/lib/utils";
+import { getDateAsString, kebabCaseToTitleCase } from "@/lib/utils";
 import {
   Accordion,
   AccordionContent,
@@ -59,7 +59,7 @@ const UserApplications = () => {
                 >
                   <div>
                     <h4 className="text-md font-semibold">
-                      {app.role_name} - Role valid until:{" "}
+                      {kebabCaseToTitleCase(app.role_name)} - Role valid until:{" "}
                       {getDateAsString(app.valid_until)}
                     </h4>
                     <div className="text-sm">
