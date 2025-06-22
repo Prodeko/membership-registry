@@ -29,8 +29,7 @@ const Applications = () => {
   return (
     <div className="space-y-4">
       <div className="flex justify-between items-center">
-        <h1 className="text-4xl">Applications</h1>
-        <TooltipProvider>
+        <h1 className="text-4xl">Applications</h1> 
           <Tooltip>
             <TooltipTrigger asChild>
               <Link
@@ -45,7 +44,6 @@ const Applications = () => {
               the application form.
             </TooltipContent>
           </Tooltip>
-        </TooltipProvider>
       </div>
       <div className="flex space-x-2">
         {APPLICATION_STATUSES.map((status) => (

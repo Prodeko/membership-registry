@@ -8,6 +8,9 @@ import {
 } from "../ui/accordion";
 import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { InfoCircledIcon } from "@radix-ui/react-icons";
+import InfoTooltip from "../ui/info-tooltip";
 
 const UserApplications = () => {
   const { data: userApplications } = useGetUserApplications();
@@ -21,7 +24,24 @@ const UserApplications = () => {
     <Accordion type="single" collapsible>
       <AccordionItem value="item-1">
         <AccordionTrigger className="font-bold">
-          <span>Existing applications</span>
+          <span>
+            Existing applications
+            <InfoTooltip>
+              <p>
+                This section shows the applications you have submitted for role
+                membeships.
+              </p>
+              <p>
+                If you want to delete an application, please contact{" "}
+                <a
+                  href="mailto:mediakeisari@prodeko.org"
+                  className="text-blue-500 hover:underline"
+                >
+                  mediakeisari@prodeko.org
+                </a>
+              </p>
+            </InfoTooltip>
+          </span>
         </AccordionTrigger>
         <AccordionContent className="space-y-4">
           {userApplications.map((app) => {

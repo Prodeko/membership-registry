@@ -12,6 +12,7 @@ import Roles from "./components/roles/Roles";
 import SignupForm from "./components/signup-form/SignupForm";
 import { ThemeProvider } from "./components/theme-provider";
 import Success from "./components/application-form/Success";
+import { TooltipProvider } from "./components/ui/tooltip";
 
 const queryClient = new QueryClient();
 
@@ -91,7 +92,9 @@ function App() {
   return (
     <ThemeProvider>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
+        <TooltipProvider>
+          <RouterProvider router={router} />
+        </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
   );

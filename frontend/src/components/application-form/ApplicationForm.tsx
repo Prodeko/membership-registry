@@ -11,7 +11,7 @@ import {
   useCreateApplication,
   useGetMeMember,
   useGetTargetableRoles,
-  useGetUserApplications
+  useGetUserApplications,
 } from "@/lib/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
@@ -29,6 +29,7 @@ import {
 import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
 import UserApplications from "./UserApplications";
+import InfoTooltip from "../ui/info-tooltip";
 
 const formSchema = z.object({
   application_text: z.string({
@@ -46,7 +47,8 @@ const ApplicationForm = () => {
   });
 
   const { data: currentMember, isLoading: isMeLoading } = useGetMeMember();
-  const { data: targetableRoles, isLoading: isRolesLoading } = useGetTargetableRoles();
+  const { data: targetableRoles, isLoading: isRolesLoading } =
+    useGetTargetableRoles();
   const { data: applications } = useGetUserApplications();
   const { mutate: createApplication } = useCreateApplication();
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
@@ -56,14 +58,17 @@ const ApplicationForm = () => {
       throw new Error("Current member not found");
     }
 
-    createApplication({
-      ...values,
-      user_id: currentMember?.user_id,
-    }, {
-      onSuccess: (data: {redirect_to: string}) => {
-        window.location.href = data.redirect_to // TODO: Is this ok?
+    createApplication(
+      {
+        ...values,
+        user_id: currentMember?.user_id,
+      },
+      {
+        onSuccess: (data: { redirect_to: string }) => {
+          window.location.href = data.redirect_to; // TODO: Is this ok?
+        },
       }
-    });
+    );
   };
 
   if (isRolesLoading || isMeLoading) {
@@ -83,7 +88,7 @@ const ApplicationForm = () => {
       <Card className="p-10 space-y-4 h-fit">
         <h1 className="text-4xl">Application form</h1>
         <Separator />
-        <RenderMemberData member={currentMember} variant="enduser"/>
+        <RenderMemberData member={currentMember} variant="enduser" />
         <div>
           Confirm that the information above is correct before submitting the
           application. If not, please update your information in the profile
@@ -97,7 +102,16 @@ const ApplicationForm = () => {
               name="role_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Membership type</FormLabel>
+                  <FormLabel>
+                    Membership type
+                    <InfoTooltip>
+                      <p>Select the memnbership type you want to apply for.</p>
+                      <p>
+                        If you have already applied for a role, you can't apply
+                        for it again until the current application is processed.
+                      </p>
+                    </InfoTooltip>
+                  </FormLabel>
                   <Select
                     onValueChange={(value) => {
                       const targetableRole = targetableRoles?.find(
@@ -112,7 +126,7 @@ const ApplicationForm = () => {
                         );
                       }
 
-                      setPaymentLink(paymentLink ?? null)
+                      setPaymentLink(paymentLink ?? null);
                       form.setValue("valid_until", validUntil);
                       return field.onChange(value);
                     }}
@@ -127,14 +141,19 @@ const ApplicationForm = () => {
                         const existing = applications?.find(
                           (app) =>
                             app.role_name === role.role_name &&
-                            app.valid_until.getTime() === role.valid_until.getTime()
+                            app.valid_until.getTime() ===
+                              role.valid_until.getTime()
                         );
                         return (
-                          <SelectItem value={role.role_name} key={role.role_name + role.valid_until} disabled={!!existing}>
+                          <SelectItem
+                            value={role.role_name}
+                            key={role.role_name + role.valid_until}
+                            disabled={!!existing}
+                          >
                             {role.role_name}{" "}
                             <span>
-                              (Valid until {role.valid_until.toLocaleDateString()}
-                              )
+                              (Valid until{" "}
+                              {role.valid_until.toLocaleDateString()})
                             </span>
                           </SelectItem>
                         );
@@ -158,13 +177,9 @@ const ApplicationForm = () => {
                 </FormItem>
               )}
             />
-            <Button type="submit">{
-              paymentLink ? (
-                "Proceed to payment"
-              ) : (
-                "Submit application"
-              )
-              }</Button>
+            <Button type="submit">
+              {paymentLink ? "Proceed to payment" : "Submit application"}
+            </Button>
           </form>
         </Form>
       </Card>
