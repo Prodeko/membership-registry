@@ -303,6 +303,20 @@ export const useGetApplications = (params: PaginatedQueryParams) => {
   });
 };
 
+export const useGetUserApplications = () => {
+  return useQuery<Application[]>({
+    queryKey: [QueryKey.APPLICATIONS],
+    queryFn: async () => {
+      const response = await axios_client.get(`/applications/user`);
+      return response.data
+        .map((data: ApplicationWithoutId) => ({
+          ...data,
+          valid_until: new Date(data.valid_until),
+        }));
+    },
+  });
+};
+
 export const useDeleteApplication = () => {
   return useMutation<void, Error, string>({
     mutationFn: async (id: string) => {

@@ -130,6 +130,21 @@ impl ApplicationRepo {
         Ok(applications)
     }
 
+    pub async fn fetch_applications_for_user(
+        &self,
+        user_id: Uuid,
+    ) -> Result<Vec<Application>, sqlx::Error> {
+        let applications = sqlx::query_as!(
+            Application,
+            "SELECT * FROM Application WHERE user_id = $1 ORDER BY timestamp DESC",
+            user_id
+        )
+        .fetch_all(&self.pool)
+        .await?;
+
+        Ok(applications)
+    }
+
     pub async fn delete(&self, application_id: Uuid) -> Result<(), sqlx::Error> {
         sqlx::query!(
             "DELETE FROM Application WHERE application_id = $1",

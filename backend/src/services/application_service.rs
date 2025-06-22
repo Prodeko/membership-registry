@@ -107,6 +107,13 @@ impl ApplicationService {
             .map_err(|e| e.into())
     }
 
+    pub async fn get_applications_for_user(&self, user_id: Uuid) -> ServiceResult<Vec<Application>> {
+        self.repo
+            .fetch_applications_for_user(user_id)
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub async fn update_application_status(
         &self,
         application_id: Uuid,

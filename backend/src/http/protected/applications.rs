@@ -1,16 +1,12 @@
 use axum::{
-    debug_handler,
-    extract::{Path, State},
-    response::{IntoResponse, Redirect},
-    routing::{get, post},
-    Json, Router,
+    debug_handler, extract::{Path, State}, response::{IntoResponse, Redirect}, routing::{get, post}, Extension, Json, Router
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::{
     http::errors::ApiResult,
-    repositories::application::{Application, ApplicationTargetableRole, NewApplication},
+    repositories::application::{Application, ApplicationTargetableRole, NewApplication}, services::ory_service::AuthInfo,
 };
 
 use super::AppState;
@@ -18,6 +14,7 @@ use super::AppState;
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", post(post_application))
+        .route("/user", get(get_user_applications))
         .route("/:application_id", get(get_application))
         .route("/targetable-roles", get(get_targetable_roles))
         .with_state(state)
@@ -41,6 +38,18 @@ async fn get_application(
         .map(Json)?;
 
     Ok(application)
+}
+
+#[debug_handler]
+async fn get_user_applications(
+    Extension(user_info): Extension<Option<AuthInfo>>,
+    State(state): State<AppState>,
+) -> ApiResult<Json<Vec<Application>>> {
+    let applications = state
+        .application_service
+        .get_applications_for_user(user_info.unwrap().user_id).await.map(Json)?;
+
+    Ok(applications)
 }
 
 #[debug_handler]

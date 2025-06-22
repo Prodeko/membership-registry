@@ -27,6 +27,7 @@ import {
 } from "../ui/select";
 import { Separator } from "../ui/separator";
 import { Textarea } from "../ui/textarea";
+import UserApplications from "./UserApplications";
 
 const formSchema = z.object({
   application_text: z.string({
@@ -81,12 +82,12 @@ const ApplicationForm = () => {
         <h1 className="text-4xl">Application form</h1>
         <Separator />
         <RenderMemberData member={currentMember} />
-        <Separator />
         <div>
           Confirm that the information above is correct before submitting the
           application. If not, please update your information in the profile
           page.
         </div>
+        <UserApplications />
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
