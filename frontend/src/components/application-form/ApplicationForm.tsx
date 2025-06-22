@@ -10,7 +10,8 @@ import {
 import {
   useCreateApplication,
   useGetMeMember,
-  useGetTargetableRoles
+  useGetTargetableRoles,
+  useGetUserApplications
 } from "@/lib/api";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
@@ -46,6 +47,7 @@ const ApplicationForm = () => {
 
   const { data: currentMember, isLoading: isMeLoading } = useGetMeMember();
   const { data: targetableRoles, isLoading: isRolesLoading } = useGetTargetableRoles();
+  const { data: applications } = useGetUserApplications();
   const { mutate: createApplication } = useCreateApplication();
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
 
@@ -121,15 +123,22 @@ const ApplicationForm = () => {
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {targetableRoles?.map((role) => (
-                        <SelectItem value={role.role_name} key={role.role_name+role.valid_until}>
-                          {role.role_name}{" "}
-                          <span>
-                            (Valid until {role.valid_until.toLocaleDateString()}
-                            )
-                          </span>
-                        </SelectItem>
-                      ))}
+                      {targetableRoles?.map((role) => {
+                        const existing = applications?.find(
+                          (app) =>
+                            app.role_name === role.role_name &&
+                            app.valid_until.getTime() === role.valid_until.getTime()
+                        );
+                        return (
+                          <SelectItem value={role.role_name} key={role.role_name + role.valid_until} disabled={!!existing}>
+                            {role.role_name}{" "}
+                            <span>
+                              (Valid until {role.valid_until.toLocaleDateString()}
+                              )
+                            </span>
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                   <FormMessage />
