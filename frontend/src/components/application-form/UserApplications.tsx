@@ -8,8 +8,6 @@ import {
 } from "../ui/accordion";
 import { Badge } from "../ui/badge";
 import { Separator } from "../ui/separator";
-import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { InfoCircledIcon } from "@radix-ui/react-icons";
 import InfoTooltip from "../ui/info-tooltip";
 
 const UserApplications = () => {
