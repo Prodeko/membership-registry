@@ -140,6 +140,7 @@ const ApplicationForm = () => {
                       {targetableRoles?.map((role) => {
                         const existing = applications?.find(
                           (app) =>
+                            app.status !== "rejected" &&
                             app.role_name === role.role_name &&
                             app.valid_until.getTime() ===
                               role.valid_until.getTime()

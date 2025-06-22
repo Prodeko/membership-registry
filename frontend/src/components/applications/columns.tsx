@@ -167,7 +167,7 @@ export const columns: ColumnDef<Application>[] = [
                 <DollarSignIcon className="w-4 h-4 ml-2" />
               </DropdownMenuItem>
             )}
-            {application.status === "pending" && (
+            {application.status === "pending"  || application.status === "unpaid" && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -191,7 +191,7 @@ export const columns: ColumnDef<Application>[] = [
                 <DropdownMenuItem
                   onClick={async () => {
                     updateApplicationStatus(
-                      { id: application.application_id, status: "reject" },
+                      { id: application.application_id, status: "rejected" },
                       {
                         onSuccess: () => {
                           queryClient.invalidateQueries({

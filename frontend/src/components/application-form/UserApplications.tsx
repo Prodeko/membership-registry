@@ -78,7 +78,7 @@ const UserApplications = () => {
                       </Badge>
                     </div>
                   </div>
-                  {role?.payment_link && !app.stripe_payment_id && (
+                  {role?.payment_link && app.status === "unpaid" && (
                     <Badge
                       variant={"secondary"}
                       className="text-sm align-center"

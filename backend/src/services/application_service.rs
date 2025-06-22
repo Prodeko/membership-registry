@@ -127,7 +127,7 @@ impl ApplicationService {
         let application = self.get_application(application_id).await?;
 
         if let Some(ref app_status) = application.status {
-            if app_status != "pending" {
+            if app_status != "pending" && app_status != "unpaid" {
                 return Err(E::ApplicationAlreadyProcessed);
             }
         }
