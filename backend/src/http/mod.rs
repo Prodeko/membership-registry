@@ -11,7 +11,7 @@ use tracing_subscriber::EnvFilter;
 use crate::{
     config::Config,
     services::{
-        application_service::ApplicationService, member_service::MemberService, ory_service::OryService, role_service::RoleService, saved_filter::SavedFilterService, Services
+        application_service::ApplicationService, auth0_service::Auth0Service, member_service::MemberService, role_service::RoleService, saved_filter::SavedFilterService, Services
     },
 };
 
@@ -28,7 +28,7 @@ pub struct AppState {
     pub member_service: Arc<MemberService>,
     pub application_service: Arc<ApplicationService>,
     pub role_service: Arc<RoleService>,
-    pub ory_service: Arc<OryService>,
+    pub auth0_service: Arc<Auth0Service>,
     pub saved_filter_service: Arc<SavedFilterService>,
     pub oauth2_client: BasicClient
 }
@@ -37,10 +37,10 @@ pub async fn serve(config: Config, services: Services) {
     let port = config.port.clone();
 
     let oauth2_client = BasicClient::new(
-        ClientId::new(config.oauth_client_id.clone()),
-        Some(ClientSecret::new(config.oauth_client_secret.clone())),
-        AuthUrl::new(format!("{}/oauth2/auth", config.oauth_issuer_url.clone())).unwrap(),
-        Some(TokenUrl::new(format!("{}/oauth2/token", config.oauth_issuer_url.clone())).unwrap()),
+        ClientId::new(config.auth0_client_id.clone()),
+        Some(ClientSecret::new(config.auth0_client_secret.clone())),
+        AuthUrl::new(format!("https://{}/authorize", config.auth0_domain.clone())).unwrap(),
+        Some(TokenUrl::new(format!("https://{}/oauth/token", config.auth0_domain.clone())).unwrap()),
     )
     .set_redirect_uri(RedirectUrl::new(config.oauth_redirect_url.clone()).unwrap());
 
@@ -49,7 +49,7 @@ pub async fn serve(config: Config, services: Services) {
         member_service: Arc::new(services.member_service),
         application_service: Arc::new(services.application_service),
         role_service: Arc::new(services.role_service),
-        ory_service: Arc::new(services.ory_service),
+        auth0_service: Arc::new(services.auth0_service),
         saved_filter_service: Arc::new(services.saved_filter_service),
         oauth2_client,
     };

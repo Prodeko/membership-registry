@@ -1,10 +1,12 @@
 use application::ApplicationRepo;
 use member::MemberRepo;
+use user_auth_provider::UserAuthProviderRepo;
 
 pub mod application;
 pub mod member;
 pub mod role;
 pub mod saved_filter;
+pub mod user_auth_provider;
 
 pub mod tests;
 
@@ -14,6 +16,7 @@ pub struct PostgresRepo {
     pub application: ApplicationRepo,
     pub role: role::RoleRepo,
     pub saved_filter: saved_filter::SavedFilterRepo,
+    pub user_auth_provider: UserAuthProviderRepo,
 }
 
 impl PostgresRepo {
@@ -22,7 +25,8 @@ impl PostgresRepo {
             member: MemberRepo { pool: pool.clone() },
             application: ApplicationRepo { pool: pool.clone() },
             role: role::RoleRepo { pool: pool.clone() },
-            saved_filter: saved_filter::SavedFilterRepo { pool: pool },
+            saved_filter: saved_filter::SavedFilterRepo { pool: pool.clone() },
+            user_auth_provider: UserAuthProviderRepo { pool: pool },
         }
     }
 }

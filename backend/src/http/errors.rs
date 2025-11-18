@@ -59,8 +59,23 @@ impl IntoResponse for ServiceError {
             ServiceError::DatabaseError => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
             }
-            ServiceError::OryError => (StatusCode::BAD_GATEWAY, "Ory error").into_response(),
-            ServiceError::NotActive => (StatusCode::BAD_REQUEST, "Role is not active").into_response(),
+            ServiceError::NotActive => {
+                (StatusCode::BAD_REQUEST, "Role is not active").into_response()
+            }
+            ServiceError::Auth0Error => (StatusCode::BAD_GATEWAY, "Auth0 error").into_response(),
+            ServiceError::InvalidAuth0UserId => {
+                (StatusCode::BAD_REQUEST, "Invalid Auth0 user ID").into_response()
+            }
+            ServiceError::UserNotFound => (StatusCode::NOT_FOUND, "User not found").into_response(),
+            ServiceError::ProviderAlreadyLinked => {
+                (StatusCode::BAD_REQUEST, "Provider already linked").into_response()
+            }
+            ServiceError::ProviderNotFound => {
+                (StatusCode::NOT_FOUND, "Provider not found").into_response()
+            }
+            ServiceError::CannotUnlinkLastProvider => {
+                (StatusCode::BAD_REQUEST, "Cannot unlink last provider").into_response()
+            }
         }
     }
 }
@@ -79,8 +94,13 @@ impl From<ServiceError> for ApiError {
             ServiceError::Unauthorized => ApiError::Unauthorized,
             ServiceError::Forbidden => ApiError::Forbidden,
             ServiceError::DatabaseError => ApiError::InternalServerError,
-            ServiceError::OryError => ApiError::ServiceError(ServiceError::OryError),
             ServiceError::NotActive => ApiError::BadRequest,
+            ServiceError::Auth0Error => ApiError::ServiceError(ServiceError::Auth0Error),
+            ServiceError::InvalidAuth0UserId => ApiError::BadRequest,
+            ServiceError::UserNotFound => ApiError::NotFound,
+            ServiceError::ProviderAlreadyLinked => ApiError::BadRequest,
+            ServiceError::ProviderNotFound => ApiError::NotFound,
+            ServiceError::CannotUnlinkLastProvider => ApiError::BadRequest,
         }
     }
 }

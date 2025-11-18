@@ -11,7 +11,7 @@ use serde::Deserialize;
 use crate::{
     http::errors::ApiResult,
     repositories::saved_filter::{NewSavedFilter, SavedFilter},
-    services::ory_service::AuthInfo,
+    services::auth0_service::AuthInfo,
 };
 
 use super::AppState;

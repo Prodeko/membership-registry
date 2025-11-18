@@ -51,7 +51,7 @@ async fn callback(
         match token_result {
             Ok(token) => {
                 let userinfo = state
-                    .ory_service
+                    .auth0_service
                     .userinfo(token.access_token().secret().clone())
                     .await;
                 match userinfo {

@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     http::errors::ApiResult,
-    repositories::application::{Application, ApplicationWithMember}, services::ory_service::AuthInfo,
+    repositories::application::{Application, ApplicationWithMember}, services::auth0_service::AuthInfo,
 };
 
 use super::AppState;

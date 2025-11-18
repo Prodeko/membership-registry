@@ -1,0 +1,409 @@
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::repositories::PostgresRepo;
+use crate::services::errors::{ServiceError, ServiceResult};
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct AuthInfo {
+    pub user_id: Uuid,
+    pub access_token: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub email: String,
+    pub provider_name: String,
+    pub provider_user_id: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+struct Auth0UserInfo {
+    sub: String,
+    email: Option<String>,
+    given_name: Option<String>,
+    family_name: Option<String>,
+    name: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+pub struct Auth0User {
+    pub user_id: String,
+    pub email: Option<String>,
+    pub given_name: Option<String>,
+    pub family_name: Option<String>,
+    pub name: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct Auth0CreateUserRequest {
+    email: String,
+    given_name: String,
+    family_name: String,
+    name: String,
+    connection: String,
+    password: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct Auth0UpdateUserRequest {
+    email: Option<String>,
+    given_name: Option<String>,
+    family_name: Option<String>,
+    name: Option<String>,
+}
+
+#[derive(Clone)]
+pub struct Auth0Service {
+    pub domain: String,
+    pub management_api_token: String,
+    pub client: Client,
+    pub repo: PostgresRepo,
+}
+
+impl Auth0Service {
+    pub fn new(domain: String, management_api_token: String, repo: PostgresRepo) -> Self {
+        Self {
+            domain,
+            management_api_token,
+            client: Client::new(),
+            repo,
+        }
+    }
+
+    fn parse_auth0_user_id(&self, auth0_id: &str) -> ServiceResult<(String, String)> {
+        let parts: Vec<&str> = auth0_id.split('|').collect();
+        if parts.len() != 2 {
+            return Err(ServiceError::InvalidAuth0UserId);
+        }
+        Ok((parts[0].to_string(), auth0_id.to_string()))
+    }
+
+    pub async fn userinfo(&self, access_token: String) -> ServiceResult<AuthInfo> {
+        let url = format!("https://{}/userinfo", self.domain);
+
+        let response = self
+            .client
+            .get(&url)
+            .bearer_auth(&access_token)
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to fetch userinfo from Auth0: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            println!("Auth0 userinfo returned error: {}", response.status());
+            return Err(ServiceError::Auth0Error);
+        }
+
+        let user_info: Auth0UserInfo = response.json().await.map_err(|e| {
+            println!("Failed to parse Auth0 userinfo response: {:?}", e);
+            ServiceError::Auth0Error
+        })?;
+
+        let (provider_name, provider_user_id) = self.parse_auth0_user_id(&user_info.sub)?;
+
+        let auth_provider = self
+            .repo
+            .user_auth_provider
+            .find_by_provider(&provider_name, &provider_user_id)
+            .await
+            .map_err(|e| {
+                println!("Database error finding auth provider: {:?}", e);
+                ServiceError::DatabaseError
+            })?;
+
+        let user_id = match auth_provider {
+            Some(provider) => provider.user_id,
+            None => {
+                return Err(ServiceError::UserNotFound);
+            }
+        };
+
+        let first_name = user_info.given_name.unwrap_or_default();
+        let last_name = user_info.family_name.unwrap_or_default();
+        let email = user_info.email.unwrap_or_default();
+
+        Ok(AuthInfo {
+            user_id,
+            access_token,
+            first_name,
+            last_name,
+            email,
+            provider_name,
+            provider_user_id,
+        })
+    }
+
+    pub async fn get_user(&self, user_id: &str) -> ServiceResult<Auth0User> {
+        let url = format!("https://{}/api/v2/users/{}", self.domain, user_id);
+
+        let response = self
+            .client
+            .get(&url)
+            .bearer_auth(&self.management_api_token)
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to fetch user from Auth0: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            println!("Auth0 get user returned error: {}", response.status());
+            return Err(ServiceError::Auth0Error);
+        }
+
+        response.json().await.map_err(|e| {
+            println!("Failed to parse Auth0 user response: {:?}", e);
+            ServiceError::Auth0Error
+        })
+    }
+
+    pub async fn create_user(
+        &self,
+        email: &str,
+        first_name: &str,
+        last_name: &str,
+        password: &str,
+    ) -> ServiceResult<(Uuid, String)> {
+        let url = format!("https://{}/api/v2/users", self.domain);
+
+        let name = format!("{} {}", first_name, last_name);
+        let create_request = Auth0CreateUserRequest {
+            email: email.to_string(),
+            given_name: first_name.to_string(),
+            family_name: last_name.to_string(),
+            name,
+            connection: "Username-Password-Authentication".to_string(),
+            password: password.to_string(),
+        };
+
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(&self.management_api_token)
+            .json(&create_request)
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to create user in Auth0: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            println!("Auth0 create user returned error {}: {}", status, body);
+            return Err(ServiceError::Auth0Error);
+        }
+
+        let user: Auth0User = response.json().await.map_err(|e| {
+            println!("Failed to parse Auth0 create user response: {:?}", e);
+            ServiceError::Auth0Error
+        })?;
+
+        let (provider_name, provider_user_id) = self.parse_auth0_user_id(&user.user_id)?;
+        let internal_user_id = Uuid::new_v4();
+
+        self.repo
+            .user_auth_provider
+            .create(&internal_user_id, &provider_name, &provider_user_id, None)
+            .await
+            .map_err(|e| {
+                println!("Failed to create auth provider mapping: {:?}", e);
+                ServiceError::DatabaseError
+            })?;
+
+        Ok((internal_user_id, user.user_id))
+    }
+
+    pub async fn update_user(
+        &self,
+        auth0_user_id: &str,
+        email: Option<&str>,
+        first_name: Option<&str>,
+        last_name: Option<&str>,
+    ) -> ServiceResult<()> {
+        let url = format!("https://{}/api/v2/users/{}", self.domain, auth0_user_id);
+
+        let name = match (first_name, last_name) {
+            (Some(f), Some(l)) => Some(format!("{} {}", f, l)),
+            _ => None,
+        };
+
+        let update_request = Auth0UpdateUserRequest {
+            email: email.map(|e| e.to_string()),
+            given_name: first_name.map(|n| n.to_string()),
+            family_name: last_name.map(|n| n.to_string()),
+            name,
+        };
+
+        let response = self
+            .client
+            .patch(&url)
+            .bearer_auth(&self.management_api_token)
+            .json(&update_request)
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to update user in Auth0: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            println!("Auth0 update user returned error: {}", response.status());
+            return Err(ServiceError::Auth0Error);
+        }
+
+        Ok(())
+    }
+
+    pub async fn delete_user(&self, auth0_user_id: &str) -> ServiceResult<()> {
+        let url = format!("https://{}/api/v2/users/{}", self.domain, auth0_user_id);
+
+        let response = self
+            .client
+            .delete(&url)
+            .bearer_auth(&self.management_api_token)
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to delete user in Auth0: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            println!("Auth0 delete user returned error: {}", response.status());
+            return Err(ServiceError::Auth0Error);
+        }
+
+        Ok(())
+    }
+
+    pub async fn is_admin(&self, user_id: Uuid) -> ServiceResult<bool> {
+        let auth_providers = self
+            .repo
+            .user_auth_provider
+            .find_by_user_id(&user_id)
+            .await
+            .map_err(|e| {
+                println!("Failed to find auth providers for user: {:?}", e);
+                ServiceError::DatabaseError
+            })?;
+
+        if auth_providers.is_empty() {
+            return Ok(false);
+        }
+
+        for provider in auth_providers {
+            if let Ok(has_role) = self.has_role(&provider.provider_user_id, "admin").await {
+                if has_role {
+                    return Ok(true);
+                }
+            }
+        }
+
+        Ok(false)
+    }
+
+    async fn has_role(&self, auth0_user_id: &str, role_name: &str) -> ServiceResult<bool> {
+        let url = format!(
+            "https://{}/api/v2/users/{}/roles",
+            self.domain, auth0_user_id
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .bearer_auth(&self.management_api_token)
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to fetch user roles from Auth0: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            println!("Auth0 get roles returned error: {}", response.status());
+            return Err(ServiceError::Auth0Error);
+        }
+
+        #[derive(Deserialize)]
+        struct Role {
+            name: String,
+        }
+
+        let roles: Vec<Role> = response.json().await.map_err(|e| {
+            println!("Failed to parse Auth0 roles response: {:?}", e);
+            ServiceError::Auth0Error
+        })?;
+
+        Ok(roles.iter().any(|r| r.name == role_name))
+    }
+
+    pub async fn link_provider(
+        &self,
+        user_id: Uuid,
+        provider_name: &str,
+        provider_user_id: &str,
+    ) -> ServiceResult<()> {
+        let exists = self
+            .repo
+            .user_auth_provider
+            .exists(&user_id, provider_name)
+            .await
+            .map_err(|e| {
+                println!("Failed to check if provider exists: {:?}", e);
+                ServiceError::DatabaseError
+            })?;
+
+        if exists {
+            return Err(ServiceError::ProviderAlreadyLinked);
+        }
+
+        self.repo
+            .user_auth_provider
+            .create(&user_id, provider_name, provider_user_id, None)
+            .await
+            .map_err(|e| {
+                println!("Failed to link provider: {:?}", e);
+                ServiceError::DatabaseError
+            })?;
+
+        Ok(())
+    }
+
+    pub async fn unlink_provider(&self, user_id: Uuid, provider_name: &str) -> ServiceResult<()> {
+        let providers = self
+            .repo
+            .user_auth_provider
+            .find_by_user_id(&user_id)
+            .await
+            .map_err(|e| {
+                println!("Failed to find providers for user: {:?}", e);
+                ServiceError::DatabaseError
+            })?;
+
+        if providers.len() <= 1 {
+            return Err(ServiceError::CannotUnlinkLastProvider);
+        }
+
+        let deleted = self
+            .repo
+            .user_auth_provider
+            .delete(&user_id, provider_name)
+            .await
+            .map_err(|e| {
+                println!("Failed to unlink provider: {:?}", e);
+                ServiceError::DatabaseError
+            })?;
+
+        if !deleted {
+            return Err(ServiceError::ProviderNotFound);
+        }
+
+        Ok(())
+    }
+}

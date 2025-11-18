@@ -7,21 +7,21 @@ use crate::repositories::{
 use futures_util::TryFutureExt;
 use uuid::Uuid;
 
-use super::{errors::ServiceResult, member_service::MemberService, ory_service::OryService};
+use super::{auth0_service::Auth0Service, errors::ServiceResult, member_service::MemberService};
 
 #[derive(Clone)]
 pub struct RoleService {
     pub repo: RoleRepo,
     pub member_service: MemberService,
-    pub ory_service: OryService,
+    pub auth0_service: Auth0Service,
 }
 
 impl RoleService {
-    pub fn new(repo: RoleRepo, member_service: MemberService, ory_service: OryService) -> Self {
+    pub fn new(repo: RoleRepo, member_service: MemberService, auth0_service: Auth0Service) -> Self {
         Self {
             repo,
             member_service,
-            ory_service,
+            auth0_service,
         }
     }
 
@@ -45,10 +45,6 @@ impl RoleService {
         valid_until: Option<chrono::NaiveDate>,
         access_token: String,
     ) -> ServiceResult<()> {
-        self.ory_service
-            .add_user_to_group(&user_id, role_name, access_token)
-            .await?;
-
         self.repo
             .create_role_member(&user_id, role_name, valid_from, valid_until)
             .await
@@ -112,10 +108,6 @@ impl RoleService {
         valid_from: chrono::NaiveDate,
         access_token: String,
     ) -> ServiceResult<()> {
-        self.ory_service
-            .remove_user_from_group(&user_id, role_name, access_token)
-            .await?;
-
         self.repo
             .delete_role_member(&user_id, role_name, valid_from)
             .await

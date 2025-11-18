@@ -9,7 +9,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use uuid::Uuid;
 
-use crate::{http::AppState, services::ory_service::AuthInfo};
+use crate::{http::AppState, services::auth0_service::AuthInfo};
 
 pub async fn check_auth(
     State(state): State<AppState>,
@@ -18,7 +18,7 @@ pub async fn check_auth(
 ) -> Response<Body> {
     let jar = CookieJar::from_headers(req.headers());
     if let Some(cookie) = jar.get("access_token") {
-        let userinfo = state.ory_service.userinfo(cookie.value().to_string()).await;
+        let userinfo = state.auth0_service.userinfo(cookie.value().to_string()).await;
 
         match userinfo {
             Ok(userinfo) => {
@@ -26,7 +26,7 @@ pub async fn check_auth(
                 next.run(req).await
             }
             Err(e) => {
-                println!("Error fetching userinfo {}", e);
+                println!("Error fetching userinfo {:?}", e);
                 StatusCode::UNAUTHORIZED.into_response()
             },
         }
@@ -45,7 +45,7 @@ pub async fn check_permission(
     let userinfo = userinfo.unwrap();
 
     let has_access = state
-        .ory_service
+        .auth0_service
         .is_admin(userinfo.user_id.clone())
         .await
         .unwrap_or(false);
@@ -70,7 +70,7 @@ pub async fn check_member_access(
     match userinfo {
         Some(userinfo) => {
             let is_admin = state
-                .ory_service
+                .auth0_service
                 .is_admin(userinfo.user_id.clone())
                 .await
                 .unwrap_or(false);

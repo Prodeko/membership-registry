@@ -18,25 +18,28 @@ pub struct Config {
     #[validate(length(min = 1, max = 1024))]
     pub frontend_url: String,
 
-    #[envconfig(from = "ORY_BASE_URL")]
+    #[envconfig(from = "AUTH0_DOMAIN")]
     #[validate(length(min = 1, max = 1024))]
-    pub ory_base_url: String,
+    pub auth0_domain: String,
 
-    #[envconfig(from = "OAUTH_CLIENT_ID")]
+    #[envconfig(from = "AUTH0_CLIENT_ID")]
     #[validate(length(min = 1, max = 1024))]
-    pub oauth_client_id: String,
+    pub auth0_client_id: String,
 
-    #[envconfig(from = "OAUTH_CLIENT_SECRET")]
+    #[envconfig(from = "AUTH0_CLIENT_SECRET")]
     #[validate(length(min = 1, max = 1024))]
-    pub oauth_client_secret: String,
+    pub auth0_client_secret: String,
 
     #[envconfig(from = "OAUTH_REDIRECT_URL")]
     #[validate(length(min = 1, max = 1024))]
     pub oauth_redirect_url: String,
 
-    #[envconfig(from = "OAUTH_ISSUER_URL")]
+    #[envconfig(from = "AUTH0_AUDIENCE")]
+    pub auth0_audience: Option<String>,
+
+    #[envconfig(from = "AUTH0_MANAGEMENT_API_TOKEN")]
     #[validate(length(min = 1, max = 1024))]
-    pub oauth_issuer_url: String,
+    pub auth0_management_api_token: String,
 
     #[envconfig(from = "STRIPE_ENDPOINT_SECRET")]
     #[validate(length(min = 1, max = 1024))]

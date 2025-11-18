@@ -1,4 +1,3 @@
-use ory_client::apis::Error as OryError;
 use serde::Serialize;
 use serde_with::serde_as;
 
@@ -15,7 +14,12 @@ pub enum ServiceError {
     DatabaseError,
     Unauthorized,
     Forbidden,
-    OryError,
+    Auth0Error,
+    InvalidAuth0UserId,
+    UserNotFound,
+    ProviderAlreadyLinked,
+    ProviderNotFound,
+    CannotUnlinkLastProvider,
 }
 
 pub type ServiceResult<T> = Result<T, ServiceError>;
@@ -24,29 +28,8 @@ impl From<sqlx::Error> for ServiceError {
     fn from(val: sqlx::Error) -> Self {
         match val {
             sqlx::Error::RowNotFound => Self::NotFound,
-            sqlx::Error::Database(ref err) if err.constraint().is_some() => {
-                Self::Constraint
-            }
+            sqlx::Error::Database(ref err) if err.constraint().is_some() => Self::Constraint,
             _ => Self::DatabaseError,
-        }
-    }
-}
-
-impl<T> From<OryError<T>> for ServiceError {
-    fn from(val: OryError<T>) -> Self {
-        match val {
-            OryError::ResponseError(e) => {
-                if e.status == 404 {
-                    Self::NotFound
-                } else if e.status == 401 {
-                    Self::Unauthorized
-                } else if e.status == 403 {
-                    Self::Forbidden
-                } else {
-                    Self::OryError
-                }
-            },
-            _ => Self::OryError,
         }
     }
 }

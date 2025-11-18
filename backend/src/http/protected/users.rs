@@ -15,7 +15,7 @@ use crate::{
         member::{Member, NewMember},
         role::RoleMember,
     },
-    services::ory_service::AuthInfo,
+    services::auth0_service::AuthInfo,
 };
 
 use super::AppState;
