@@ -9,9 +9,3 @@ services:
       - POSTGRES_USER=membership
     ports:
       - "5433:5432" # for development
-    networks:
-      - auth_intranet
-
-networks:
-  auth_intranet:
-    external: true
