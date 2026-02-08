@@ -102,36 +102,37 @@ export function DataTableToolbar<TData>({
         </div>
       )}
       <div className="flex space-x-4">
-        {savedFilters.data?.map((filter) => {
-          const isSelected = selectedFilter?.name === filter.name;
-          return (
-            <Badge
-              key={filter.name}
-              variant={isSelected ? "default" : "outline"}
-              onClick={() => handleFilterSelection(filter)}
-            >
-              {filter.name}
-              <Button
-                variant="ghost"
-                className="h-8 px-2 lg:px-3"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  deleteSavedFilter.mutate(filter.name, {
-                    onSuccess: () => savedFilters.refetch(),
-                  });
-                }}
+        {savedFilters.data?.map &&
+          savedFilters.data.map((filter) => {
+            const isSelected = selectedFilter?.name === filter.name;
+            return (
+              <Badge
+                key={filter.name}
+                variant={isSelected ? "default" : "outline"}
+                onClick={() => handleFilterSelection(filter)}
               >
-                <Cross2Icon className="h-4 w-4" />
-              </Button>
-            </Badge>
-          );
-        })}
+                {filter.name}
+                <Button
+                  variant="ghost"
+                  className="h-8 px-2 lg:px-3"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    deleteSavedFilter.mutate(filter.name, {
+                      onSuccess: () => savedFilters.refetch(),
+                    });
+                  }}
+                >
+                  <Cross2Icon className="h-4 w-4" />
+                </Button>
+              </Badge>
+            );
+          })}
         {multipleRowActionElements &&
           (table.getSelectedRowModel().rows.length ? (
             <div className="space-x-2 flex">
               {multipleRowActionElements &&
                 multipleRowActionElements.map((element) =>
-                  element(table, parseRowsFromSelection())
+                  element(table, parseRowsFromSelection()),
                 )}
             </div>
           ) : (
