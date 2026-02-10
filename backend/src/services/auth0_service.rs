@@ -1,5 +1,7 @@
+use moka::future::Cache;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -60,6 +62,8 @@ pub struct Auth0Service {
     pub management_api_token: String,
     pub client: Client,
     pub repo: PostgresRepo,
+    userinfo_cache: Cache<String, AuthInfo>,
+    admin_cache: Cache<Uuid, bool>,
 }
 
 impl Auth0Service {
@@ -69,6 +73,14 @@ impl Auth0Service {
             management_api_token,
             client: Client::new(),
             repo,
+            userinfo_cache: Cache::builder()
+                .max_capacity(1000)
+                .time_to_live(Duration::from_secs(300))
+                .build(),
+            admin_cache: Cache::builder()
+                .max_capacity(1000)
+                .time_to_live(Duration::from_secs(300))
+                .build(),
         }
     }
 
@@ -86,6 +98,10 @@ impl Auth0Service {
     }
 
     pub async fn userinfo(&self, access_token: String) -> ServiceResult<AuthInfo> {
+        if let Some(cached) = self.userinfo_cache.get(&access_token).await {
+            return Ok(cached);
+        }
+
         let url = format!("https://{}/userinfo", self.domain);
 
         let response = self
@@ -132,15 +148,17 @@ impl Auth0Service {
         let last_name = user_info.family_name.unwrap_or_default();
         let email = user_info.email.unwrap_or_default();
 
-        Ok(AuthInfo {
+        let auth_info = AuthInfo {
             user_id,
-            access_token,
+            access_token: access_token.clone(),
             first_name,
             last_name,
             email,
             provider_name,
             provider_user_id,
-        })
+        };
+        self.userinfo_cache.insert(access_token, auth_info.clone()).await;
+        Ok(auth_info)
     }
 
     pub async fn get_user(&self, user_id: &str) -> ServiceResult<Auth0User> {
@@ -290,6 +308,10 @@ impl Auth0Service {
     }
 
     pub async fn is_admin(&self, user_id: Uuid) -> ServiceResult<bool> {
+        if let Some(cached) = self.admin_cache.get(&user_id).await {
+            return Ok(cached);
+        }
+
         let auth_providers = self
             .repo
             .user_auth_provider
@@ -304,15 +326,18 @@ impl Auth0Service {
             return Ok(false);
         }
 
+        let mut is_admin = false;
         for provider in auth_providers {
             if let Ok(has_role) = self.has_role(&provider.provider_user_id, "admin").await {
                 if has_role {
-                    return Ok(true);
+                    is_admin = true;
+                    break;
                 }
             }
         }
 
-        Ok(false)
+        self.admin_cache.insert(user_id, is_admin).await;
+        Ok(is_admin)
     }
 
     async fn has_role(&self, auth0_user_id: &str, role_name: &str) -> ServiceResult<bool> {
