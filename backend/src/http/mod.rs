@@ -21,6 +21,7 @@ mod protected;
 mod index;
 mod static_files;
 mod errors;
+pub(crate) mod types;
 
 #[derive(Clone)]
 pub struct AppState {

@@ -30,7 +30,7 @@ const CreateTargetableRolesModal = () => {
     Date | undefined
   >(undefined);
   const [selectedPaymentLink, setSelectedPaymentLink] = useState<string>("");
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [, setSelectedRoles] = useState<string[]>([]);
   const { data: roles } = useGetRoles();
 
   const { mutate: createTargetableRole } = useCreateTargetableRole();
@@ -43,10 +43,8 @@ const CreateTargetableRolesModal = () => {
       createTargetableRole(
         {
           role_name: selectedRole,
-          valid_until: selectedValidUntil,
-          payment_link: selectedPaymentLink || undefined,
-          optional_roles: selectedRoles,
-          active: true,
+          valid_until: selectedValidUntil.toISOString().split("T")[0],
+          payment_link: selectedPaymentLink || null,
         },
         {
           onSuccess: () => {

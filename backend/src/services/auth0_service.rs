@@ -1,11 +1,13 @@
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::repositories::PostgresRepo;
 use crate::services::errors::{ServiceError, ServiceResult};
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, TS)]
+#[ts(export)]
 pub struct AuthInfo {
     pub user_id: Uuid,
     pub access_token: String,

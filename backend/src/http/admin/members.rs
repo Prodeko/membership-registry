@@ -9,6 +9,7 @@ use axum::{
 };
 use csv::WriterBuilder;
 use serde::Deserialize;
+use ts_rs::TS;
 use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
@@ -35,7 +36,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
 struct MembersQuery {
     user_ids: Option<String>,
 }
@@ -68,7 +70,8 @@ async fn get_members(
     Ok(members)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
 struct MembersWithRolesQuery {
     page_size: Option<u64>,
     offset: Option<u64>,
@@ -233,7 +236,8 @@ async fn delete_member(
     Ok(result)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 struct DeleteManyBody {
     ids: Vec<Uuid>,
 }
@@ -251,7 +255,8 @@ async fn delete_many(
     Ok(result)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 struct RoleMemberBody {
     role_name: String,
     valid_from: chrono::NaiveDate,
@@ -279,7 +284,8 @@ async fn add_role(
     Ok(result)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 struct AddManyRolesBody {
     user_ids: Vec<Uuid>,
     role_names: Vec<String>,

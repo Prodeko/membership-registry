@@ -44,11 +44,11 @@ export function DataTableToolbar<TData>({
     filtered_model: modelName,
     visible_for_all: false,
     search: searchColumn
-      ? (table.getColumn(searchColumn)?.getFilterValue() as string)
-      : undefined,
-    sorting_col: table.getState().sorting[0]?.id,
+      ? (table.getColumn(searchColumn)?.getFilterValue() as string) ?? null
+      : null,
+    sorting_col: table.getState().sorting[0]?.id ?? null,
     sorting_desc: table.getState().sorting[0]?.desc ?? false,
-    custom_filters: customFilters,
+    custom_filters: customFilters ?? null,
   };
 
   const parseRowsFromSelection = () => {

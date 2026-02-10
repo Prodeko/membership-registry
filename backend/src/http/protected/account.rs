@@ -7,6 +7,7 @@ use axum::{
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::{
     http::errors::{ApiError, ApiResult},
@@ -24,7 +25,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, TS)]
+#[ts(export)]
 struct LinkedProvider {
     provider_name: String,
     provider_user_id: String,
@@ -57,7 +59,8 @@ async fn get_linked_providers(
     Ok(Json(linked_providers))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 struct LinkProviderRequest {
     provider_name: String,
     provider_user_id: String,
@@ -84,7 +87,8 @@ async fn link_provider(
     Ok((StatusCode::CREATED, "Provider linked successfully"))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 struct UnlinkProviderPath {
     provider_name: String,
 }

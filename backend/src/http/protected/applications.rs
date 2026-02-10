@@ -1,11 +1,12 @@
 use axum::{
-    debug_handler, extract::{Path, State}, response::{IntoResponse, Redirect}, routing::{get, post}, Extension, Json, Router
+    debug_handler, extract::{Path, State}, routing::{get, post}, Extension, Json, Router
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{
-    http::errors::ApiResult,
+    http::{errors::ApiResult, types::ApplicationPath},
     repositories::application::{Application, ApplicationTargetableRole, NewApplication}, services::auth0_service::AuthInfo,
 };
 
@@ -18,11 +19,6 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/:application_id", get(get_application))
         .route("/targetable-roles", get(get_targetable_roles))
         .with_state(state)
-}
-
-#[derive(Deserialize, Debug)]
-struct ApplicationPath {
-    application_id: Uuid,
 }
 
 async fn get_application(
@@ -65,7 +61,8 @@ async fn get_targetable_roles(
     Ok(targetable_roles)
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, TS)]
+#[ts(export)]
 struct CreateApplicationResponse {
     redirect_to: String,
 }

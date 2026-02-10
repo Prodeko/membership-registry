@@ -1,4 +1,4 @@
-import { Application } from "@/common/types";
+import { ApplicationWithMember } from "@/common/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "../ui/checkbox";
 import { DataTableColumnHeader } from "../ui/column-header";
@@ -30,7 +30,7 @@ import { Button } from "../ui/button";
 import { Link } from "react-router-dom";
 import { capitalizeFirstLetter } from "@/lib/utils";
 
-export const columns: ColumnDef<Application>[] = [
+export const columns: ColumnDef<ApplicationWithMember>[] = [
   {
     id: "select",
     header: ({ table }) => (
@@ -90,7 +90,7 @@ export const columns: ColumnDef<Application>[] = [
     ),
     cell: ({ row }) => {
       const application = row.original;
-      return <span>{capitalizeFirstLetter(application.status)}</span>;
+      return <span>{application.status ? capitalizeFirstLetter(application.status) : "N/A"}</span>;
     },
   },
   {

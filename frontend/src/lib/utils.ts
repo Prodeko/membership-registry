@@ -1,9 +1,7 @@
-import { Preset } from "@/common/types";
 import { Option } from "@/components/ui/multiple-selector";
 import { type ClassValue, clsx } from "clsx"
 import React from "react";
 import { useEffect } from "react";
-import { DateRange } from "react-day-picker";
 import { twMerge } from "tailwind-merge"
 
 export function cn(...inputs: ClassValue[]) {

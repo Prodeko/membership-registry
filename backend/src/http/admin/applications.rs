@@ -1,13 +1,13 @@
 use axum::{
-    debug_handler, extract::{Path, Query, State}, response::IntoResponse, routing::{delete, get, post, put}, Extension, Json, Router
+    debug_handler, extract::{Path, Query, State}, routing::{delete, get, post, put}, Extension, Json, Router
 };
 use serde::Deserialize;
-use stripe::generated::checkout::payment_link;
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{
-    http::errors::ApiResult,
-    repositories::application::{Application, ApplicationWithMember}, services::auth0_service::AuthInfo,
+    http::{errors::ApiResult, types::ApplicationPath},
+    repositories::application::{Application, ApplicationStatus, ApplicationWithMember}, services::auth0_service::AuthInfo,
 };
 
 use super::AppState;
@@ -34,7 +34,8 @@ async fn get_applications(State(state): State<AppState>) -> ApiResult<Json<Vec<A
     Ok(applications)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
 struct FilteredApplicationsParams {
     status: Option<String>,
     search: Option<String>,
@@ -53,11 +54,6 @@ async fn get_applications_filtered(
     Ok(applications)
 }
 
-#[derive(Deserialize, Debug)]
-struct ApplicationPath {
-    application_id: Uuid,
-}
-
 async fn delete_application(
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
@@ -73,9 +69,10 @@ async fn delete_application(
     Ok(delete)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
 struct UpdateApplicationStatus {
-    status: String,
+    status: ApplicationStatus,
 }
 
 async fn update_application_status(
@@ -85,7 +82,7 @@ async fn update_application_status(
     Json(body): Json<UpdateApplicationStatus>,
 ) -> ApiResult<Json<()>> {
     let application_id = path.application_id;
-    let status = body.status;
+    let status = body.status.to_string();
 
     let update = state
         .application_service
@@ -96,7 +93,8 @@ async fn update_application_status(
     Ok(update)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
 struct PostTargetableRole {
     role_name: String,
     valid_until: chrono::NaiveDate,
@@ -120,7 +118,8 @@ async fn post_targetable_role(
     Ok(targetable_role)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
 struct PutTargetableRole {
     role_name: String,
     valid_until: chrono::NaiveDate,
@@ -144,7 +143,8 @@ async fn put_targetable_role(
     Ok(targetable_role)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
 struct DeleteTargetableRoleQuery {
     role_name: String,
     valid_until: chrono::NaiveDate,

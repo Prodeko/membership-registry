@@ -7,6 +7,7 @@ use axum::{
 };
 use futures_util::FutureExt;
 use serde::Deserialize;
+use ts_rs::TS;
 
 use crate::{
     http::errors::ApiResult,
@@ -29,7 +30,8 @@ async fn get_roles(State(state): State<AppState>) -> ApiResult<Json<Vec<Role>>> 
     Ok(roles)
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
 struct RolesWithStatsQuery {
     page_size: Option<u64>,
     offset: Option<u64>,

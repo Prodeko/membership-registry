@@ -2,6 +2,7 @@ use super::member::Member;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, PgPool};
+use ts_rs::TS;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -9,7 +10,8 @@ pub struct SavedFilterRepo {
     pub pool: PgPool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct SavedFilter {
     pub name: String,
     pub filtered_model: String,
@@ -18,10 +20,12 @@ pub struct SavedFilter {
     pub search: Option<String>,
     pub sorting_col: Option<String>,
     pub sorting_desc: bool,
+    #[ts(type = "Record<string, unknown> | null")]
     pub custom_filters: Option<serde_json::Value>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 pub struct NewSavedFilter {
     pub name: String,
     pub filtered_model: String,
@@ -29,6 +33,7 @@ pub struct NewSavedFilter {
     pub search: Option<String>,
     pub sorting_col: Option<String>,
     pub sorting_desc: bool,
+    #[ts(type = "Record<string, unknown> | null")]
     pub custom_filters: Option<serde_json::Value>,
 }
 

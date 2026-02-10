@@ -7,6 +7,7 @@ use axum::{
 };
 use futures_util::FutureExt;
 use serde::Deserialize;
+use ts_rs::TS;
 
 use crate::{
     http::errors::ApiResult,
@@ -24,7 +25,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 struct GetSavedFilterParams {
     model: Option<String>,
 }

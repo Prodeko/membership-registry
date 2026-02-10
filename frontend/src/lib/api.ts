@@ -1,14 +1,17 @@
 import {
   Application,
+  ApplicationStatus,
   ApplicationTargetableRole,
   ApplicationTargetableRolePK,
-  ApplicationWithoutId,
+  ApplicationWithMember,
   AuthInfo,
+  CreateApplicationResponse,
   Member,
   MemberWithRoles,
   NewApplication,
   NewMember,
   NewSavedFilter,
+  PostTargetableRole,
   Role,
   RoleMember,
   RoleStats,
@@ -135,12 +138,8 @@ export const useGetMemberRoles = (id: string) => {
   return useQuery<RoleMember[]>({
     queryKey: [QueryKey.MEMBER_ROLES, { id }],
     queryFn: async () => {
-      const response = await axios_client.get(`/members/${id}/roles`);
-      return response.data.map((role: RoleMember) => ({
-        ...role,
-        valid_from: new Date(role.valid_from),
-        valid_until: new Date(role.valid_until),
-      }));
+      const response = await axios_client.get<RoleMember[]>(`/members/${id}/roles`);
+      return response.data;
     },
   });
 };
@@ -149,24 +148,24 @@ export const useGetRoles = () => {
   return useQuery<Role[]>({
     queryKey: [QueryKey.ROLES],
     queryFn: async () => {
-      const response = await axios_client.get("/roles");
-      return response.data as Role[];
+      const response = await axios_client.get<Role[]>("/roles");
+      return response.data;
     },
   });
 };
 
 export const useGetRolesStats = (params: PaginatedQueryParams) => {
-  return useQuery<Role[]>({
+  return useQuery<RoleStats[]>({
     queryKey: [QueryKey.ROLES, params],
     queryFn: async () => {
-      const response = await axios_client.get("/roles/stats", {
+      const response = await axios_client.get<RoleStats[]>("/roles/stats", {
         params: {
           ...params,
           page_size: params.pageSize,
           customFilters: undefined,
         },
       });
-      return response.data as RoleStats[];
+      return response.data;
     },
   });
 };
@@ -231,22 +230,16 @@ export const useGetTargetableRoles = () => {
   return useQuery<ApplicationTargetableRole[]>({
     queryKey: [QueryKey.TARGETABLE_ROLES],
     queryFn: async () => {
-      const response = await axios_client.get("/applications/targetable-roles");
-      return response.data.map((data: ApplicationTargetableRole) => ({
-        ...data,
-        valid_until: new Date(data.valid_until),
-      }));
+      const response = await axios_client.get<ApplicationTargetableRole[]>("/applications/targetable-roles");
+      return response.data;
     },
   });
 };
 
 export const useCreateTargetableRole = () => {
-  return useMutation<void, Error, ApplicationTargetableRole>({
-    mutationFn: async (targetable_role: ApplicationTargetableRole) => {
-      await axios_client.post("/applications/targetable-roles", {
-        ...targetable_role,
-        valid_until: getDateAsString(targetable_role.valid_until),
-      });
+  return useMutation<void, Error, PostTargetableRole>({
+    mutationFn: async (targetable_role: PostTargetableRole) => {
+      await axios_client.post("/applications/targetable-roles", targetable_role);
     },
   });
 };
@@ -257,7 +250,7 @@ export const useDeleteTargetableRole = () => {
       await axios_client.delete(`/applications/targetable-roles`, {
         params: {
           role_name: id.role_name,
-          valid_until: getDateAsString(id.valid_until),
+          valid_until: id.valid_until,
         },
       });
     },
@@ -265,12 +258,9 @@ export const useDeleteTargetableRole = () => {
 };
 
 export const useCreateApplication = () => {
-  return useMutation<{ redirect_to: string }, Error, NewApplication>({
+  return useMutation<CreateApplicationResponse, Error, NewApplication>({
     mutationFn: async (newApplication) => {
-      const data = await axios_client.post("/applications", {
-        ...newApplication,
-        valid_until: getDateAsString(newApplication.valid_until),
-      });
+      const data = await axios_client.post("/applications", newApplication);
       return data.data;
     },
   });
@@ -284,10 +274,10 @@ export const useCreateMember = () => {
 };
 
 export const useGetApplications = (params: PaginatedQueryParams) => {
-  return useQuery<Application[]>({
+  return useQuery<ApplicationWithMember[]>({
     queryKey: [QueryKey.APPLICATIONS],
     queryFn: async () => {
-      const response = await axios_client.get("/applications/filter", {
+      const response = await axios_client.get<ApplicationWithMember[]>("/applications/filter", {
         params: {
           ...params,
           status: params.customFilters?.status,
@@ -295,10 +285,7 @@ export const useGetApplications = (params: PaginatedQueryParams) => {
           customFilters: undefined,
         },
       });
-      return response.data.map((data: ApplicationWithoutId) => ({
-        ...data,
-        valid_until: new Date(data.valid_until),
-      }));
+      return response.data;
     },
   });
 };
@@ -307,12 +294,8 @@ export const useGetUserApplications = () => {
   return useQuery<Application[]>({
     queryKey: [QueryKey.APPLICATIONS],
     queryFn: async () => {
-      const response = await axios_client.get(`/applications/user`);
-      return response.data
-        .map((data: ApplicationWithoutId) => ({
-          ...data,
-          valid_until: new Date(data.valid_until),
-        }));
+      const response = await axios_client.get<Application[]>(`/applications/user`);
+      return response.data;
     },
   });
 };
@@ -326,7 +309,7 @@ export const useDeleteApplication = () => {
 };
 
 export const useSetApplicationStatus = () => {
-  return useMutation<void, Error, { id: string; status: string }>({
+  return useMutation<void, Error, { id: string; status: ApplicationStatus }>({
     mutationFn: async ({ id, status }) => {
       await axios_client.put(`/applications/${id}/status`, { status });
     },

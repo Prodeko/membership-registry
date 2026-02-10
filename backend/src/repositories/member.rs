@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use ts_rs::TS;
 use uuid::Uuid;
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Deserialize, Debug, Clone, TS)]
+#[ts(export)]
 pub struct NewMember {
     pub user_id: Uuid,
     pub email: String,
@@ -12,7 +14,8 @@ pub struct NewMember {
     pub has_accepted_policies: bool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct Member {
     pub user_id: Uuid,
     pub email: String,
@@ -23,7 +26,8 @@ pub struct Member {
     pub has_accepted_policies: bool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct MemberWithRoles {
     pub user_id: Uuid,
     pub email: String,
@@ -32,6 +36,7 @@ pub struct MemberWithRoles {
     pub full_name: Option<String>,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
+    #[ts(type = "Array<string | null>")]
     pub role_names: Value,
 }
 

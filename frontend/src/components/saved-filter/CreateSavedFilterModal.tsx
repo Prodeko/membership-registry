@@ -5,7 +5,6 @@ import {
   DialogContent,
   DialogTitle,
   DialogClose,
-  DialogDescription,
   DialogHeader,
 } from "../ui/dialog";
 import { useState } from "react";
@@ -26,7 +25,7 @@ const CreateSavedFilterModal = ({
 }: Props) => {
   const [name, setName] = useState<string>(newSavedFilter.name);
   const [visibleForAll, setVisibleForAll] = useState<boolean>(
-    newSavedFilter.visible_for_all
+    newSavedFilter.visible_for_all,
   );
 
   const { mutate: createSavedFilter } = useCreateSavedFilter();
@@ -40,7 +39,7 @@ const CreateSavedFilterModal = ({
       },
       {
         onSuccess: () => refetchSavedFilters(),
-      }
+      },
     );
   };
 

@@ -2,8 +2,6 @@ import {
   NavigationMenu,
   NavigationMenuList,
   NavigationMenuItem,
-  NavigationMenuTrigger,
-  NavigationMenuContent,
   NavigationMenuLink,
 } from "@radix-ui/react-navigation-menu";
 import { Separator } from "../ui/separator";
@@ -16,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { PersonIcon } from "@radix-ui/react-icons";
-import { Button } from "../ui/button";
 import { Logout } from "./Logout";
 
 const Header = () => {

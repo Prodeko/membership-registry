@@ -1,8 +1,33 @@
+use std::fmt;
+
 use serde::{Deserialize, Serialize};
 use sqlx::{types::chrono, PgPool};
+use ts_rs::TS;
 use uuid::Uuid;
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export)]
+#[serde(rename_all = "lowercase")]
+pub enum ApplicationStatus {
+    Pending,
+    Unpaid,
+    Approved,
+    Rejected,
+}
+
+impl fmt::Display for ApplicationStatus {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ApplicationStatus::Pending => write!(f, "pending"),
+            ApplicationStatus::Unpaid => write!(f, "unpaid"),
+            ApplicationStatus::Approved => write!(f, "approved"),
+            ApplicationStatus::Rejected => write!(f, "rejected"),
+        }
+    }
+}
+
+#[derive(Deserialize, Debug, Clone, TS)]
+#[ts(export)]
 pub struct NewApplication {
     pub user_id: Uuid,
     pub role_name: String,
@@ -12,7 +37,8 @@ pub struct NewApplication {
     pub optional_roles: Option<Vec<String>>,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, TS)]
+#[ts(export)]
 pub struct Application {
     pub application_id: Uuid,
     pub user_id: Uuid,
@@ -22,10 +48,12 @@ pub struct Application {
     pub stripe_payment_id: Option<String>,
     pub optional_roles: Option<Vec<String>>,
     pub application_text: Option<String>,
+    #[ts(as = "Option<ApplicationStatus>")]
     pub status: Option<String>,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, TS)]
+#[ts(export)]
 pub struct ApplicationWithMember {
     pub application_id: Uuid,
     pub user_id: Uuid,
@@ -37,10 +65,12 @@ pub struct ApplicationWithMember {
     pub stripe_payment_id: Option<String>,
     pub optional_roles: Option<Vec<String>>,
     pub application_text: Option<String>,
+    #[ts(as = "Option<ApplicationStatus>")]
     pub status: Option<String>,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize)]
+#[derive(Debug, sqlx::FromRow, Serialize, TS)]
+#[ts(export)]
 pub struct ApplicationTargetableRole {
     pub role_name: String,
     pub valid_until: chrono::NaiveDate,

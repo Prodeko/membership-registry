@@ -63,8 +63,8 @@ const Member: React.FC = () => {
                 <RoleBadge role={role.role_name} />
                 </span>
                 <span>
-                  {role.valid_from.toLocaleDateString()} -{" "}
-                  {role.valid_until.toLocaleDateString()}
+                  {new Date(role.valid_from).toLocaleDateString()} -{" "}
+                  {role.valid_until ? new Date(role.valid_until).toLocaleDateString() : "N/A"}
                 </span>
               </li>
             )) : "No roles"}
