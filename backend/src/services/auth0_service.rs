@@ -140,7 +140,16 @@ impl Auth0Service {
         let user_id = match auth_provider {
             Some(provider) => provider.user_id,
             None => {
-                return Err(ServiceError::UserNotFound);
+                let new_user_id = Uuid::new_v4();
+                self.repo
+                    .user_auth_provider
+                    .create(&new_user_id, &provider_name, &provider_user_id, None)
+                    .await
+                    .map_err(|e| {
+                        println!("Failed to create auth provider mapping: {:?}", e);
+                        ServiceError::DatabaseError
+                    })?;
+                new_user_id
             }
         };
 
