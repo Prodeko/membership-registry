@@ -72,6 +72,11 @@ impl Auth0Service {
         }
     }
 
+    // TODO fix properly
+    fn encode_user_id(user_id: &str) -> String {
+        user_id.replace('|', "%7C")
+    }
+
     fn parse_auth0_user_id(&self, auth0_id: &str) -> ServiceResult<(String, String)> {
         let parts: Vec<&str> = auth0_id.split('|').collect();
         if parts.len() != 2 {
@@ -139,7 +144,7 @@ impl Auth0Service {
     }
 
     pub async fn get_user(&self, user_id: &str) -> ServiceResult<Auth0User> {
-        let url = format!("https://{}/api/v2/users/{}", self.domain, user_id);
+        let url = format!("https://{}/api/v2/users/{}", self.domain, Self::encode_user_id(user_id));
 
         let response = self
             .client
@@ -228,7 +233,7 @@ impl Auth0Service {
         first_name: Option<&str>,
         last_name: Option<&str>,
     ) -> ServiceResult<()> {
-        let url = format!("https://{}/api/v2/users/{}", self.domain, auth0_user_id);
+        let url = format!("https://{}/api/v2/users/{}", self.domain, Self::encode_user_id(auth0_user_id));
 
         let name = match (first_name, last_name) {
             (Some(f), Some(l)) => Some(format!("{} {}", f, l)),
@@ -263,7 +268,7 @@ impl Auth0Service {
     }
 
     pub async fn delete_user(&self, auth0_user_id: &str) -> ServiceResult<()> {
-        let url = format!("https://{}/api/v2/users/{}", self.domain, auth0_user_id);
+        let url = format!("https://{}/api/v2/users/{}", self.domain, Self::encode_user_id(auth0_user_id));
 
         let response = self
             .client
@@ -313,7 +318,7 @@ impl Auth0Service {
     async fn has_role(&self, auth0_user_id: &str, role_name: &str) -> ServiceResult<bool> {
         let url = format!(
             "https://{}/api/v2/users/{}/roles",
-            self.domain, auth0_user_id
+            self.domain, Self::encode_user_id(auth0_user_id)
         );
 
         let response = self
