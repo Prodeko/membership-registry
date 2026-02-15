@@ -1,5 +1,3 @@
-version: "3.7"
-
 services:
   membership-postgresd:
     image: postgres:14
