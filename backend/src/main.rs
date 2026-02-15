@@ -1,4 +1,9 @@
-#![allow(unused)] // TODO remove this and fix the warnings
+#![allow(unused)]
+#![deny(clippy::unwrap_used)]
+#![deny(clippy::expect_used)]
+#![deny(clippy::panic)]
+#![deny(unused_must_use)]
+
 mod config;
 mod ctx;
 mod helpers;
@@ -20,6 +25,7 @@ use helpers::create_pg_pool;
 use config::Config;
 
 #[tokio::main]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 async fn main() {
     dotenv().ok();
     let config = Config::init_from_env().unwrap();

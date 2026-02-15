@@ -2,12 +2,19 @@ use application::ApplicationRepo;
 use member::MemberRepo;
 use user_auth_provider::UserAuthProviderRepo;
 
+#[allow(clippy::panic)]
 pub mod application;
+#[allow(clippy::panic)]
 pub mod member;
+#[allow(clippy::panic)]
 pub mod role;
+#[allow(clippy::panic)]
 pub mod saved_filter;
+#[allow(clippy::panic)]
 pub mod user_auth_provider;
 
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 pub mod tests;
 
 #[derive(Clone)]

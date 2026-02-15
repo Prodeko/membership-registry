@@ -42,7 +42,9 @@ pub async fn check_permission(
     req: Request,
     next: Next,
 ) -> Response<Body> {
-    let userinfo = userinfo.unwrap();
+    let Some(userinfo) = userinfo else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
 
     let has_access = state
         .auth0_service

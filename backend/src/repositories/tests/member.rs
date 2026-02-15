@@ -9,7 +9,7 @@ mod test_member {
     fn _get_new_member() -> NewMember {
         let user_id = Uuid::new_v4();
         NewMember {
-            user_id: user_id,
+            user_id,
             first_name: "Testi".to_string(),
             last_name: "Käyttäjä".to_string(),
             home_municipality: "Helsinki".to_string(),

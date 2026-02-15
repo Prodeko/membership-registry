@@ -106,7 +106,7 @@ mod test_role {
             .await;
         let roles = roles.unwrap();
         assert!(roles.len() == 8);
-        assert!(roles[0].name == "pora-member".to_string());
+        assert!(roles[0].name == "pora-member");
         assert!(roles[0].member_count.unwrap() == 2);
         assert!(roles[0].active_member_count.unwrap() == 1);
     }
@@ -156,7 +156,7 @@ mod test_role {
             .await;
         let roles = roles.unwrap();
         assert!(roles.len() == 8);
-        assert!(roles[0].name == "root-users".to_string());
+        assert!(roles[0].name == "root-users");
     }
 
 }

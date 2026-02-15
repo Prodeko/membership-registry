@@ -6,7 +6,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{
-    http::{errors::ApiResult, types::ApplicationPath},
+    http::{errors::{ApiError, ApiResult}, types::ApplicationPath},
     repositories::application::{Application, ApplicationTargetableRole, NewApplication}, services::auth0_service::AuthInfo,
 };
 
@@ -41,9 +41,10 @@ async fn get_user_applications(
     Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<Vec<Application>>> {
+    let user_info = user_info.ok_or(ApiError::Unauthorized)?;
     let applications = state
         .application_service
-        .get_applications_for_user(user_info.unwrap().user_id).await.map(Json)?;
+        .get_applications_for_user(user_info.user_id).await.map(Json)?;
 
     Ok(applications)
 }

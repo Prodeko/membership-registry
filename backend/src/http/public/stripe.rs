@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use crate::http::errors::{ApiError, ApiResult};
+use crate::services::errors::ServiceError;
 
 use super::AppState;
 use axum::{
@@ -66,15 +67,19 @@ async fn stripe_webhook(
                 }
             };
 
+            let payment_intent = checkout
+                .payment_intent
+                .ok_or(ApiError::BadRequest)?;
+
             state
                 .application_service
                 .update_payment_id(
                     application_id,
-                    checkout.payment_intent.unwrap().id().to_string(),
+                    payment_intent.id().to_string(),
                 )
                 .await
-                .map_err(|e| e.into_response());
-
+                .map_err(ApiError::ServiceError)?;
+            
             Ok(Json(
                 serde_json::json!({"success": true, "message": "Payment ID updated."}),
             ))

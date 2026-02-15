@@ -34,6 +34,7 @@ pub struct AppState {
     pub oauth2_client: BasicClient
 }
 
+#[allow(clippy::unwrap_used)]
 pub async fn serve(config: Config, services: Services) {
     let port = config.port;
 
