@@ -1,7 +1,9 @@
 use moka::future::Cache;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::time::Duration;
+use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -56,10 +58,23 @@ struct Auth0UpdateUserRequest {
     name: Option<String>,
 }
 
+struct CachedToken {
+    access_token: String,
+    expires_at: Instant,
+}
+
+#[derive(Deserialize)]
+struct Auth0TokenResponse {
+    access_token: String,
+    expires_in: u64,
+}
+
 #[derive(Clone)]
 pub struct Auth0Service {
     pub domain: String,
-    pub management_api_token: String,
+    management_client_id: String,
+    management_client_secret: String,
+    token: Arc<RwLock<Option<CachedToken>>>,
     pub client: Client,
     pub repo: PostgresRepo,
     userinfo_cache: Cache<String, AuthInfo>,
@@ -67,10 +82,17 @@ pub struct Auth0Service {
 }
 
 impl Auth0Service {
-    pub fn new(domain: String, management_api_token: String, repo: PostgresRepo) -> Self {
+    pub fn new(
+        domain: String,
+        management_client_id: String,
+        management_client_secret: String,
+        repo: PostgresRepo,
+    ) -> Self {
         Self {
             domain,
-            management_api_token,
+            management_client_id,
+            management_client_secret,
+            token: Arc::new(RwLock::new(None)),
             client: Client::new(),
             repo,
             userinfo_cache: Cache::builder()
@@ -87,6 +109,72 @@ impl Auth0Service {
     // TODO fix properly
     fn encode_user_id(user_id: &str) -> String {
         user_id.replace('|', "%7C")
+    }
+
+    async fn get_management_token(&self) -> ServiceResult<String> {
+        {
+            let token_guard = self.token.read().await;
+            if let Some(ref cached) = *token_guard {
+                if cached.expires_at > Instant::now() + Duration::from_secs(60) {
+                    return Ok(cached.access_token.clone());
+                }
+            }
+        }
+
+        let mut token_guard = self.token.write().await;
+        if let Some(ref cached) = *token_guard {
+            if cached.expires_at > Instant::now() + Duration::from_secs(60) {
+                return Ok(cached.access_token.clone());
+            }
+        }
+
+        let new_token = self.fetch_management_token().await?;
+        let access_token = new_token.access_token.clone();
+        *token_guard = Some(new_token);
+        Ok(access_token)
+    }
+
+    async fn fetch_management_token(&self) -> ServiceResult<CachedToken> {
+        let url = format!("https://{}/oauth/token", self.domain);
+        let audience = format!("https://{}/api/v2/", self.domain);
+
+        let response = self
+            .client
+            .post(&url)
+            .json(&serde_json::json!({
+                "client_id": self.management_client_id,
+                "client_secret": self.management_client_secret,
+                "audience": audience,
+                "grant_type": "client_credentials"
+            }))
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to fetch Auth0 management token: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            println!("Auth0 management token request returned error {}: {}", status, body);
+            return Err(ServiceError::Auth0Error);
+        }
+
+        let token_response: Auth0TokenResponse = response.json().await.map_err(|e| {
+            println!("Failed to parse Auth0 token response: {:?}", e);
+            ServiceError::Auth0Error
+        })?;
+
+        println!(
+            "Auth0 management token refreshed, expires in {} seconds",
+            token_response.expires_in
+        );
+
+        Ok(CachedToken {
+            access_token: token_response.access_token,
+            expires_at: Instant::now() + Duration::from_secs(token_response.expires_in),
+        })
     }
 
     fn parse_auth0_user_id(&self, auth0_id: &str) -> ServiceResult<(String, String)> {
@@ -171,12 +259,13 @@ impl Auth0Service {
     }
 
     pub async fn get_user(&self, user_id: &str) -> ServiceResult<Auth0User> {
+        let token = self.get_management_token().await?;
         let url = format!("https://{}/api/v2/users/{}", self.domain, Self::encode_user_id(user_id));
 
         let response = self
             .client
             .get(&url)
-            .bearer_auth(&self.management_api_token)
+            .bearer_auth(&token)
             .send()
             .await
             .map_err(|e| {
@@ -202,6 +291,7 @@ impl Auth0Service {
         last_name: &str,
         password: &str,
     ) -> ServiceResult<(Uuid, String)> {
+        let token = self.get_management_token().await?;
         let url = format!("https://{}/api/v2/users", self.domain);
 
         let name = format!("{} {}", first_name, last_name);
@@ -217,7 +307,7 @@ impl Auth0Service {
         let response = self
             .client
             .post(&url)
-            .bearer_auth(&self.management_api_token)
+            .bearer_auth(&token)
             .json(&create_request)
             .send()
             .await
@@ -260,6 +350,7 @@ impl Auth0Service {
         first_name: Option<&str>,
         last_name: Option<&str>,
     ) -> ServiceResult<()> {
+        let token = self.get_management_token().await?;
         let url = format!("https://{}/api/v2/users/{}", self.domain, Self::encode_user_id(auth0_user_id));
 
         let name = match (first_name, last_name) {
@@ -277,7 +368,7 @@ impl Auth0Service {
         let response = self
             .client
             .patch(&url)
-            .bearer_auth(&self.management_api_token)
+            .bearer_auth(&token)
             .json(&update_request)
             .send()
             .await
@@ -295,12 +386,13 @@ impl Auth0Service {
     }
 
     pub async fn delete_user(&self, auth0_user_id: &str) -> ServiceResult<()> {
+        let token = self.get_management_token().await?;
         let url = format!("https://{}/api/v2/users/{}", self.domain, Self::encode_user_id(auth0_user_id));
 
         let response = self
             .client
             .delete(&url)
-            .bearer_auth(&self.management_api_token)
+            .bearer_auth(&token)
             .send()
             .await
             .map_err(|e| {
@@ -350,6 +442,7 @@ impl Auth0Service {
     }
 
     async fn has_role(&self, auth0_user_id: &str, role_name: &str) -> ServiceResult<bool> {
+        let token = self.get_management_token().await?;
         let url = format!(
             "https://{}/api/v2/users/{}/roles",
             self.domain, Self::encode_user_id(auth0_user_id)
@@ -358,7 +451,7 @@ impl Auth0Service {
         let response = self
             .client
             .get(&url)
-            .bearer_auth(&self.management_api_token)
+            .bearer_auth(&token)
             .send()
             .await
             .map_err(|e| {

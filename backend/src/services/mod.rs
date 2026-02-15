@@ -22,7 +22,8 @@ impl Services {
     pub fn new(repo: PostgresRepo, config: Config) -> Self {
         let auth0_service = auth0_service::Auth0Service::new(
             config.auth0_domain,
-            config.auth0_management_api_token,
+            config.auth0_management_client_id,
+            config.auth0_management_client_secret,
             repo.clone(),
         );
         let member_service = MemberService::new(repo.member, auth0_service.clone());

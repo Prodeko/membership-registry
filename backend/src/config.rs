@@ -37,9 +37,13 @@ pub struct Config {
     #[envconfig(from = "AUTH0_AUDIENCE")]
     pub auth0_audience: Option<String>,
 
-    #[envconfig(from = "AUTH0_MANAGEMENT_API_TOKEN")]
+    #[envconfig(from = "AUTH0_MANAGEMENT_CLIENT_ID")]
     #[validate(length(min = 1, max = 1024))]
-    pub auth0_management_api_token: String,
+    pub auth0_management_client_id: String,
+
+    #[envconfig(from = "AUTH0_MANAGEMENT_CLIENT_SECRET")]
+    #[validate(length(min = 1, max = 2048))]
+    pub auth0_management_client_secret: String,
 
     #[envconfig(from = "STRIPE_ENDPOINT_SECRET")]
     #[validate(length(min = 1, max = 1024))]
