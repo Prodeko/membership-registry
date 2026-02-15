@@ -10,6 +10,9 @@ pub mod member_service;
 pub mod role_service;
 pub mod saved_filter;
 
+#[cfg(test)]
+mod tests;
+
 pub struct Services {
     pub member_service: member_service::MemberService,
     pub application_service: application_service::ApplicationService,

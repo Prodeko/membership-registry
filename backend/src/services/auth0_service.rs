@@ -71,7 +71,7 @@ struct Auth0TokenResponse {
 
 #[derive(Clone)]
 pub struct Auth0Service {
-    pub domain: String,
+    base_url: String,
     management_client_id: String,
     management_client_secret: String,
     token: Arc<RwLock<Option<CachedToken>>>,
@@ -89,8 +89,18 @@ impl Auth0Service {
         management_client_secret: String,
         repo: PostgresRepo,
     ) -> Self {
+        let base_url = format!("https://{}", domain);
+        Self::with_base_url(base_url, management_client_id, management_client_secret, repo)
+    }
+
+    pub fn with_base_url(
+        base_url: String,
+        management_client_id: String,
+        management_client_secret: String,
+        repo: PostgresRepo,
+    ) -> Self {
         Self {
-            domain,
+            base_url,
             management_client_id,
             management_client_secret,
             token: Arc::new(RwLock::new(None)),
@@ -140,8 +150,8 @@ impl Auth0Service {
     }
 
     async fn fetch_management_token(&self) -> ServiceResult<CachedToken> {
-        let url = format!("https://{}/oauth/token", self.domain);
-        let audience = format!("https://{}/api/v2/", self.domain);
+        let url = format!("{}/oauth/token", self.base_url);
+        let audience = format!("{}/api/v2/", self.base_url);
 
         let response = self
             .client
@@ -195,7 +205,7 @@ impl Auth0Service {
             return Ok(cached);
         }
 
-        let url = format!("https://{}/userinfo", self.domain);
+        let url = format!("{}/userinfo", self.base_url);
 
         let response = self
             .client
@@ -265,7 +275,7 @@ impl Auth0Service {
 
     pub async fn get_user(&self, user_id: &str) -> ServiceResult<Auth0User> {
         let token = self.get_management_token().await?;
-        let url = format!("https://{}/api/v2/users/{}", self.domain, Self::encode_user_id(user_id));
+        let url = format!("{}/api/v2/users/{}", self.base_url, Self::encode_user_id(user_id));
 
         let response = self
             .client
@@ -297,7 +307,7 @@ impl Auth0Service {
         password: &str,
     ) -> ServiceResult<(Uuid, String)> {
         let token = self.get_management_token().await?;
-        let url = format!("https://{}/api/v2/users", self.domain);
+        let url = format!("{}/api/v2/users", self.base_url);
 
         let name = format!("{} {}", first_name, last_name);
         let create_request = Auth0CreateUserRequest {
@@ -356,7 +366,7 @@ impl Auth0Service {
         last_name: Option<&str>,
     ) -> ServiceResult<()> {
         let token = self.get_management_token().await?;
-        let url = format!("https://{}/api/v2/users/{}", self.domain, Self::encode_user_id(auth0_user_id));
+        let url = format!("{}/api/v2/users/{}", self.base_url, Self::encode_user_id(auth0_user_id));
 
         let name = match (first_name, last_name) {
             (Some(f), Some(l)) => Some(format!("{} {}", f, l)),
@@ -392,7 +402,7 @@ impl Auth0Service {
 
     pub async fn delete_user(&self, auth0_user_id: &str) -> ServiceResult<()> {
         let token = self.get_management_token().await?;
-        let url = format!("https://{}/api/v2/users/{}", self.domain, Self::encode_user_id(auth0_user_id));
+        let url = format!("{}/api/v2/users/{}", self.base_url, Self::encode_user_id(auth0_user_id));
 
         let response = self
             .client
@@ -449,8 +459,8 @@ impl Auth0Service {
     async fn has_role(&self, auth0_user_id: &str, role_name: &str) -> ServiceResult<bool> {
         let token = self.get_management_token().await?;
         let url = format!(
-            "https://{}/api/v2/users/{}/roles",
-            self.domain, Self::encode_user_id(auth0_user_id)
+            "{}/api/v2/users/{}/roles",
+            self.base_url, Self::encode_user_id(auth0_user_id)
         );
 
         let response = self
@@ -488,7 +498,7 @@ impl Auth0Service {
         }
 
         let token = self.get_management_token().await?;
-        let url = format!("https://{}/api/v2/roles", self.domain);
+        let url = format!("{}/api/v2/roles", self.base_url);
 
         let response = self
             .client
@@ -543,8 +553,8 @@ impl Auth0Service {
 
         let token = self.get_management_token().await?;
         let url = format!(
-            "https://{}/api/v2/users/{}/roles",
-            self.domain,
+            "{}/api/v2/users/{}/roles",
+            self.base_url,
             Self::encode_user_id(auth0_user_id)
         );
 
@@ -582,8 +592,8 @@ impl Auth0Service {
 
         let token = self.get_management_token().await?;
         let url = format!(
-            "https://{}/api/v2/users/{}/roles",
-            self.domain,
+            "{}/api/v2/users/{}/roles",
+            self.base_url,
             Self::encode_user_id(auth0_user_id)
         );
 
