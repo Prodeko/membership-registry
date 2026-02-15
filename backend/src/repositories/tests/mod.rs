@@ -18,7 +18,7 @@ pub async fn setup_test_db() -> (PostgresRepo, String) {
   let database_url_string = format!("{}_{}", base_database_url, db_id);
   let database_url = database_url_string.as_str();
   
-  Postgres::drop_database(database_url).await.unwrap();
+  let _ = Postgres::drop_database(database_url).await;
   Postgres::create_database(database_url).await.unwrap();
 
   let pool = PgPool::connect(database_url).await.unwrap();
@@ -37,6 +37,21 @@ pub async fn setup_test_db() -> (PostgresRepo, String) {
 
 pub async fn cleanup_test_db(pool: PgPool, database_url: &str) {
   pool.close().await;
+
+  // Extract the DB name from the URL (everything after the last '/')
+  let db_name = database_url.rsplit('/').next().unwrap();
+
+  // Connect to the base server (without a specific DB) to terminate lingering sessions.
+  // This avoids the "database is being accessed by other users" race condition.
+  let base_url = &database_url[..database_url.len() - db_name.len() - 1];
+  let admin_pool = PgPool::connect(base_url).await.unwrap();
+  sqlx::query("SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = $1 AND pid <> pg_backend_pid()")
+      .bind(db_name)
+      .execute(&admin_pool)
+      .await
+      .unwrap();
+  admin_pool.close().await;
+
   Postgres::drop_database(database_url).await.unwrap();
 }
 
