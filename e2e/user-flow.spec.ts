@@ -1,17 +1,49 @@
 import { test, expect } from "@playwright/test";
+import { execSync } from "child_process";
 
 // Full user journey: login → signup → apply for membership
 //
 // Prerequisites:
 // - Backend + frontend + postgres running
-// - Auth0 test user exists (Database Connection, no admin role)
+// - Auth0 test users exist (Database Connection)
 // - Credentials in .env.e2e
 
-test.describe("User flow", () => {
-  test("signup and submit application", async ({ page }) => {
-    await page.goto(`${process.env.API_BASE_URL!}/auth/login`);
+const API = process.env.API_BASE_URL!;
+const DB = process.env.DATABASE_URL!;
+const ROLE_NAME = "e2e-test-role";
+const ROLE_VALID_UNTIL = "2099-12-31";
 
-    // 2. Authenticate with Auth0
+function sql(query: string) {
+  execSync(`psql "${DB}" -c "${query}"`);
+}
+
+test.describe("User flow", () => {
+  function cleanupTestUser() {
+    const email = process.env.E2E_USER_EMAIL!;
+    sql(
+      `DELETE FROM application WHERE user_id IN (SELECT user_id FROM member WHERE email = '${email}')`,
+    );
+    sql(`DELETE FROM member WHERE email = '${email}'`);
+  }
+
+  test.beforeAll(() => {
+    cleanupTestUser();
+
+    // Ensure the e2e test role and targetable role exist
+    sql(
+      `INSERT INTO role (name) VALUES ('${ROLE_NAME}') ON CONFLICT DO NOTHING`,
+    );
+    sql(
+      `INSERT INTO applicationtargetablerole (role_name, valid_until, active) VALUES ('${ROLE_NAME}', '${ROLE_VALID_UNTIL}', true) ON CONFLICT DO NOTHING`,
+    );
+  });
+
+  test.afterAll(() => {
+    cleanupTestUser();
+  });
+
+  test("signup and submit application", async ({ page }) => {
+    await page.goto(`${API}/auth/login`);
     await page
       .getByRole("textbox", { name: "Email address" })
       .fill(process.env.E2E_USER_EMAIL!);
@@ -21,8 +53,6 @@ test.describe("User flow", () => {
       .fill(process.env.E2E_USER_PASSWORD!);
     await page.getByRole("button", { name: "Continue" }).click();
 
-    // 3. Auth0 redirects → /auth/callback → backend checks member record
-    //    → no member exists → redirects to /signup
     await page.waitForURL("**/signup");
 
     await page.getByRole("combobox", { name: "Home municipality" }).click();
@@ -35,13 +65,10 @@ test.describe("User flow", () => {
 
     await page.waitForURL("**/application-form");
     await page.getByRole("combobox", { name: "Membership type" }).click();
-    await page
-      .getByRole("option", { name: "Test (Valid until 2/17/2026)" })
-      .click();
-    await page.getByRole("textbox", { name: "Application text" }).click();
+    await page.getByRole("option", { name: /E2e Test Role/ }).click();
     await page
       .getByRole("textbox", { name: "Application text" })
-      .fill("Haluaisin kovasti osaksi tätä yhteisöä");
+      .fill("E2E test application");
     await page.getByRole("button", { name: "Submit application" }).click();
 
     await page.waitForURL("**/application-form/success");
