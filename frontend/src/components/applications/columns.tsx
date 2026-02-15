@@ -90,7 +90,13 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
     ),
     cell: ({ row }) => {
       const application = row.original;
-      return <span>{application.status ? capitalizeFirstLetter(application.status) : "N/A"}</span>;
+      return (
+        <span>
+          {application.status
+            ? capitalizeFirstLetter(application.status)
+            : "N/A"}
+        </span>
+      );
     },
   },
   {
@@ -167,7 +173,8 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
                 <DollarSignIcon className="w-4 h-4 ml-2" />
               </DropdownMenuItem>
             )}
-            {(application.status === "pending"  || application.status === "unpaid") && (
+            {(application.status === "pending" ||
+              application.status === "unpaid") && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -180,7 +187,7 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
                             queryKey: [QueryKey.APPLICATIONS],
                           });
                         },
-                      }
+                      },
                     );
                   }}
                   className="flex items-center justify-between"
@@ -198,7 +205,7 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
                             queryKey: [QueryKey.APPLICATIONS],
                           });
                         },
-                      }
+                      },
                     );
                   }}
                   className="flex items-center justify-between"

@@ -1,4 +1,8 @@
-import { QueryKey, useDeleteManyMembers, useGetMembersWithIds } from "@/lib/api";
+import {
+  QueryKey,
+  useDeleteManyMembers,
+  useGetMembersWithIds,
+} from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { FunctionComponent } from "react";
 import { Button } from "../ui/button";
@@ -31,7 +35,9 @@ const DeleteMembersModal: FunctionComponent<DeleteMembersModalProps> = ({
     if (userIds.length > 0) {
       deleteMultipleMembers(userIds, {
         onSuccess: () => {
-          queryClient.invalidateQueries({ queryKey: [QueryKey.MEMBERS_WITH_ROLES] });
+          queryClient.invalidateQueries({
+            queryKey: [QueryKey.MEMBERS_WITH_ROLES],
+          });
           onClose();
         },
       });
@@ -49,7 +55,8 @@ const DeleteMembersModal: FunctionComponent<DeleteMembersModalProps> = ({
         <DialogHeader>
           <DialogTitle>Delete members</DialogTitle>
           <DialogDescription>
-            Are you sure you want to delete members: {selectedMembers?.map((m) => m.email).join(", ")}
+            Are you sure you want to delete members:{" "}
+            {selectedMembers?.map((m) => m.email).join(", ")}
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col space-y-4">

@@ -40,18 +40,21 @@ const SignupForm = () => {
     },
   });
 
-  const { mutate:  createMember } = useCreateMember();
-  const {data: me } = useGetMeUser()
+  const { mutate: createMember } = useCreateMember();
+  const { data: me } = useGetMeUser();
 
   const onSubmit = (values: z.infer<typeof formSchema>) => {
     if (me === undefined) {
-      throw Error("User not defined! Login or signup")
+      throw Error("User not defined! Login or signup");
     }
-    createMember({...me, ...values}, {
-      onSuccess: () => {
-        window.location.href = '/application-form';
+    createMember(
+      { ...me, ...values },
+      {
+        onSuccess: () => {
+          window.location.href = "/application-form";
+        },
       },
-    })
+    );
   };
 
   return (

@@ -51,7 +51,7 @@ axios_client.interceptors.response.use(
   (error: AxiosError) => {
     console.error("Axios error: ", error);
     window.location.href = `/error/${error.response?.status || "500"}`;
-  }
+  },
 );
 
 interface PaginatedQueryParams {
@@ -104,7 +104,7 @@ export function useExportMembersWithRoles() {
       });
       return downloadCsv(
         response.data,
-        `prodeko_members_${new Date().toISOString()}.csv`
+        `prodeko_members_${new Date().toISOString()}.csv`,
       );
     },
   });
@@ -138,7 +138,9 @@ export const useGetMemberRoles = (id: string) => {
   return useQuery<RoleMember[]>({
     queryKey: [QueryKey.MEMBER_ROLES, { id }],
     queryFn: async () => {
-      const response = await axios_client.get<RoleMember[]>(`/members/${id}/roles`);
+      const response = await axios_client.get<RoleMember[]>(
+        `/members/${id}/roles`,
+      );
       return response.data;
     },
   });
@@ -230,7 +232,9 @@ export const useGetTargetableRoles = () => {
   return useQuery<ApplicationTargetableRole[]>({
     queryKey: [QueryKey.TARGETABLE_ROLES],
     queryFn: async () => {
-      const response = await axios_client.get<ApplicationTargetableRole[]>("/applications/targetable-roles");
+      const response = await axios_client.get<ApplicationTargetableRole[]>(
+        "/applications/targetable-roles",
+      );
       return response.data;
     },
   });
@@ -239,7 +243,10 @@ export const useGetTargetableRoles = () => {
 export const useCreateTargetableRole = () => {
   return useMutation<void, Error, PostTargetableRole>({
     mutationFn: async (targetable_role: PostTargetableRole) => {
-      await axios_client.post("/applications/targetable-roles", targetable_role);
+      await axios_client.post(
+        "/applications/targetable-roles",
+        targetable_role,
+      );
     },
   });
 };
@@ -277,14 +284,17 @@ export const useGetApplications = (params: PaginatedQueryParams) => {
   return useQuery<ApplicationWithMember[]>({
     queryKey: [QueryKey.APPLICATIONS],
     queryFn: async () => {
-      const response = await axios_client.get<ApplicationWithMember[]>("/applications/filter", {
-        params: {
-          ...params,
-          status: params.customFilters?.status,
-          page_size: params.pageSize,
-          customFilters: undefined,
+      const response = await axios_client.get<ApplicationWithMember[]>(
+        "/applications/filter",
+        {
+          params: {
+            ...params,
+            status: params.customFilters?.status,
+            page_size: params.pageSize,
+            customFilters: undefined,
+          },
         },
-      });
+      );
       return response.data;
     },
   });
@@ -294,7 +304,8 @@ export const useGetUserApplications = () => {
   return useQuery<Application[]>({
     queryKey: [QueryKey.APPLICATIONS],
     queryFn: async () => {
-      const response = await axios_client.get<Application[]>(`/applications/user`);
+      const response =
+        await axios_client.get<Application[]>(`/applications/user`);
       return response.data;
     },
   });
@@ -327,9 +338,12 @@ export const useOauthCallback = (params: OauthCallbackParams) => {
   return useQuery<CallbackResponse>({
     queryKey: [QueryKey.OAUTH],
     queryFn: async () => {
-      const response = await axios_client.get<CallbackResponse>("/auth/callback", {
-        params,
-      });
+      const response = await axios_client.get<CallbackResponse>(
+        "/auth/callback",
+        {
+          params,
+        },
+      );
       return response.data;
     },
   });
@@ -402,4 +416,3 @@ export const useLogout = () => {
     },
   });
 };
-

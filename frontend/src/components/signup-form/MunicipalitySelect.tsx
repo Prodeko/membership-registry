@@ -6,7 +6,7 @@ import {
   Command,
   CommandEmpty,
   CommandInput,
-  CommandItem
+  CommandItem,
 } from "@/components/ui/command";
 import {
   Popover,
@@ -18,15 +18,7 @@ import { cn } from "@/lib/utils";
 import { CommandList } from "cmdk";
 import { FormControl } from "../ui/form";
 
-const MunicipalitySelect = ({
-  field,
-  form,
-}:
-{
-  field: any;
-  form: any
-}) => {
-
+const MunicipalitySelect = ({ field, form }: { field: any; form: any }) => {
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -36,7 +28,7 @@ const MunicipalitySelect = ({
             role="combobox"
             className={cn(
               "w-[200px] justify-between",
-              !field && "text-muted-foreground"
+              !field && "text-muted-foreground",
             )}
           >
             {field?.value?.toString() || "Select region"}
@@ -61,7 +53,7 @@ const MunicipalitySelect = ({
                 <Check
                   className={cn(
                     "mr-2 h-4 w-4",
-                    region === field?.value ? "opacity-100" : "opacity-0"
+                    region === field?.value ? "opacity-100" : "opacity-0",
                   )}
                 />
                 {region}

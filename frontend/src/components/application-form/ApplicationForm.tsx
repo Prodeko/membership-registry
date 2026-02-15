@@ -72,7 +72,7 @@ const ApplicationForm = () => {
         onSuccess: (data) => {
           window.location.href = data.redirect_to;
         },
-      }
+      },
     );
   };
 
@@ -120,14 +120,14 @@ const ApplicationForm = () => {
                   <Select
                     onValueChange={(value) => {
                       const targetableRole = targetableRoles?.find(
-                        (role) => role.role_name === value
+                        (role) => role.role_name === value,
                       );
                       const validUntil = targetableRole?.valid_until;
                       const paymentLink = targetableRole?.payment_link;
 
                       if (!validUntil) {
                         throw new Error(
-                          `Role ${value} not found in targetable roles`
+                          `Role ${value} not found in targetable roles`,
                         );
                       }
 
@@ -147,7 +147,7 @@ const ApplicationForm = () => {
                           (app) =>
                             app.status !== "rejected" &&
                             app.role_name === role.role_name &&
-                            app.valid_until === role.valid_until
+                            app.valid_until === role.valid_until,
                         );
                         return (
                           <SelectItem

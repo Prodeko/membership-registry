@@ -141,7 +141,7 @@ export const columns: ColumnDef<ApplicationTargetableRole>[] = [
               onClick={() => {
                 if (
                   window.confirm(
-                    `Are you sure you want to delete the role "${role.role_name}"?`
+                    `Are you sure you want to delete the role "${role.role_name}"?`,
                   )
                 ) {
                   deleteTargetableRole(
@@ -152,7 +152,7 @@ export const columns: ColumnDef<ApplicationTargetableRole>[] = [
                           queryKey: [QueryKey.TARGETABLE_ROLES],
                         });
                       },
-                    }
+                    },
                   );
                 }
               }}

@@ -34,10 +34,10 @@ const Members: React.FC = () => {
   return (
     <div className="space-y-4">
       <div className="flex space-x-8">
-      <h1 className="text-4xl">Members</h1>
-      <Button variant={"outline"} onClick={() => setFilterVisible((e) => !e)}>
-        { filterVisible ? "Hide filters" : "Show filters" }
-      </Button>
+        <h1 className="text-4xl">Members</h1>
+        <Button variant={"outline"} onClick={() => setFilterVisible((e) => !e)}>
+          {filterVisible ? "Hide filters" : "Show filters"}
+        </Button>
       </div>
       {filterVisible && (
         <div className="flex space-x-2 flex-wrap">

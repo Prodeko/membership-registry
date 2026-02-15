@@ -40,7 +40,7 @@ const CreateRoleModal = () => {
                       queryClient.invalidateQueries({
                         queryKey: [QueryKey.ROLES],
                       }),
-                  }
+                  },
                 )
               }
             >

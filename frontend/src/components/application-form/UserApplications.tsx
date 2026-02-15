@@ -46,7 +46,7 @@ const UserApplications = () => {
             const role = targetableRoles.find(
               (role) =>
                 role.role_name === app.role_name &&
-                role.valid_until === app.valid_until
+                role.valid_until === app.valid_until,
             );
             return (
               <>
@@ -67,8 +67,8 @@ const UserApplications = () => {
                           app.status === "approved"
                             ? "default"
                             : app.status === "rejected"
-                            ? "destructive"
-                            : "secondary"
+                              ? "destructive"
+                              : "secondary"
                         }
                         className="ml-2"
                       >

@@ -10,7 +10,12 @@ const TargetableRoles = () => {
         <h1 className="text-4xl">Targetable Roles</h1>
         <CreateTargetableRolesModal />
       </div>
-      <DataTable columns={columns} useFetchData={useGetTargetableRoles} searchColumn="role_name" modelName="targetableRoles"/>
+      <DataTable
+        columns={columns}
+        useFetchData={useGetTargetableRoles}
+        searchColumn="role_name"
+        modelName="targetableRoles"
+      />
     </div>
   );
 };

@@ -52,7 +52,7 @@ const CreateTargetableRolesModal = () => {
               queryKey: [QueryKey.TARGETABLE_ROLES],
             });
           },
-        }
+        },
       );
     }
   };

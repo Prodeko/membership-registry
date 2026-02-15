@@ -4,7 +4,6 @@
 @tailwind components;
 @tailwind utilities;
 
-
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -36,7 +35,6 @@
     --ring: 222.2 84% 4.9%;
 
     --radius: 0.5rem;
-
   }
 
   .dark {
@@ -76,7 +74,7 @@
     font-optical-sizing: auto;
     font-style: normal;
   }
-  
+
   * {
     @apply border-border;
   }

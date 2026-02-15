@@ -98,14 +98,14 @@ const Error = () => {
     } else if (!isNaN(Number(status))) {
       return Number(status);
     } else {
-      return undefined
+      return undefined;
     }
   };
 
   const getErrorDetails = () => {
-    const status = getStatus()
+    const status = getStatus();
     return status ? errorDetails.get(status) || defaultDetails : defaultDetails;
-  }
+  };
 
   const details = getErrorDetails();
 
@@ -114,10 +114,10 @@ const Error = () => {
       <img src="/prodeko.svg" alt="Prodeko" className="h-28" />
       <h1 className="text-4xl">{`${getStatus()} ${details.title}`}</h1>
       <div className="space-y-8 h-30 flex flex-col justify-between items-center text-center">
-      {details.details}
+        {details.details}
       </div>
     </div>
-  )
+  );
 };
 
 export default Error;
