@@ -3,18 +3,16 @@ mod role;
 
 use sqlx::{migrate::MigrateDatabase, PgPool, Postgres};
 use dotenv::dotenv;
-use envconfig::Envconfig;
-
-use crate::config::Config;
 
 use super::PostgresRepo;
 
 pub async fn setup_test_db() -> (PostgresRepo, String) {
   dotenv().ok();
-  let config = Config::init_from_env().unwrap();
+  let base_database_url = std::env::var("TEST_DATABASE_URL")
+      .expect("TEST_DATABASE_URL must be set");
   let db_id = uuid::Uuid::new_v4().to_string();
 
-  let base_database_url = config.test_database_url.as_str();
+  let base_database_url = base_database_url.as_str();
   let database_url_string = format!("{}_{}", base_database_url, db_id);
   let database_url = database_url_string.as_str();
   
