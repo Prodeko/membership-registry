@@ -5,7 +5,7 @@ use axum::{
     http::{Response, StatusCode},
     response::IntoResponse,
     routing::{delete, get, post},
-    Extension, Json, Router,
+    Json, Router,
 };
 use csv::WriterBuilder;
 use serde::Deserialize;
@@ -19,7 +19,6 @@ use crate::{
         member::{Member, MemberWithRoles},
         role::RoleMember,
     },
-    services::auth0_service::AuthInfo,
 };
 
 use super::AppState;
@@ -48,15 +47,14 @@ async fn get_members(
     let user_ids = query
         .user_ids
         .clone()
-        .map(|s| {
+        .and_then(|s| {
             s.split(',')
                 .map(|uuid| {
-                    Uuid::parse_str(uuid).map_err(|e| (StatusCode::BAD_REQUEST, "Invalid UUID"))
+                    Uuid::parse_str(uuid).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UUID"))
                 })
                 .collect::<Result<Vec<Uuid>, _>>()
                 .ok()
-        })
-        .flatten();
+        });
 
     tracing::debug!("User ids: {:?}", user_ids);
     tracing::debug!("user ids query: {:?}", query.user_ids.clone());
@@ -143,7 +141,7 @@ async fn export_members_with_roles(
     // Write CSV to a string buffer
     let mut wtr = WriterBuilder::new().from_writer(vec![]);
     for record in members {
-        wtr.write_record(&record.to_csv_row())
+        wtr.write_record(record.to_csv_row())
             .map_err(|_| ApiError::InternalServerError)?; 
     }
     let csv_data = wtr
@@ -179,13 +177,12 @@ async fn export_members_with_roles(
 
 #[debug_handler]
 async fn get_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> ApiResult<Json<Member>> {
     let member = state
         .member_service
-        .get_member_with_user(user_id, user_info.unwrap().access_token)
+        .get_member_with_user(user_id)
         .await
         .map(Json)?;
 
@@ -208,14 +205,13 @@ async fn get_member_roles(
 
 #[debug_handler]
 async fn update_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
 ) -> ApiResult<Json<Member>> {
     let result = state
         .member_service
-        .update_member(updated_member, user_info.unwrap().access_token)
+        .update_member(updated_member)
         .await
         .map(Json)?;
 
@@ -224,16 +220,15 @@ async fn update_member(
 
 #[debug_handler]
 async fn delete_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> ApiResult<()> {
-    let result = state
+    state
         .member_service
-        .delete_member(user_id, user_info.unwrap().access_token)
+        .delete_member(user_id)
         .await?;
 
-    Ok(result)
+    Ok(())
 }
 
 #[derive(Deserialize, TS)]
@@ -243,16 +238,15 @@ struct DeleteManyBody {
 }
 
 async fn delete_many(
-    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(query): Json<DeleteManyBody>,
 ) -> ApiResult<()> {
-    let result = state
+    state
         .member_service
-        .delete_many(query.ids, user_info.unwrap().access_token)
+        .delete_many(query.ids)
         .await?;
 
-    Ok(result)
+    Ok(())
 }
 
 #[derive(Deserialize, TS)]
@@ -269,12 +263,12 @@ async fn add_role(
     Path((user_id,)): Path<(Uuid,)>,
     Json(query): Json<RoleMemberBody>,
 ) -> ApiResult<()> {
-    let result = state
+    state
         .role_service
         .add_role_member(user_id, &query.role_name, query.valid_from, query.valid_until)
         .await?;
 
-    Ok(result)
+    Ok(())
 }
 
 #[derive(Deserialize, TS)]
@@ -291,10 +285,10 @@ async fn add_many_roles(
     State(state): State<AppState>,
     Json(query): Json<AddManyRolesBody>,
 ) -> ApiResult<()> {
-    let result = state
+    state
         .role_service
         .add_many_role_members(query.user_ids, query.role_names, query.valid_from, query.valid_until)
         .await?;
 
-    Ok(result)
+    Ok(())
 }

@@ -26,7 +26,7 @@ impl PostgresRepo {
             application: ApplicationRepo { pool: pool.clone() },
             role: role::RoleRepo { pool: pool.clone() },
             saved_filter: saved_filter::SavedFilterRepo { pool: pool.clone() },
-            user_auth_provider: UserAuthProviderRepo { pool: pool },
+            user_auth_provider: UserAuthProviderRepo { pool },
         }
     }
 }

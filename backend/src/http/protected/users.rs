@@ -30,11 +30,7 @@ async fn get_me(
     State(state): State<AppState>,
 ) -> Result<Json<AuthInfo>, StatusCode> {
     match user_info {
-        Some(user_info) => {
-            return Ok(Json(user_info));
-        }
-        None => {
-            return Err(StatusCode::UNAUTHORIZED);
-        }
+        Some(user_info) => Ok(Json(user_info)),
+        None => Err(StatusCode::UNAUTHORIZED),
     }
 }

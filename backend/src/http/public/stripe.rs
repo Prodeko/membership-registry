@@ -58,8 +58,7 @@ async fn stripe_webhook(
 
             let application_id = match &checkout
                 .client_reference_id
-                .map(|s| Uuid::from_str(s.as_str()).ok())
-                .flatten()
+                .and_then(|s| Uuid::from_str(s.as_str()).ok())
             {
                 Some(id) => *id,
                 None => {

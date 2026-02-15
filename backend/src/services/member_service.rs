@@ -22,7 +22,6 @@ impl MemberService {
     pub async fn create_member(
         &self,
         member_to_add: NewMember,
-        access_token: String,
     ) -> ServiceResult<Member> {
         self.repo
             .create(member_to_add)
@@ -52,7 +51,6 @@ impl MemberService {
     pub async fn get_member_with_user(
         &self,
         id: Uuid,
-        access_token: String,
     ) -> ServiceResult<Member> {
         let auth_providers = self
             .auth0_service
@@ -66,7 +64,7 @@ impl MemberService {
         }
 
         let primary_provider = &auth_providers[0];
-        let auth0_user_id = format!("{}|{}", primary_provider.provider_name, primary_provider.provider_user_id.split('|').last().unwrap_or(&primary_provider.provider_user_id));
+        let auth0_user_id = format!("{}|{}", primary_provider.provider_name, primary_provider.provider_user_id.split('|').next_back().unwrap_or(&primary_provider.provider_user_id));
 
         let user = self
             .auth0_service
@@ -91,7 +89,6 @@ impl MemberService {
     pub async fn update_member(
         &self,
         updated_member: Member,
-        access_token: String,
     ) -> ServiceResult<Member> {
         let auth_providers = self
             .auth0_service
@@ -136,7 +133,7 @@ impl MemberService {
             .map_err(|e| e.into())
     }
 
-    pub async fn delete_member(&self, id: Uuid, access_token: String) -> ServiceResult<()> {
+    pub async fn delete_member(&self, id: Uuid) -> ServiceResult<()> {
         let auth_providers = self
             .auth0_service
             .repo
@@ -153,7 +150,7 @@ impl MemberService {
         self.repo.delete(id).await.map_err(|e| e.into())
     }
 
-    pub async fn delete_many(&self, ids: Vec<Uuid>, access_token: String) -> ServiceResult<()> {
+    pub async fn delete_many(&self, ids: Vec<Uuid>) -> ServiceResult<()> {
         for id in &ids {
             let auth_providers = self
                 .auth0_service
@@ -172,6 +169,7 @@ impl MemberService {
         self.repo.delete_many(ids).await.map_err(|e| e.into())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_members_with_roles(
         &self,
         page_size: Option<u64>,

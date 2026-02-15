@@ -13,7 +13,7 @@ use envconfig::Envconfig;
 use http::serve;
 use repositories::PostgresRepo;
 use services::Services;
-use sqlx;
+
 
 use helpers::create_pg_pool;
 

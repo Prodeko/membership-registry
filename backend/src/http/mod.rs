@@ -35,7 +35,7 @@ pub struct AppState {
 }
 
 pub async fn serve(config: Config, services: Services) {
-    let port = config.port.clone();
+    let port = config.port;
 
     let oauth2_client = BasicClient::new(
         ClientId::new(config.auth0_client_id.clone()),

@@ -58,11 +58,9 @@ async fn get_me(
                 .await
                 .map(Json)?;
 
-            return Ok(member);
+            Ok(member)
         }
-        None => {
-            return Err(ApiError::Unauthorized);
-        }
+        None => Err(ApiError::Unauthorized),
     }
 }
 
@@ -82,14 +80,13 @@ async fn get_member_roles(
 
 #[debug_handler]
 async fn update_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
 ) -> ApiResult<Json<Member>> {
     let member = state
         .member_service
-        .update_member(updated_member, user_info.unwrap().access_token)
+        .update_member(updated_member)
         .await
         .map(Json)?;
 
@@ -113,7 +110,7 @@ async fn post_member(
 
     let member = state
         .member_service
-        .create_member(new_member, user_info.access_token)
+        .create_member(new_member)
         .await
         .map(Json)?;
 

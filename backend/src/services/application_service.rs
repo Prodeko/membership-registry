@@ -143,7 +143,6 @@ impl ApplicationService {
                 Some(application.valid_until),
             )
             .await
-            .map_err(|e| e.into())
     }
 
     pub async fn delete_application(&self, application_id: Uuid) -> ServiceResult<()> {

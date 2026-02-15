@@ -46,7 +46,7 @@ pub async fn check_permission(
 
     let has_access = state
         .auth0_service
-        .is_admin(userinfo.user_id.clone())
+        .is_admin(userinfo.user_id)
         .await
         .unwrap_or(false);
     if has_access {
@@ -71,7 +71,7 @@ pub async fn check_member_access(
         Some(userinfo) => {
             let is_admin = state
                 .auth0_service
-                .is_admin(userinfo.user_id.clone())
+                .is_admin(userinfo.user_id)
                 .await
                 .unwrap_or(false);
 
