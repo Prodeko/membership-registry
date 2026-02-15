@@ -26,12 +26,12 @@ pub async fn check_auth(
                 next.run(req).await
             }
             Err(e) => {
-                println!("Error fetching userinfo {:?}", e);
+                tracing::error!("Error fetching userinfo {:?}", e);
                 StatusCode::UNAUTHORIZED.into_response()
             },
         }
     } else {
-        println!("No access token in cookie");
+        tracing::warn!("No access token in cookie");
         StatusCode::UNAUTHORIZED.into_response()
     }
 }
@@ -75,7 +75,7 @@ pub async fn check_member_access(
                 .await
                 .unwrap_or(false);
 
-            println!("Is admin: {}", is_admin);
+            tracing::debug!("Is admin: {}", is_admin);
 
             if !(is_admin || userinfo.user_id == user_id) {
                 return StatusCode::FORBIDDEN.into_response();
@@ -84,7 +84,7 @@ pub async fn check_member_access(
             next.run(req).await
         }
         None => {
-            println!("No userinfo!");
+            tracing::warn!("No userinfo!");
             StatusCode::UNAUTHORIZED.into_response()
         }
     }

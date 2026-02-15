@@ -78,7 +78,7 @@ pub async fn serve(config: Config, services: Services) {
         .await
         .unwrap();
 
-    println!("Listening on port {}", port);
+    tracing::info!("Listening on port {}", port);
     axum::serve(listener, app).await.unwrap();
 }
 

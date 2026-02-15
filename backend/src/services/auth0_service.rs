@@ -165,23 +165,23 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to fetch Auth0 management token: {:?}", e);
+                tracing::error!("Failed to fetch Auth0 management token: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            println!("Auth0 management token request returned error {}: {}", status, body);
+            tracing::error!("Auth0 management token request returned error {}: {}", status, body);
             return Err(ServiceError::Auth0Error);
         }
 
         let token_response: Auth0TokenResponse = response.json().await.map_err(|e| {
-            println!("Failed to parse Auth0 token response: {:?}", e);
+            tracing::error!("Failed to parse Auth0 token response: {:?}", e);
             ServiceError::Auth0Error
         })?;
 
-        println!(
+        tracing::info!(
             "Auth0 management token refreshed, expires in {} seconds",
             token_response.expires_in
         );
@@ -214,17 +214,17 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to fetch userinfo from Auth0: {:?}", e);
+                tracing::error!("Failed to fetch userinfo from Auth0: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
-            println!("Auth0 userinfo returned error: {}", response.status());
+            tracing::error!("Auth0 userinfo returned error: {}", response.status());
             return Err(ServiceError::Auth0Error);
         }
 
         let user_info: Auth0UserInfo = response.json().await.map_err(|e| {
-            println!("Failed to parse Auth0 userinfo response: {:?}", e);
+            tracing::error!("Failed to parse Auth0 userinfo response: {:?}", e);
             ServiceError::Auth0Error
         })?;
 
@@ -236,7 +236,7 @@ impl Auth0Service {
             .find_by_provider(&provider_name, &provider_user_id)
             .await
             .map_err(|e| {
-                println!("Database error finding auth provider: {:?}", e);
+                tracing::error!("Database error finding auth provider: {:?}", e);
                 ServiceError::DatabaseError
             })?;
 
@@ -249,7 +249,7 @@ impl Auth0Service {
                     .create(&new_user_id, &provider_name, &provider_user_id, None)
                     .await
                     .map_err(|e| {
-                        println!("Failed to create auth provider mapping: {:?}", e);
+                        tracing::error!("Failed to create auth provider mapping: {:?}", e);
                         ServiceError::DatabaseError
                     })?;
                 new_user_id
@@ -284,17 +284,17 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to fetch user from Auth0: {:?}", e);
+                tracing::error!("Failed to fetch user from Auth0: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
-            println!("Auth0 get user returned error: {}", response.status());
+            tracing::error!("Auth0 get user returned error: {}", response.status());
             return Err(ServiceError::Auth0Error);
         }
 
         response.json().await.map_err(|e| {
-            println!("Failed to parse Auth0 user response: {:?}", e);
+            tracing::error!("Failed to parse Auth0 user response: {:?}", e);
             ServiceError::Auth0Error
         })
     }
@@ -327,19 +327,19 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to create user in Auth0: {:?}", e);
+                tracing::error!("Failed to create user in Auth0: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            println!("Auth0 create user returned error {}: {}", status, body);
+            tracing::error!("Auth0 create user returned error {}: {}", status, body);
             return Err(ServiceError::Auth0Error);
         }
 
         let user: Auth0User = response.json().await.map_err(|e| {
-            println!("Failed to parse Auth0 create user response: {:?}", e);
+            tracing::error!("Failed to parse Auth0 create user response: {:?}", e);
             ServiceError::Auth0Error
         })?;
 
@@ -351,7 +351,7 @@ impl Auth0Service {
             .create(&internal_user_id, &provider_name, &provider_user_id, None)
             .await
             .map_err(|e| {
-                println!("Failed to create auth provider mapping: {:?}", e);
+                tracing::error!("Failed to create auth provider mapping: {:?}", e);
                 ServiceError::DatabaseError
             })?;
 
@@ -388,12 +388,12 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to update user in Auth0: {:?}", e);
+                tracing::error!("Failed to update user in Auth0: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
-            println!("Auth0 update user returned error: {}", response.status());
+            tracing::error!("Auth0 update user returned error: {}", response.status());
             return Err(ServiceError::Auth0Error);
         }
 
@@ -411,12 +411,12 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to delete user in Auth0: {:?}", e);
+                tracing::error!("Failed to delete user in Auth0: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
-            println!("Auth0 delete user returned error: {}", response.status());
+            tracing::error!("Auth0 delete user returned error: {}", response.status());
             return Err(ServiceError::Auth0Error);
         }
 
@@ -434,7 +434,7 @@ impl Auth0Service {
             .find_by_user_id(&user_id)
             .await
             .map_err(|e| {
-                println!("Failed to find auth providers for user: {:?}", e);
+                tracing::error!("Failed to find auth providers for user: {:?}", e);
                 ServiceError::DatabaseError
             })?;
 
@@ -470,12 +470,12 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to fetch user roles from Auth0: {:?}", e);
+                tracing::error!("Failed to fetch user roles from Auth0: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
-            println!("Auth0 get roles returned error: {}", response.status());
+            tracing::error!("Auth0 get roles returned error: {}", response.status());
             return Err(ServiceError::Auth0Error);
         }
 
@@ -485,7 +485,7 @@ impl Auth0Service {
         }
 
         let roles: Vec<Role> = response.json().await.map_err(|e| {
-            println!("Failed to parse Auth0 roles response: {:?}", e);
+            tracing::error!("Failed to parse Auth0 roles response: {:?}", e);
             ServiceError::Auth0Error
         })?;
 
@@ -507,12 +507,12 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to fetch roles from Auth0: {:?}", e);
+                tracing::error!("Failed to fetch roles from Auth0: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
-            println!("Auth0 get roles returned error: {}", response.status());
+            tracing::error!("Auth0 get roles returned error: {}", response.status());
             return Err(ServiceError::Auth0Error);
         }
 
@@ -523,7 +523,7 @@ impl Auth0Service {
         }
 
         let roles: Vec<Auth0Role> = response.json().await.map_err(|e| {
-            println!("Failed to parse Auth0 roles response: {:?}", e);
+            tracing::error!("Failed to parse Auth0 roles response: {:?}", e);
             ServiceError::Auth0Error
         })?;
 
@@ -547,7 +547,7 @@ impl Auth0Service {
             .get_role_id(role_name)
             .await?
             .ok_or_else(|| {
-                println!("Auth0 role '{}' not found", role_name);
+                tracing::warn!("Auth0 role '{}' not found", role_name);
                 ServiceError::NotFound
             })?;
 
@@ -566,14 +566,14 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to assign role in Auth0: {:?}", e);
+                tracing::error!("Failed to assign role in Auth0: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            println!("Auth0 assign role returned error {}: {}", status, body);
+            tracing::error!("Auth0 assign role returned error {}: {}", status, body);
             return Err(ServiceError::Auth0Error);
         }
 
@@ -605,14 +605,14 @@ impl Auth0Service {
             .send()
             .await
             .map_err(|e| {
-                println!("Failed to remove role in Auth0: {:?}", e);
+                tracing::error!("Failed to remove role in Auth0: {:?}", e);
                 ServiceError::Auth0Error
             })?;
 
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            println!("Auth0 remove role returned error {}: {}", status, body);
+            tracing::error!("Auth0 remove role returned error {}: {}", status, body);
             return Err(ServiceError::Auth0Error);
         }
 
@@ -631,7 +631,7 @@ impl Auth0Service {
             .exists(&user_id, provider_name)
             .await
             .map_err(|e| {
-                println!("Failed to check if provider exists: {:?}", e);
+                tracing::error!("Failed to check if provider exists: {:?}", e);
                 ServiceError::DatabaseError
             })?;
 
@@ -644,7 +644,7 @@ impl Auth0Service {
             .create(&user_id, provider_name, provider_user_id, None)
             .await
             .map_err(|e| {
-                println!("Failed to link provider: {:?}", e);
+                tracing::error!("Failed to link provider: {:?}", e);
                 ServiceError::DatabaseError
             })?;
 
@@ -658,7 +658,7 @@ impl Auth0Service {
             .find_by_user_id(&user_id)
             .await
             .map_err(|e| {
-                println!("Failed to find providers for user: {:?}", e);
+                tracing::error!("Failed to find providers for user: {:?}", e);
                 ServiceError::DatabaseError
             })?;
 
@@ -672,7 +672,7 @@ impl Auth0Service {
             .delete(&user_id, provider_name)
             .await
             .map_err(|e| {
-                println!("Failed to unlink provider: {:?}", e);
+                tracing::error!("Failed to unlink provider: {:?}", e);
                 ServiceError::DatabaseError
             })?;
 

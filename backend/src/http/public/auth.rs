@@ -45,7 +45,7 @@ async fn callback(
     let (code, _state_param) = match (query.get("code"), query.get("state")) {
         (Some(code), Some(state)) => (code.clone(), state.clone()),
         _ => {
-            eprintln!("Missing code or state");
+            tracing::error!("Missing code or state");
             return Err((StatusCode::BAD_REQUEST, "Missing code or state").into_response());
         }
     };
@@ -56,7 +56,7 @@ async fn callback(
         .request_async(oauth2::reqwest::async_http_client)
         .await
         .map_err(|err| {
-            eprintln!("Failed to exchange code: {:?}", err);
+            tracing::error!("Failed to exchange code: {:?}", err);
             (StatusCode::BAD_GATEWAY, "Failed to exchange code").into_response()
         })?;
 
@@ -65,7 +65,7 @@ async fn callback(
         .userinfo(token.access_token().secret().clone())
         .await
         .map_err(|err| {
-            eprintln!("Failed to retrieve user info: {:?}", err);
+            tracing::error!("Failed to retrieve user info: {:?}", err);
             (StatusCode::INTERNAL_SERVER_ERROR, "Failed to retrieve user info").into_response()
         })?;
 

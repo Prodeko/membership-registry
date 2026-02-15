@@ -58,8 +58,8 @@ async fn get_members(
         })
         .flatten();
 
-    println!("User ids: {:?}", user_ids);
-    println!("user ids query: {:?}", query.user_ids.clone());
+    tracing::debug!("User ids: {:?}", user_ids);
+    tracing::debug!("user ids query: {:?}", query.user_ids.clone());
 
     let members = state
         .member_service

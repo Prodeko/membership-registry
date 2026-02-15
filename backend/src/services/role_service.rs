@@ -51,7 +51,7 @@ impl RoleService {
             .find_by_user_id(&user_id)
             .await
             .map_err(|e| {
-                println!("Failed to find auth providers for user: {:?}", e);
+                tracing::error!("Failed to find auth providers for user: {:?}", e);
                 super::errors::ServiceError::DatabaseError
             })?;
 
@@ -130,7 +130,7 @@ impl RoleService {
             .find_by_user_id(&user_id)
             .await
             .map_err(|e| {
-                println!("Failed to find auth providers for user: {:?}", e);
+                tracing::error!("Failed to find auth providers for user: {:?}", e);
                 super::errors::ServiceError::DatabaseError
             })?;
 
@@ -140,7 +140,7 @@ impl RoleService {
                 .remove_role(&provider.provider_user_id, role_name)
                 .await
             {
-                println!("Failed to remove Auth0 role for provider {}: {:?}", provider.provider_user_id, e);
+                tracing::error!("Failed to remove Auth0 role for provider {}: {:?}", provider.provider_user_id, e);
             }
         }
 

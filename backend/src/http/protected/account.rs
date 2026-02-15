@@ -105,7 +105,7 @@ async fn unlink_provider(
         .unlink_provider(user_info.user_id, &path.provider_name)
         .await
         .map_err(|e| {
-            println!("Error unlinking provider: {:?}", e);
+            tracing::error!("Error unlinking provider: {:?}", e);
             ApiError::InternalServerError
         })?;
 

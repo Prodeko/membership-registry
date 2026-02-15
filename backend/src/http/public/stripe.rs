@@ -39,7 +39,7 @@ async fn stripe_webhook(
     ) {
         Ok(event) => event,
         Err(err) => {
-            println!("Invalid signature, {}", err);
+            tracing::warn!("Invalid signature, {}", err);
             return Err(ApiError::Unauthorized);
         }
     };
@@ -49,7 +49,7 @@ async fn stripe_webhook(
             let checkout: CheckoutSession = match event.data.object {
                 EventObject::CheckoutSession(session) => session,
                 _ => {
-                    println!("Unhandled event object");
+                    tracing::warn!("Unhandled event object");
                     return Ok(Json(
                         serde_json::json!({"success": true, "message": "Unhandled event object."}),
                     ));
