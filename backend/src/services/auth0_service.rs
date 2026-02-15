@@ -79,6 +79,7 @@ pub struct Auth0Service {
     pub repo: PostgresRepo,
     userinfo_cache: Cache<String, AuthInfo>,
     admin_cache: Cache<Uuid, bool>,
+    role_id_cache: Cache<String, String>,
 }
 
 impl Auth0Service {
@@ -102,6 +103,10 @@ impl Auth0Service {
             admin_cache: Cache::builder()
                 .max_capacity(1000)
                 .time_to_live(Duration::from_secs(300))
+                .build(),
+            role_id_cache: Cache::builder()
+                .max_capacity(100)
+                .time_to_live(Duration::from_secs(3600))
                 .build(),
         }
     }
@@ -475,6 +480,133 @@ impl Auth0Service {
         })?;
 
         Ok(roles.iter().any(|r| r.name == role_name))
+    }
+
+    async fn get_role_id(&self, role_name: &str) -> ServiceResult<Option<String>> {
+        if let Some(cached) = self.role_id_cache.get(role_name).await {
+            return Ok(Some(cached));
+        }
+
+        let token = self.get_management_token().await?;
+        let url = format!("https://{}/api/v2/roles", self.domain);
+
+        let response = self
+            .client
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to fetch roles from Auth0: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            println!("Auth0 get roles returned error: {}", response.status());
+            return Err(ServiceError::Auth0Error);
+        }
+
+        #[derive(Deserialize)]
+        struct Auth0Role {
+            id: String,
+            name: String,
+        }
+
+        let roles: Vec<Auth0Role> = response.json().await.map_err(|e| {
+            println!("Failed to parse Auth0 roles response: {:?}", e);
+            ServiceError::Auth0Error
+        })?;
+
+        let mut result = None;
+        for role in roles {
+            if role.name == role_name {
+                result = Some(role.id.clone());
+            }
+            self.role_id_cache.insert(role.name, role.id).await;
+        }
+
+        Ok(result)
+    }
+
+    pub async fn assign_role(
+        &self,
+        auth0_user_id: &str,
+        role_name: &str,
+    ) -> ServiceResult<()> {
+        let role_id = self
+            .get_role_id(role_name)
+            .await?
+            .ok_or_else(|| {
+                println!("Auth0 role '{}' not found", role_name);
+                ServiceError::NotFound
+            })?;
+
+        let token = self.get_management_token().await?;
+        let url = format!(
+            "https://{}/api/v2/users/{}/roles",
+            self.domain,
+            Self::encode_user_id(auth0_user_id)
+        );
+
+        let response = self
+            .client
+            .post(&url)
+            .bearer_auth(&token)
+            .json(&serde_json::json!({ "roles": [role_id] }))
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to assign role in Auth0: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            println!("Auth0 assign role returned error {}: {}", status, body);
+            return Err(ServiceError::Auth0Error);
+        }
+
+        Ok(())
+    }
+
+    pub async fn remove_role(
+        &self,
+        auth0_user_id: &str,
+        role_name: &str,
+    ) -> ServiceResult<()> {
+        let role_id = match self.get_role_id(role_name).await? {
+            Some(id) => id,
+            None => return Ok(()),
+        };
+
+        let token = self.get_management_token().await?;
+        let url = format!(
+            "https://{}/api/v2/users/{}/roles",
+            self.domain,
+            Self::encode_user_id(auth0_user_id)
+        );
+
+        let response = self
+            .client
+            .delete(&url)
+            .bearer_auth(&token)
+            .json(&serde_json::json!({ "roles": [role_id] }))
+            .send()
+            .await
+            .map_err(|e| {
+                println!("Failed to remove role in Auth0: {:?}", e);
+                ServiceError::Auth0Error
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            println!("Auth0 remove role returned error {}: {}", status, body);
+            return Err(ServiceError::Auth0Error);
+        }
+
+        Ok(())
     }
 
     pub async fn link_provider(

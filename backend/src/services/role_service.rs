@@ -43,12 +43,30 @@ impl RoleService {
         role_name: &str,
         valid_from: chrono::NaiveDate,
         valid_until: Option<chrono::NaiveDate>,
-        access_token: String,
     ) -> ServiceResult<()> {
+        let providers = self
+            .auth0_service
+            .repo
+            .user_auth_provider
+            .find_by_user_id(&user_id)
+            .await
+            .map_err(|e| {
+                println!("Failed to find auth providers for user: {:?}", e);
+                super::errors::ServiceError::DatabaseError
+            })?;
+
+        for provider in providers {
+            self.auth0_service
+                .assign_role(&provider.provider_user_id, role_name)
+                .await?;
+        }
+
         self.repo
             .create_role_member(&user_id, role_name, valid_from, valid_until)
             .await
-            .map_err(|e| e.into())
+            .map_err(|e| -> super::errors::ServiceError { e.into() })?;
+
+        Ok(())
     }
 
     pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<RoleMember>> {
@@ -71,18 +89,11 @@ impl RoleService {
         role_names: Vec<String>,
         valid_from: chrono::NaiveDate,
         valid_until: Option<chrono::NaiveDate>,
-        access_token: String,
     ) -> ServiceResult<()> {
         for role_name in role_names {
             for user_id in &user_ids {
-                self.add_role_member(
-                    *user_id,
-                    role_name.as_str(),
-                    valid_from,
-                    valid_until,
-                    access_token.clone(),
-                )
-                .await?;
+                self.add_role_member(*user_id, role_name.as_str(), valid_from, valid_until)
+                    .await?;
             }
         }
         Ok(())
@@ -106,12 +117,34 @@ impl RoleService {
         user_id: Uuid,
         role_name: &str,
         valid_from: chrono::NaiveDate,
-        access_token: String,
     ) -> ServiceResult<()> {
         self.repo
             .delete_role_member(&user_id, role_name, valid_from)
             .await
-            .map_err(|e| e.into())
+            .map_err(|e| -> super::errors::ServiceError { e.into() })?;
+
+        let providers = self
+            .auth0_service
+            .repo
+            .user_auth_provider
+            .find_by_user_id(&user_id)
+            .await
+            .map_err(|e| {
+                println!("Failed to find auth providers for user: {:?}", e);
+                super::errors::ServiceError::DatabaseError
+            })?;
+
+        for provider in providers {
+            if let Err(e) = self
+                .auth0_service
+                .remove_role(&provider.provider_user_id, role_name)
+                .await
+            {
+                println!("Failed to remove Auth0 role for provider {}: {:?}", provider.provider_user_id, e);
+            }
+        }
+
+        Ok(())
     }
 
     pub async fn get_role_stats(

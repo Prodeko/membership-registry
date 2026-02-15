@@ -265,20 +265,13 @@ struct RoleMemberBody {
 
 #[debug_handler]
 async fn add_role(
-    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(query): Json<RoleMemberBody>,
 ) -> ApiResult<()> {
     let result = state
         .role_service
-        .add_role_member(
-            user_id,
-            &query.role_name,
-            query.valid_from,
-            query.valid_until,
-            user_info.unwrap().access_token,
-        )
+        .add_role_member(user_id, &query.role_name, query.valid_from, query.valid_until)
         .await?;
 
     Ok(result)
@@ -295,19 +288,12 @@ struct AddManyRolesBody {
 
 #[debug_handler]
 async fn add_many_roles(
-    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(query): Json<AddManyRolesBody>,
 ) -> ApiResult<()> {
     let result = state
         .role_service
-        .add_many_role_members(
-            query.user_ids,
-            query.role_names,
-            query.valid_from,
-            query.valid_until,
-            user_info.unwrap().access_token,
-        )
+        .add_many_role_members(query.user_ids, query.role_names, query.valid_from, query.valid_until)
         .await?;
 
     Ok(result)

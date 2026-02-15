@@ -1,5 +1,5 @@
 use axum::{
-    debug_handler, extract::{Path, Query, State}, routing::{delete, get, post, put}, Extension, Json, Router
+    debug_handler, extract::{Path, Query, State}, routing::{delete, get, post, put}, Json, Router
 };
 use serde::Deserialize;
 use ts_rs::TS;
@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::{
     http::{errors::ApiResult, types::ApplicationPath},
-    repositories::application::{Application, ApplicationStatus, ApplicationWithMember}, services::auth0_service::AuthInfo,
+    repositories::application::{Application, ApplicationStatus, ApplicationWithMember},
 };
 
 use super::AppState;
@@ -76,7 +76,6 @@ struct UpdateApplicationStatus {
 }
 
 async fn update_application_status(
-    Extension(user_info): Extension<Option<AuthInfo>>,
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
     Json(body): Json<UpdateApplicationStatus>,
@@ -86,7 +85,7 @@ async fn update_application_status(
 
     let update = state
         .application_service
-        .update_application_status(application_id, status, user_info.unwrap().access_token)
+        .update_application_status(application_id, status)
         .await
         .map(Json)?;
 

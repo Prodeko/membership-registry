@@ -118,7 +118,6 @@ impl ApplicationService {
         &self,
         application_id: Uuid,
         status: String,
-        access_token: String,
     ) -> ServiceResult<()> {
         if !VALID_STATUSES.contains(&status.as_str()) {
             return Err(E::InvalidStatus);
@@ -142,7 +141,6 @@ impl ApplicationService {
                 application.role_name.as_str(),
                 today,
                 Some(application.valid_until),
-                access_token,
             )
             .await
             .map_err(|e| e.into())
