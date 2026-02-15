@@ -59,6 +59,8 @@ test.describe("User flow", () => {
 
     await page.waitForURL("**/signup");
 
+    await page.getByLabel("First name").fill("Test");
+    await page.getByLabel("Last name").fill("User");
     await page.getByRole("combobox", { name: "Home municipality" }).click();
     await page.getByPlaceholder("Search region...").fill("helsin");
     await page.getByRole("option", { name: "Helsinki" }).click();

@@ -15,9 +15,12 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Card } from "../ui/card";
 import { Checkbox } from "../ui/checkbox";
+import { Input } from "../ui/input";
 import MunicipalitySelect from "./MunicipalitySelect";
 
 const formSchema = z.object({
+  first_name: z.string().min(1, "First name is required"),
+  last_name: z.string().min(1, "Last name is required"),
   home_municipality: z.enum([...FINNISH_MUNICIPALITIES, ...COUNTRIES]),
   has_accepted_policies: z.boolean({
     required_error: "You must accept the policies",
@@ -30,6 +33,8 @@ const SignupForm = () => {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      first_name: "",
+      last_name: "",
       home_municipality: "Espoo",
       has_accepted_policies: false,
     },
@@ -42,7 +47,7 @@ const SignupForm = () => {
     if (me === undefined) {
       throw Error("User not defined! Login or signup")
     }
-    createMember({...values, ...me}, {
+    createMember({...me, ...values}, {
       onSuccess: () => {
         window.location.href = '/application-form';
       },
@@ -55,6 +60,32 @@ const SignupForm = () => {
         <h1 className="text-4xl">Signup form</h1>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="first_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>First name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="last_name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Last name</FormLabel>
+                  <FormControl>
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="home_municipality"
