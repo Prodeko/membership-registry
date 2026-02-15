@@ -18,16 +18,20 @@ function sql(query: string) {
 }
 
 test.describe("User flow", () => {
-  function cleanupTestUser() {
+  function cleanup() {
     const email = process.env.E2E_USER_EMAIL!;
     sql(
       `DELETE FROM application WHERE user_id IN (SELECT user_id FROM member WHERE email = '${email}')`,
     );
     sql(`DELETE FROM member WHERE email = '${email}'`);
+    sql(
+      `DELETE FROM applicationtargetablerole WHERE role_name = '${ROLE_NAME}'`,
+    );
+    sql(`DELETE FROM role WHERE name = '${ROLE_NAME}'`);
   }
 
   test.beforeAll(() => {
-    cleanupTestUser();
+    cleanup();
 
     // Ensure the e2e test role and targetable role exist
     sql(
@@ -39,7 +43,7 @@ test.describe("User flow", () => {
   });
 
   test.afterAll(() => {
-    cleanupTestUser();
+    cleanup();
   });
 
   test("signup and submit application", async ({ page }) => {
