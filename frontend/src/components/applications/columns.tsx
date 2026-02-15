@@ -167,7 +167,7 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
                 <DollarSignIcon className="w-4 h-4 ml-2" />
               </DropdownMenuItem>
             )}
-            {application.status === "pending"  || application.status === "unpaid" && (
+            {(application.status === "pending"  || application.status === "unpaid") && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

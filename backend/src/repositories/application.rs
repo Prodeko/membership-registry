@@ -309,7 +309,7 @@ impl ApplicationRepo {
         stripe_payment_id: String,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
-            "UPDATE Application SET stripe_payment_id = $2 WHERE application_id = $1",
+            "UPDATE Application SET stripe_payment_id = $2, status = 'pending' WHERE application_id = $1",
             application_id,
             stripe_payment_id
         )
