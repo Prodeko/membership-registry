@@ -320,11 +320,14 @@ export interface OauthCallbackParams {
   code: string;
   state: string;
 }
+interface CallbackResponse {
+  redirect_to: string;
+}
 export const useOauthCallback = (params: OauthCallbackParams) => {
-  return useQuery({
+  return useQuery<CallbackResponse>({
     queryKey: [QueryKey.OAUTH],
     queryFn: async () => {
-      const response = await axios_client.get("/auth/callback", {
+      const response = await axios_client.get<CallbackResponse>("/auth/callback", {
         params,
       });
       return response.data;

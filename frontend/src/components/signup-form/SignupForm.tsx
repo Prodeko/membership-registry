@@ -42,7 +42,11 @@ const SignupForm = () => {
     if (me === undefined) {
       throw Error("User not defined! Login or signup")
     }
-    createMember({...values, ...me})
+    createMember({...values, ...me}, {
+      onSuccess: () => {
+        window.location.href = '/application-form';
+      },
+    })
   };
 
   return (

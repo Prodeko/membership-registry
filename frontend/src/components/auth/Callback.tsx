@@ -1,4 +1,3 @@
-// Callback.js
 import { useOauthCallback } from '@/lib/api';
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
@@ -12,11 +11,10 @@ const Callback = () => {
 
   useEffect(() => {
     if (data) {
-      // TODO redirect dynamically
-      window.location.href = '/';
+      window.location.href = data.redirect_to;
     } else if (error) {
       console.error('Error during OAuth callback:', error);
-    } 
+    }
   }, [data, error]);
 
   return <div>Loading...</div>;

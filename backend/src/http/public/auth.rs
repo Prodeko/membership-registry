@@ -1,12 +1,16 @@
-use axum::{extract::State, response::Redirect, routing::get, Json, Router};
+use axum::{extract::State, http::StatusCode, response::{IntoResponse, Redirect, Response}, routing::get, Json, Router};
 use axum_extra::extract::CookieJar;
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
-use reqwest::Client;
-use serde_json::Value;
+use serde::Serialize;
 
 use crate::helpers::set_session_cookie;
 
 use super::AppState;
+
+#[derive(Serialize)]
+struct CallbackResponse {
+    redirect_to: String,
+}
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
@@ -37,41 +41,40 @@ async fn callback(
     State(state): State<AppState>,
     query: axum::extract::Query<std::collections::HashMap<String, String>>,
     jar: CookieJar,
-) -> (CookieJar, Json<String>) {
-    println!("Running callback");
-    if let (Some(code), Some(_state_param)) = (query.get("code"), query.get("state")) {
-        println!("Code: {}", code);
-        let token_result = state
-            .oauth2_client
-            .exchange_code(AuthorizationCode::new(code.clone()))
-            .request_async(oauth2::reqwest::async_http_client)
-            .await;
-        println!("Token result: {:?}", token_result);
-
-        match token_result {
-            Ok(token) => {
-                let userinfo = state
-                    .auth0_service
-                    .userinfo(token.access_token().secret().clone())
-                    .await;
-                match userinfo {
-                    Ok(response) => {
-                        let jar = set_session_cookie(&jar, token.access_token().secret());
-                        return (jar, Json(token.access_token().secret().to_string()));
-                    }
-                    Err(err) => {
-                        eprintln!("Failed to retrieve user info: {:?}", err);
-                        return (jar, Json("Error: Failed to retrieve user info".to_string()));
-                    }
-                }
-            }
-            Err(err) => {
-                eprintln!("Failed to exchange code: {:?}", err);
-                (jar, Json(format!("Error: {:?}", err)))
-            }
+) -> Result<(CookieJar, Json<CallbackResponse>), Response> {
+    let (code, _state_param) = match (query.get("code"), query.get("state")) {
+        (Some(code), Some(state)) => (code.clone(), state.clone()),
+        _ => {
+            eprintln!("Missing code or state");
+            return Err((StatusCode::BAD_REQUEST, "Missing code or state").into_response());
         }
-    } else {
-        println!("Missing code or state");
-        (jar, Json("Missing code or state".to_string()))
-    }
+    };
+
+    let token = state
+        .oauth2_client
+        .exchange_code(AuthorizationCode::new(code))
+        .request_async(oauth2::reqwest::async_http_client)
+        .await
+        .map_err(|err| {
+            eprintln!("Failed to exchange code: {:?}", err);
+            (StatusCode::BAD_GATEWAY, "Failed to exchange code").into_response()
+        })?;
+
+    let user_info = state
+        .auth0_service
+        .userinfo(token.access_token().secret().clone())
+        .await
+        .map_err(|err| {
+            eprintln!("Failed to retrieve user info: {:?}", err);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to retrieve user info").into_response()
+        })?;
+
+    let jar = set_session_cookie(&jar, token.access_token().secret());
+
+    let redirect_to = match state.member_service.get_member(user_info.user_id).await {
+        Ok(_) => "/".to_string(),
+        Err(_) => "/signup".to_string(),
+    };
+
+    Ok((jar, Json(CallbackResponse { redirect_to })))
 }

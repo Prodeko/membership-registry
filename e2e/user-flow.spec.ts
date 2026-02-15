@@ -21,10 +21,30 @@ test.describe("User flow", () => {
       .fill(process.env.E2E_USER_PASSWORD!);
     await page.getByRole("button", { name: "Continue" }).click();
 
-    // 3. Auth0 redirects → /auth/callback → sets cookie → redirects to /
-    //    Non-admin user will land on / then get bounced to an error page,
-    //    or may already be redirected elsewhere. Either way, we wait for
-    //    the app to settle, then navigate to signup.
-    await page.waitForURL("http://127.0.0.1:5173/**", { timeout: 15000 });
+    // 3. Auth0 redirects → /auth/callback → backend checks member record
+    //    → no member exists → redirects to /signup
+    await page.waitForURL("**/signup");
+
+    await page.getByRole("combobox", { name: "Home municipality" }).click();
+    await page.getByPlaceholder("Search region...").fill("helsin");
+    await page.getByRole("option", { name: "Helsinki" }).click();
+    await page
+      .getByRole("checkbox", { name: "I have read and accept the" })
+      .click();
+    await page.getByRole("button", { name: "Submit" }).click();
+
+    await page.waitForURL("**/application-form");
+    await page.getByRole("combobox", { name: "Membership type" }).click();
+    await page
+      .getByRole("option", { name: "Test (Valid until 2/17/2026)" })
+      .click();
+    await page.getByRole("textbox", { name: "Application text" }).click();
+    await page
+      .getByRole("textbox", { name: "Application text" })
+      .fill("Haluaisin kovasti osaksi tätä yhteisöä");
+    await page.getByRole("button", { name: "Submit application" }).click();
+
+    await page.waitForURL("**/application-form/success");
+    await expect(page.getByRole("heading")).toContainText("Success");
   });
 });
