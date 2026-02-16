@@ -84,6 +84,14 @@ async fn link_provider(
         .await
         .map_err(|_| ApiError::InternalServerError)?;
 
+    state.audit_log_service.log(
+        Some(user_info.user_id),
+        "auth_provider.link",
+        "auth_provider",
+        &user_info.user_id.to_string(),
+        Some(serde_json::json!({ "provider_name": request.provider_name })),
+    ).await;
+
     Ok((StatusCode::CREATED, "Provider linked successfully"))
 }
 
@@ -108,6 +116,14 @@ async fn unlink_provider(
             tracing::error!("Error unlinking provider: {:?}", e);
             ApiError::InternalServerError
         })?;
+
+    state.audit_log_service.log(
+        Some(user_info.user_id),
+        "auth_provider.unlink",
+        "auth_provider",
+        &user_info.user_id.to_string(),
+        Some(serde_json::json!({ "provider_name": path.provider_name })),
+    ).await;
 
     Ok((StatusCode::OK, "Provider unlinked successfully"))
 }

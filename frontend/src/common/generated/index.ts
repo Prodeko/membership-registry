@@ -1,4 +1,7 @@
 export type { AddManyRolesBody } from "./AddManyRolesBody";
+export type { AuditLogEntry } from "./AuditLogEntry";
+export type { AuditLogEntryWithActor } from "./AuditLogEntryWithActor";
+export type { AuditLogQueryParams } from "./AuditLogQueryParams";
 export type { Application } from "./Application";
 export type { ApplicationPath } from "./ApplicationPath";
 export type { ApplicationStatus } from "./ApplicationStatus";

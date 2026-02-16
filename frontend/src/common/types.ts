@@ -4,6 +4,7 @@ export type {
   ApplicationStatus,
   ApplicationTargetableRole,
   ApplicationWithMember,
+  AuditLogEntryWithActor,
   AuthInfo,
   CreateApplicationResponse,
   Member,

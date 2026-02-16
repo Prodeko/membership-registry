@@ -87,5 +87,13 @@ async fn callback(
         Err(_) => "/signup".to_string(),
     };
 
+    state.audit_log_service.log(
+        Some(user_info.user_id),
+        "auth.login",
+        "auth",
+        &user_info.user_id.to_string(),
+        Some(serde_json::json!({ "provider": user_info.provider_name })),
+    ).await;
+
     Ok((jar, Json(CallbackResponse { redirect_to })))
 }

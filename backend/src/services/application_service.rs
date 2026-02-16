@@ -13,6 +13,7 @@ use serde_with::serde_as;
 use uuid::Uuid;
 
 use super::{
+    audit_log_service::AuditLogService,
     errors::{ServiceError as E, ServiceResult},
     role_service::RoleService,
 };
@@ -22,16 +23,18 @@ const VALID_STATUSES: [&str; 4] = ["unpaid", "pending", "approved", "rejected"];
 pub struct ApplicationService {
     pub repo: ApplicationRepo,
     pub role_service: RoleService,
+    pub audit_log: AuditLogService,
 }
 
 impl ApplicationService {
-    pub fn new(repo: ApplicationRepo, role_service: RoleService) -> Self {
-        Self { repo, role_service }
+    pub fn new(repo: ApplicationRepo, role_service: RoleService, audit_log: AuditLogService) -> Self {
+        Self { repo, role_service, audit_log }
     }
 
     pub async fn create_application(
         &self,
         new_application: NewApplication,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Application> {
         let cloned_application = new_application.clone();
         let old_application = self
@@ -70,7 +73,7 @@ impl ApplicationService {
             }
         }
 
-        let result = self
+        let application = self
             .repo
             .create(
                 new_application.user_id,
@@ -80,9 +83,21 @@ impl ApplicationService {
                 new_application.optional_roles,
                 status.clone(),
             )
-            .await;
+            .await
+            .map_err(|e| -> E { e.into() })?;
 
-        result.map_err(|e| e.into())
+        self.audit_log.log(
+            actor_user_id,
+            "application.create",
+            "application",
+            &application.application_id.to_string(),
+            Some(serde_json::json!({
+                "role_name": application.role_name,
+                "status": status,
+            })),
+        ).await;
+
+        Ok(application)
     }
 
     pub async fn get_all_applications(&self) -> ServiceResult<Vec<Application>> {
@@ -128,12 +143,14 @@ impl ApplicationService {
         &self,
         application_id: Uuid,
         status: String,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         if !VALID_STATUSES.contains(&status.as_str()) {
             return Err(E::InvalidStatus);
         }
 
         let application = self.get_application(application_id).await?;
+        let old_status = application.status.clone();
 
         if let Some(ref app_status) = application.status {
             if app_status != "pending" && app_status != "unpaid" {
@@ -141,7 +158,7 @@ impl ApplicationService {
             }
         }
 
-        self.repo.update_status(application_id, status).await?;
+        self.repo.update_status(application_id, status.clone()).await?;
 
         let today = Local::now().naive_local().date();
 
@@ -151,12 +168,36 @@ impl ApplicationService {
                 application.role_name.as_str(),
                 today,
                 Some(application.valid_until),
+                actor_user_id,
             )
-            .await
+            .await?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "application.update_status",
+            "application",
+            &application_id.to_string(),
+            Some(serde_json::json!({
+                "old_status": old_status,
+                "new_status": status,
+            })),
+        ).await;
+
+        Ok(())
     }
 
-    pub async fn delete_application(&self, application_id: Uuid) -> ServiceResult<()> {
-        self.repo.delete(application_id).await.map_err(|e| e.into())
+    pub async fn delete_application(&self, application_id: Uuid, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
+        self.repo.delete(application_id).await.map_err(|e| -> E { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "application.delete",
+            "application",
+            &application_id.to_string(),
+            None,
+        ).await;
+
+        Ok(())
     }
 
     pub async fn create_targetable_role(
@@ -165,11 +206,22 @@ impl ApplicationService {
         valid_until: chrono::NaiveDate,
         active: Option<bool>,
         payment_link: Option<String>,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         self.repo
-            .create_targetable_role(role_name, valid_until, active, payment_link)
+            .create_targetable_role(role_name.clone(), valid_until, active, payment_link)
             .await
-            .map_err(|e| e.into())
+            .map_err(|e| -> E { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "targetable_role.create",
+            "targetable_role",
+            &format!("{}:{}", role_name, valid_until),
+            Some(serde_json::json!({ "role_name": role_name, "valid_until": valid_until.to_string() })),
+        ).await;
+
+        Ok(())
     }
 
     pub async fn fetch_all_targetable_roles(
@@ -186,11 +238,22 @@ impl ApplicationService {
         role_name: String,
         valid_until: chrono::NaiveDate,
         active: Option<bool>,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         self.repo
-            .update_targetable_role(role_name, valid_until, active)
+            .update_targetable_role(role_name.clone(), valid_until, active)
             .await
-            .map_err(|e| e.into())
+            .map_err(|e| -> E { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "targetable_role.update",
+            "targetable_role",
+            &format!("{}:{}", role_name, valid_until),
+            Some(serde_json::json!({ "role_name": role_name, "active": active })),
+        ).await;
+
+        Ok(())
     }
 
     pub async fn get_targetable_role(
@@ -208,11 +271,22 @@ impl ApplicationService {
         &self,
         role_name: String,
         valid_until: chrono::NaiveDate,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         self.repo
-            .delete_targetable_role(role_name, valid_until)
+            .delete_targetable_role(role_name.clone(), valid_until)
             .await
-            .map_err(|e| e.into())
+            .map_err(|e| -> E { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "targetable_role.delete",
+            "targetable_role",
+            &format!("{}:{}", role_name, valid_until),
+            Some(serde_json::json!({ "role_name": role_name, "valid_until": valid_until.to_string() })),
+        ).await;
+
+        Ok(())
     }
 
     pub async fn update_payment_id(
@@ -221,8 +295,18 @@ impl ApplicationService {
         stripe_payment_id: String,
     ) -> ServiceResult<()> {
         self.repo
-            .update_payment_id(application_id, stripe_payment_id)
+            .update_payment_id(application_id, stripe_payment_id.clone())
             .await
-            .map_err(|e| e.into())
+            .map_err(|e| -> E { e.into() })?;
+
+        self.audit_log.log(
+            None,
+            "application.payment_received",
+            "application",
+            &application_id.to_string(),
+            Some(serde_json::json!({ "stripe_payment_id": stripe_payment_id })),
+        ).await;
+
+        Ok(())
     }
 }

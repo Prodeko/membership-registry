@@ -6,6 +6,7 @@ mod test_auth0_roles {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     use crate::repositories::tests::{cleanup_test_db, setup_test_db};
+    use crate::services::audit_log_service::AuditLogService;
     use crate::services::auth0_service::Auth0Service;
     use crate::services::errors::ServiceError;
     use crate::services::member_service::MemberService;
@@ -50,8 +51,9 @@ mod test_auth0_roles {
         // Warm the token cache
         let _ = auth0_service.get_user("warm").await;
 
-        let member_service = MemberService::new(repo.member.clone(), auth0_service.clone());
-        let role_service = RoleService::new(repo.role.clone(), member_service, auth0_service.clone());
+        let audit_log_service = AuditLogService::new(repo.audit_log.clone());
+        let member_service = MemberService::new(repo.member.clone(), auth0_service.clone(), audit_log_service.clone());
+        let role_service = RoleService::new(repo.role.clone(), member_service, auth0_service.clone(), audit_log_service);
 
         (auth0_service, role_service, db_url)
     }
@@ -208,6 +210,7 @@ mod test_auth0_roles {
                 "prodeko-external-member",
                 NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
                 NaiveDate::from_ymd_opt(2099, 1, 1),
+                None,
             )
             .await;
 
@@ -248,6 +251,7 @@ mod test_auth0_roles {
                 "prodeko-external-member",
                 NaiveDate::from_ymd_opt(2026, 1, 1).unwrap(),
                 NaiveDate::from_ymd_opt(2027, 1, 1),
+                None,
             )
             .await;
 
@@ -284,6 +288,7 @@ mod test_auth0_roles {
                 user_uuid(),
                 "prodeko-external-member",
                 NaiveDate::from_ymd_opt(2022, 1, 1).unwrap(),
+                None,
             )
             .await;
 

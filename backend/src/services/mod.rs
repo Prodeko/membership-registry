@@ -1,9 +1,11 @@
 use application_service::ApplicationService;
+use audit_log_service::AuditLogService;
 use member_service::MemberService;
 
 use crate::{config::Config, repositories::PostgresRepo};
 
 pub mod application_service;
+pub mod audit_log_service;
 pub mod auth0_service;
 pub mod errors;
 pub mod member_service;
@@ -20,6 +22,7 @@ pub struct Services {
     pub role_service: role_service::RoleService,
     pub auth0_service: auth0_service::Auth0Service,
     pub saved_filter_service: saved_filter::SavedFilterService,
+    pub audit_log_service: audit_log_service::AuditLogService,
 }
 
 impl Services {
@@ -30,13 +33,15 @@ impl Services {
             config.auth0_management_client_secret,
             repo.clone(),
         );
-        let member_service = MemberService::new(repo.member, auth0_service.clone());
+        let audit_log_service = AuditLogService::new(repo.audit_log);
+        let member_service = MemberService::new(repo.member, auth0_service.clone(), audit_log_service.clone());
         let role_service = role_service::RoleService::new(
             repo.role,
             member_service.clone(),
             auth0_service.clone(),
+            audit_log_service.clone(),
         );
-        let application_service = ApplicationService::new(repo.application, role_service.clone());
+        let application_service = ApplicationService::new(repo.application, role_service.clone(), audit_log_service.clone());
         let saved_filter_service = saved_filter::SavedFilterService::new(repo.saved_filter);
 
         Self {
@@ -45,6 +50,7 @@ impl Services {
             role_service,
             auth0_service,
             saved_filter_service,
+            audit_log_service,
         }
     }
 }

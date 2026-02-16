@@ -5,7 +5,7 @@ use axum::{
     http::{Response, StatusCode},
     response::IntoResponse,
     routing::{delete, get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use csv::WriterBuilder;
 use serde::Deserialize;
@@ -19,6 +19,7 @@ use crate::{
         member::{Member, MemberWithRoles},
         role::RoleMember,
     },
+    services::auth0_service::AuthInfo,
 };
 
 use super::AppState;
@@ -113,9 +114,12 @@ async fn get_members_with_roles(
 
 #[debug_handler]
 async fn export_members_with_roles(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Query(query): Query<MembersWithRolesQuery>,
 ) -> ApiResult<Response<Body>> {
+    let actor_id = user_info.map(|u| u.user_id);
+    state.member_service.log_export(actor_id).await;
     let roles = query.roles.clone().map(|roles| {
         roles
             .split(',')
@@ -205,13 +209,15 @@ async fn get_member_roles(
 
 #[debug_handler]
 async fn update_member(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
 ) -> ApiResult<Json<Member>> {
+    let actor_id = user_info.map(|u| u.user_id);
     let result = state
         .member_service
-        .update_member(updated_member)
+        .update_member(updated_member, actor_id)
         .await
         .map(Json)?;
 
@@ -220,12 +226,14 @@ async fn update_member(
 
 #[debug_handler]
 async fn delete_member(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> ApiResult<()> {
+    let actor_id = user_info.map(|u| u.user_id);
     state
         .member_service
-        .delete_member(user_id)
+        .delete_member(user_id, actor_id)
         .await?;
 
     Ok(())
@@ -238,12 +246,14 @@ struct DeleteManyBody {
 }
 
 async fn delete_many(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(query): Json<DeleteManyBody>,
 ) -> ApiResult<()> {
+    let actor_id = user_info.map(|u| u.user_id);
     state
         .member_service
-        .delete_many(query.ids)
+        .delete_many(query.ids, actor_id)
         .await?;
 
     Ok(())
@@ -259,13 +269,15 @@ struct RoleMemberBody {
 
 #[debug_handler]
 async fn add_role(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(query): Json<RoleMemberBody>,
 ) -> ApiResult<()> {
+    let actor_id = user_info.map(|u| u.user_id);
     state
         .role_service
-        .add_role_member(user_id, &query.role_name, query.valid_from, query.valid_until)
+        .add_role_member(user_id, &query.role_name, query.valid_from, query.valid_until, actor_id)
         .await?;
 
     Ok(())
@@ -282,12 +294,14 @@ struct AddManyRolesBody {
 
 #[debug_handler]
 async fn add_many_roles(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(query): Json<AddManyRolesBody>,
 ) -> ApiResult<()> {
+    let actor_id = user_info.map(|u| u.user_id);
     state
         .role_service
-        .add_many_role_members(query.user_ids, query.role_names, query.valid_from, query.valid_until)
+        .add_many_role_members(query.user_ids, query.role_names, query.valid_from, query.valid_until, actor_id)
         .await?;
 
     Ok(())

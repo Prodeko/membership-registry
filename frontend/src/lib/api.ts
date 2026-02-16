@@ -4,6 +4,7 @@ import {
   ApplicationTargetableRole,
   ApplicationTargetableRolePK,
   ApplicationWithMember,
+  AuditLogEntryWithActor,
   AuthInfo,
   CreateApplicationResponse,
   Member,
@@ -34,6 +35,7 @@ export enum QueryKey {
   ME = "me",
   SAVED_FILTERS = "saved_filters",
   LOGOUT = "logout",
+  AUDIT_LOGS = "audit_logs",
 }
 
 export const axios_client = axios.create({
@@ -489,3 +491,21 @@ export const useLogout = () => {
     },
   });
 };
+
+export function useGetAuditLogs(params: PaginatedQueryParams) {
+  return useQuery<AuditLogEntryWithActor[]>({
+    queryKey: [QueryKey.AUDIT_LOGS, params],
+    queryFn: async () => {
+      const response = await admin_axios_client.get("/audit-logs", {
+        params: {
+          page_size: params.pageSize,
+          offset: params.offset,
+          search: params.search || undefined,
+          action: params.customFilters?.action || undefined,
+          entity_type: params.customFilters?.entity_type || undefined,
+        },
+      });
+      return response.data;
+    },
+  });
+}

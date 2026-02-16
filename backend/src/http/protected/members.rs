@@ -80,13 +80,15 @@ async fn get_member_roles(
 
 #[debug_handler]
 async fn update_member(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
 ) -> ApiResult<Json<Member>> {
+    let actor_id = user_info.map(|u| u.user_id);
     let member = state
         .member_service
-        .update_member(updated_member)
+        .update_member(updated_member, actor_id)
         .await
         .map(Json)?;
 
@@ -110,7 +112,7 @@ async fn post_member(
 
     let member = state
         .member_service
-        .create_member(new_member)
+        .create_member(new_member, Some(user_info.user_id))
         .await
         .map(Json)?;
 

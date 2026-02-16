@@ -7,34 +7,56 @@ use crate::repositories::{
 use futures_util::TryFutureExt;
 use uuid::Uuid;
 
-use super::{auth0_service::Auth0Service, errors::ServiceResult, member_service::MemberService};
+use super::{audit_log_service::AuditLogService, auth0_service::Auth0Service, errors::ServiceResult, member_service::MemberService};
 
 #[derive(Clone)]
 pub struct RoleService {
     pub repo: RoleRepo,
     pub member_service: MemberService,
     pub auth0_service: Auth0Service,
+    pub audit_log: AuditLogService,
 }
 
 impl RoleService {
-    pub fn new(repo: RoleRepo, member_service: MemberService, auth0_service: Auth0Service) -> Self {
+    pub fn new(repo: RoleRepo, member_service: MemberService, auth0_service: Auth0Service, audit_log: AuditLogService) -> Self {
         Self {
             repo,
             member_service,
             auth0_service,
+            audit_log,
         }
     }
 
-    pub async fn create_role(&self, new_role: Role) -> ServiceResult<Role> {
-        self.repo.create(new_role).await.map_err(|e| e.into())
+    pub async fn create_role(&self, new_role: Role, actor_user_id: Option<Uuid>) -> ServiceResult<Role> {
+        let role = self.repo.create(new_role).await.map_err(|e| -> super::errors::ServiceError { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "role.create",
+            "role",
+            &role.name,
+            Some(serde_json::json!({ "role_name": role.name })),
+        ).await;
+
+        Ok(role)
     }
 
     pub async fn get_all_roles(&self) -> ServiceResult<Vec<Role>> {
         self.repo.fetch_all().await.map_err(|e| e.into())
     }
 
-    pub async fn delete_role(&self, role_name: &str) -> ServiceResult<()> {
-        self.repo.delete(role_name).await.map_err(|e| e.into())
+    pub async fn delete_role(&self, role_name: &str, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
+        self.repo.delete(role_name).await.map_err(|e| -> super::errors::ServiceError { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "role.delete",
+            "role",
+            role_name,
+            None,
+        ).await;
+
+        Ok(())
     }
 
     pub async fn add_role_member(
@@ -43,6 +65,7 @@ impl RoleService {
         role_name: &str,
         valid_from: chrono::NaiveDate,
         valid_until: Option<chrono::NaiveDate>,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         let providers = self
             .auth0_service
@@ -65,6 +88,19 @@ impl RoleService {
             .create_role_member(&user_id, role_name, valid_from, valid_until)
             .await
             .map_err(|e| -> super::errors::ServiceError { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "role_member.assign",
+            "role_member",
+            &format!("{}:{}", user_id, role_name),
+            Some(serde_json::json!({
+                "user_id": user_id,
+                "role_name": role_name,
+                "valid_from": valid_from.to_string(),
+                "valid_until": valid_until.map(|d| d.to_string()),
+            })),
+        ).await;
 
         Ok(())
     }
@@ -96,10 +132,11 @@ impl RoleService {
         role_names: Vec<String>,
         valid_from: chrono::NaiveDate,
         valid_until: Option<chrono::NaiveDate>,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
-        for role_name in role_names {
+        for role_name in &role_names {
             for user_id in &user_ids {
-                self.add_role_member(*user_id, role_name.as_str(), valid_from, valid_until)
+                self.add_role_member(*user_id, role_name.as_str(), valid_from, valid_until, actor_user_id)
                     .await?;
             }
         }
@@ -112,11 +149,26 @@ impl RoleService {
         role_name: &str,
         valid_from: chrono::NaiveDate,
         new_valid_until: chrono::NaiveDate,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         self.repo
             .update_valid_until(&user_id, role_name, valid_from, new_valid_until)
             .await
-            .map_err(|e| e.into())
+            .map_err(|e| -> super::errors::ServiceError { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "role_member.update",
+            "role_member",
+            &format!("{}:{}", user_id, role_name),
+            Some(serde_json::json!({
+                "user_id": user_id,
+                "role_name": role_name,
+                "new_valid_until": new_valid_until.to_string(),
+            })),
+        ).await;
+
+        Ok(())
     }
 
     pub async fn delete_role_membership(
@@ -124,6 +176,7 @@ impl RoleService {
         user_id: Uuid,
         role_name: &str,
         valid_from: chrono::NaiveDate,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         self.repo
             .delete_role_member(&user_id, role_name, valid_from)
@@ -150,6 +203,17 @@ impl RoleService {
                 tracing::error!("Failed to remove Auth0 role for provider {}: {:?}", provider.provider_user_id, e);
             }
         }
+
+        self.audit_log.log(
+            actor_user_id,
+            "role_member.delete",
+            "role_member",
+            &format!("{}:{}", user_id, role_name),
+            Some(serde_json::json!({
+                "user_id": user_id,
+                "role_name": role_name,
+            })),
+        ).await;
 
         Ok(())
     }

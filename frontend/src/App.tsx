@@ -11,6 +11,7 @@ import Member from "./components/members/Member";
 import Members from "./components/members/Members";
 import Role from "./components/roles/Role";
 import Roles from "./components/roles/Roles";
+import AuditLogs from "./components/audit-logs/AuditLogs";
 import SignupForm from "./components/signup-form/SignupForm";
 import { ThemeProvider } from "./components/theme-provider";
 import Success from "./components/application-form/Success";
@@ -85,6 +86,14 @@ const router = createBrowserRouter([
     element: (
       <Layout>
         <TargetableRoles />
+      </Layout>
+    ),
+  },
+  {
+    path: "/logs",
+    element: (
+      <Layout>
+        <AuditLogs />
       </Layout>
     ),
   },

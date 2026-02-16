@@ -6,27 +6,43 @@ use crate::repositories::member::{Member, MemberRepo, MemberWithRoles, MembersWi
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::{auth0_service::Auth0Service, errors::{ServiceError, ServiceResult}};
+use super::{audit_log_service::AuditLogService, auth0_service::Auth0Service, errors::{ServiceError, ServiceResult}};
 
 #[derive(Clone)]
 pub struct MemberService {
     pub repo: MemberRepo,
     pub auth0_service: Auth0Service,
+    pub audit_log: AuditLogService,
 }
 
 impl MemberService {
-    pub fn new(repo: MemberRepo, auth0_service: Auth0Service) -> Self {
-        Self { repo, auth0_service }
+    pub fn new(repo: MemberRepo, auth0_service: Auth0Service, audit_log: AuditLogService) -> Self {
+        Self { repo, auth0_service, audit_log }
     }
 
     pub async fn create_member(
         &self,
         member_to_add: NewMember,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Member> {
-        self.repo
+        let member = self.repo
             .create(member_to_add)
             .await
-            .map_err(|e| e.into())
+            .map_err(|e| -> ServiceError { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "member.create",
+            "member",
+            &member.user_id.to_string(),
+            Some(serde_json::json!({
+                "email": member.email,
+                "first_name": member.first_name,
+                "last_name": member.last_name,
+            })),
+        ).await;
+
+        Ok(member)
     }
 
     pub async fn get_all_members(&self) -> ServiceResult<Vec<Member>> {
@@ -89,6 +105,7 @@ impl MemberService {
     pub async fn update_member(
         &self,
         updated_member: Member,
+        actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Member> {
         let auth_providers = self
             .auth0_service
@@ -118,7 +135,7 @@ impl MemberService {
             has_accepted_policies: updated_member.has_accepted_policies,
         };
 
-        self.repo
+        let member = self.repo
             .update(as_member, updated_member.user_id, None)
             .await
             .map(|m| Member {
@@ -130,10 +147,24 @@ impl MemberService {
                 home_municipality: m.home_municipality,
                 has_accepted_policies: m.has_accepted_policies,
             })
-            .map_err(|e| e.into())
+            .map_err(|e| -> ServiceError { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "member.update",
+            "member",
+            &member.user_id.to_string(),
+            Some(serde_json::json!({
+                "email": member.email,
+                "first_name": member.first_name,
+                "last_name": member.last_name,
+            })),
+        ).await;
+
+        Ok(member)
     }
 
-    pub async fn delete_member(&self, id: Uuid) -> ServiceResult<()> {
+    pub async fn delete_member(&self, id: Uuid, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
         let auth_providers = self
             .auth0_service
             .repo
@@ -147,10 +178,20 @@ impl MemberService {
                 .await?;
         }
 
-        self.repo.delete(id).await.map_err(|e| e.into())
+        self.repo.delete(id).await.map_err(|e| -> ServiceError { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "member.delete",
+            "member",
+            &id.to_string(),
+            None,
+        ).await;
+
+        Ok(())
     }
 
-    pub async fn delete_many(&self, ids: Vec<Uuid>) -> ServiceResult<()> {
+    pub async fn delete_many(&self, ids: Vec<Uuid>, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
         for id in &ids {
             let auth_providers = self
                 .auth0_service
@@ -166,7 +207,17 @@ impl MemberService {
             }
         }
 
-        self.repo.delete_many(ids).await.map_err(|e| e.into())
+        self.repo.delete_many(ids.clone()).await.map_err(|e| -> ServiceError { e.into() })?;
+
+        self.audit_log.log(
+            actor_user_id,
+            "member.delete_many",
+            "member",
+            "batch",
+            Some(serde_json::json!({ "deleted_member_ids": ids })),
+        ).await;
+
+        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -196,5 +247,15 @@ impl MemberService {
                 },
             )
             .await.map_err(|e| e.into())
+    }
+
+    pub async fn log_export(&self, actor_user_id: Option<Uuid>) {
+        self.audit_log.log(
+            actor_user_id,
+            "member.export_csv",
+            "member",
+            "export",
+            None,
+        ).await;
     }
 }

@@ -70,12 +70,14 @@ struct CreateApplicationResponse {
 
 #[debug_handler]
 async fn post_application(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(new_application): Json<NewApplication>,
 ) -> ApiResult<Json<CreateApplicationResponse>> {
+    let actor_id = user_info.map(|u| u.user_id);
     let application = state
         .application_service
-        .create_application(new_application.clone())
+        .create_application(new_application.clone(), actor_id)
         .await?;
 
     let targetable_role = state

@@ -2,7 +2,7 @@ use axum::{
     debug_handler,
     extract::{Path, Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use ts_rs::TS;
@@ -13,6 +13,7 @@ use crate::{
         member::Member,
         role::{Role, RoleStats},
     },
+    services::auth0_service::AuthInfo,
 };
 
 use super::AppState;
@@ -80,10 +81,12 @@ async fn get_roles_stats(
 
 #[debug_handler]
 async fn post_role(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(new_role): Json<Role>,
 ) -> ApiResult<Json<Role>> {
-    let role = state.role_service.create_role(new_role).await.map(Json)?;
+    let actor_id = user_info.map(|u| u.user_id);
+    let role = state.role_service.create_role(new_role, actor_id).await.map(Json)?;
 
     Ok(role)
 }

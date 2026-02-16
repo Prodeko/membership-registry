@@ -1,5 +1,5 @@
 use axum::{
-    debug_handler, extract::{Path, Query, State}, routing::{delete, get, post, put}, Json, Router
+    debug_handler, extract::{Path, Query, State}, routing::{delete, get, post, put}, Extension, Json, Router
 };
 use serde::Deserialize;
 use ts_rs::TS;
@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::{
     http::{errors::ApiResult, types::ApplicationPath},
     repositories::application::{Application, ApplicationStatus, ApplicationWithMember},
+    services::auth0_service::AuthInfo,
 };
 
 use super::AppState;
@@ -69,14 +70,16 @@ async fn get_applications_filtered(
 }
 
 async fn delete_application(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<()>> {
+    let actor_id = user_info.map(|u| u.user_id);
     let application_id = path.application_id;
 
     let delete = state
         .application_service
-        .delete_application(application_id)
+        .delete_application(application_id, actor_id)
         .await
         .map(Json)?;
 
@@ -90,16 +93,18 @@ struct UpdateApplicationStatus {
 }
 
 async fn update_application_status(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
     Json(body): Json<UpdateApplicationStatus>,
 ) -> ApiResult<Json<()>> {
+    let actor_id = user_info.map(|u| u.user_id);
     let application_id = path.application_id;
     let status = body.status.to_string();
 
     let update = state
         .application_service
-        .update_application_status(application_id, status)
+        .update_application_status(application_id, status, actor_id)
         .await
         .map(Json)?;
 
@@ -115,16 +120,18 @@ struct PostTargetableRole {
 }
 #[debug_handler]
 async fn post_targetable_role(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(body): Json<PostTargetableRole>,
 ) -> ApiResult<Json<()>> {
+    let actor_id = user_info.map(|u| u.user_id);
     let role_name = body.role_name;
     let valid_until = body.valid_until;
     let payment_link = body.payment_link;
 
     let targetable_role = state
         .application_service
-        .create_targetable_role(role_name, valid_until, Some(true), payment_link)
+        .create_targetable_role(role_name, valid_until, Some(true), payment_link, actor_id)
         .await
         .map(Json)?;
 
@@ -140,19 +147,21 @@ struct PutTargetableRole {
 }
 #[debug_handler]
 async fn put_targetable_role(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(body): Json<PutTargetableRole>,
 ) -> ApiResult<Json<()>> {
+    let actor_id = user_info.map(|u| u.user_id);
     let role_name = body.role_name;
     let valid_until = body.valid_until;
     let active = body.active;
 
     let targetable_role = state
         .application_service
-        .update_targetable_role(role_name, valid_until, Some(active))
+        .update_targetable_role(role_name, valid_until, Some(active), actor_id)
         .await
         .map(Json)?;
-    
+
     Ok(targetable_role)
 }
 
@@ -165,14 +174,17 @@ struct DeleteTargetableRoleQuery {
 
 #[debug_handler]
 async fn delete_targetable_role(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Query(query): Query<DeleteTargetableRoleQuery>,
 ) -> ApiResult<Json<()>> {
+    let actor_id = user_info.map(|u| u.user_id);
     let delete = state
         .application_service
         .delete_targetable_role(
             query.role_name,
             query.valid_until,
+            actor_id,
         )
         .await
         .map(Json)?;
