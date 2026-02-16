@@ -85,7 +85,7 @@ pub async fn serve(config: Config, services: Services) {
 
 fn router(state: AppState) -> Router<AppState> {
     index::router()
-        .nest("/api", admin::router(state.clone()))
+        .nest("/api/admin", admin::router(state.clone()))
         .nest("/api", protected::router(state.clone()))
         .nest("/api", public::router(state.clone()))
         .merge(static_files::router())

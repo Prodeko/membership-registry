@@ -54,6 +54,24 @@ axios_client.interceptors.response.use(
   },
 );
 
+export const admin_axios_client = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL + "/admin",
+  headers: {
+    "Content-Type": "application/json",
+  },
+  withCredentials: true,
+});
+
+admin_axios_client.interceptors.response.use(
+  (response: AxiosResponse) => {
+    return response;
+  },
+  (error: AxiosError) => {
+    console.error("Axios error: ", error);
+    window.location.href = `/error/${error.response?.status || "500"}`;
+  },
+);
+
 interface PaginatedQueryParams {
   pageSize: number;
   offset: number;
@@ -70,7 +88,7 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
   return useQuery<MemberWithRoles[]>({
     queryKey: [QueryKey.MEMBERS_WITH_ROLES, params],
     queryFn: async () => {
-      const response = await axios_client.get("/members/roles", {
+      const response = await admin_axios_client.get("/members/roles", {
         params: {
           ...params,
           roles: params.customFilters?.roles?.join(",") || undefined,
@@ -91,17 +109,21 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
 export function useExportMembersWithRoles() {
   return useMutation({
     mutationFn: async (params: PaginatedQueryParams) => {
-      const response = await axios_client.post("/members/roles/export", null, {
-        params: {
-          ...params,
-          roles: params.customFilters?.roles?.join(",") || undefined,
-          valid_from:
-            getDateAsString(params.customFilters?.valid_from) || undefined,
-          valid_until:
-            getDateAsString(params.customFilters?.valid_until) || undefined,
+      const response = await admin_axios_client.post(
+        "/members/roles/export",
+        null,
+        {
+          params: {
+            ...params,
+            roles: params.customFilters?.roles?.join(",") || undefined,
+            valid_from:
+              getDateAsString(params.customFilters?.valid_from) || undefined,
+            valid_until:
+              getDateAsString(params.customFilters?.valid_until) || undefined,
+          },
+          responseType: "blob",
         },
-        responseType: "blob",
-      });
+      );
       return downloadCsv(
         response.data,
         `prodeko_members_${new Date().toISOString()}.csv`,
@@ -114,7 +136,7 @@ export function useGetMembersWithIds(ids: string[]) {
   return useQuery<MemberWithRoles[]>({
     queryKey: [QueryKey.MEMBERS_WITH_IDS, ids],
     queryFn: async () => {
-      const response = await axios_client.get("/members", {
+      const response = await admin_axios_client.get("/members", {
         params: {
           user_ids: ids.join(","),
         },
@@ -150,7 +172,7 @@ export const useGetRoles = () => {
   return useQuery<Role[]>({
     queryKey: [QueryKey.ROLES],
     queryFn: async () => {
-      const response = await axios_client.get<Role[]>("/roles");
+      const response = await admin_axios_client.get<Role[]>("/roles");
       return response.data;
     },
   });
@@ -163,7 +185,7 @@ export const useGetRole = (
   return useQuery<Role>({
     queryKey: [QueryKey.ROLES, roleName],
     queryFn: async () => {
-      const response = await axios_client.get<Role>(
+      const response = await admin_axios_client.get<Role>(
         `/roles/${encodeURIComponent(roleName)}`,
       );
       return response.data;
@@ -179,7 +201,7 @@ export const useGetRoleMembers = (
   return useQuery<Member[]>({
     queryKey: [QueryKey.ROLES, roleName, "members"],
     queryFn: async () => {
-      const response = await axios_client.get<Member[]>(
+      const response = await admin_axios_client.get<Member[]>(
         `/roles/${encodeURIComponent(roleName)}/members`,
       );
       return response.data;
@@ -192,13 +214,16 @@ export const useGetRolesStats = (params: PaginatedQueryParams) => {
   return useQuery<RoleStats[]>({
     queryKey: [QueryKey.ROLES, params],
     queryFn: async () => {
-      const response = await axios_client.get<RoleStats[]>("/roles/stats", {
-        params: {
-          ...params,
-          page_size: params.pageSize,
-          customFilters: undefined,
+      const response = await admin_axios_client.get<RoleStats[]>(
+        "/roles/stats",
+        {
+          params: {
+            ...params,
+            page_size: params.pageSize,
+            customFilters: undefined,
+          },
         },
-      });
+      );
       return response.data;
     },
   });
@@ -207,7 +232,7 @@ export const useGetRolesStats = (params: PaginatedQueryParams) => {
 export const useDeleteMember = () => {
   return useMutation({
     mutationFn: async (id: string) => {
-      await axios_client.delete(`/members/${id}`);
+      await admin_axios_client.delete(`/members/${id}`);
     },
   });
 };
@@ -215,7 +240,7 @@ export const useDeleteMember = () => {
 export const useDeleteManyMembers = () => {
   return useMutation({
     mutationFn: async (ids: string[]) => {
-      await axios_client.delete(`/members`, {
+      await admin_axios_client.delete(`/members`, {
         data: { ids },
       });
     },
@@ -234,7 +259,7 @@ export const useAddMultipleRolesToMembers = () => {
     }
   >({
     mutationFn: async ({ userIds, roleNames, validFrom, validUntil }) => {
-      await axios_client.post("/members/roles", {
+      await admin_axios_client.post("/members/roles", {
         user_ids: userIds,
         role_names: roleNames,
         valid_from: getDateAsString(validFrom),
@@ -253,7 +278,7 @@ export const useCreateRole = () => {
     }
   >({
     mutationFn: async ({ name }) => {
-      await axios_client.post("/roles", {
+      await admin_axios_client.post("/roles", {
         name,
       });
     },
@@ -275,7 +300,7 @@ export const useGetTargetableRoles = () => {
 export const useCreateTargetableRole = () => {
   return useMutation<void, Error, PostTargetableRole>({
     mutationFn: async (targetable_role: PostTargetableRole) => {
-      await axios_client.post(
+      await admin_axios_client.post(
         "/applications/targetable-roles",
         targetable_role,
       );
@@ -286,7 +311,7 @@ export const useCreateTargetableRole = () => {
 export const useDeleteTargetableRole = () => {
   return useMutation<void, Error, ApplicationTargetableRolePK>({
     mutationFn: async (id: ApplicationTargetableRolePK) => {
-      await axios_client.delete(`/applications/targetable-roles`, {
+      await admin_axios_client.delete(`/applications/targetable-roles`, {
         params: {
           role_name: id.role_name,
           valid_until: id.valid_until,
@@ -319,8 +344,8 @@ export const useGetApplication = (
   return useQuery<ApplicationWithMember>({
     queryKey: [QueryKey.APPLICATIONS, id],
     queryFn: async () => {
-      const response = await axios_client.get<ApplicationWithMember>(
-        `/applications/${id}/detail`,
+      const response = await admin_axios_client.get<ApplicationWithMember>(
+        `/applications/${id}`,
       );
       return response.data;
     },
@@ -332,7 +357,7 @@ export const useGetApplications = (params: PaginatedQueryParams) => {
   return useQuery<ApplicationWithMember[]>({
     queryKey: [QueryKey.APPLICATIONS],
     queryFn: async () => {
-      const response = await axios_client.get<ApplicationWithMember[]>(
+      const response = await admin_axios_client.get<ApplicationWithMember[]>(
         "/applications/filter",
         {
           params: {
@@ -362,7 +387,7 @@ export const useGetUserApplications = () => {
 export const useDeleteApplication = () => {
   return useMutation<void, Error, string>({
     mutationFn: async (id: string) => {
-      await axios_client.delete(`/applications/${id}`);
+      await admin_axios_client.delete(`/applications/${id}`);
     },
   });
 };
@@ -370,7 +395,7 @@ export const useDeleteApplication = () => {
 export const useSetApplicationStatus = () => {
   return useMutation<void, Error, { id: string; status: ApplicationStatus }>({
     mutationFn: async ({ id, status }) => {
-      await axios_client.put(`/applications/${id}/status`, { status });
+      await admin_axios_client.put(`/applications/${id}/status`, { status });
     },
   });
 };
@@ -421,7 +446,7 @@ export const useGetSavedFilters = (model: string) => {
   return useQuery<SavedFilter[]>({
     queryKey: [QueryKey.SAVED_FILTERS],
     queryFn: async () => {
-      const response = await axios_client.get("/saved-filters", {
+      const response = await admin_axios_client.get("/saved-filters", {
         params: {
           model,
         },
@@ -434,7 +459,7 @@ export const useGetSavedFilters = (model: string) => {
 export const useCreateSavedFilter = () => {
   return useMutation<void, Error, NewSavedFilter>({
     mutationFn: async (filter) => {
-      await axios_client.post("/saved-filters", filter);
+      await admin_axios_client.post("/saved-filters", filter);
     },
   });
 };
@@ -442,7 +467,7 @@ export const useCreateSavedFilter = () => {
 export const useDeleteSavedFilter = () => {
   return useMutation<void, Error, string>({
     mutationFn: async (name) => {
-      await axios_client.delete(`/saved-filters/${name}`);
+      await admin_axios_client.delete(`/saved-filters/${name}`);
     },
   });
 };

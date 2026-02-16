@@ -16,7 +16,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_applications))
         .route("/filter", get(get_applications_filtered))
-        .route("/:application_id/detail", get(get_application))
+        .route("/:application_id", get(get_application))
         .route("/:application_id", delete(delete_application))
         .route("/:application_id/status", put(update_application_status))
         .route("/targetable-roles", post(post_targetable_role))
