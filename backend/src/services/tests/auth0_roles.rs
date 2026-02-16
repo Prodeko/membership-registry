@@ -5,6 +5,7 @@ mod test_auth0_roles {
     use wiremock::matchers::{body_json, method, path, path_regex};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    use crate::repositories::audit_log::AuditLogQueryParams;
     use crate::repositories::tests::{cleanup_test_db, setup_test_db};
     use crate::services::audit_log_service::AuditLogService;
     use crate::services::auth0_service::Auth0Service;
@@ -56,6 +57,18 @@ mod test_auth0_roles {
         let role_service = RoleService::new(repo.role.clone(), member_service, auth0_service.clone(), audit_log_service);
 
         (auth0_service, role_service, db_url)
+    }
+
+    fn default_query_params() -> AuditLogQueryParams {
+        AuditLogQueryParams {
+            page_size: None,
+            offset: None,
+            action: None,
+            entity_type: None,
+            entity_id: None,
+            actor_user_id: None,
+            search: None,
+        }
     }
 
     fn mock_roles_response() -> serde_json::Value {
@@ -224,6 +237,15 @@ mod test_auth0_roles {
         });
         assert!(has_new_role, "Expected new role membership in DB");
 
+        // Verify audit log entry was written
+        let logs = role_service.audit_log.repo.fetch_paginated(AuditLogQueryParams {
+            action: Some("role_member.assign".to_string()),
+            ..default_query_params()
+        }).await.unwrap();
+        assert!(logs.len() == 1, "Expected one audit log entry for role_member.assign");
+        assert!(logs[0].entity_type == "role_member");
+        assert!(logs[0].entity_id.contains("prodeko-external-member"));
+
         cleanup_test_db(role_service.auth0_service.repo.member.pool, &db_url).await;
     }
 
@@ -260,6 +282,10 @@ mod test_auth0_roles {
         // Verify no new DB row was written
         let roles_after = role_service.get_member_roles(user_uuid()).await.unwrap();
         assert_eq!(roles_before.len(), roles_after.len(), "DB should be unchanged");
+
+        // Verify no audit log entry was written
+        let logs = role_service.audit_log.repo.fetch_paginated(default_query_params()).await.unwrap();
+        assert!(logs.is_empty(), "No audit log should be written when operation fails");
 
         cleanup_test_db(role_service.auth0_service.repo.member.pool, &db_url).await;
     }
@@ -301,6 +327,15 @@ mod test_auth0_roles {
                 && r.valid_from == NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()
         });
         assert!(!still_has_role, "Role membership should be removed from DB");
+
+        // Verify audit log entry was written
+        let logs = role_service.audit_log.repo.fetch_paginated(AuditLogQueryParams {
+            action: Some("role_member.delete".to_string()),
+            ..default_query_params()
+        }).await.unwrap();
+        assert!(logs.len() == 1, "Expected one audit log entry for role_member.delete");
+        assert!(logs[0].entity_type == "role_member");
+        assert!(logs[0].entity_id.contains("prodeko-external-member"));
 
         cleanup_test_db(role_service.auth0_service.repo.member.pool, &db_url).await;
     }

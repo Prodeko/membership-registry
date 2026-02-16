@@ -1,3 +1,4 @@
+mod audit_log;
 mod member;
 mod role;
 

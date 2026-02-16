@@ -17,9 +17,17 @@ function sql(query: string) {
   execSync(`psql "${DB}" -c "${query}"`);
 }
 
+function sqlCount(query: string): number {
+  const out = execSync(`psql "${DB}" -tA -c "${query}"`).toString().trim();
+  return parseInt(out, 10);
+}
+
 test.describe("User flow", () => {
   function cleanup() {
     const email = process.env.E2E_USER_EMAIL!;
+    sql(
+      `DELETE FROM audit_log WHERE actor_user_id IN (SELECT user_id FROM member WHERE email = '${email}')`,
+    );
     sql(
       `DELETE FROM application WHERE user_id IN (SELECT user_id FROM member WHERE email = '${email}')`,
     );
@@ -79,5 +87,22 @@ test.describe("User flow", () => {
 
     await page.waitForURL("**/apply/success");
     await expect(page.getByRole("heading")).toContainText("Success");
+
+    // Verify audit log entries were created for the user flow
+    const email = process.env.E2E_USER_EMAIL!;
+    const loginCount = sqlCount(
+      `SELECT count(*) FROM audit_log WHERE action = 'auth.login' AND actor_user_id IN (SELECT user_id FROM member WHERE email = '${email}')`,
+    );
+    expect(loginCount).toBeGreaterThanOrEqual(1);
+
+    const memberCreateCount = sqlCount(
+      `SELECT count(*) FROM audit_log WHERE action = 'member.create' AND actor_user_id IN (SELECT user_id FROM member WHERE email = '${email}')`,
+    );
+    expect(memberCreateCount).toBe(1);
+
+    const appCreateCount = sqlCount(
+      `SELECT count(*) FROM audit_log WHERE action = 'application.create' AND actor_user_id IN (SELECT user_id FROM member WHERE email = '${email}')`,
+    );
+    expect(appCreateCount).toBe(1);
   });
 });
