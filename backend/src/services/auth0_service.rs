@@ -14,6 +14,8 @@ use crate::services::errors::{ServiceError, ServiceResult};
 #[ts(export)]
 pub struct AuthInfo {
     pub user_id: Uuid,
+    #[serde(skip_serializing)]
+    #[ts(skip)]
     pub access_token: String,
     pub first_name: String,
     pub last_name: String,
