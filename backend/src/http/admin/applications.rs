@@ -16,12 +16,26 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_applications))
         .route("/filter", get(get_applications_filtered))
-        .route("/:application_id/status", put(update_application_status))
+        .route("/:application_id/detail", get(get_application))
         .route("/:application_id", delete(delete_application))
+        .route("/:application_id/status", put(update_application_status))
         .route("/targetable-roles", post(post_targetable_role))
         .route("/targetable-roles", put(put_targetable_role))
         .route("/targetable-roles", delete(delete_targetable_role))
         .with_state(state)
+}
+
+async fn get_application(
+    Path(path): Path<ApplicationPath>,
+    State(state): State<AppState>,
+) -> ApiResult<Json<ApplicationWithMember>> {
+    let application = state
+        .application_service
+        .get_application_with_member(path.application_id)
+        .await
+        .map(Json)?;
+
+    Ok(application)
 }
 
 async fn get_applications(State(state): State<AppState>) -> ApiResult<Json<Vec<Application>>> {

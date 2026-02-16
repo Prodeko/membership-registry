@@ -85,7 +85,7 @@ async fn post_application(
 
     let redirect_to = match targetable_role.payment_link {
         Some(link) => format!("{}?client_reference_id={}", link, application.application_id),
-        None => format!("{}/application-form/success", state.config.frontend_url),
+        None => format!("{}/apply/success", state.config.frontend_url),
     };
 
     Ok(Json(CreateApplicationResponse { redirect_to }))

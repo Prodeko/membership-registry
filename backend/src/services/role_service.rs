@@ -69,6 +69,13 @@ impl RoleService {
         Ok(())
     }
 
+    pub async fn get_role(&self, role_name: &str) -> ServiceResult<Role> {
+        self.repo
+            .fetch_by_name(role_name)
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<RoleMember>> {
         self.repo
             .fetch_roles_by_member(&user_id)

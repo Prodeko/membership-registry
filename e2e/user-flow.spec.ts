@@ -69,7 +69,7 @@ test.describe("User flow", () => {
       .click();
     await page.getByRole("button", { name: "Submit" }).click();
 
-    await page.waitForURL("**/application-form");
+    await page.waitForURL("**/apply");
     await page.getByRole("combobox", { name: "Membership type" }).click();
     await page.getByRole("option", { name: /E2e Test Role/ }).click();
     await page
@@ -77,7 +77,7 @@ test.describe("User flow", () => {
       .fill("E2E test application");
     await page.getByRole("button", { name: "Submit application" }).click();
 
-    await page.waitForURL("**/application-form/success");
+    await page.waitForURL("**/apply/success");
     await expect(page.getByRole("heading")).toContainText("Success");
   });
 });

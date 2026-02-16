@@ -96,6 +96,16 @@ impl ApplicationService {
             .map_err(|e| e.into())
     }
 
+    pub async fn get_application_with_member(
+        &self,
+        application_id: Uuid,
+    ) -> ServiceResult<ApplicationWithMember> {
+        self.repo
+            .fetch_with_member_one(application_id)
+            .await
+            .map_err(|e| e.into())
+    }
+
     pub async fn get_applications_with_member_filtered(
         &self,
         status: Option<String>,

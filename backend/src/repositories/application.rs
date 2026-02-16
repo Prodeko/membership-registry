@@ -136,6 +136,26 @@ impl ApplicationRepo {
         Ok(application)
     }
 
+    pub async fn fetch_with_member_one(
+        &self,
+        application_id: Uuid,
+    ) -> Result<ApplicationWithMember, sqlx::Error> {
+        let application = sqlx::query_as!(
+            ApplicationWithMember,
+            r#"
+            SELECT a.*, m.full_name, m.email
+            FROM Application a
+            JOIN Member m ON a.user_id = m.user_id
+            WHERE a.application_id = $1
+            "#,
+            application_id
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(application)
+    }
+
     pub async fn fetch_with_user_filtered(
         &self,
         status: Option<String>,

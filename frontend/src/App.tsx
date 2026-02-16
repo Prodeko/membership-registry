@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import ApplicationForm from "./components/application-form/ApplicationForm";
+import Application from "./components/applications/Application";
 import Applications from "./components/applications/Applications";
 import TargetableRoles from "./components/applications/targetable-roles/TargetableRoles";
 import Callback from "./components/auth/Callback";
@@ -8,6 +9,7 @@ import Error from "./components/Error";
 import Layout from "./components/layout/Layout";
 import Member from "./components/members/Member";
 import Members from "./components/members/Members";
+import Role from "./components/roles/Role";
 import Roles from "./components/roles/Roles";
 import SignupForm from "./components/signup-form/SignupForm";
 import { ThemeProvider } from "./components/theme-provider";
@@ -55,10 +57,26 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: "/roles/:id",
+    element: (
+      <Layout>
+        <Role />
+      </Layout>
+    ),
+  },
+  {
     path: "/applications",
     element: (
       <Layout>
         <Applications />
+      </Layout>
+    ),
+  },
+  {
+    path: "/applications/:id",
+    element: (
+      <Layout>
+        <Application />
       </Layout>
     ),
   },
@@ -71,11 +89,11 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: "/application-form",
+    path: "/apply",
     element: <ApplicationForm />,
   },
   {
-    path: "/application-form/success",
+    path: "/apply/success",
     element: <Success />,
   },
   {

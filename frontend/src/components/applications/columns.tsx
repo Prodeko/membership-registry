@@ -70,6 +70,17 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Full name" />
     ),
+    cell: ({ row }) => {
+      const application = row.original;
+      return (
+        <Link
+          to={`/applications/${application.application_id}`}
+          className="flex items-center"
+        >
+          {application.full_name ?? "N/A"}
+        </Link>
+      );
+    },
   },
   {
     accessorKey: "email",

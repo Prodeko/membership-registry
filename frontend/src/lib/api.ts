@@ -156,6 +156,38 @@ export const useGetRoles = () => {
   });
 };
 
+export const useGetRole = (
+  roleName: string,
+  options?: { enabled?: boolean },
+) => {
+  return useQuery<Role>({
+    queryKey: [QueryKey.ROLES, roleName],
+    queryFn: async () => {
+      const response = await axios_client.get<Role>(
+        `/roles/${encodeURIComponent(roleName)}`,
+      );
+      return response.data;
+    },
+    enabled: options?.enabled,
+  });
+};
+
+export const useGetRoleMembers = (
+  roleName: string,
+  options?: { enabled?: boolean },
+) => {
+  return useQuery<Member[]>({
+    queryKey: [QueryKey.ROLES, roleName, "members"],
+    queryFn: async () => {
+      const response = await axios_client.get<Member[]>(
+        `/roles/${encodeURIComponent(roleName)}/members`,
+      );
+      return response.data;
+    },
+    enabled: options?.enabled,
+  });
+};
+
 export const useGetRolesStats = (params: PaginatedQueryParams) => {
   return useQuery<RoleStats[]>({
     queryKey: [QueryKey.ROLES, params],
@@ -277,6 +309,22 @@ export const useCreateMember = () => {
   return useMutation<Member, Error, NewMember>({
     mutationFn: async (member) =>
       (await axios_client.post<Member>("/members", member)).data,
+  });
+};
+
+export const useGetApplication = (
+  id: string,
+  options?: { enabled?: boolean },
+) => {
+  return useQuery<ApplicationWithMember>({
+    queryKey: [QueryKey.APPLICATIONS, id],
+    queryFn: async () => {
+      const response = await axios_client.get<ApplicationWithMember>(
+        `/applications/${id}/detail`,
+      );
+      return response.data;
+    },
+    enabled: options?.enabled,
   });
 };
 

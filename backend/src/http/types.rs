@@ -7,3 +7,9 @@ use uuid::Uuid;
 pub struct ApplicationPath {
     pub application_id: Uuid,
 }
+
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
+pub struct RolePath {
+    pub id: String,
+}

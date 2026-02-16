@@ -42,6 +42,14 @@ export const columns: ColumnDef<unknown, unknown>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Role Name" />
     ),
+    cell: ({ row }) => {
+      const roleStats = row.original as RoleStats;
+      return (
+        <Link to={`/roles/${roleStats.name}`} className="flex items-center">
+          {roleStats.name}
+        </Link>
+      );
+    },
   },
   {
     accessorKey: "color",

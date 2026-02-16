@@ -51,7 +51,7 @@ const SignupForm = () => {
       { ...me, ...values },
       {
         onSuccess: () => {
-          window.location.href = "/application-form";
+          window.location.href = "/apply";
         },
       },
     );
