@@ -48,4 +48,13 @@ pub struct Config {
     #[envconfig(from = "STRIPE_ENDPOINT_SECRET")]
     #[validate(length(min = 1, max = 1024))]
     pub stripe_endpoint_secret: String,
+
+    #[envconfig(from = "SENDGRID_API_KEY")]
+    pub sendgrid_api_key: Option<String>,
+
+    #[envconfig(from = "SENDGRID_API_URL")]
+    pub sendgrid_api_url: Option<String>,
+
+    #[envconfig(from = "SENDGRID_FROM_EMAIL")]
+    pub sendgrid_from_email: Option<String>,
 }

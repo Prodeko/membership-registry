@@ -20,6 +20,7 @@ pub enum ServiceError {
     ProviderAlreadyLinked,
     ProviderNotFound,
     CannotUnlinkLastProvider,
+    InvalidTemplate,
 }
 
 pub type ServiceResult<T> = Result<T, ServiceError>;

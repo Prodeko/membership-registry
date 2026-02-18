@@ -77,6 +77,8 @@ pub struct ApplicationTargetableRole {
     pub active: bool,
     pub optional_roles: Option<Vec<String>>,
     pub payment_link: Option<String>,
+    pub approved_email_template: Option<String>,
+    pub rejected_email_template: Option<String>,
 }
 
 #[derive(Clone)]
@@ -92,7 +94,7 @@ impl ApplicationRepo {
         valid_until: chrono::NaiveDate,
         application_text: Option<String>,
         optional_roles: Option<Vec<String>>,
-        status: String
+        status: String,
     ) -> Result<Application, sqlx::Error> {
         let application_created = sqlx::query_as!(
             Application,
@@ -275,13 +277,20 @@ impl ApplicationRepo {
         valid_until: chrono::NaiveDate,
         active: Option<bool>,
         payment_link: Option<String>,
+        approved_email_template: Option<String>,
+        rejected_email_template: Option<String>,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!(
-            "INSERT INTO ApplicationTargetableRole (role_name, valid_until, active, payment_link) VALUES ($1, $2, $3, $4)",
+            r#"
+            INSERT INTO ApplicationTargetableRole (role_name, valid_until, active, payment_link, approved_email_template, rejected_email_template)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            "#,
             role_name,
             valid_until,
             active,
-            payment_link
+            payment_link,
+            approved_email_template,
+            rejected_email_template
         )
         .execute(&self.pool)
         .await?;

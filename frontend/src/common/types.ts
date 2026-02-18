@@ -7,6 +7,8 @@ export type {
   AuditLogEntryWithActor,
   AuthInfo,
   CreateApplicationResponse,
+  CreateEmailTemplate,
+  EmailTemplate,
   Member,
   MemberWithRoles,
   NewApplication,
@@ -17,6 +19,7 @@ export type {
   RoleMember,
   RoleStats,
   SavedFilter,
+  UpdateEmailTemplate,
 } from "./generated";
 
 // Frontend-only types (no backend equivalent)

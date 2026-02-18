@@ -1,5 +1,8 @@
 use axum::{
-    debug_handler, extract::{Path, Query, State}, routing::{delete, get, post, put}, Extension, Json, Router
+    debug_handler,
+    extract::{Path, Query, State},
+    routing::{delete, get, post, put},
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use ts_rs::TS;
@@ -117,6 +120,8 @@ struct PostTargetableRole {
     role_name: String,
     valid_until: chrono::NaiveDate,
     payment_link: Option<String>,
+    approved_email_template: Option<String>,
+    rejected_email_template: Option<String>,
 }
 #[debug_handler]
 async fn post_targetable_role(
@@ -125,13 +130,18 @@ async fn post_targetable_role(
     Json(body): Json<PostTargetableRole>,
 ) -> ApiResult<Json<()>> {
     let actor_id = user_info.map(|u| u.user_id);
-    let role_name = body.role_name;
-    let valid_until = body.valid_until;
-    let payment_link = body.payment_link;
 
     let targetable_role = state
         .application_service
-        .create_targetable_role(role_name, valid_until, Some(true), payment_link, actor_id)
+        .create_targetable_role(
+            body.role_name,
+            body.valid_until,
+            Some(true),
+            body.payment_link,
+            body.approved_email_template,
+            body.rejected_email_template,
+            actor_id,
+        )
         .await
         .map(Json)?;
 
@@ -181,11 +191,7 @@ async fn delete_targetable_role(
     let actor_id = user_info.map(|u| u.user_id);
     let delete = state
         .application_service
-        .delete_targetable_role(
-            query.role_name,
-            query.valid_until,
-            actor_id,
-        )
+        .delete_targetable_role(query.role_name, query.valid_until, actor_id)
         .await
         .map(Json)?;
 

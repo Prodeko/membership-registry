@@ -5,22 +5,28 @@ use axum::{
     Router,
 };
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
-use tower_http::{cors::{AllowHeaders, CorsLayer}, trace::TraceLayer};
+use tower_http::{
+    cors::{AllowHeaders, CorsLayer},
+    trace::TraceLayer,
+};
 use tracing_subscriber::EnvFilter;
 
 use crate::{
     config::Config,
     services::{
-        application_service::ApplicationService, audit_log_service::AuditLogService, auth0_service::Auth0Service, member_service::MemberService, role_service::RoleService, saved_filter::SavedFilterService, Services
+        application_service::ApplicationService, audit_log_service::AuditLogService,
+        auth0_service::Auth0Service, member_service::MemberService,
+        notification_service::NotificationService, role_service::RoleService,
+        saved_filter::SavedFilterService, Services,
     },
 };
 
 mod admin;
-mod public;
-mod protected;
-mod index;
-mod static_files;
 mod errors;
+mod index;
+mod protected;
+mod public;
+mod static_files;
 pub(crate) mod types;
 
 #[derive(Clone)]
@@ -32,7 +38,8 @@ pub struct AppState {
     pub auth0_service: Arc<Auth0Service>,
     pub saved_filter_service: Arc<SavedFilterService>,
     pub audit_log_service: Arc<AuditLogService>,
-    pub oauth2_client: BasicClient
+    pub notification_service: Arc<NotificationService>,
+    pub oauth2_client: BasicClient,
 }
 
 #[allow(clippy::unwrap_used)]
@@ -43,7 +50,13 @@ pub async fn serve(config: Config, services: Services) {
         ClientId::new(config.auth0_client_id.clone()),
         Some(ClientSecret::new(config.auth0_client_secret.clone())),
         AuthUrl::new(format!("https://{}/authorize", config.auth0_domain.clone())).unwrap(),
-        Some(TokenUrl::new(format!("https://{}/oauth/token", config.auth0_domain.clone())).unwrap()),
+        Some(
+            TokenUrl::new(format!(
+                "https://{}/oauth/token",
+                config.auth0_domain.clone()
+            ))
+            .unwrap(),
+        ),
     )
     .set_redirect_uri(RedirectUrl::new(config.oauth_redirect_url.clone()).unwrap());
 
@@ -55,13 +68,17 @@ pub async fn serve(config: Config, services: Services) {
         auth0_service: Arc::new(services.auth0_service),
         saved_filter_service: Arc::new(services.saved_filter_service),
         audit_log_service: Arc::new(services.audit_log_service),
+        notification_service: Arc::new(services.notification_service),
         oauth2_client,
     };
 
     let cors = CorsLayer::new()
         .allow_origin(HeaderValue::from_static("http://127.0.0.1:5173")) // TODO: Change this to the frontend URL
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
-        .allow_headers(AllowHeaders::list([HeaderName::from_static("authorization"), HeaderName::from_static("content-type")]))
+        .allow_headers(AllowHeaders::list([
+            HeaderName::from_static("authorization"),
+            HeaderName::from_static("content-type"),
+        ]))
         .allow_credentials(true);
 
     tracing_subscriber::fmt()
@@ -91,5 +108,4 @@ fn router(state: AppState) -> Router<AppState> {
         .nest("/api", protected::router(state.clone()))
         .nest("/api", public::router(state.clone()))
         .merge(static_files::router())
-        
 }

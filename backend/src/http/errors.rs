@@ -76,6 +76,11 @@ impl IntoResponse for ServiceError {
             ServiceError::CannotUnlinkLastProvider => {
                 (StatusCode::BAD_REQUEST, "Cannot unlink last provider").into_response()
             }
+            ServiceError::InvalidTemplate => (
+                StatusCode::BAD_REQUEST,
+                "Invalid template: unknown placeholder",
+            )
+                .into_response(),
         }
     }
 }
@@ -101,6 +106,7 @@ impl From<ServiceError> for ApiError {
             ServiceError::ProviderAlreadyLinked => ApiError::BadRequest,
             ServiceError::ProviderNotFound => ApiError::NotFound,
             ServiceError::CannotUnlinkLastProvider => ApiError::BadRequest,
+            ServiceError::InvalidTemplate => ApiError::BadRequest,
         }
     }
 }

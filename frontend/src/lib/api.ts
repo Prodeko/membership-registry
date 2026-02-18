@@ -7,6 +7,8 @@ import {
   AuditLogEntryWithActor,
   AuthInfo,
   CreateApplicationResponse,
+  CreateEmailTemplate,
+  EmailTemplate,
   Member,
   MemberWithRoles,
   NewApplication,
@@ -17,6 +19,7 @@ import {
   RoleMember,
   RoleStats,
   SavedFilter,
+  UpdateEmailTemplate,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios, { AxiosError, AxiosResponse } from "axios";
@@ -36,6 +39,7 @@ export enum QueryKey {
   SAVED_FILTERS = "saved_filters",
   LOGOUT = "logout",
   AUDIT_LOGS = "audit_logs",
+  EMAIL_TEMPLATES = "email_templates",
 }
 
 export const axios_client = axios.create({
@@ -509,3 +513,52 @@ export function useGetAuditLogs(params: PaginatedQueryParams) {
     },
   });
 }
+
+export const useGetEmailTemplates = () => {
+  return useQuery<EmailTemplate[]>({
+    queryKey: [QueryKey.EMAIL_TEMPLATES],
+    queryFn: async () => {
+      const response =
+        await admin_axios_client.get<EmailTemplate[]>("/email-templates");
+      return response.data;
+    },
+  });
+};
+
+export const useCreateEmailTemplate = () => {
+  return useMutation<EmailTemplate, Error, CreateEmailTemplate>({
+    mutationFn: async (template) => {
+      const response = await admin_axios_client.post<EmailTemplate>(
+        "/email-templates",
+        template,
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useUpdateEmailTemplate = () => {
+  return useMutation<
+    EmailTemplate,
+    Error,
+    { name: string } & UpdateEmailTemplate
+  >({
+    mutationFn: async ({ name, ...body }) => {
+      const response = await admin_axios_client.put<EmailTemplate>(
+        `/email-templates/${encodeURIComponent(name)}`,
+        body,
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useDeleteEmailTemplate = () => {
+  return useMutation<void, Error, string>({
+    mutationFn: async (name) => {
+      await admin_axios_client.delete(
+        `/email-templates/${encodeURIComponent(name)}`,
+      );
+    },
+  });
+};

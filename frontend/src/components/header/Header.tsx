@@ -51,6 +51,9 @@ const Header = () => {
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
             <Link to="/logs">Logs</Link>
           </NavigationMenuLink>
+          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+            <Link to="/email-templates">Templates</Link>
+          </NavigationMenuLink>
         </NavigationMenuList>
         <DropdownMenu>
           <DropdownMenuTrigger className="p-4">

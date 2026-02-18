@@ -1,5 +1,6 @@
 use application::ApplicationRepo;
 use audit_log::AuditLogRepo;
+use email_template::EmailTemplateRepo;
 use member::MemberRepo;
 use user_auth_provider::UserAuthProviderRepo;
 
@@ -7,6 +8,8 @@ use user_auth_provider::UserAuthProviderRepo;
 pub mod application;
 #[allow(clippy::panic)]
 pub mod audit_log;
+#[allow(clippy::panic)]
+pub mod email_template;
 #[allow(clippy::panic)]
 pub mod member;
 #[allow(clippy::panic)]
@@ -28,6 +31,7 @@ pub struct PostgresRepo {
     pub saved_filter: saved_filter::SavedFilterRepo,
     pub user_auth_provider: UserAuthProviderRepo,
     pub audit_log: AuditLogRepo,
+    pub email_template: EmailTemplateRepo,
 }
 
 impl PostgresRepo {
@@ -38,7 +42,8 @@ impl PostgresRepo {
             role: role::RoleRepo { pool: pool.clone() },
             saved_filter: saved_filter::SavedFilterRepo { pool: pool.clone() },
             user_auth_provider: UserAuthProviderRepo { pool: pool.clone() },
-            audit_log: AuditLogRepo { pool },
+            audit_log: AuditLogRepo { pool: pool.clone() },
+            email_template: EmailTemplateRepo { pool },
         }
     }
 }
