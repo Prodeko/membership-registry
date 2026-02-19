@@ -6,11 +6,15 @@ use axum::{
 };
 use serde::Deserialize;
 use ts_rs::TS;
-use uuid::Uuid;
 
 use crate::{
-    http::{errors::ApiResult, types::ApplicationPath},
-    repositories::application::{Application, ApplicationStatus, ApplicationWithMember},
+    http::{
+        dto::application::{
+            ApplicationActionDTO, ApplicationDTO, ApplicationStatusDTO, ApplicationWithMemberDTO,
+        },
+        errors::ApiResult,
+        types::ApplicationPath,
+    },
     services::auth0_service::AuthInfo,
 };
 
@@ -32,44 +36,45 @@ pub fn router(state: AppState) -> Router<AppState> {
 async fn get_application(
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
-) -> ApiResult<Json<ApplicationWithMember>> {
+) -> ApiResult<Json<ApplicationWithMemberDTO>> {
     let application = state
         .application_service
         .get_application_with_member(path.application_id)
         .await
+        .map(ApplicationWithMemberDTO::from)
         .map(Json)?;
 
     Ok(application)
 }
 
-async fn get_applications(State(state): State<AppState>) -> ApiResult<Json<Vec<Application>>> {
+async fn get_applications(
+    State(state): State<AppState>,
+) -> ApiResult<Json<Vec<ApplicationDTO>>> {
     let applications = state
         .application_service
         .get_all_applications()
-        .await
-        .map(Json)?;
+        .await?;
 
-    Ok(applications)
+    Ok(Json(applications.into_iter().map(ApplicationDTO::from).collect()))
 }
 
 #[derive(Deserialize, Debug, TS)]
 #[ts(export)]
 struct FilteredApplicationsParams {
-    status: Option<String>,
+    status: Option<ApplicationStatusDTO>,
     search: Option<String>,
 }
 
 async fn get_applications_filtered(
     State(state): State<AppState>,
     Query(filter): Query<FilteredApplicationsParams>,
-) -> ApiResult<Json<Vec<ApplicationWithMember>>> {
+) -> ApiResult<Json<Vec<ApplicationWithMemberDTO>>> {
     let applications = state
         .application_service
-        .get_applications_with_member_filtered(filter.status, filter.search)
-        .await
-        .map(Json)?;
+        .get_applications_with_member_filtered(filter.status.map(Into::into), filter.search)
+        .await?;
 
-    Ok(applications)
+    Ok(Json(applications.into_iter().map(ApplicationWithMemberDTO::from).collect()))
 }
 
 async fn delete_application(
@@ -92,7 +97,7 @@ async fn delete_application(
 #[derive(Deserialize, Debug, TS)]
 #[ts(export)]
 struct UpdateApplicationStatus {
-    status: ApplicationStatus,
+    action: ApplicationActionDTO,
 }
 
 async fn update_application_status(
@@ -103,11 +108,10 @@ async fn update_application_status(
 ) -> ApiResult<Json<()>> {
     let actor_id = user_info.map(|u| u.user_id);
     let application_id = path.application_id;
-    let status = body.status.to_string();
 
     let update = state
         .application_service
-        .update_application_status(application_id, status, actor_id)
+        .update_application_status(application_id, body.action.into(), actor_id)
         .await
         .map(Json)?;
 

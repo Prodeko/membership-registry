@@ -1,17 +1,17 @@
 import {
   Application,
-  ApplicationStatus,
+  ApplicationAction,
   ApplicationTargetableRole,
   ApplicationTargetableRolePK,
   ApplicationWithMember,
   AuditLogEntryWithActor,
   AuthInfo,
+  CreateApplicationRequest,
   CreateApplicationResponse,
   CreateEmailTemplate,
   EmailTemplate,
   Member,
   MemberWithRoles,
-  NewApplication,
   NewMember,
   NewSavedFilter,
   PostTargetableRole,
@@ -328,7 +328,11 @@ export const useDeleteTargetableRole = () => {
 };
 
 export const useCreateApplication = () => {
-  return useMutation<CreateApplicationResponse, Error, NewApplication>({
+  return useMutation<
+    CreateApplicationResponse,
+    Error,
+    CreateApplicationRequest
+  >({
     mutationFn: async (newApplication) => {
       const data = await axios_client.post("/applications", newApplication);
       return data.data;
@@ -399,9 +403,9 @@ export const useDeleteApplication = () => {
 };
 
 export const useSetApplicationStatus = () => {
-  return useMutation<void, Error, { id: string; status: ApplicationStatus }>({
-    mutationFn: async ({ id, status }) => {
-      await admin_axios_client.put(`/applications/${id}/status`, { status });
+  return useMutation<void, Error, { id: string; action: ApplicationAction }>({
+    mutationFn: async ({ id, action }) => {
+      await admin_axios_client.put(`/applications/${id}/status`, { action });
     },
   });
 };

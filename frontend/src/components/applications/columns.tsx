@@ -127,7 +127,7 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
     },
   },
   {
-    accessorKey: "timestamp",
+    accessorKey: "created_at",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Created at" />
     ),
@@ -135,9 +135,9 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
       const application = row.original;
       return (
         <span>
-          {new Date(application.timestamp).toLocaleDateString()}
+          {new Date(application.created_at).toLocaleDateString()}
           {" at "}
-          {new Date(application.timestamp).toLocaleTimeString()}
+          {new Date(application.created_at).toLocaleTimeString()}
         </span>
       );
     },
@@ -191,7 +191,7 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
                 <DropdownMenuItem
                   onClick={async () => {
                     updateApplicationStatus(
-                      { id: application.application_id, status: "approved" },
+                      { id: application.application_id, action: "approve" },
                       {
                         onSuccess: () => {
                           queryClient.invalidateQueries({
@@ -209,7 +209,7 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
                 <DropdownMenuItem
                   onClick={async () => {
                     updateApplicationStatus(
-                      { id: application.application_id, status: "rejected" },
+                      { id: application.application_id, action: "reject" },
                       {
                         onSuccess: () => {
                           queryClient.invalidateQueries({

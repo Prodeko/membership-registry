@@ -36,9 +36,7 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
   const queryClient = useQueryClient();
 
   const dialogOpen = isEdit ? open : internalOpen;
-  const setDialogOpen = isEdit
-    ? onOpenChange ?? (() => {})
-    : setInternalOpen;
+  const setDialogOpen = isEdit ? (onOpenChange ?? (() => {})) : setInternalOpen;
 
   useEffect(() => {
     if (template) {
@@ -82,7 +80,9 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {isEdit ? `Edit Template: ${template.name}` : "Create Email Template"}
+            {isEdit
+              ? `Edit Template: ${template.name}`
+              : "Create Email Template"}
           </DialogTitle>
           <DialogClose />
         </DialogHeader>

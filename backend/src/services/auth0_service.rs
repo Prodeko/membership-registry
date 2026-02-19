@@ -621,38 +621,6 @@ impl Auth0Service {
         Ok(())
     }
 
-    pub async fn link_provider(
-        &self,
-        user_id: Uuid,
-        provider_name: &str,
-        provider_user_id: &str,
-    ) -> ServiceResult<()> {
-        let exists = self
-            .repo
-            .user_auth_provider
-            .exists(&user_id, provider_name)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to check if provider exists: {:?}", e);
-                ServiceError::DatabaseError
-            })?;
-
-        if exists {
-            return Err(ServiceError::ProviderAlreadyLinked);
-        }
-
-        self.repo
-            .user_auth_provider
-            .create(&user_id, provider_name, provider_user_id, None)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to link provider: {:?}", e);
-                ServiceError::DatabaseError
-            })?;
-
-        Ok(())
-    }
-
     pub async fn unlink_provider(&self, user_id: Uuid, provider_name: &str) -> ServiceResult<()> {
         let providers = self
             .repo

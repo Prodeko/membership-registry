@@ -1,17 +1,15 @@
 use axum::{
-    debug_handler,
     extract::State,
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{delete, get},
     Extension, Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use ts_rs::TS;
 
 use crate::{
     http::errors::{ApiError, ApiResult},
-    repositories::user_auth_provider::UserAuthProvider,
     services::auth0_service::AuthInfo,
 };
 
@@ -20,7 +18,6 @@ use super::AppState;
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/providers", get(get_linked_providers))
-        .route("/providers/link", post(link_provider))
         .route("/providers/:provider_name", delete(unlink_provider))
         .with_state(state)
 }
@@ -59,43 +56,7 @@ async fn get_linked_providers(
     Ok(Json(linked_providers))
 }
 
-#[derive(Deserialize, TS)]
-#[ts(export)]
-struct LinkProviderRequest {
-    provider_name: String,
-    provider_user_id: String,
-}
-
-#[debug_handler]
-async fn link_provider(
-    Extension(user_info): Extension<Option<AuthInfo>>,
-    State(state): State<AppState>,
-    Json(request): Json<LinkProviderRequest>,
-) -> ApiResult<impl IntoResponse> {
-    let user_info = user_info.ok_or(ApiError::Unauthorized)?;
-
-    state
-        .auth0_service
-        .link_provider(
-            user_info.user_id,
-            &request.provider_name,
-            &request.provider_user_id,
-        )
-        .await
-        .map_err(|_| ApiError::InternalServerError)?;
-
-    state.audit_log_service.log(
-        Some(user_info.user_id),
-        "auth_provider.link",
-        "auth_provider",
-        &user_info.user_id.to_string(),
-        Some(serde_json::json!({ "provider_name": request.provider_name })),
-    ).await;
-
-    Ok((StatusCode::CREATED, "Provider linked successfully"))
-}
-
-#[derive(Deserialize, TS)]
+#[derive(serde::Deserialize, TS)]
 #[ts(export)]
 struct UnlinkProviderPath {
     provider_name: String,

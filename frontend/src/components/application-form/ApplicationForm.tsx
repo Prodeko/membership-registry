@@ -61,7 +61,6 @@ const ApplicationForm = () => {
 
     createApplication(
       {
-        user_id: currentMember?.user_id,
         role_name: values.role_name,
         valid_until: values.valid_until.toISOString().split("T")[0],
         application_text: values.application_text,

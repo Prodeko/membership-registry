@@ -22,6 +22,7 @@ use crate::{
 };
 
 mod admin;
+pub(crate) mod dto;
 mod errors;
 mod index;
 mod protected;

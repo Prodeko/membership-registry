@@ -6,6 +6,7 @@
 
 mod config;
 mod ctx;
+mod domain;
 mod helpers;
 mod http;
 mod repositories;

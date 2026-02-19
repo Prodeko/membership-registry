@@ -42,9 +42,9 @@ const Application = () => {
   const isPending =
     application.status === "pending" || application.status === "unpaid";
 
-  const handleStatusUpdate = (status: "approved" | "rejected") => {
+  const handleStatusUpdate = (action: "approve" | "reject") => {
     updateStatus(
-      { id: application.application_id, status },
+      { id: application.application_id, action },
       {
         onSuccess: () => {
           queryClient.invalidateQueries({
@@ -100,8 +100,8 @@ const Application = () => {
 
           <span className="font-medium">Created at</span>
           <span>
-            {new Date(application.timestamp).toLocaleDateString()}{" "}
-            {new Date(application.timestamp).toLocaleTimeString()}
+            {new Date(application.created_at).toLocaleDateString()}{" "}
+            {new Date(application.created_at).toLocaleTimeString()}
           </span>
 
           {application.application_text && (
@@ -129,12 +129,12 @@ const Application = () => {
         <div className="flex gap-3 flex-wrap">
           {isPending && (
             <>
-              <Button onClick={() => handleStatusUpdate("approved")}>
+              <Button onClick={() => handleStatusUpdate("approve")}>
                 Approve
               </Button>
               <Button
                 variant="destructive"
-                onClick={() => handleStatusUpdate("rejected")}
+                onClick={() => handleStatusUpdate("reject")}
               >
                 Reject
               </Button>
