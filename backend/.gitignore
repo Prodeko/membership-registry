@@ -3,3 +3,4 @@
 .env
 /dist
 /static/main.css
+.env.auth0

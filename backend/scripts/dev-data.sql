@@ -1,5 +1,5 @@
 -- Dev data seed script
--- Run with: docker compose exec -T membership-postgresd psql -U membership -d membership < backend/dev-data.sql
+-- Run with: docker compose exec -T membership-postgresd psql -U membership -d membership < backend/scripts/dev-data.sql
 
 -- Role
 INSERT INTO role (name, description, color)
@@ -35,7 +35,7 @@ VALUES (
     'membership',
     '2026-12-30',
     true,
-    'https://buy.stripe.com/test_3cIeV6b1Y2Ec4Ck2lx4ow00',
+    '',
     NULL,
     'membership_approved',
     'membership_rejected'
