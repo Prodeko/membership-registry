@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod test_auth0_roles {
+mod test_idp_roles {
     use chrono::NaiveDate;
     use uuid::Uuid;
     use wiremock::matchers::{body_json, method, path, path_regex};
@@ -8,55 +8,56 @@ mod test_auth0_roles {
     use crate::repositories::audit_log::AuditLogQueryParams;
     use crate::repositories::tests::{cleanup_test_db, setup_test_db};
     use crate::services::audit_log_service::AuditLogService;
-    use crate::services::auth0_service::Auth0Service;
     use crate::services::errors::ServiceError;
+    use crate::services::identity_service::IdentityService;
     use crate::services::member_service::MemberService;
     use crate::services::role_service::RoleService;
 
     const USER_ID: &str = "9707582e-c149-45a7-bae1-4b0f4de4b06f";
-    const AUTH0_USER_ID: &str = "auth0|abc123";
+    const KEYCLOAK_USER_ID: &str = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
 
     fn user_uuid() -> Uuid {
         Uuid::parse_str(USER_ID).unwrap()
     }
 
     /// Sets up a test DB, inserts a UserAuthProvider row linking our test user
-    /// to an Auth0 identity, and returns an Auth0Service pointed at the mock server.
-    async fn setup(mock_server: &MockServer) -> (Auth0Service, RoleService, String) {
+    /// to a Keycloak identity, and returns an IdentityService pointed at the mock server.
+    async fn setup(mock_server: &MockServer) -> (IdentityService, RoleService, String) {
         let (repo, db_url) = setup_test_db().await;
 
         // Insert auth provider mapping for the test user
         repo.user_auth_provider
-            .create(&user_uuid(), "auth0", AUTH0_USER_ID, None)
+            .create(&user_uuid(), "keycloak", KEYCLOAK_USER_ID, None)
             .await
             .unwrap();
 
-        // Pre-seed a management token so we don't need to mock /oauth/token
-        let auth0_service = Auth0Service::with_base_url(
+        // Pre-seed an admin token so we don't need to mock the OIDC token endpoint
+        let identity_service = IdentityService::with_base_url(
             mock_server.uri(),
+            "membership-registry".to_string(),
             "test_client_id".to_string(),
             "test_client_secret".to_string(),
             repo.clone(),
         );
 
-        // Seed a management token into the cache
+        // Seed an admin token into the cache
         Mock::given(method("POST"))
-            .and(path("/oauth/token"))
+            .and(path("/realms/membership-registry/protocol/openid-connect/token"))
             .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "access_token": "test_management_token",
+                "access_token": "test_admin_token",
                 "expires_in": 86400
             })))
             .mount(mock_server)
             .await;
 
         // Warm the token cache
-        let _ = auth0_service.get_user("warm").await;
+        let _ = identity_service.get_user("warm").await;
 
         let audit_log_service = AuditLogService::new(repo.audit_log.clone());
-        let member_service = MemberService::new(repo.member.clone(), auth0_service.clone(), audit_log_service.clone());
-        let role_service = RoleService::new(repo.role.clone(), member_service, auth0_service.clone(), audit_log_service);
+        let member_service = MemberService::new(repo.member.clone(), identity_service.clone(), audit_log_service.clone());
+        let role_service = RoleService::new(repo.role.clone(), member_service, identity_service.clone(), audit_log_service);
 
-        (auth0_service, role_service, db_url)
+        (identity_service, role_service, db_url)
     }
 
     fn default_query_params() -> AuditLogQueryParams {
@@ -71,102 +72,104 @@ mod test_auth0_roles {
         }
     }
 
-    fn mock_roles_response() -> serde_json::Value {
-        serde_json::json!([
-            { "id": "rol_admin123", "name": "admin", "description": "Admin role" },
-            { "id": "rol_member456", "name": "prodeko-external-member", "description": "Member role" }
-        ])
+    fn mock_role_response(name: &str, id: &str) -> serde_json::Value {
+        serde_json::json!({
+            "id": id,
+            "name": name,
+            "composite": false,
+            "clientRole": false
+        })
     }
 
-    // ---- Auth0Service.assign_role tests ----
+    // ---- IdentityService.assign_role tests ----
 
     #[tokio::test]
     async fn assign_role_succeeds_when_role_exists() {
         let mock_server = MockServer::start().await;
-        let (auth0_service, _, db_url) = setup(&mock_server).await;
+        let (identity_service, _, db_url) = setup(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/api/v2/roles"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(mock_roles_response()))
+            .and(path("/admin/realms/membership-registry/roles/admin"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_role_response("admin", "rol_admin123")))
             .expect(1)
             .mount(&mock_server)
             .await;
 
         Mock::given(method("POST"))
-            .and(path_regex("/api/v2/users/.+/roles"))
-            .and(body_json(serde_json::json!({ "roles": ["rol_admin123"] })))
+            .and(path_regex("/admin/realms/membership-registry/users/.+/role-mappings/realm"))
+            .and(body_json(serde_json::json!([{ "id": "rol_admin123", "name": "admin" }])))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let result = auth0_service.assign_role(AUTH0_USER_ID, "admin").await;
+        let result = identity_service.assign_role(KEYCLOAK_USER_ID, "admin").await;
         assert!(result.is_ok());
 
-        cleanup_test_db(auth0_service.repo.member.pool, &db_url).await;
+        cleanup_test_db(identity_service.repo.member.pool, &db_url).await;
     }
 
     #[tokio::test]
-    async fn assign_role_fails_when_role_not_in_auth0() {
+    async fn assign_role_fails_when_role_not_found() {
         let mock_server = MockServer::start().await;
-        let (auth0_service, _, db_url) = setup(&mock_server).await;
+        let (identity_service, _, db_url) = setup(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/api/v2/roles"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(mock_roles_response()))
+            .and(path("/admin/realms/membership-registry/roles/nonexistent-role"))
+            .respond_with(ResponseTemplate::new(404))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let result = auth0_service.assign_role(AUTH0_USER_ID, "nonexistent-role").await;
+        let result = identity_service.assign_role(KEYCLOAK_USER_ID, "nonexistent-role").await;
         assert!(matches!(result, Err(ServiceError::NotFound)));
 
-        cleanup_test_db(auth0_service.repo.member.pool, &db_url).await;
+        cleanup_test_db(identity_service.repo.member.pool, &db_url).await;
     }
 
-    // ---- Auth0Service.remove_role tests ----
+    // ---- IdentityService.remove_role tests ----
 
     #[tokio::test]
     async fn remove_role_succeeds_when_role_exists() {
         let mock_server = MockServer::start().await;
-        let (auth0_service, _, db_url) = setup(&mock_server).await;
+        let (identity_service, _, db_url) = setup(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/api/v2/roles"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(mock_roles_response()))
+            .and(path("/admin/realms/membership-registry/roles/admin"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_role_response("admin", "rol_admin123")))
             .mount(&mock_server)
             .await;
 
         Mock::given(method("DELETE"))
-            .and(path_regex("/api/v2/users/.+/roles"))
-            .and(body_json(serde_json::json!({ "roles": ["rol_admin123"] })))
+            .and(path_regex("/admin/realms/membership-registry/users/.+/role-mappings/realm"))
+            .and(body_json(serde_json::json!([{ "id": "rol_admin123", "name": "admin" }])))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
             .mount(&mock_server)
             .await;
 
-        let result = auth0_service.remove_role(AUTH0_USER_ID, "admin").await;
+        let result = identity_service.remove_role(KEYCLOAK_USER_ID, "admin").await;
         assert!(result.is_ok());
 
-        cleanup_test_db(auth0_service.repo.member.pool, &db_url).await;
+        cleanup_test_db(identity_service.repo.member.pool, &db_url).await;
     }
 
     #[tokio::test]
-    async fn remove_role_returns_ok_when_role_not_in_auth0() {
+    async fn remove_role_returns_ok_when_role_not_found() {
         let mock_server = MockServer::start().await;
-        let (auth0_service, _, db_url) = setup(&mock_server).await;
+        let (identity_service, _, db_url) = setup(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/api/v2/roles"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(mock_roles_response()))
+            .and(path("/admin/realms/membership-registry/roles/nonexistent-role"))
+            .respond_with(ResponseTemplate::new(404))
             .mount(&mock_server)
             .await;
 
         // No DELETE mock needed — should never be called
-        let result = auth0_service.remove_role(AUTH0_USER_ID, "nonexistent-role").await;
+        let result = identity_service.remove_role(KEYCLOAK_USER_ID, "nonexistent-role").await;
         assert!(result.is_ok());
 
-        cleanup_test_db(auth0_service.repo.member.pool, &db_url).await;
+        cleanup_test_db(identity_service.repo.member.pool, &db_url).await;
     }
 
     // ---- Role ID caching ----
@@ -174,44 +177,44 @@ mod test_auth0_roles {
     #[tokio::test]
     async fn get_role_id_caches_results() {
         let mock_server = MockServer::start().await;
-        let (auth0_service, _, db_url) = setup(&mock_server).await;
+        let (identity_service, _, db_url) = setup(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/api/v2/roles"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(mock_roles_response()))
+            .and(path("/admin/realms/membership-registry/roles/admin"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_role_response("admin", "rol_admin123")))
             .expect(1) // Should only be called once despite two assign_role calls
             .mount(&mock_server)
             .await;
 
         Mock::given(method("POST"))
-            .and(path_regex("/api/v2/users/.+/roles"))
+            .and(path_regex("/admin/realms/membership-registry/users/.+/role-mappings/realm"))
             .respond_with(ResponseTemplate::new(204))
             .mount(&mock_server)
             .await;
 
-        auth0_service.assign_role(AUTH0_USER_ID, "admin").await.unwrap();
-        auth0_service.assign_role(AUTH0_USER_ID, "prodeko-external-member").await.unwrap();
+        identity_service.assign_role(KEYCLOAK_USER_ID, "admin").await.unwrap();
+        identity_service.assign_role(KEYCLOAK_USER_ID, "admin").await.unwrap();
 
-        // wiremock will verify GET /api/v2/roles was called exactly once on drop
+        // wiremock will verify GET /admin/realms/.../roles/admin was called exactly once on drop
 
-        cleanup_test_db(auth0_service.repo.member.pool, &db_url).await;
+        cleanup_test_db(identity_service.repo.member.pool, &db_url).await;
     }
 
     // ---- RoleService integration tests ----
 
     #[tokio::test]
-    async fn add_role_member_syncs_to_auth0_then_writes_db() {
+    async fn add_role_member_syncs_to_idp_then_writes_db() {
         let mock_server = MockServer::start().await;
         let (_, role_service, db_url) = setup(&mock_server).await;
 
         Mock::given(method("GET"))
-            .and(path("/api/v2/roles"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(mock_roles_response()))
+            .and(path("/admin/realms/membership-registry/roles/prodeko-external-member"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_role_response("prodeko-external-member", "rol_member456")))
             .mount(&mock_server)
             .await;
 
         Mock::given(method("POST"))
-            .and(path_regex("/api/v2/users/.+/roles"))
+            .and(path_regex("/admin/realms/membership-registry/users/.+/role-mappings/realm"))
             .respond_with(ResponseTemplate::new(204))
             .expect(1)
             .mount(&mock_server)
@@ -246,22 +249,18 @@ mod test_auth0_roles {
         assert!(logs[0].entity_type == "role_member");
         assert!(logs[0].entity_id.contains("prodeko-external-member"));
 
-        cleanup_test_db(role_service.auth0_service.repo.member.pool, &db_url).await;
+        cleanup_test_db(role_service.identity_service.repo.member.pool, &db_url).await;
     }
 
     #[tokio::test]
-    async fn add_role_member_does_not_write_db_when_auth0_fails() {
+    async fn add_role_member_does_not_write_db_when_idp_fails() {
         let mock_server = MockServer::start().await;
         let (_, role_service, db_url) = setup(&mock_server).await;
 
-        // Return roles list that does NOT contain the role we're trying to assign
+        // Return 404 for the role we're trying to assign
         Mock::given(method("GET"))
-            .and(path("/api/v2/roles"))
-            .respond_with(
-                ResponseTemplate::new(200).set_body_json(serde_json::json!([
-                    { "id": "rol_other", "name": "some-other-role", "description": "" }
-                ])),
-            )
+            .and(path("/admin/realms/membership-registry/roles/prodeko-external-member"))
+            .respond_with(ResponseTemplate::new(404))
             .mount(&mock_server)
             .await;
 
@@ -277,7 +276,7 @@ mod test_auth0_roles {
             )
             .await;
 
-        assert!(result.is_err(), "Expected error when Auth0 role not found");
+        assert!(result.is_err(), "Expected error when Keycloak role not found");
 
         // Verify no new DB row was written
         let roles_after = role_service.get_member_roles(user_uuid()).await.unwrap();
@@ -287,23 +286,23 @@ mod test_auth0_roles {
         let logs = role_service.audit_log.repo.fetch_paginated(default_query_params()).await.unwrap();
         assert!(logs.is_empty(), "No audit log should be written when operation fails");
 
-        cleanup_test_db(role_service.auth0_service.repo.member.pool, &db_url).await;
+        cleanup_test_db(role_service.identity_service.repo.member.pool, &db_url).await;
     }
 
     #[tokio::test]
-    async fn delete_role_membership_is_best_effort_for_auth0() {
+    async fn delete_role_membership_is_best_effort_for_idp() {
         let mock_server = MockServer::start().await;
         let (_, role_service, db_url) = setup(&mock_server).await;
 
-        // Auth0 returns 500 for remove role — should not prevent DB deletion
+        // Keycloak returns 500 for remove role — should not prevent DB deletion
         Mock::given(method("GET"))
-            .and(path("/api/v2/roles"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(mock_roles_response()))
+            .and(path("/admin/realms/membership-registry/roles/prodeko-external-member"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_role_response("prodeko-external-member", "rol_member456")))
             .mount(&mock_server)
             .await;
 
         Mock::given(method("DELETE"))
-            .and(path_regex("/api/v2/users/.+/roles"))
+            .and(path_regex("/admin/realms/membership-registry/users/.+/role-mappings/realm"))
             .respond_with(ResponseTemplate::new(500))
             .mount(&mock_server)
             .await;
@@ -318,7 +317,7 @@ mod test_auth0_roles {
             )
             .await;
 
-        assert!(result.is_ok(), "delete_role_membership should succeed even if Auth0 fails");
+        assert!(result.is_ok(), "delete_role_membership should succeed even if Keycloak fails");
 
         // Verify the DB row was deleted
         let roles = role_service.get_member_roles(user_uuid()).await.unwrap();
@@ -337,6 +336,6 @@ mod test_auth0_roles {
         assert!(logs[0].entity_type == "role_member");
         assert!(logs[0].entity_id.contains("prodeko-external-member"));
 
-        cleanup_test_db(role_service.auth0_service.repo.member.pool, &db_url).await;
+        cleanup_test_db(role_service.identity_service.repo.member.pool, &db_url).await;
     }
 }

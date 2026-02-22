@@ -47,14 +47,21 @@ pub struct AppState {
 pub async fn serve(config: Config, services: Services) {
     let port = config.port;
 
+    let realm = config.keycloak_realm.clone();
+    let base_url = config.keycloak_url.clone();
+
     let oauth2_client = BasicClient::new(
-        ClientId::new(config.auth0_client_id.clone()),
-        Some(ClientSecret::new(config.auth0_client_secret.clone())),
-        AuthUrl::new(format!("https://{}/authorize", config.auth0_domain.clone())).unwrap(),
+        ClientId::new(config.keycloak_client_id.clone()),
+        Some(ClientSecret::new(config.keycloak_client_secret.clone())),
+        AuthUrl::new(format!(
+            "{}/realms/{}/protocol/openid-connect/auth",
+            base_url, realm
+        ))
+        .unwrap(),
         Some(
             TokenUrl::new(format!(
-                "https://{}/oauth/token",
-                config.auth0_domain.clone()
+                "{}/realms/{}/protocol/openid-connect/token",
+                base_url, realm
             ))
             .unwrap(),
         ),
