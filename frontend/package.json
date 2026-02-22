@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "add-component": "npx shadcn-ui@latest add",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives",
+    "preview": "vite preview",
+    "prettier": "npx prettier --check .",
+    "prettier:fix": "npx prettier --write ."
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",

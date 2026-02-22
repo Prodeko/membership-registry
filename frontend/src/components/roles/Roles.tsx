@@ -4,7 +4,12 @@ import { columns } from "./columns";
 import CreateRoleModal from "./CreateRoleModal";
 import { Link } from "react-router-dom";
 import { buttonVariants } from "../ui/button";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "../ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
 
 const Roles = () => {
   return (

@@ -1,4 +1,4 @@
-import { Application } from "@/common/types";
+import { ApplicationWithMember } from "@/common/types";
 import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "../ui/checkbox";
 import { DataTableColumnHeader } from "../ui/column-header";
@@ -30,7 +30,7 @@ import { Button } from "../ui/button";
 import { Link } from "react-router-dom";
 import { capitalizeFirstLetter } from "@/lib/utils";
 
-export const columns: ColumnDef<Application>[] = [
+export const columns: ColumnDef<ApplicationWithMember>[] = [
   {
     id: "select",
     header: ({ table }) => (
@@ -70,6 +70,17 @@ export const columns: ColumnDef<Application>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Full name" />
     ),
+    cell: ({ row }) => {
+      const application = row.original;
+      return (
+        <Link
+          to={`/applications/${application.application_id}`}
+          className="flex items-center"
+        >
+          {application.full_name ?? "N/A"}
+        </Link>
+      );
+    },
   },
   {
     accessorKey: "email",
@@ -90,7 +101,13 @@ export const columns: ColumnDef<Application>[] = [
     ),
     cell: ({ row }) => {
       const application = row.original;
-      return <span>{capitalizeFirstLetter(application.status)}</span>;
+      return (
+        <span>
+          {application.status
+            ? capitalizeFirstLetter(application.status)
+            : "N/A"}
+        </span>
+      );
     },
   },
   {
@@ -110,7 +127,7 @@ export const columns: ColumnDef<Application>[] = [
     },
   },
   {
-    accessorKey: "timestamp",
+    accessorKey: "created_at",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Created at" />
     ),
@@ -118,9 +135,9 @@ export const columns: ColumnDef<Application>[] = [
       const application = row.original;
       return (
         <span>
-          {new Date(application.timestamp).toLocaleDateString()}
+          {new Date(application.created_at).toLocaleDateString()}
           {" at "}
-          {new Date(application.timestamp).toLocaleTimeString()}
+          {new Date(application.created_at).toLocaleTimeString()}
         </span>
       );
     },
@@ -167,20 +184,21 @@ export const columns: ColumnDef<Application>[] = [
                 <DollarSignIcon className="w-4 h-4 ml-2" />
               </DropdownMenuItem>
             )}
-            {application.status === "pending"  || application.status === "unpaid" && (
+            {(application.status === "pending" ||
+              application.status === "unpaid") && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={async () => {
                     updateApplicationStatus(
-                      { id: application.application_id, status: "approved" },
+                      { id: application.application_id, action: "approve" },
                       {
                         onSuccess: () => {
                           queryClient.invalidateQueries({
                             queryKey: [QueryKey.APPLICATIONS],
                           });
                         },
-                      }
+                      },
                     );
                   }}
                   className="flex items-center justify-between"
@@ -191,14 +209,14 @@ export const columns: ColumnDef<Application>[] = [
                 <DropdownMenuItem
                   onClick={async () => {
                     updateApplicationStatus(
-                      { id: application.application_id, status: "rejected" },
+                      { id: application.application_id, action: "reject" },
                       {
                         onSuccess: () => {
                           queryClient.invalidateQueries({
                             queryKey: [QueryKey.APPLICATIONS],
                           });
                         },
-                      }
+                      },
                     );
                   }}
                   className="flex items-center justify-between"

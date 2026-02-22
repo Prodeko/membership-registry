@@ -1,9 +1,5 @@
 import { ColumnDef } from "@tanstack/react-table";
-import {
-  CopyIcon,
-  FileIcon,
-  MoreHorizontal
-} from "lucide-react";
+import { CopyIcon, FileIcon, MoreHorizontal } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
@@ -46,6 +42,14 @@ export const columns: ColumnDef<unknown, unknown>[] = [
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Role Name" />
     ),
+    cell: ({ row }) => {
+      const roleStats = row.original as RoleStats;
+      return (
+        <Link to={`/roles/${roleStats.name}`} className="flex items-center">
+          {roleStats.name}
+        </Link>
+      );
+    },
   },
   {
     accessorKey: "color",
@@ -93,9 +97,7 @@ export const columns: ColumnDef<unknown, unknown>[] = [
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem className="flex items-center justify-between">
-              <Link to={`/roles/${roleStats.name}`}>
-                View role
-              </Link>
+              <Link to={`/roles/${roleStats.name}`}>View role</Link>
               <FileIcon className="w-4 h-4 ml-2" />
             </DropdownMenuItem>
           </DropdownMenuContent>

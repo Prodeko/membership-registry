@@ -46,7 +46,7 @@ const Member: React.FC = () => {
   return (
     <div className="flex justify-center align-middle p-14">
       <Card className="p-8 space-y-6">
-        <RenderMemberData member={member} variant="admin"/>
+        <RenderMemberData member={member} variant="admin" />
         <div className="space-y-3">
           <h2 className="text-2xl space-x-4">
             <span>Roles</span>{" "}
@@ -57,24 +57,39 @@ const Member: React.FC = () => {
             />{" "}
           </h2>
           <ul>
-            {roles?.length ? roles.map((role) => (
-              <li key={role.role_name} className="space-y-2 grid grid-cols-2">
-                <span>
-                <RoleBadge role={role.role_name} />
-                </span>
-                <span>
-                  {role.valid_from.toLocaleDateString()} -{" "}
-                  {role.valid_until.toLocaleDateString()}
-                </span>
-              </li>
-            )) : "No roles"}
+            {roles?.length
+              ? roles.map((role) => (
+                  <li
+                    key={role.role_name}
+                    className="space-y-2 grid grid-cols-2"
+                  >
+                    <span>
+                      <RoleBadge role={role.role_name} />
+                    </span>
+                    <span>
+                      {new Date(role.valid_from).toLocaleDateString()} -{" "}
+                      {role.valid_until
+                        ? new Date(role.valid_until).toLocaleDateString()
+                        : "N/A"}
+                    </span>
+                  </li>
+                ))
+              : "No roles"}
           </ul>
         </div>
         <div className="space-x-4">
-          <Button className="" variant={"outline"} onClick={() => navigate(`/members/${userId}/edit`)}>
-              Edit member
+          <Button
+            className=""
+            variant={"outline"}
+            onClick={() => navigate(`/members/${userId}/edit`)}
+          >
+            Edit member
           </Button>
-          <DeleteMembersModal userIds={[member.user_id]} onClose={() => navigate("/members")} disabled={false} />
+          <DeleteMembersModal
+            userIds={[member.user_id]}
+            onClose={() => navigate("/members")}
+            disabled={false}
+          />
         </div>
       </Card>
     </div>

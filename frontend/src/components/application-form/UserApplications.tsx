@@ -1,5 +1,5 @@
 import { useGetTargetableRoles, useGetUserApplications } from "@/lib/api";
-import { getDateAsString, kebabCaseToTitleCase } from "@/lib/utils";
+import { kebabCaseToTitleCase } from "@/lib/utils";
 import {
   Accordion,
   AccordionContent,
@@ -46,7 +46,7 @@ const UserApplications = () => {
             const role = targetableRoles.find(
               (role) =>
                 role.role_name === app.role_name &&
-                role.valid_until.getTime() === app.valid_until.getTime()
+                role.valid_until === app.valid_until,
             );
             return (
               <>
@@ -58,7 +58,7 @@ const UserApplications = () => {
                   <div>
                     <h4 className="text-md font-semibold">
                       {kebabCaseToTitleCase(app.role_name)} - Role valid until:{" "}
-                      {getDateAsString(app.valid_until)}
+                      {app.valid_until}
                     </h4>
                     <div className="text-sm">
                       Status:
@@ -67,8 +67,8 @@ const UserApplications = () => {
                           app.status === "approved"
                             ? "default"
                             : app.status === "rejected"
-                            ? "destructive"
-                            : "secondary"
+                              ? "destructive"
+                              : "secondary"
                         }
                         className="ml-2"
                       >

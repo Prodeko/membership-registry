@@ -1,16 +1,19 @@
 use axum::{
     debug_handler,
-    extract::{Query, State},
-    response::IntoResponse,
+    extract::{Path, Query, State},
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
-use futures_util::FutureExt;
 use serde::Deserialize;
+use ts_rs::TS;
 
 use crate::{
-    http::errors::ApiResult,
-    repositories::role::{Role, RoleStats},
+    http::{errors::ApiResult, types::RolePath},
+    repositories::{
+        member::Member,
+        role::{Role, RoleStats},
+    },
+    services::auth0_service::AuthInfo,
 };
 
 use super::AppState;
@@ -20,6 +23,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/", get(get_roles))
         .route("/", post(post_role))
         .route("/stats", get(get_roles_stats))
+        .route("/:id", get(get_role))
+        .route("/:id/members", get(get_role_members))
         .with_state(state)
 }
 
@@ -29,7 +34,28 @@ async fn get_roles(State(state): State<AppState>) -> ApiResult<Json<Vec<Role>>> 
     Ok(roles)
 }
 
-#[derive(Deserialize, Debug)]
+async fn get_role(
+    Path(path): Path<RolePath>,
+    State(state): State<AppState>,
+) -> ApiResult<Json<Role>> {
+    let role = state.role_service.get_role(&path.id).await.map(Json)?;
+    Ok(role)
+}
+
+async fn get_role_members(
+    Path(path): Path<RolePath>,
+    State(state): State<AppState>,
+) -> ApiResult<Json<Vec<Member>>> {
+    let members = state
+        .role_service
+        .get_role_members(&path.id)
+        .await
+        .map(Json)?;
+    Ok(members)
+}
+
+#[derive(Deserialize, Debug, TS)]
+#[ts(export)]
 struct RolesWithStatsQuery {
     page_size: Option<u64>,
     offset: Option<u64>,
@@ -55,10 +81,12 @@ async fn get_roles_stats(
 
 #[debug_handler]
 async fn post_role(
+    Extension(user_info): Extension<Option<AuthInfo>>,
     State(state): State<AppState>,
     Json(new_role): Json<Role>,
 ) -> ApiResult<Json<Role>> {
-    let role = state.role_service.create_role(new_role).await.map(Json)?;
+    let actor_id = user_info.map(|u| u.user_id);
+    let role = state.role_service.create_role(new_role, actor_id).await.map(Json)?;
 
     Ok(role)
 }

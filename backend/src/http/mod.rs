@@ -5,22 +5,30 @@ use axum::{
     Router,
 };
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
-use tower_http::{cors::{AllowHeaders, CorsLayer}, trace::TraceLayer};
+use tower_http::{
+    cors::{AllowHeaders, CorsLayer},
+    trace::TraceLayer,
+};
 use tracing_subscriber::EnvFilter;
 
 use crate::{
     config::Config,
     services::{
-        application_service::ApplicationService, member_service::MemberService, ory_service::OryService, role_service::RoleService, saved_filter::SavedFilterService, Services
+        application_service::ApplicationService, audit_log_service::AuditLogService,
+        auth0_service::Auth0Service, member_service::MemberService,
+        notification_service::NotificationService, role_service::RoleService,
+        saved_filter::SavedFilterService, Services,
     },
 };
 
 mod admin;
-mod public;
-mod protected;
-mod index;
-mod static_files;
+pub(crate) mod dto;
 mod errors;
+mod index;
+mod protected;
+mod public;
+mod static_files;
+pub(crate) mod types;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -28,19 +36,28 @@ pub struct AppState {
     pub member_service: Arc<MemberService>,
     pub application_service: Arc<ApplicationService>,
     pub role_service: Arc<RoleService>,
-    pub ory_service: Arc<OryService>,
+    pub auth0_service: Arc<Auth0Service>,
     pub saved_filter_service: Arc<SavedFilterService>,
-    pub oauth2_client: BasicClient
+    pub audit_log_service: Arc<AuditLogService>,
+    pub notification_service: Arc<NotificationService>,
+    pub oauth2_client: BasicClient,
 }
 
+#[allow(clippy::unwrap_used)]
 pub async fn serve(config: Config, services: Services) {
-    let port = config.port.clone();
+    let port = config.port;
 
     let oauth2_client = BasicClient::new(
-        ClientId::new(config.oauth_client_id.clone()),
-        Some(ClientSecret::new(config.oauth_client_secret.clone())),
-        AuthUrl::new(format!("{}/oauth2/auth", config.oauth_issuer_url.clone())).unwrap(),
-        Some(TokenUrl::new(format!("{}/oauth2/token", config.oauth_issuer_url.clone())).unwrap()),
+        ClientId::new(config.auth0_client_id.clone()),
+        Some(ClientSecret::new(config.auth0_client_secret.clone())),
+        AuthUrl::new(format!("https://{}/authorize", config.auth0_domain.clone())).unwrap(),
+        Some(
+            TokenUrl::new(format!(
+                "https://{}/oauth/token",
+                config.auth0_domain.clone()
+            ))
+            .unwrap(),
+        ),
     )
     .set_redirect_uri(RedirectUrl::new(config.oauth_redirect_url.clone()).unwrap());
 
@@ -49,15 +66,20 @@ pub async fn serve(config: Config, services: Services) {
         member_service: Arc::new(services.member_service),
         application_service: Arc::new(services.application_service),
         role_service: Arc::new(services.role_service),
-        ory_service: Arc::new(services.ory_service),
+        auth0_service: Arc::new(services.auth0_service),
         saved_filter_service: Arc::new(services.saved_filter_service),
+        audit_log_service: Arc::new(services.audit_log_service),
+        notification_service: Arc::new(services.notification_service),
         oauth2_client,
     };
 
     let cors = CorsLayer::new()
         .allow_origin(HeaderValue::from_static("http://127.0.0.1:5173")) // TODO: Change this to the frontend URL
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
-        .allow_headers(AllowHeaders::list([HeaderName::from_static("authorization"), HeaderName::from_static("content-type")]))
+        .allow_headers(AllowHeaders::list([
+            HeaderName::from_static("authorization"),
+            HeaderName::from_static("content-type"),
+        ]))
         .allow_credentials(true);
 
     tracing_subscriber::fmt()
@@ -77,15 +99,14 @@ pub async fn serve(config: Config, services: Services) {
         .await
         .unwrap();
 
-    println!("Listening on port {}", port);
+    tracing::info!("Listening on port {}", port);
     axum::serve(listener, app).await.unwrap();
 }
 
 fn router(state: AppState) -> Router<AppState> {
     index::router()
-        .nest("/api", admin::router(state.clone()))
+        .nest("/api/admin", admin::router(state.clone()))
         .nest("/api", protected::router(state.clone()))
         .nest("/api", public::router(state.clone()))
         .merge(static_files::router())
-        
 }

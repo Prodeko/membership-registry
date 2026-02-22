@@ -9,7 +9,7 @@ use axum::{
 use axum_extra::extract::CookieJar;
 use uuid::Uuid;
 
-use crate::{http::AppState, services::ory_service::AuthInfo};
+use crate::{http::AppState, services::auth0_service::AuthInfo};
 
 pub async fn check_auth(
     State(state): State<AppState>,
@@ -18,7 +18,7 @@ pub async fn check_auth(
 ) -> Response<Body> {
     let jar = CookieJar::from_headers(req.headers());
     if let Some(cookie) = jar.get("access_token") {
-        let userinfo = state.ory_service.userinfo(cookie.value().to_string()).await;
+        let userinfo = state.auth0_service.userinfo(cookie.value().to_string()).await;
 
         match userinfo {
             Ok(userinfo) => {
@@ -26,12 +26,12 @@ pub async fn check_auth(
                 next.run(req).await
             }
             Err(e) => {
-                println!("Error fetching userinfo {}", e);
+                tracing::error!("Error fetching userinfo {:?}", e);
                 StatusCode::UNAUTHORIZED.into_response()
             },
         }
     } else {
-        println!("No access token in cookie");
+        tracing::warn!("No access token in cookie");
         StatusCode::UNAUTHORIZED.into_response()
     }
 }
@@ -42,11 +42,13 @@ pub async fn check_permission(
     req: Request,
     next: Next,
 ) -> Response<Body> {
-    let userinfo = userinfo.unwrap();
+    let Some(userinfo) = userinfo else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
 
     let has_access = state
-        .ory_service
-        .is_admin(userinfo.user_id.clone())
+        .auth0_service
+        .is_admin(userinfo.user_id)
         .await
         .unwrap_or(false);
     if has_access {
@@ -70,12 +72,12 @@ pub async fn check_member_access(
     match userinfo {
         Some(userinfo) => {
             let is_admin = state
-                .ory_service
-                .is_admin(userinfo.user_id.clone())
+                .auth0_service
+                .is_admin(userinfo.user_id)
                 .await
                 .unwrap_or(false);
 
-            println!("Is admin: {}", is_admin);
+            tracing::debug!("Is admin: {}", is_admin);
 
             if !(is_admin || userinfo.user_id == user_id) {
                 return StatusCode::FORBIDDEN.into_response();
@@ -84,7 +86,7 @@ pub async fn check_member_access(
             next.run(req).await
         }
         None => {
-            println!("No userinfo!");
+            tracing::warn!("No userinfo!");
             StatusCode::UNAUTHORIZED.into_response()
         }
     }

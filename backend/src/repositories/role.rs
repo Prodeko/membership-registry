@@ -2,6 +2,7 @@ use super::member::Member;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use ts_rs::TS;
 use uuid::Uuid;
 
 #[derive(Clone)]
@@ -9,14 +10,16 @@ pub struct RoleRepo {
     pub pool: PgPool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, Default)]
+#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, Default, TS)]
+#[ts(export)]
 pub struct Role {
     pub name: String,
     pub color: Option<String>,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, TS)]
+#[ts(export)]
 pub struct RoleMember {
     pub user_id: Uuid,
     pub role_name: String,
@@ -24,12 +27,15 @@ pub struct RoleMember {
     pub valid_until: Option<NaiveDate>,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, TS)]
+#[ts(export)]
 pub struct RoleStats {
     pub name: String,
     pub color: Option<String>,
     pub description: Option<String>,
+    #[ts(type = "number | null")]
     pub member_count: Option<i64>,
+    #[ts(type = "number | null")]
     pub active_member_count: Option<i64>,
 }
 

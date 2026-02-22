@@ -61,14 +61,17 @@ const ApplicationForm = () => {
 
     createApplication(
       {
-        ...values,
-        user_id: currentMember?.user_id,
+        role_name: values.role_name,
+        valid_until: values.valid_until.toISOString().split("T")[0],
+        application_text: values.application_text,
+        stripe_payment_id: null,
+        optional_roles: null,
       },
       {
-        onSuccess: (data: { redirect_to: string }) => {
-          window.location.href = data.redirect_to; // TODO: Is this ok?
+        onSuccess: (data) => {
+          window.location.href = data.redirect_to;
         },
-      }
+      },
     );
   };
 
@@ -116,19 +119,19 @@ const ApplicationForm = () => {
                   <Select
                     onValueChange={(value) => {
                       const targetableRole = targetableRoles?.find(
-                        (role) => role.role_name === value
+                        (role) => role.role_name === value,
                       );
                       const validUntil = targetableRole?.valid_until;
                       const paymentLink = targetableRole?.payment_link;
 
                       if (!validUntil) {
                         throw new Error(
-                          `Role ${value} not found in targetable roles`
+                          `Role ${value} not found in targetable roles`,
                         );
                       }
 
                       setPaymentLink(paymentLink ?? null);
-                      form.setValue("valid_until", validUntil);
+                      form.setValue("valid_until", new Date(validUntil));
                       return field.onChange(value);
                     }}
                   >
@@ -143,8 +146,7 @@ const ApplicationForm = () => {
                           (app) =>
                             app.status !== "rejected" &&
                             app.role_name === role.role_name &&
-                            app.valid_until.getTime() ===
-                              role.valid_until.getTime()
+                            app.valid_until === role.valid_until,
                         );
                         return (
                           <SelectItem
@@ -155,7 +157,7 @@ const ApplicationForm = () => {
                             {kebabCaseToTitleCase(role.role_name)}{" "}
                             <span>
                               (Valid until{" "}
-                              {role.valid_until.toLocaleDateString()})
+                              {new Date(role.valid_until).toLocaleDateString()})
                             </span>
                           </SelectItem>
                         );

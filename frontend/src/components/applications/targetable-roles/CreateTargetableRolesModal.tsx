@@ -1,4 +1,9 @@
-import { QueryKey, useCreateTargetableRole, useGetRoles } from "@/lib/api";
+import {
+  QueryKey,
+  useCreateTargetableRole,
+  useGetEmailTemplates,
+  useGetRoles,
+} from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { DatePicker } from "../../ui/date-picker";
@@ -30,8 +35,11 @@ const CreateTargetableRolesModal = () => {
     Date | undefined
   >(undefined);
   const [selectedPaymentLink, setSelectedPaymentLink] = useState<string>("");
-  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
+  const [approvedTemplate, setApprovedTemplate] = useState<string>("");
+  const [rejectedTemplate, setRejectedTemplate] = useState<string>("");
+  const [, setSelectedRoles] = useState<string[]>([]);
   const { data: roles } = useGetRoles();
+  const { data: emailTemplates } = useGetEmailTemplates();
 
   const { mutate: createTargetableRole } = useCreateTargetableRole();
 
@@ -43,10 +51,10 @@ const CreateTargetableRolesModal = () => {
       createTargetableRole(
         {
           role_name: selectedRole,
-          valid_until: selectedValidUntil,
-          payment_link: selectedPaymentLink || undefined,
-          optional_roles: selectedRoles,
-          active: true,
+          valid_until: selectedValidUntil.toISOString().split("T")[0],
+          payment_link: selectedPaymentLink || null,
+          approved_email_template: approvedTemplate || null,
+          rejected_email_template: rejectedTemplate || null,
         },
         {
           onSuccess: () => {
@@ -54,7 +62,7 @@ const CreateTargetableRolesModal = () => {
               queryKey: [QueryKey.TARGETABLE_ROLES],
             });
           },
-        }
+        },
       );
     }
   };
@@ -101,6 +109,36 @@ const CreateTargetableRolesModal = () => {
           value={selectedPaymentLink}
           onChange={(e) => setSelectedPaymentLink(e.target.value)}
         />
+        <Select
+          onValueChange={(v) => setApprovedTemplate(v === "__none__" ? "" : v)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Approved email template (optional)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">None</SelectItem>
+            {emailTemplates?.map((t) => (
+              <SelectItem key={t.name} value={t.name}>
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          onValueChange={(v) => setRejectedTemplate(v === "__none__" ? "" : v)}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Rejected email template (optional)" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">None</SelectItem>
+            {emailTemplates?.map((t) => (
+              <SelectItem key={t.name} value={t.name}>
+                {t.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <MultipleSelector
           options={stringsToOptions(roles?.map((r) => r.name) ?? [])}
           onChange={onRoleChange}

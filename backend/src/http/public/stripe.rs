@@ -1,6 +1,7 @@
 use std::str::FromStr;
 
 use crate::http::errors::{ApiError, ApiResult};
+use crate::services::errors::ServiceError;
 
 use super::AppState;
 use axum::{
@@ -39,7 +40,7 @@ async fn stripe_webhook(
     ) {
         Ok(event) => event,
         Err(err) => {
-            println!("Invalid signature, {}", err);
+            tracing::warn!("Invalid signature, {}", err);
             return Err(ApiError::Unauthorized);
         }
     };
@@ -49,7 +50,7 @@ async fn stripe_webhook(
             let checkout: CheckoutSession = match event.data.object {
                 EventObject::CheckoutSession(session) => session,
                 _ => {
-                    println!("Unhandled event object");
+                    tracing::warn!("Unhandled event object");
                     return Ok(Json(
                         serde_json::json!({"success": true, "message": "Unhandled event object."}),
                     ));
@@ -58,8 +59,7 @@ async fn stripe_webhook(
 
             let application_id = match &checkout
                 .client_reference_id
-                .map(|s| Uuid::from_str(s.as_str()).ok())
-                .flatten()
+                .and_then(|s| Uuid::from_str(s.as_str()).ok())
             {
                 Some(id) => *id,
                 None => {
@@ -67,15 +67,19 @@ async fn stripe_webhook(
                 }
             };
 
+            let payment_intent = checkout
+                .payment_intent
+                .ok_or(ApiError::BadRequest)?;
+
             state
                 .application_service
                 .update_payment_id(
                     application_id,
-                    checkout.payment_intent.unwrap().id().to_string(),
+                    payment_intent.id().to_string(),
                 )
                 .await
-                .map_err(|e| e.into_response());
-
+                .map_err(ApiError::ServiceError)?;
+            
             Ok(Json(
                 serde_json::json!({"success": true, "message": "Payment ID updated."}),
             ))

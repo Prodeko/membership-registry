@@ -1,4 +1,4 @@
-TRUNCATE TABLE Application, ApplicationTargetableRole, Role, RoleMember, Member;
+TRUNCATE TABLE Application, ApplicationTargetableRole, Role, RoleMember, Member CASCADE;
 INSERT INTO Member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies) VALUES
 ('3e1ab0ea-c56a-457f-961f-13938954bb2b', 'marjakarhu@example.org', 'Taneli', 'Mäkinen', 'Espoo', true),
 ('11880220-c535-4afe-87a2-c59e213f87f4', 'tiinarautio@example.org', 'Johanna', 'Kettunen', 'Espoo', true),

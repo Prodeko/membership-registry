@@ -54,11 +54,14 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
     ),
     cell: ({ row }) => {
       return (
-        <Link to={`/members/${row.original.user_id}`} className="flex items-center">
+        <Link
+          to={`/members/${row.original.user_id}`}
+          className="flex items-center"
+        >
           {row.original.first_name}
         </Link>
       );
-    }
+    },
   },
   {
     accessorKey: "last_name",
@@ -67,11 +70,14 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
     ),
     cell: ({ row }) => {
       return (
-        <Link to={`/members/${row.original.user_id}`} className="flex items-center">
+        <Link
+          to={`/members/${row.original.user_id}`}
+          className="flex items-center"
+        >
           {row.original.last_name}
         </Link>
       );
-    }
+    },
   },
   {
     accessorKey: "email",
@@ -80,11 +86,14 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
     ),
     cell: ({ row }) => {
       return (
-        <Link to={`/members/${row.original.user_id}`} className="flex items-center">
+        <Link
+          to={`/members/${row.original.user_id}`}
+          className="flex items-center"
+        >
           {row.original.email}
         </Link>
       );
-    }
+    },
   },
   {
     accessorKey: "role_names",
@@ -94,9 +103,9 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
     cell: ({ row }) => {
       return (
         <div className="flex flex-wrap">
-          {row.original.role_names?.map((role) => role ? (
-            <RoleBadge key={role} role={role} />
-          ) : null)}
+          {row.original.role_names?.map((role) =>
+            role ? <RoleBadge key={role} role={role} /> : null,
+          )}
         </div>
       );
     },
@@ -148,9 +157,11 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
               onClick={async () => {
                 deleteMember(member.user_id, {
                   onSuccess: () => {
-                    queryClient.invalidateQueries({queryKey: [QueryKey.MEMBERS_WITH_ROLES]});
+                    queryClient.invalidateQueries({
+                      queryKey: [QueryKey.MEMBERS_WITH_ROLES],
+                    });
                   },
-                })
+                });
               }}
               className="flex items-center justify-between"
             >
