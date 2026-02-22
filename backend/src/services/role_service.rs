@@ -7,22 +7,22 @@ use crate::repositories::{
 use futures_util::TryFutureExt;
 use uuid::Uuid;
 
-use super::{audit_log_service::AuditLogService, auth0_service::Auth0Service, errors::ServiceResult, member_service::MemberService};
+use super::{audit_log_service::AuditLogService, identity_service::IdentityService, errors::ServiceResult, member_service::MemberService};
 
 #[derive(Clone)]
 pub struct RoleService {
     pub repo: RoleRepo,
     pub member_service: MemberService,
-    pub auth0_service: Auth0Service,
+    pub identity_service: IdentityService,
     pub audit_log: AuditLogService,
 }
 
 impl RoleService {
-    pub fn new(repo: RoleRepo, member_service: MemberService, auth0_service: Auth0Service, audit_log: AuditLogService) -> Self {
+    pub fn new(repo: RoleRepo, member_service: MemberService, identity_service: IdentityService, audit_log: AuditLogService) -> Self {
         Self {
             repo,
             member_service,
-            auth0_service,
+            identity_service,
             audit_log,
         }
     }
@@ -68,7 +68,7 @@ impl RoleService {
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         let providers = self
-            .auth0_service
+            .identity_service
             .repo
             .user_auth_provider
             .find_by_user_id(&user_id)
@@ -79,7 +79,7 @@ impl RoleService {
             })?;
 
         for provider in providers {
-            self.auth0_service
+            self.identity_service
                 .assign_role(&provider.provider_user_id, role_name)
                 .await?;
         }
@@ -184,7 +184,7 @@ impl RoleService {
             .map_err(|e| -> super::errors::ServiceError { e.into() })?;
 
         let providers = self
-            .auth0_service
+            .identity_service
             .repo
             .user_auth_provider
             .find_by_user_id(&user_id)
@@ -196,11 +196,11 @@ impl RoleService {
 
         for provider in providers {
             if let Err(e) = self
-                .auth0_service
+                .identity_service
                 .remove_role(&provider.provider_user_id, role_name)
                 .await
             {
-                tracing::error!("Failed to remove Auth0 role for provider {}: {:?}", provider.provider_user_id, e);
+                tracing::error!("Failed to remove IdP role for provider {}: {:?}", provider.provider_user_id, e);
             }
         }
 

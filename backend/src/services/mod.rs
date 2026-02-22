@@ -8,9 +8,9 @@ use crate::{config::Config, repositories::PostgresRepo};
 
 pub mod application_service;
 pub mod audit_log_service;
-pub mod auth0_service;
 pub mod email_service;
 pub mod errors;
+pub mod identity_service;
 pub mod member_service;
 pub mod notification_service;
 pub mod role_service;
@@ -24,7 +24,7 @@ pub struct Services {
     pub member_service: member_service::MemberService,
     pub application_service: application_service::ApplicationService,
     pub role_service: role_service::RoleService,
-    pub auth0_service: auth0_service::Auth0Service,
+    pub identity_service: identity_service::IdentityService,
     pub saved_filter_service: saved_filter::SavedFilterService,
     pub audit_log_service: audit_log_service::AuditLogService,
     pub notification_service: notification_service::NotificationService,
@@ -32,10 +32,11 @@ pub struct Services {
 
 impl Services {
     pub fn new(repo: PostgresRepo, config: Config) -> Self {
-        let auth0_service = auth0_service::Auth0Service::new(
-            config.auth0_domain,
-            config.auth0_management_client_id,
-            config.auth0_management_client_secret,
+        let identity_service = identity_service::IdentityService::new(
+            config.keycloak_url,
+            config.keycloak_realm,
+            config.keycloak_admin_client_id,
+            config.keycloak_admin_client_secret,
             repo.clone(),
         );
         let audit_log_service = AuditLogService::new(repo.audit_log);
@@ -47,13 +48,13 @@ impl Services {
         let notification_service = NotificationService::new(email_service, repo.email_template);
         let member_service = MemberService::new(
             repo.member,
-            auth0_service.clone(),
+            identity_service.clone(),
             audit_log_service.clone(),
         );
         let role_service = role_service::RoleService::new(
             repo.role,
             member_service.clone(),
-            auth0_service.clone(),
+            identity_service.clone(),
             audit_log_service.clone(),
         );
         let application_service = ApplicationService::new(
@@ -68,7 +69,7 @@ impl Services {
             member_service,
             application_service,
             role_service,
-            auth0_service,
+            identity_service,
             saved_filter_service,
             audit_log_service,
             notification_service,

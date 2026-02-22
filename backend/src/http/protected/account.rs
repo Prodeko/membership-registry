@@ -10,7 +10,7 @@ use ts_rs::TS;
 
 use crate::{
     http::errors::{ApiError, ApiResult},
-    services::auth0_service::AuthInfo,
+    services::identity_service::AuthInfo,
 };
 
 use super::AppState;
@@ -37,7 +37,7 @@ async fn get_linked_providers(
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
 
     let providers = state
-        .auth0_service
+        .identity_service
         .repo
         .user_auth_provider
         .find_by_user_id(&user_info.user_id)
@@ -70,7 +70,7 @@ async fn unlink_provider(
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
 
     state
-        .auth0_service
+        .identity_service
         .unlink_provider(user_info.user_id, &path.provider_name)
         .await
         .map_err(|e| {

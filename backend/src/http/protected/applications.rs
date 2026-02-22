@@ -10,7 +10,7 @@ use crate::{
         errors::{ApiError, ApiResult},
         types::ApplicationPath,
     },
-    services::{application_service::CreateApplicationParams, auth0_service::AuthInfo},
+    services::{application_service::CreateApplicationParams, identity_service::AuthInfo},
 };
 
 use super::AppState;

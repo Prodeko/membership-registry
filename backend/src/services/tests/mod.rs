@@ -1,1 +1,1 @@
-mod auth0_roles;
+mod idp_roles;

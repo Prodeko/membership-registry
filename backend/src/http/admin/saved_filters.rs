@@ -12,7 +12,7 @@ use ts_rs::TS;
 use crate::{
     http::errors::{ApiError, ApiResult},
     repositories::saved_filter::{NewSavedFilter, SavedFilter},
-    services::auth0_service::AuthInfo,
+    services::identity_service::AuthInfo,
 };
 
 use super::AppState;

@@ -62,9 +62,11 @@ impl IntoResponse for ServiceError {
             ServiceError::NotActive => {
                 (StatusCode::BAD_REQUEST, "Role is not active").into_response()
             }
-            ServiceError::Auth0Error => (StatusCode::BAD_GATEWAY, "Auth0 error").into_response(),
-            ServiceError::InvalidAuth0UserId => {
-                (StatusCode::BAD_REQUEST, "Invalid Auth0 user ID").into_response()
+            ServiceError::IdpError => {
+                (StatusCode::BAD_GATEWAY, "Identity provider error").into_response()
+            }
+            ServiceError::InvalidIdpUserId => {
+                (StatusCode::BAD_REQUEST, "Invalid identity provider user ID").into_response()
             }
             ServiceError::UserNotFound => (StatusCode::NOT_FOUND, "User not found").into_response(),
             ServiceError::ProviderAlreadyLinked => {
@@ -100,8 +102,8 @@ impl From<ServiceError> for ApiError {
             ServiceError::Forbidden => ApiError::Forbidden,
             ServiceError::DatabaseError => ApiError::InternalServerError,
             ServiceError::NotActive => ApiError::BadRequest,
-            ServiceError::Auth0Error => ApiError::ServiceError(ServiceError::Auth0Error),
-            ServiceError::InvalidAuth0UserId => ApiError::BadRequest,
+            ServiceError::IdpError => ApiError::ServiceError(ServiceError::IdpError),
+            ServiceError::InvalidIdpUserId => ApiError::BadRequest,
             ServiceError::UserNotFound => ApiError::NotFound,
             ServiceError::ProviderAlreadyLinked => ApiError::BadRequest,
             ServiceError::ProviderNotFound => ApiError::NotFound,

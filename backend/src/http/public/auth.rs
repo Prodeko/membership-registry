@@ -71,12 +71,12 @@ async fn callback(
         })?;
 
     let user_info = state
-        .auth0_service
-        .userinfo(token.access_token().secret().clone())
+        .identity_service
+        .validate_token(token.access_token().secret().clone())
         .await
         .map_err(|err| {
-            tracing::error!("Failed to retrieve user info: {:?}", err);
-            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to retrieve user info").into_response()
+            tracing::error!("Failed to validate token: {:?}", err);
+            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to validate token").into_response()
         })?;
 
     let jar = remove_oauth_state_cookie(&jar);

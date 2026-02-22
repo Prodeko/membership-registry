@@ -6,18 +6,18 @@ use crate::repositories::member::{Member, MemberRepo, MemberWithRoles, MembersWi
 use serde::Deserialize;
 use uuid::Uuid;
 
-use super::{audit_log_service::AuditLogService, auth0_service::Auth0Service, errors::{ServiceError, ServiceResult}};
+use super::{audit_log_service::AuditLogService, identity_service::IdentityService, errors::{ServiceError, ServiceResult}};
 
 #[derive(Clone)]
 pub struct MemberService {
     pub repo: MemberRepo,
-    pub auth0_service: Auth0Service,
+    pub identity_service: IdentityService,
     pub audit_log: AuditLogService,
 }
 
 impl MemberService {
-    pub fn new(repo: MemberRepo, auth0_service: Auth0Service, audit_log: AuditLogService) -> Self {
-        Self { repo, auth0_service, audit_log }
+    pub fn new(repo: MemberRepo, identity_service: IdentityService, audit_log: AuditLogService) -> Self {
+        Self { repo, identity_service, audit_log }
     }
 
     pub async fn create_member(
@@ -69,7 +69,7 @@ impl MemberService {
         id: Uuid,
     ) -> ServiceResult<Member> {
         let auth_providers = self
-            .auth0_service
+            .identity_service
             .repo
             .user_auth_provider
             .find_by_user_id(&id)
@@ -80,10 +80,9 @@ impl MemberService {
         }
 
         let primary_provider = &auth_providers[0];
-        let auth0_user_id = format!("{}|{}", primary_provider.provider_name, primary_provider.provider_user_id.split('|').next_back().unwrap_or(&primary_provider.provider_user_id));
 
         let user = self
-            .auth0_service
+            .identity_service
             .get_user(&primary_provider.provider_user_id)
             .await?;
 
@@ -108,14 +107,14 @@ impl MemberService {
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Member> {
         let auth_providers = self
-            .auth0_service
+            .identity_service
             .repo
             .user_auth_provider
             .find_by_user_id(&updated_member.user_id)
             .await?;
 
         if let Some(primary_provider) = auth_providers.first() {
-            self.auth0_service
+            self.identity_service
                 .update_user(
                     &primary_provider.provider_user_id,
                     Some(&updated_member.email),
@@ -166,14 +165,14 @@ impl MemberService {
 
     pub async fn delete_member(&self, id: Uuid, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
         let auth_providers = self
-            .auth0_service
+            .identity_service
             .repo
             .user_auth_provider
             .find_by_user_id(&id)
             .await?;
 
         for provider in auth_providers {
-            self.auth0_service
+            self.identity_service
                 .delete_user(&provider.provider_user_id)
                 .await?;
         }
@@ -194,14 +193,14 @@ impl MemberService {
     pub async fn delete_many(&self, ids: Vec<Uuid>, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
         for id in &ids {
             let auth_providers = self
-                .auth0_service
+                .identity_service
                 .repo
                 .user_auth_provider
                 .find_by_user_id(id)
                 .await?;
 
             for provider in auth_providers {
-                self.auth0_service
+                self.identity_service
                     .delete_user(&provider.provider_user_id)
                     .await?;
             }

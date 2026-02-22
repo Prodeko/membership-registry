@@ -13,7 +13,7 @@ use crate::{
         member::Member,
         role::{Role, RoleStats},
     },
-    services::auth0_service::AuthInfo,
+    services::identity_service::AuthInfo,
 };
 
 use super::AppState;
