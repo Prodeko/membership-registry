@@ -1,4 +1,4 @@
-use jsonwebtoken::{decode, decode_header, jwk::JwkSet, DecodingKey, Validation};
+use jsonwebtoken::{decode, decode_header, errors::ErrorKind, jwk::JwkSet, DecodingKey, Validation};
 use moka::future::Cache;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -88,10 +88,18 @@ struct CachedJwks {
     fetched_at: Instant,
 }
 
+#[derive(Deserialize)]
+pub struct RefreshedTokens {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct IdentityService {
     base_url: String,
     realm: String,
+    client_id: String,
+    client_secret: String,
     admin_client_id: String,
     admin_client_secret: String,
     token: Arc<RwLock<Option<CachedToken>>>,
@@ -107,16 +115,20 @@ impl IdentityService {
     pub fn new(
         base_url: String,
         realm: String,
+        client_id: String,
+        client_secret: String,
         admin_client_id: String,
         admin_client_secret: String,
         repo: PostgresRepo,
     ) -> Self {
-        Self::with_base_url(base_url, realm, admin_client_id, admin_client_secret, repo)
+        Self::with_base_url(base_url, realm, client_id, client_secret, admin_client_id, admin_client_secret, repo)
     }
 
     pub fn with_base_url(
         base_url: String,
         realm: String,
+        client_id: String,
+        client_secret: String,
         admin_client_id: String,
         admin_client_secret: String,
         repo: PostgresRepo,
@@ -124,6 +136,8 @@ impl IdentityService {
         Self {
             base_url,
             realm,
+            client_id,
+            client_secret,
             admin_client_id,
             admin_client_secret,
             token: Arc::new(RwLock::new(None)),
@@ -230,6 +244,10 @@ impl IdentityService {
 
         let token_data =
             decode::<KeycloakClaims>(token, &decoding_key, &validation).map_err(|e| {
+                if matches!(e.kind(), ErrorKind::ExpiredSignature) {
+                    tracing::debug!("JWT expired");
+                    return ServiceError::TokenExpired;
+                }
                 tracing::error!("JWT validation failed: {:?}", e);
                 ServiceError::IdpError
             })?;
@@ -290,6 +308,41 @@ impl IdentityService {
             .insert(access_token, auth_info.clone())
             .await;
         Ok(auth_info)
+    }
+
+    pub async fn refresh_access_token(
+        &self,
+        refresh_token: &str,
+    ) -> ServiceResult<RefreshedTokens> {
+        let url = self.oidc_url("token");
+
+        let response = self
+            .client
+            .post(&url)
+            .form(&[
+                ("grant_type", "refresh_token"),
+                ("client_id", &self.client_id),
+                ("client_secret", &self.client_secret),
+                ("refresh_token", refresh_token),
+            ])
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to refresh token: {:?}", e);
+                ServiceError::IdpError
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::debug!("Token refresh failed {}: {}", status, body);
+            return Err(ServiceError::Unauthorized);
+        }
+
+        response.json().await.map_err(|e| {
+            tracing::error!("Failed to parse refresh token response: {:?}", e);
+            ServiceError::IdpError
+        })
     }
 
     // --- Admin token ---

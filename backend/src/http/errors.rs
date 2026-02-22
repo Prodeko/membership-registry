@@ -65,6 +65,9 @@ impl IntoResponse for ServiceError {
             ServiceError::IdpError => {
                 (StatusCode::BAD_GATEWAY, "Identity provider error").into_response()
             }
+            ServiceError::TokenExpired => {
+                (StatusCode::UNAUTHORIZED, "Token expired").into_response()
+            }
             ServiceError::InvalidIdpUserId => {
                 (StatusCode::BAD_REQUEST, "Invalid identity provider user ID").into_response()
             }
@@ -103,6 +106,7 @@ impl From<ServiceError> for ApiError {
             ServiceError::DatabaseError => ApiError::InternalServerError,
             ServiceError::NotActive => ApiError::BadRequest,
             ServiceError::IdpError => ApiError::ServiceError(ServiceError::IdpError),
+            ServiceError::TokenExpired => ApiError::Unauthorized,
             ServiceError::InvalidIdpUserId => ApiError::BadRequest,
             ServiceError::UserNotFound => ApiError::NotFound,
             ServiceError::ProviderAlreadyLinked => ApiError::BadRequest,

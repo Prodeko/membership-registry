@@ -15,6 +15,7 @@ pub enum ServiceError {
     Unauthorized,
     Forbidden,
     IdpError,
+    TokenExpired,
     InvalidIdpUserId,
     UserNotFound,
     ProviderAlreadyLinked,

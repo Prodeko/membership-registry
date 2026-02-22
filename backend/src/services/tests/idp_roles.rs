@@ -35,6 +35,8 @@ mod test_idp_roles {
         let identity_service = IdentityService::with_base_url(
             mock_server.uri(),
             "membership-registry".to_string(),
+            "test_oauth_client_id".to_string(),
+            "test_oauth_client_secret".to_string(),
             "test_client_id".to_string(),
             "test_client_secret".to_string(),
             repo.clone(),

@@ -20,6 +20,12 @@
         "clientRole": false
       },
       {
+        "name": "membership",
+        "description": "Membership role",
+        "composite": false,
+        "clientRole": false
+      },
+      {
         "name": "prodeko-external-member",
         "description": "External member role",
         "composite": false,

@@ -3,7 +3,7 @@ use axum_extra::extract::CookieJar;
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use serde::Serialize;
 
-use crate::helpers::{remove_oauth_state_cookie, set_oauth_state_cookie, set_session_cookie};
+use crate::helpers::{remove_oauth_state_cookie, set_oauth_state_cookie, set_refresh_token_cookie, set_session_cookie};
 
 use super::AppState;
 
@@ -35,6 +35,7 @@ async fn login(State(state): State<AppState>, jar: CookieJar) -> (CookieJar, Red
 
 async fn logout(State(state): State<AppState>, jar: CookieJar) -> (CookieJar, Json<String>) {
     let jar = set_session_cookie(&jar, "");
+    let jar = set_refresh_token_cookie(&jar, "");
     (jar, Json("Logged out".to_string()))
 }
 
@@ -81,6 +82,10 @@ async fn callback(
 
     let jar = remove_oauth_state_cookie(&jar);
     let jar = set_session_cookie(&jar, token.access_token().secret());
+    let jar = match token.refresh_token() {
+        Some(rt) => set_refresh_token_cookie(&jar, rt.secret()),
+        None => jar,
+    };
 
     let redirect_to = match state.member_service.get_member(user_info.user_id).await {
         Ok(_) => "/".to_string(),

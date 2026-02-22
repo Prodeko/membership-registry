@@ -33,6 +33,17 @@ pub fn set_session_cookie(jar: &CookieJar, token: &str) -> CookieJar {
     jar.clone().add(cookie)
 }
 
+pub fn set_refresh_token_cookie(jar: &CookieJar, token: &str) -> CookieJar {
+    let base_cookie = Cookie::new("refresh_token", token.to_string());
+    let cookie = Cookie::build(base_cookie)
+        .path("/")
+        .secure(true)
+        .http_only(true)
+        .same_site(SameSite::Lax);
+
+    jar.clone().add(cookie)
+}
+
 pub fn set_oauth_state_cookie(jar: &CookieJar, state: &str) -> CookieJar {
     let base_cookie = Cookie::new("oauth_state", state.to_string());
     let cookie = Cookie::build(base_cookie)

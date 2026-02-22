@@ -35,6 +35,8 @@ impl Services {
         let identity_service = identity_service::IdentityService::new(
             config.keycloak_url,
             config.keycloak_realm,
+            config.keycloak_client_id,
+            config.keycloak_client_secret,
             config.keycloak_admin_client_id,
             config.keycloak_admin_client_secret,
             repo.clone(),
