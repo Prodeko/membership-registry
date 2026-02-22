@@ -19,6 +19,7 @@ envconfig = "0.10.0"
 moka = { version = "0.12", features = ["future"] }
 futures-util = "0.3.30"
 http-body-util = "0.1.2"
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 oauth2 = "4.4.2"
 postgres = "0.19.7"
 rand = "0.8.5"
