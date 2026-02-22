@@ -149,9 +149,14 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
               <CopyIcon className="w-4 h-4 ml-2" />
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="flex items-center justify-between">
-              View user
-              <UserIcon className="w-4 h-4 ml-2" />
+            <DropdownMenuItem asChild>
+              <Link
+                to={`/members/${member.user_id}`}
+                className="flex items-center justify-between w-full"
+              >
+                View user
+                <UserIcon className="w-4 h-4 ml-2" />
+              </Link>
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={async () => {
