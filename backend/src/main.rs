@@ -4,14 +4,14 @@
 #![deny(clippy::panic)]
 #![deny(unused_must_use)]
 
+mod application;
 mod config;
-mod ctx;
 mod domain;
 mod helpers;
 mod http;
+mod middleware;
 mod repositories;
 mod services;
-mod middleware;
 
 use dotenv::dotenv;
 use envconfig::Envconfig;
@@ -19,7 +19,6 @@ use envconfig::Envconfig;
 use http::serve;
 use repositories::PostgresRepo;
 use services::Services;
-
 
 use helpers::create_pg_pool;
 
