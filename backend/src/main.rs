@@ -9,6 +9,7 @@ mod config;
 mod domain;
 mod helpers;
 mod http;
+mod infrastructure;
 mod middleware;
 mod repositories;
 mod services;
