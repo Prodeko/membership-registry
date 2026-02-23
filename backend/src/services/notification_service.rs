@@ -1,12 +1,11 @@
-use regex::Regex;
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock};
 
+use regex::Regex;
+
+use crate::application::ports::email_port::EmailPort;
 use crate::repositories::email_template::{EmailTemplate, EmailTemplateRepo};
 
-use super::{
-    email_service::EmailService,
-    errors::{ServiceError, ServiceResult},
-};
+use super::errors::{ServiceError, ServiceResult};
 
 const ALLOWED_PLACEHOLDERS: &[&str] = &["name", "role_name"];
 #[allow(clippy::expect_used)] // Regex literal, cannot fail
@@ -15,14 +14,17 @@ static PLACEHOLDER_RE: LazyLock<Regex> =
 
 #[derive(Clone)]
 pub struct NotificationService {
-    email_service: EmailService,
+    email_port: Option<Arc<dyn EmailPort>>,
     email_template_repo: EmailTemplateRepo,
 }
 
 impl NotificationService {
-    pub fn new(email_service: EmailService, email_template_repo: EmailTemplateRepo) -> Self {
+    pub fn new(
+        email_port: Option<Arc<dyn EmailPort>>,
+        email_template_repo: EmailTemplateRepo,
+    ) -> Self {
         Self {
-            email_service,
+            email_port,
             email_template_repo,
         }
     }
@@ -74,10 +76,18 @@ impl NotificationService {
 
         let subject = Self::render_template(&template.subject, recipient_name, role_name);
         let body = Self::render_template(&template.body_html, recipient_name, role_name);
+
+        let Some(port) = &self.email_port else {
+            tracing::info!("[MOCK EMAIL] To: {to}, Subject: {subject}");
+            return;
+        };
+
         let to = to.to_string();
-        let service = self.email_service.clone();
+        let port = Arc::clone(port);
         tokio::spawn(async move {
-            service.send_email(to, subject, body).await;
+            if let Err(e) = port.send_email(&to, &subject, &body).await {
+                tracing::error!("Failed to send email to {to}: {e:?}");
+            }
         });
     }
 

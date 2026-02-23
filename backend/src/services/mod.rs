@@ -1,14 +1,19 @@
+use std::sync::Arc;
+
 use application_service::ApplicationService;
 use audit_log_service::AuditLogService;
-use email_service::EmailService;
 use member_service::MemberService;
 use notification_service::NotificationService;
 
-use crate::{config::Config, repositories::PostgresRepo};
+use crate::{
+    application::ports::email_port::EmailPort,
+    config::Config,
+    infrastructure::sendgrid::{SendGridConfig, SendGridEmailAdapter},
+    repositories::PostgresRepo,
+};
 
 pub mod application_service;
 pub mod audit_log_service;
-pub mod email_service;
 pub mod errors;
 pub mod identity_service;
 pub mod member_service;
@@ -42,12 +47,23 @@ impl Services {
             repo.clone(),
         );
         let audit_log_service = AuditLogService::new(repo.audit_log);
-        let email_service = EmailService::new(
-            config.sendgrid_api_key,
-            config.sendgrid_api_url,
-            config.sendgrid_from_email,
-        );
-        let notification_service = NotificationService::new(email_service, repo.email_template);
+        let email_port: Option<Arc<dyn EmailPort>> = config
+            .sendgrid_api_key
+            .filter(|k| !k.is_empty())
+            .map(|api_key| {
+                Arc::new(SendGridEmailAdapter::new(SendGridConfig {
+                    api_key,
+                    base_url: config
+                        .sendgrid_api_url
+                        .filter(|u| !u.is_empty())
+                        .unwrap_or_else(|| "https://api.sendgrid.com".to_string()),
+                    from_email: config
+                        .sendgrid_from_email
+                        .filter(|e| !e.is_empty())
+                        .unwrap_or_else(|| "noreply@prodeko.org".to_string()),
+                })) as Arc<dyn EmailPort>
+            });
+        let notification_service = NotificationService::new(email_port, repo.email_template);
         let member_service = MemberService::new(
             repo.member,
             identity_service.clone(),
