@@ -3,6 +3,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+use crate::application::ports::template_repository_port::TemplateRepositoryError;
+use crate::application::services::template_admin_service::TemplateAdminError;
 use crate::services::errors::{ServiceError, ServiceResult};
 
 pub enum ApiError {
@@ -113,6 +115,24 @@ impl From<ServiceError> for ApiError {
             ServiceError::ProviderNotFound => ApiError::NotFound,
             ServiceError::CannotUnlinkLastProvider => ApiError::BadRequest,
             ServiceError::InvalidTemplate => ApiError::BadRequest,
+        }
+    }
+}
+
+impl From<TemplateAdminError> for ApiError {
+    fn from(err: TemplateAdminError) -> Self {
+        match err {
+            TemplateAdminError::InvalidPlaceholder(_) => ApiError::BadRequest,
+            TemplateAdminError::Repository(repo_err) => match repo_err {
+                TemplateRepositoryError::NotFound => ApiError::NotFound,
+                TemplateRepositoryError::AlreadyExists => {
+                    ApiError::ServiceError(ServiceError::AlreadyExists)
+                }
+                TemplateRepositoryError::Constraint(_) => {
+                    ApiError::ServiceError(ServiceError::Constraint)
+                }
+                TemplateRepositoryError::Unexpected(_) => ApiError::InternalServerError,
+            },
         }
     }
 }

@@ -3,12 +3,23 @@ use std::sync::Arc;
 use application_service::ApplicationService;
 use audit_log_service::AuditLogService;
 use member_service::MemberService;
-use notification_service::NotificationService;
 
 use crate::{
-    application::ports::email_port::EmailPort,
+    application::{
+        ports::{
+            email_port::EmailPort, template_renderer_port::TemplateRendererPort,
+            template_repository_port::TemplateRepositoryPort,
+        },
+        services::{
+            notification_service::NotificationService,
+            template_admin_service::TemplateAdminService,
+        },
+    },
     config::Config,
-    infrastructure::sendgrid::{SendGridConfig, SendGridEmailAdapter},
+    infrastructure::{
+        sendgrid::{SendGridConfig, SendGridEmailAdapter},
+        template::renderer::SimpleTemplateRenderer,
+    },
     repositories::PostgresRepo,
 };
 
@@ -17,7 +28,6 @@ pub mod audit_log_service;
 pub mod errors;
 pub mod identity_service;
 pub mod member_service;
-pub mod notification_service;
 pub mod role_service;
 pub mod saved_filter;
 
@@ -32,7 +42,8 @@ pub struct Services {
     pub identity_service: identity_service::IdentityService,
     pub saved_filter_service: saved_filter::SavedFilterService,
     pub audit_log_service: audit_log_service::AuditLogService,
-    pub notification_service: notification_service::NotificationService,
+    pub template_admin_service: TemplateAdminService,
+    pub notification_service: NotificationService,
 }
 
 impl Services {
@@ -63,7 +74,14 @@ impl Services {
                         .unwrap_or_else(|| "noreply@prodeko.org".to_string()),
                 })) as Arc<dyn EmailPort>
             });
-        let notification_service = NotificationService::new(email_port, repo.email_template);
+
+        let template_repo: Arc<dyn TemplateRepositoryPort> = Arc::new(repo.email_template);
+        let renderer: Arc<dyn TemplateRendererPort> = Arc::new(SimpleTemplateRenderer);
+
+        let template_admin_service = TemplateAdminService::new(Arc::clone(&template_repo));
+        let notification_service =
+            NotificationService::new(email_port, Arc::clone(&template_repo), renderer);
+
         let member_service = MemberService::new(
             repo.member,
             identity_service.clone(),
@@ -90,6 +108,7 @@ impl Services {
             identity_service,
             saved_filter_service,
             audit_log_service,
+            template_admin_service,
             notification_service,
         }
     }

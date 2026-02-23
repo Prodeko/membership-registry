@@ -3,12 +3,31 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::{http::errors::ApiResult, repositories::email_template::EmailTemplate};
+use crate::domain::EmailTemplate;
+use crate::http::errors::ApiResult;
 
 use super::AppState;
+
+#[derive(Serialize, TS)]
+#[ts(export)]
+pub struct EmailTemplateDTO {
+    pub name: String,
+    pub subject: String,
+    pub body_html: String,
+}
+
+impl From<EmailTemplate> for EmailTemplateDTO {
+    fn from(t: EmailTemplate) -> Self {
+        Self {
+            name: t.name,
+            subject: t.subject,
+            body_html: t.body_html,
+        }
+    }
+}
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
@@ -19,13 +38,17 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-async fn list_templates(State(state): State<AppState>) -> ApiResult<Json<Vec<EmailTemplate>>> {
+async fn list_templates(
+    State(state): State<AppState>,
+) -> ApiResult<Json<Vec<EmailTemplateDTO>>> {
     let templates = state
-        .notification_service
+        .template_admin_service
         .get_all_templates()
-        .await
-        .map(Json)?;
-    Ok(templates)
+        .await?
+        .into_iter()
+        .map(Into::into)
+        .collect();
+    Ok(Json(templates))
 }
 
 #[derive(Deserialize, Debug, TS)]
@@ -39,13 +62,12 @@ struct CreateEmailTemplate {
 async fn create_template(
     State(state): State<AppState>,
     Json(body): Json<CreateEmailTemplate>,
-) -> ApiResult<Json<EmailTemplate>> {
+) -> ApiResult<Json<EmailTemplateDTO>> {
     let template = state
-        .notification_service
+        .template_admin_service
         .create_template(&body.name, &body.subject, &body.body_html)
-        .await
-        .map(Json)?;
-    Ok(template)
+        .await?;
+    Ok(Json(template.into()))
 }
 
 #[derive(Deserialize, Debug, TS)]
@@ -59,19 +81,18 @@ async fn update_template(
     Path(name): Path<String>,
     State(state): State<AppState>,
     Json(body): Json<UpdateEmailTemplate>,
-) -> ApiResult<Json<EmailTemplate>> {
+) -> ApiResult<Json<EmailTemplateDTO>> {
     let template = state
-        .notification_service
+        .template_admin_service
         .update_template(&name, &body.subject, &body.body_html)
-        .await
-        .map(Json)?;
-    Ok(template)
+        .await?;
+    Ok(Json(template.into()))
 }
 
 async fn delete_template(
     Path(name): Path<String>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<()>> {
-    state.notification_service.delete_template(&name).await?;
+    state.template_admin_service.delete_template(&name).await?;
     Ok(Json(()))
 }

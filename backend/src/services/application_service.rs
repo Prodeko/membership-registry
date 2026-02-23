@@ -8,10 +8,11 @@ use crate::repositories::application::{
 use chrono::NaiveDate;
 use uuid::Uuid;
 
+use crate::application::services::notification_service::NotificationService;
+
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError as E, ServiceResult},
-    notification_service::NotificationService,
     role_service::RoleService,
 };
 

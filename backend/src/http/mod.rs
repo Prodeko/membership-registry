@@ -12,12 +12,15 @@ use tower_http::{
 use tracing_subscriber::EnvFilter;
 
 use crate::{
+    application::services::{
+        notification_service::NotificationService,
+        template_admin_service::TemplateAdminService,
+    },
     config::Config,
     services::{
         application_service::ApplicationService, audit_log_service::AuditLogService,
         identity_service::IdentityService, member_service::MemberService,
-        notification_service::NotificationService, role_service::RoleService,
-        saved_filter::SavedFilterService, Services,
+        role_service::RoleService, saved_filter::SavedFilterService, Services,
     },
 };
 
@@ -39,6 +42,7 @@ pub struct AppState {
     pub identity_service: Arc<IdentityService>,
     pub saved_filter_service: Arc<SavedFilterService>,
     pub audit_log_service: Arc<AuditLogService>,
+    pub template_admin_service: Arc<TemplateAdminService>,
     pub notification_service: Arc<NotificationService>,
     pub oauth2_client: BasicClient,
 }
@@ -76,6 +80,7 @@ pub async fn serve(config: Config, services: Services) {
         identity_service: Arc::new(services.identity_service),
         saved_filter_service: Arc::new(services.saved_filter_service),
         audit_log_service: Arc::new(services.audit_log_service),
+        template_admin_service: Arc::new(services.template_admin_service),
         notification_service: Arc::new(services.notification_service),
         oauth2_client,
     };
