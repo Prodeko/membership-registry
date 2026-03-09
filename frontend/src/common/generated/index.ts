@@ -9,7 +9,7 @@ export type { ApplicationPath } from "./ApplicationPath";
 export type { ApplicationStatus } from "./ApplicationStatus";
 export type { ApplicationTargetableRole } from "./ApplicationTargetableRole";
 export type { ApplicationWithMember } from "./ApplicationWithMember";
-export type { AuthInfo } from "./AuthInfo";
+export type { AuthenticatedUser } from "./AuthenticatedUser";
 export type { CreateApplicationResponse } from "./CreateApplicationResponse";
 export type { CreateEmailTemplate } from "./CreateEmailTemplate";
 export type { DeleteManyBody } from "./DeleteManyBody";

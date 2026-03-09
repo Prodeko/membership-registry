@@ -6,7 +6,7 @@ export type {
   ApplicationTargetableRole,
   ApplicationWithMember,
   AuditLogEntryWithActor,
-  AuthInfo,
+  AuthenticatedUser,
   CreateApplicationRequest,
   CreateApplicationResponse,
   CreateEmailTemplate,

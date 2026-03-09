@@ -67,6 +67,17 @@ pub struct RealmRoleDTO {
     pub name: String,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct KeycloakUserDTO {
+    pub id: String,
+    pub email: Option<String>,
+    #[serde(rename = "firstName")]
+    pub first_name: Option<String>,
+    #[serde(rename = "lastName")]
+    pub last_name: Option<String>,
+}
+
+
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
@@ -326,8 +337,109 @@ impl KeycloakClient {
     }
 
     // -----------------------------------------------------------------------
+    // User read (admin API)
+    // -----------------------------------------------------------------------
+
+    pub async fn get_user(&self, subject: &str) -> Result<KeycloakUserDTO, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!("users/{subject}"));
+
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch user: {e:?}");
+                KeycloakError::Unavailable(format!("Get user request failed: {e}"))
+            })?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(KeycloakError::NotFound);
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            tracing::error!("Get user returned {status}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Get user returned status {status}"
+            )));
+        }
+
+        response.json().await.map_err(|e| {
+            tracing::error!("Failed to parse user response: {e:?}");
+            KeycloakError::BadResponse(format!("User parse error: {e}"))
+        })
+    }
+
+    // -----------------------------------------------------------------------
     // Role management (admin API)
     // -----------------------------------------------------------------------
+
+    pub async fn create_realm_role(&self, role_name: &str) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("roles");
+
+        let response = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .json(&serde_json::json!({ "name": role_name }))
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create realm role: {e:?}");
+                KeycloakError::Unavailable(format!("Create role request failed: {e}"))
+            })?;
+
+        if response.status() == reqwest::StatusCode::CONFLICT {
+            tracing::warn!("Realm role '{role_name}' already exists in Keycloak");
+            return Ok(());
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::error!("Create realm role returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Create role returned status {status}"
+            )));
+        }
+
+        Ok(())
+    }
+
+    pub async fn delete_realm_role(&self, role_name: &str) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!("roles/{role_name}"));
+
+        let response = self
+            .http
+            .delete(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to delete realm role: {e:?}");
+                KeycloakError::Unavailable(format!("Delete role request failed: {e}"))
+            })?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(());
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::error!("Delete realm role returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Delete role returned status {status}"
+            )));
+        }
+
+        Ok(())
+    }
 
     pub async fn list_user_realm_roles(
         &self,

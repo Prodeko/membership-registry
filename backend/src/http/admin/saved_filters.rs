@@ -12,7 +12,7 @@ use ts_rs::TS;
 use crate::{
     http::errors::{ApiError, ApiResult},
     repositories::saved_filter::{NewSavedFilter, SavedFilter},
-    services::identity_service::AuthInfo,
+    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -35,7 +35,7 @@ struct GetSavedFilterParams {
 #[debug_handler]
 async fn get_saved_filters(
     State(state): State<AppState>,
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     Query(params): Query<GetSavedFilterParams>,
 ) -> ApiResult<Json<Vec<SavedFilter>>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
@@ -51,7 +51,7 @@ async fn get_saved_filters(
 #[debug_handler]
 async fn post_saved_filter(
     State(state): State<AppState>,
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     Json(new_saved_filter): Json<NewSavedFilter>,
 ) -> ApiResult<Json<SavedFilter>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
@@ -67,7 +67,7 @@ async fn post_saved_filter(
 #[debug_handler]
 async fn delete_saved_filter(
     State(state): State<AppState>,
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     Path((name,)): Path<(String,)>,
 ) -> ApiResult<Json<()>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;

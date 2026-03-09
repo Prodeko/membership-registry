@@ -1,34 +1,51 @@
-// src/services/role_service.rs
+use std::sync::Arc;
 
+use crate::application::ports::{
+    auth_provider_repo_port::AuthProviderRepositoryPort,
+    rolesync_port::{IdpSubject, RoleSyncPort},
+};
+use crate::domain::RoleName;
 use crate::repositories::{
     member::Member,
     role::{Role, RoleMember, RoleRepo, RoleStats, RolesWithStatsParams},
 };
-use futures_util::TryFutureExt;
 use uuid::Uuid;
 
-use super::{audit_log_service::AuditLogService, identity_service::IdentityService, errors::ServiceResult, member_service::MemberService};
+use super::{audit_log_service::AuditLogService, errors::{ServiceError, ServiceResult}, member_service::MemberService};
 
 #[derive(Clone)]
 pub struct RoleService {
     pub repo: RoleRepo,
     pub member_service: MemberService,
-    pub identity_service: IdentityService,
+    pub role_sync: Arc<dyn RoleSyncPort>,
+    pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
 }
 
 impl RoleService {
-    pub fn new(repo: RoleRepo, member_service: MemberService, identity_service: IdentityService, audit_log: AuditLogService) -> Self {
+    pub fn new(
+        repo: RoleRepo,
+        member_service: MemberService,
+        role_sync: Arc<dyn RoleSyncPort>,
+        auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
+        audit_log: AuditLogService,
+    ) -> Self {
         Self {
             repo,
             member_service,
-            identity_service,
+            role_sync,
+            auth_provider_repo,
             audit_log,
         }
     }
 
     pub async fn create_role(&self, new_role: Role, actor_user_id: Option<Uuid>) -> ServiceResult<Role> {
-        let role = self.repo.create(new_role).await.map_err(|e| -> super::errors::ServiceError { e.into() })?;
+        self.role_sync
+            .create_role(&RoleName(new_role.name.clone()))
+            .await
+            .map_err(|_| ServiceError::IdpError)?;
+
+        let role = self.repo.create(new_role).await.map_err(|e| -> ServiceError { e.into() })?;
 
         self.audit_log.log(
             actor_user_id,
@@ -46,7 +63,11 @@ impl RoleService {
     }
 
     pub async fn delete_role(&self, role_name: &str, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
-        self.repo.delete(role_name).await.map_err(|e| -> super::errors::ServiceError { e.into() })?;
+        self.repo.delete(role_name).await.map_err(|e| -> ServiceError { e.into() })?;
+
+        if let Err(e) = self.role_sync.delete_role(&RoleName(role_name.to_string())).await {
+            tracing::error!("Failed to delete role from IdP: {e:?}");
+        }
 
         self.audit_log.log(
             actor_user_id,
@@ -68,26 +89,28 @@ impl RoleService {
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         let providers = self
-            .identity_service
-            .repo
-            .user_auth_provider
+            .auth_provider_repo
             .find_by_user_id(&user_id)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to find auth providers for user: {:?}", e);
-                super::errors::ServiceError::DatabaseError
+                tracing::error!("Failed to find auth providers for user: {e:?}");
+                ServiceError::DatabaseError
             })?;
 
         for provider in providers {
-            self.identity_service
-                .assign_role(&provider.provider_user_id, role_name)
-                .await?;
+            self.role_sync
+                .assign_role(
+                    &IdpSubject(provider.provider_user_id),
+                    &RoleName(role_name.to_string()),
+                )
+                .await
+                .map_err(|_| ServiceError::IdpError)?;
         }
 
         self.repo
             .create_role_member(&user_id, role_name, valid_from, valid_until)
             .await
-            .map_err(|e| -> super::errors::ServiceError { e.into() })?;
+            .map_err(|e| -> ServiceError { e.into() })?;
 
         self.audit_log.log(
             actor_user_id,
@@ -154,7 +177,7 @@ impl RoleService {
         self.repo
             .update_valid_until(&user_id, role_name, valid_from, new_valid_until)
             .await
-            .map_err(|e| -> super::errors::ServiceError { e.into() })?;
+            .map_err(|e| -> ServiceError { e.into() })?;
 
         self.audit_log.log(
             actor_user_id,
@@ -181,26 +204,27 @@ impl RoleService {
         self.repo
             .delete_role_member(&user_id, role_name, valid_from)
             .await
-            .map_err(|e| -> super::errors::ServiceError { e.into() })?;
+            .map_err(|e| -> ServiceError { e.into() })?;
 
         let providers = self
-            .identity_service
-            .repo
-            .user_auth_provider
+            .auth_provider_repo
             .find_by_user_id(&user_id)
             .await
             .map_err(|e| {
-                tracing::error!("Failed to find auth providers for user: {:?}", e);
-                super::errors::ServiceError::DatabaseError
+                tracing::error!("Failed to find auth providers for user: {e:?}");
+                ServiceError::DatabaseError
             })?;
 
         for provider in providers {
             if let Err(e) = self
-                .identity_service
-                .remove_role(&provider.provider_user_id, role_name)
+                .role_sync
+                .remove_role(
+                    &IdpSubject(provider.provider_user_id.clone()),
+                    &RoleName(role_name.to_string()),
+                )
                 .await
             {
-                tracing::error!("Failed to remove IdP role for provider {}: {:?}", provider.provider_user_id, e);
+                tracing::error!("Failed to remove IdP role for provider {}: {e:?}", provider.provider_user_id);
             }
         }
 

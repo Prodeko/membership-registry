@@ -72,7 +72,7 @@ async fn callback(
         })?;
 
     let user_info = state
-        .identity_service
+        .authentication_service
         .validate_token(token.access_token().secret().clone())
         .await
         .map_err(|err| {

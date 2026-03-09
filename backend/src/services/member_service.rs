@@ -1,23 +1,30 @@
-use std::f64::consts::E;
+use std::sync::Arc;
 
-use rand::seq::SliceRandom;
-
+use crate::application::ports::{
+    auth_provider_repo_port::AuthProviderRepositoryPort,
+    user_admin_port::UserAdminPort,
+};
 use crate::repositories::member::{Member, MemberRepo, MemberWithRoles, MembersWithRolesParams, NewMember};
-use serde::Deserialize;
 use uuid::Uuid;
 
-use super::{audit_log_service::AuditLogService, identity_service::IdentityService, errors::{ServiceError, ServiceResult}};
+use super::{audit_log_service::AuditLogService, errors::{ServiceError, ServiceResult}};
 
 #[derive(Clone)]
 pub struct MemberService {
     pub repo: MemberRepo,
-    pub identity_service: IdentityService,
+    pub user_admin: Arc<dyn UserAdminPort>,
+    pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
 }
 
 impl MemberService {
-    pub fn new(repo: MemberRepo, identity_service: IdentityService, audit_log: AuditLogService) -> Self {
-        Self { repo, identity_service, audit_log }
+    pub fn new(
+        repo: MemberRepo,
+        user_admin: Arc<dyn UserAdminPort>,
+        auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
+        audit_log: AuditLogService,
+    ) -> Self {
+        Self { repo, user_admin, auth_provider_repo, audit_log }
     }
 
     pub async fn create_member(
@@ -69,11 +76,13 @@ impl MemberService {
         id: Uuid,
     ) -> ServiceResult<Member> {
         let auth_providers = self
-            .identity_service
-            .repo
-            .user_auth_provider
+            .auth_provider_repo
             .find_by_user_id(&id)
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to find auth providers: {e:?}");
+                ServiceError::DatabaseError
+            })?;
 
         if auth_providers.is_empty() {
             return Err(ServiceError::NotFound);
@@ -82,9 +91,13 @@ impl MemberService {
         let primary_provider = &auth_providers[0];
 
         let user = self
-            .identity_service
+            .user_admin
             .get_user(&primary_provider.provider_user_id)
-            .await?;
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to get IdP user: {e:?}");
+                ServiceError::IdpError
+            })?;
 
         let member = self.repo.fetch_one(id).await?;
 
@@ -106,46 +119,10 @@ impl MemberService {
         updated_member: Member,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Member> {
-        let auth_providers = self
-            .identity_service
-            .repo
-            .user_auth_provider
-            .find_by_user_id(&updated_member.user_id)
-            .await?;
-
-        if let Some(primary_provider) = auth_providers.first() {
-            self.identity_service
-                .update_user(
-                    &primary_provider.provider_user_id,
-                    Some(&updated_member.email),
-                    Some(&updated_member.first_name),
-                    Some(&updated_member.last_name),
-                )
-                .await?;
-        }
-
-        let as_member = Member {
-            user_id: updated_member.user_id,
-            email: updated_member.email,
-            first_name: updated_member.first_name,
-            last_name: updated_member.last_name,
-            full_name: updated_member.full_name,
-            home_municipality: updated_member.home_municipality,
-            has_accepted_policies: updated_member.has_accepted_policies,
-        };
-
+        let user_id = updated_member.user_id;
         let member = self.repo
-            .update(as_member, updated_member.user_id, None)
+            .update(updated_member, user_id, None)
             .await
-            .map(|m| Member {
-                user_id: m.user_id,
-                email: m.email,
-                first_name: m.first_name,
-                last_name: m.last_name,
-                full_name: m.full_name,
-                home_municipality: m.home_municipality,
-                has_accepted_policies: m.has_accepted_policies,
-            })
             .map_err(|e| -> ServiceError { e.into() })?;
 
         self.audit_log.log(
@@ -164,19 +141,6 @@ impl MemberService {
     }
 
     pub async fn delete_member(&self, id: Uuid, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
-        let auth_providers = self
-            .identity_service
-            .repo
-            .user_auth_provider
-            .find_by_user_id(&id)
-            .await?;
-
-        for provider in auth_providers {
-            self.identity_service
-                .delete_user(&provider.provider_user_id)
-                .await?;
-        }
-
         self.repo.delete(id).await.map_err(|e| -> ServiceError { e.into() })?;
 
         self.audit_log.log(
@@ -191,21 +155,6 @@ impl MemberService {
     }
 
     pub async fn delete_many(&self, ids: Vec<Uuid>, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
-        for id in &ids {
-            let auth_providers = self
-                .identity_service
-                .repo
-                .user_auth_provider
-                .find_by_user_id(id)
-                .await?;
-
-            for provider in auth_providers {
-                self.identity_service
-                    .delete_user(&provider.provider_user_id)
-                    .await?;
-            }
-        }
-
         self.repo.delete_many(ids.clone()).await.map_err(|e| -> ServiceError { e.into() })?;
 
         self.audit_log.log(

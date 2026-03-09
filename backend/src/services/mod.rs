@@ -7,16 +7,26 @@ use member_service::MemberService;
 use crate::{
     application::{
         ports::{
-            email_port::EmailPort, template_renderer_port::TemplateRendererPort,
+            auth_provider_repo_port::AuthProviderRepositoryPort,
+            email_port::EmailPort,
+            rolesync_port::RoleSyncPort,
+            template_renderer_port::TemplateRendererPort,
             template_repository_port::TemplateRepositoryPort,
+            user_admin_port::UserAdminPort,
         },
         services::{
+            authentication_service::AuthenticationService,
             notification_service::NotificationService,
             template_admin_service::TemplateAdminService,
         },
     },
     config::Config,
+    domain::RoleName,
     infrastructure::{
+        keycloak::{
+            KeycloakAuthAdapter, KeycloakClient, KeycloakConfig, KeycloakRoleSyncAdapter,
+            KeycloakUserAdminAdapter,
+        },
         sendgrid::{SendGridConfig, SendGridEmailAdapter},
         template::renderer::SimpleTemplateRenderer,
     },
@@ -26,7 +36,6 @@ use crate::{
 pub mod application_service;
 pub mod audit_log_service;
 pub mod errors;
-pub mod identity_service;
 pub mod member_service;
 pub mod role_service;
 pub mod saved_filter;
@@ -36,27 +45,46 @@ pub mod saved_filter;
 mod tests;
 
 pub struct Services {
-    pub member_service: member_service::MemberService,
-    pub application_service: application_service::ApplicationService,
+    pub member_service: MemberService,
+    pub application_service: ApplicationService,
     pub role_service: role_service::RoleService,
-    pub identity_service: identity_service::IdentityService,
+    pub authentication_service: AuthenticationService,
     pub saved_filter_service: saved_filter::SavedFilterService,
-    pub audit_log_service: audit_log_service::AuditLogService,
+    pub audit_log_service: AuditLogService,
     pub template_admin_service: TemplateAdminService,
     pub notification_service: NotificationService,
 }
 
 impl Services {
     pub fn new(repo: PostgresRepo, config: Config) -> Self {
-        let identity_service = identity_service::IdentityService::new(
-            config.keycloak_url,
-            config.keycloak_realm,
-            config.keycloak_client_id,
-            config.keycloak_client_secret,
-            config.keycloak_admin_client_id,
-            config.keycloak_admin_client_secret,
-            repo.clone(),
+        let keycloak_cfg = KeycloakConfig {
+            base_url: config.keycloak_url.clone(),
+            realm: config.keycloak_realm.clone(),
+            client_id: config.keycloak_client_id.clone(),
+            client_secret: Some(config.keycloak_client_secret.clone()),
+            admin_client_id: config.keycloak_admin_client_id.clone(),
+            admin_client_secret: config.keycloak_admin_client_secret.clone(),
+            admin_role_name: "admin".to_string(),
+        };
+
+        let keycloak_client = KeycloakClient::new(keycloak_cfg.clone());
+
+        let auth_adapter: Arc<dyn crate::application::ports::auth_port::AuthPort> =
+            Arc::new(KeycloakAuthAdapter::new(keycloak_client.clone()));
+        let role_sync: Arc<dyn RoleSyncPort> =
+            Arc::new(KeycloakRoleSyncAdapter::new(keycloak_client.clone()));
+        let user_admin: Arc<dyn UserAdminPort> =
+            Arc::new(KeycloakUserAdminAdapter::new(keycloak_client));
+        let auth_provider_repo: Arc<dyn AuthProviderRepositoryPort> =
+            Arc::new(repo.user_auth_provider.clone());
+
+        let authentication_service = AuthenticationService::new(
+            Arc::clone(&auth_adapter),
+            Arc::clone(&auth_provider_repo),
+            Arc::clone(&role_sync),
+            RoleName(keycloak_cfg.admin_role_name),
         );
+
         let audit_log_service = AuditLogService::new(repo.audit_log);
         let email_port: Option<Arc<dyn EmailPort>> = config
             .sendgrid_api_key
@@ -84,13 +112,15 @@ impl Services {
 
         let member_service = MemberService::new(
             repo.member,
-            identity_service.clone(),
+            Arc::clone(&user_admin),
+            Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         );
         let role_service = role_service::RoleService::new(
             repo.role,
             member_service.clone(),
-            identity_service.clone(),
+            Arc::clone(&role_sync),
+            Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         );
         let application_service = ApplicationService::new(
@@ -105,7 +135,7 @@ impl Services {
             member_service,
             application_service,
             role_service,
-            identity_service,
+            authentication_service,
             saved_filter_service,
             audit_log_service,
             template_admin_service,

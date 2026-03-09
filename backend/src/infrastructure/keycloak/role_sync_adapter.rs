@@ -16,6 +16,20 @@ impl KeycloakRoleSyncAdapter {
 
 #[async_trait::async_trait]
 impl RoleSyncPort for KeycloakRoleSyncAdapter {
+    async fn create_role(&self, role: &RoleName) -> Result<(), RoleSyncError> {
+        self.client
+            .create_realm_role(&role.0)
+            .await
+            .map_err(|_| RoleSyncError::IdpError)
+    }
+
+    async fn delete_role(&self, role: &RoleName) -> Result<(), RoleSyncError> {
+        self.client
+            .delete_realm_role(&role.0)
+            .await
+            .map_err(|_| RoleSyncError::IdpError)
+    }
+
     async fn assign_role(
         &self,
         subject: &IdpSubject,

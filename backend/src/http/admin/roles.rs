@@ -13,7 +13,7 @@ use crate::{
         member::Member,
         role::{Role, RoleStats},
     },
-    services::identity_service::AuthInfo,
+    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -81,7 +81,7 @@ async fn get_roles_stats(
 
 #[debug_handler]
 async fn post_role(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Json(new_role): Json<Role>,
 ) -> ApiResult<Json<Role>> {

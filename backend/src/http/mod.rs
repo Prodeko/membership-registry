@@ -13,13 +13,14 @@ use tracing_subscriber::EnvFilter;
 
 use crate::{
     application::services::{
+        authentication_service::AuthenticationService,
         notification_service::NotificationService,
         template_admin_service::TemplateAdminService,
     },
     config::Config,
     services::{
         application_service::ApplicationService, audit_log_service::AuditLogService,
-        identity_service::IdentityService, member_service::MemberService,
+        member_service::MemberService,
         role_service::RoleService, saved_filter::SavedFilterService, Services,
     },
 };
@@ -39,7 +40,7 @@ pub struct AppState {
     pub member_service: Arc<MemberService>,
     pub application_service: Arc<ApplicationService>,
     pub role_service: Arc<RoleService>,
-    pub identity_service: Arc<IdentityService>,
+    pub authentication_service: Arc<AuthenticationService>,
     pub saved_filter_service: Arc<SavedFilterService>,
     pub audit_log_service: Arc<AuditLogService>,
     pub template_admin_service: Arc<TemplateAdminService>,
@@ -77,7 +78,7 @@ pub async fn serve(config: Config, services: Services) {
         member_service: Arc::new(services.member_service),
         application_service: Arc::new(services.application_service),
         role_service: Arc::new(services.role_service),
-        identity_service: Arc::new(services.identity_service),
+        authentication_service: Arc::new(services.authentication_service),
         saved_filter_service: Arc::new(services.saved_filter_service),
         audit_log_service: Arc::new(services.audit_log_service),
         template_admin_service: Arc::new(services.template_admin_service),

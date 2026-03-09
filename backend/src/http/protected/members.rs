@@ -16,7 +16,7 @@ use crate::{
         member::{self, Member, NewMember},
         role::RoleMember,
     },
-    services::identity_service::AuthInfo,
+    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -36,7 +36,7 @@ pub fn router(state: AppState) -> Router<AppState> {
 
 #[debug_handler]
 async fn get_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> ApiResult<Json<Member>> {
@@ -47,7 +47,7 @@ async fn get_member(
 
 #[debug_handler]
 async fn get_me(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<Member>> {
     match user_info {
@@ -80,7 +80,7 @@ async fn get_member_roles(
 
 #[debug_handler]
 async fn update_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
@@ -97,7 +97,7 @@ async fn update_member(
 
 #[debug_handler]
 async fn post_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Json(new_member): Json<NewMember>,
 ) -> ApiResult<Json<Member>> {

@@ -19,7 +19,7 @@ use crate::{
         member::{Member, MemberWithRoles},
         role::RoleMember,
     },
-    services::identity_service::AuthInfo,
+    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -114,7 +114,7 @@ async fn get_members_with_roles(
 
 #[debug_handler]
 async fn export_members_with_roles(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Query(query): Query<MembersWithRolesQuery>,
 ) -> ApiResult<Response<Body>> {
@@ -209,7 +209,7 @@ async fn get_member_roles(
 
 #[debug_handler]
 async fn update_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(updated_member): Json<Member>,
@@ -226,7 +226,7 @@ async fn update_member(
 
 #[debug_handler]
 async fn delete_member(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
 ) -> ApiResult<()> {
@@ -246,7 +246,7 @@ struct DeleteManyBody {
 }
 
 async fn delete_many(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Json(query): Json<DeleteManyBody>,
 ) -> ApiResult<()> {
@@ -269,7 +269,7 @@ struct RoleMemberBody {
 
 #[debug_handler]
 async fn add_role(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(query): Json<RoleMemberBody>,
@@ -294,7 +294,7 @@ struct AddManyRolesBody {
 
 #[debug_handler]
 async fn add_many_roles(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Json(query): Json<AddManyRolesBody>,
 ) -> ApiResult<()> {

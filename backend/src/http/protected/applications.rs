@@ -10,7 +10,8 @@ use crate::{
         errors::{ApiError, ApiResult},
         types::ApplicationPath,
     },
-    services::{application_service::CreateApplicationParams, identity_service::AuthInfo},
+    application::services::authentication_service::AuthenticatedUser,
+    services::application_service::CreateApplicationParams,
 };
 
 use super::AppState;
@@ -42,7 +43,7 @@ async fn get_application(
 
 #[debug_handler]
 async fn get_user_applications(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<Vec<ApplicationDTO>>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
@@ -74,7 +75,7 @@ struct CreateApplicationResponse {
 
 #[debug_handler]
 async fn post_application(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Json(req): Json<CreateApplicationRequestDTO>,
 ) -> ApiResult<Json<CreateApplicationResponse>> {

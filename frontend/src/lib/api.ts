@@ -5,7 +5,7 @@ import {
   ApplicationTargetableRolePK,
   ApplicationWithMember,
   AuditLogEntryWithActor,
-  AuthInfo,
+  AuthenticatedUser,
   CreateApplicationRequest,
   CreateApplicationResponse,
   CreateEmailTemplate,
@@ -443,7 +443,7 @@ export const useGetMeMember = () => {
 };
 
 export const useGetMeUser = () => {
-  return useQuery<AuthInfo>({
+  return useQuery<AuthenticatedUser>({
     queryKey: [QueryKey.ME],
     queryFn: async () => {
       const response = await axios_client.get("/users/me");

@@ -10,7 +10,7 @@ use ts_rs::TS;
 
 use crate::{
     http::errors::{ApiError, ApiResult},
-    services::identity_service::AuthInfo,
+    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -31,16 +31,14 @@ struct LinkedProvider {
 }
 
 async fn get_linked_providers(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<Vec<LinkedProvider>>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
 
     let providers = state
-        .identity_service
-        .repo
-        .user_auth_provider
-        .find_by_user_id(&user_info.user_id)
+        .authentication_service
+        .get_providers(user_info.user_id)
         .await
         .map_err(|_| ApiError::InternalServerError)?;
 
@@ -63,14 +61,14 @@ struct UnlinkProviderPath {
 }
 
 async fn unlink_provider(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     axum::extract::Path(path): axum::extract::Path<UnlinkProviderPath>,
 ) -> ApiResult<impl IntoResponse> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
 
     state
-        .identity_service
+        .authentication_service
         .unlink_provider(user_info.user_id, &path.provider_name)
         .await
         .map_err(|e| {

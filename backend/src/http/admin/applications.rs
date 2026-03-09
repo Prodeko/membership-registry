@@ -15,7 +15,7 @@ use crate::{
         errors::ApiResult,
         types::ApplicationPath,
     },
-    services::identity_service::AuthInfo,
+    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -78,7 +78,7 @@ async fn get_applications_filtered(
 }
 
 async fn delete_application(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<()>> {
@@ -101,7 +101,7 @@ struct UpdateApplicationStatus {
 }
 
 async fn update_application_status(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
     Json(body): Json<UpdateApplicationStatus>,
@@ -129,7 +129,7 @@ struct PostTargetableRole {
 }
 #[debug_handler]
 async fn post_targetable_role(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Json(body): Json<PostTargetableRole>,
 ) -> ApiResult<Json<()>> {
@@ -161,7 +161,7 @@ struct PutTargetableRole {
 }
 #[debug_handler]
 async fn put_targetable_role(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Json(body): Json<PutTargetableRole>,
 ) -> ApiResult<Json<()>> {
@@ -188,7 +188,7 @@ struct DeleteTargetableRoleQuery {
 
 #[debug_handler]
 async fn delete_targetable_role(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Query(query): Query<DeleteTargetableRoleQuery>,
 ) -> ApiResult<Json<()>> {

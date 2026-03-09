@@ -15,7 +15,7 @@ use crate::{
         member::{Member, NewMember},
         role::RoleMember,
     },
-    services::identity_service::AuthInfo,
+    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -26,9 +26,9 @@ pub fn router(state: AppState) -> Router<AppState> {
 
 #[debug_handler]
 async fn get_me(
-    Extension(user_info): Extension<Option<AuthInfo>>,
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-) -> Result<Json<AuthInfo>, StatusCode> {
+) -> Result<Json<AuthenticatedUser>, StatusCode> {
     match user_info {
         Some(user_info) => Ok(Json(user_info)),
         None => Err(StatusCode::UNAUTHORIZED),
