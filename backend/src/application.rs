@@ -11,4 +11,6 @@ pub mod ports {
     pub mod template_renderer_port;
     pub mod template_repository_port;
     pub mod user_admin_port;
+    pub mod audit_log_repository_port;
+    pub mod saved_filter_repository_port;
 }

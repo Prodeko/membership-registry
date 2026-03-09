@@ -1,17 +1,21 @@
+use std::sync::Arc;
+
 use serde_json::Value;
 use uuid::Uuid;
 
-use crate::repositories::audit_log::{AuditLogEntryWithActor, AuditLogQueryParams, AuditLogRepo, NewAuditLogEntry};
+use crate::application::ports::audit_log_repository_port::{
+    AuditLogEntryWithActor, AuditLogQueryParams, AuditLogRepositoryPort, NewAuditLogEntry,
+};
 
 use super::errors::ServiceResult;
 
 #[derive(Clone)]
 pub struct AuditLogService {
-    pub repo: AuditLogRepo,
+    repo: Arc<dyn AuditLogRepositoryPort>,
 }
 
 impl AuditLogService {
-    pub fn new(repo: AuditLogRepo) -> Self {
+    pub fn new(repo: Arc<dyn AuditLogRepositoryPort>) -> Self {
         Self { repo }
     }
 

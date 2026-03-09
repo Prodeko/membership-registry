@@ -10,11 +10,13 @@ use crate::{
             application_repository_port::{
                 ApplicationCommandPort, ApplicationQueryPort, TargetableRolePort,
             },
+            audit_log_repository_port::AuditLogRepositoryPort,
             auth_provider_repo_port::AuthProviderRepositoryPort,
             email_port::EmailPort,
             member_repository_port::MemberRepositoryPort,
             role_repository_port::RoleRepositoryPort,
             rolesync_port::RoleSyncPort,
+            saved_filter_repository_port::SavedFilterRepositoryPort,
             template_renderer_port::TemplateRendererPort,
             template_repository_port::TemplateRepositoryPort,
             user_admin_port::UserAdminPort,
@@ -90,7 +92,8 @@ impl Services {
             RoleName(keycloak_cfg.admin_role_name),
         );
 
-        let audit_log_service = AuditLogService::new(repo.audit_log);
+        let audit_log_repo: Arc<dyn AuditLogRepositoryPort> = Arc::new(repo.audit_log);
+        let audit_log_service = AuditLogService::new(audit_log_repo);
         let email_port: Option<Arc<dyn EmailPort>> = config
             .sendgrid_api_key
             .filter(|k| !k.is_empty())
@@ -144,7 +147,8 @@ impl Services {
             audit_log_service.clone(),
             notification_service.clone(),
         );
-        let saved_filter_service = saved_filter::SavedFilterService::new(repo.saved_filter);
+        let saved_filter_repo: Arc<dyn SavedFilterRepositoryPort> = Arc::new(repo.saved_filter);
+        let saved_filter_service = saved_filter::SavedFilterService::new(saved_filter_repo);
 
         Self {
             member_service,

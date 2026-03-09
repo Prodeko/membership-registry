@@ -2,10 +2,10 @@
 mod test_audit_log {
     use uuid::Uuid;
 
-    use crate::repositories::{
-        audit_log::{AuditLogQueryParams, NewAuditLogEntry},
-        tests::{cleanup_test_db, setup_test_db},
+    use crate::application::ports::audit_log_repository_port::{
+        AuditLogQueryParams, AuditLogRepositoryPort, NewAuditLogEntry,
     };
+    use crate::repositories::tests::{cleanup_test_db, setup_test_db};
 
     const ACTOR_USER_ID: &str = "3e1ab0ea-c56a-457f-961f-13938954bb2b";
 

@@ -1,18 +1,16 @@
 use axum::{
     debug_handler,
     extract::{Path, Query, State},
-    response::IntoResponse,
     routing::{delete, get, post},
     Extension, Json, Router,
 };
-use futures_util::FutureExt;
-use serde::Deserialize;
-use ts_rs::TS;
 
 use crate::{
-    http::errors::{ApiError, ApiResult},
-    repositories::saved_filter::{NewSavedFilter, SavedFilter},
     application::services::authentication_service::AuthenticatedUser,
+    http::{
+        dto::saved_filter::{GetSavedFilterParamsDTO, NewSavedFilterDTO, SavedFilterDTO},
+        errors::{ApiError, ApiResult},
+    },
 };
 
 use super::AppState;
@@ -25,43 +23,34 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-#[derive(Deserialize, TS)]
-#[ts(export)]
-struct GetSavedFilterParams {
-    model: Option<String>,
-}
-
-
 #[debug_handler]
 async fn get_saved_filters(
     State(state): State<AppState>,
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
-    Query(params): Query<GetSavedFilterParams>,
-) -> ApiResult<Json<Vec<SavedFilter>>> {
+    Query(params): Query<GetSavedFilterParamsDTO>,
+) -> ApiResult<Json<Vec<SavedFilterDTO>>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
     let saved_filters = state
         .saved_filter_service
         .fetch_all_for_model(user_info.user_id, params.model)
-        .await
-        .map(Json)?;
+        .await?;
 
-    Ok(saved_filters)
+    Ok(Json(saved_filters.into_iter().map(SavedFilterDTO::from).collect()))
 }
 
 #[debug_handler]
 async fn post_saved_filter(
     State(state): State<AppState>,
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
-    Json(new_saved_filter): Json<NewSavedFilter>,
-) -> ApiResult<Json<SavedFilter>> {
+    Json(new_saved_filter): Json<NewSavedFilterDTO>,
+) -> ApiResult<Json<SavedFilterDTO>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
     let saved_filter = state
         .saved_filter_service
-        .create(new_saved_filter, user_info.user_id)
-        .await
-        .map(Json)?;
+        .create(new_saved_filter.into(), user_info.user_id)
+        .await?;
 
-    Ok(saved_filter)
+    Ok(Json(SavedFilterDTO::from(saved_filter)))
 }
 
 #[debug_handler]

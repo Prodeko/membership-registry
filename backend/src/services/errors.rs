@@ -38,13 +38,3 @@ impl From<RepositoryError> for ServiceError {
         }
     }
 }
-
-impl From<sqlx::Error> for ServiceError {
-    fn from(val: sqlx::Error) -> Self {
-        match val {
-            sqlx::Error::RowNotFound => Self::NotFound,
-            sqlx::Error::Database(ref err) if err.constraint().is_some() => Self::Constraint,
-            _ => Self::DatabaseError,
-        }
-    }
-}

@@ -18,7 +18,7 @@ mod test_idp_roles {
     use crate::infrastructure::keycloak::{
         KeycloakClient, KeycloakConfig, KeycloakRoleSyncAdapter, KeycloakUserAdminAdapter,
     };
-    use crate::repositories::audit_log::AuditLogQueryParams;
+    use crate::application::ports::audit_log_repository_port::AuditLogQueryParams;
     use crate::repositories::tests::{cleanup_test_db, setup_test_db};
     use crate::services::audit_log_service::AuditLogService;
     use crate::services::member_service::MemberService;
@@ -86,7 +86,8 @@ mod test_idp_roles {
         // Warm the token cache by making a user_admin call
         let _ = user_admin.get_user("warm").await;
 
-        let audit_log_service = AuditLogService::new(repo.audit_log.clone());
+        let audit_log_repo: Arc<dyn crate::application::ports::audit_log_repository_port::AuditLogRepositoryPort> = Arc::new(repo.audit_log.clone());
+        let audit_log_service = AuditLogService::new(audit_log_repo);
 
         let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member.clone());
         let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role.clone());
@@ -179,8 +180,7 @@ mod test_idp_roles {
         // Verify audit log entry was written
         let logs = role_service
             .audit_log
-            .repo
-            .fetch_paginated(AuditLogQueryParams {
+            .get_logs(AuditLogQueryParams {
                 action: Some("role_member.assign".to_string()),
                 ..default_query_params()
             })
@@ -235,8 +235,7 @@ mod test_idp_roles {
         // Verify no audit log entry was written
         let logs = role_service
             .audit_log
-            .repo
-            .fetch_paginated(default_query_params())
+            .get_logs(default_query_params())
             .await
             .unwrap();
         assert!(
@@ -298,8 +297,7 @@ mod test_idp_roles {
         // Verify audit log entry was written
         let logs = role_service
             .audit_log
-            .repo
-            .fetch_paginated(AuditLogQueryParams {
+            .get_logs(AuditLogQueryParams {
                 action: Some("role_member.delete".to_string()),
                 ..default_query_params()
             })

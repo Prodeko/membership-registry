@@ -4,9 +4,9 @@ use axum::{
     Json, Router,
 };
 
-use crate::{
-    http::errors::ApiResult,
-    repositories::audit_log::{AuditLogEntryWithActor, AuditLogQueryParams},
+use crate::http::{
+    dto::audit_log::{AuditLogEntryWithActorDTO, AuditLogQueryParamsDTO},
+    errors::ApiResult,
 };
 
 use super::AppState;
@@ -19,13 +19,12 @@ pub fn router(state: AppState) -> Router<AppState> {
 
 async fn get_audit_logs(
     State(state): State<AppState>,
-    Query(params): Query<AuditLogQueryParams>,
-) -> ApiResult<Json<Vec<AuditLogEntryWithActor>>> {
+    Query(params): Query<AuditLogQueryParamsDTO>,
+) -> ApiResult<Json<Vec<AuditLogEntryWithActorDTO>>> {
     let logs = state
         .audit_log_service
-        .get_logs(params)
-        .await
-        .map(Json)?;
+        .get_logs(params.into())
+        .await?;
 
-    Ok(logs)
+    Ok(Json(logs.into_iter().map(AuditLogEntryWithActorDTO::from).collect()))
 }

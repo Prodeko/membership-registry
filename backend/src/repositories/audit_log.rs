@@ -1,63 +1,47 @@
 use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use ts_rs::TS;
 use uuid::Uuid;
+
+use crate::application::ports::audit_log_repository_port::{
+    AuditLogEntryWithActor, AuditLogQueryParams, AuditLogRepositoryPort, NewAuditLogEntry,
+};
+use crate::application::ports::repository_error::RepositoryError;
 
 #[derive(Clone)]
 pub struct AuditLogRepo {
     pub pool: PgPool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct AuditLogEntry {
-    pub id: Uuid,
-    pub actor_user_id: Option<Uuid>,
-    pub action: String,
-    pub entity_type: String,
-    pub entity_id: String,
-    #[ts(type = "Record<string, unknown> | null")]
-    pub details: Option<serde_json::Value>,
-    pub created_at: DateTime<Utc>,
-}
-
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct AuditLogEntryWithActor {
+#[derive(Debug, sqlx::FromRow)]
+struct AuditLogEntryWithActorDAO {
     pub id: Uuid,
     pub actor_user_id: Option<Uuid>,
     pub actor_name: Option<String>,
     pub action: String,
     pub entity_type: String,
     pub entity_id: String,
-    #[ts(type = "Record<string, unknown> | null")]
     pub details: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
 
-pub struct NewAuditLogEntry {
-    pub actor_user_id: Option<Uuid>,
-    pub action: String,
-    pub entity_type: String,
-    pub entity_id: String,
-    pub details: Option<serde_json::Value>,
+impl From<AuditLogEntryWithActorDAO> for AuditLogEntryWithActor {
+    fn from(dao: AuditLogEntryWithActorDAO) -> Self {
+        Self {
+            id: dao.id,
+            actor_user_id: dao.actor_user_id,
+            actor_name: dao.actor_name,
+            action: dao.action,
+            entity_type: dao.entity_type,
+            entity_id: dao.entity_id,
+            details: dao.details,
+            created_at: dao.created_at,
+        }
+    }
 }
 
-#[derive(Debug, Deserialize, TS)]
-#[ts(export)]
-pub struct AuditLogQueryParams {
-    pub page_size: Option<i32>,
-    pub offset: Option<i32>,
-    pub action: Option<String>,
-    pub entity_type: Option<String>,
-    pub entity_id: Option<String>,
-    pub actor_user_id: Option<Uuid>,
-    pub search: Option<String>,
-}
-
-impl AuditLogRepo {
-    pub async fn create(&self, entry: NewAuditLogEntry) -> Result<(), sqlx::Error> {
+#[async_trait::async_trait]
+impl AuditLogRepositoryPort for AuditLogRepo {
+    async fn create(&self, entry: NewAuditLogEntry) -> Result<(), RepositoryError> {
         sqlx::query!(
             r#"
             INSERT INTO audit_log (actor_user_id, action, entity_type, entity_id, details)
@@ -74,15 +58,15 @@ impl AuditLogRepo {
         Ok(())
     }
 
-    pub async fn fetch_paginated(
+    async fn fetch_paginated(
         &self,
         params: AuditLogQueryParams,
-    ) -> Result<Vec<AuditLogEntryWithActor>, sqlx::Error> {
+    ) -> Result<Vec<AuditLogEntryWithActor>, RepositoryError> {
         let page_size = params.page_size.unwrap_or(50) as i64;
         let offset = params.offset.unwrap_or(0) as i64;
 
         let rows = sqlx::query_as!(
-            AuditLogEntryWithActor,
+            AuditLogEntryWithActorDAO,
             r#"
             SELECT
                 al.id,
@@ -120,6 +104,6 @@ impl AuditLogRepo {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(rows)
+        Ok(rows.into_iter().map(AuditLogEntryWithActor::from).collect())
     }
 }

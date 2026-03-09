@@ -1,16 +1,18 @@
-use serde::{Deserialize, Serialize};
-use sqlx::{types::Json, PgPool};
-use ts_rs::TS;
+use sqlx::PgPool;
 use uuid::Uuid;
+
+use crate::application::ports::repository_error::RepositoryError;
+use crate::application::ports::saved_filter_repository_port::{
+    NewSavedFilter, SavedFilter, SavedFilterRepositoryPort,
+};
 
 #[derive(Clone)]
 pub struct SavedFilterRepo {
     pub pool: PgPool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct SavedFilter {
+#[derive(Debug, sqlx::FromRow)]
+struct SavedFilterDAO {
     pub name: String,
     pub filtered_model: String,
     pub owner_user_id: Uuid,
@@ -18,64 +20,65 @@ pub struct SavedFilter {
     pub search: Option<String>,
     pub sorting_col: Option<String>,
     pub sorting_desc: bool,
-    #[ts(type = "Record<string, unknown> | null")]
     pub custom_filters: Option<serde_json::Value>,
 }
 
-#[derive(Deserialize, TS)]
-#[ts(export)]
-pub struct NewSavedFilter {
-    pub name: String,
-    pub filtered_model: String,
-    pub visible_for_all: bool,
-    pub search: Option<String>,
-    pub sorting_col: Option<String>,
-    pub sorting_desc: bool,
-    #[ts(type = "Record<string, unknown> | null")]
-    pub custom_filters: Option<serde_json::Value>,
+impl From<SavedFilterDAO> for SavedFilter {
+    fn from(dao: SavedFilterDAO) -> Self {
+        Self {
+            name: dao.name,
+            filtered_model: dao.filtered_model,
+            owner_user_id: dao.owner_user_id,
+            visible_for_all: dao.visible_for_all,
+            search: dao.search,
+            sorting_col: dao.sorting_col,
+            sorting_desc: dao.sorting_desc,
+            custom_filters: dao.custom_filters,
+        }
+    }
 }
 
-impl SavedFilterRepo {
-    pub async fn create(
+#[async_trait::async_trait]
+impl SavedFilterRepositoryPort for SavedFilterRepo {
+    async fn create(
         &self,
         saved_filter: NewSavedFilter,
         owner_user_id: Uuid,
-    ) -> Result<SavedFilter, sqlx::Error> {
-        let created =
-            sqlx::query_as!(
-                SavedFilter,
-                r#"
-                INSERT INTO 
+    ) -> Result<SavedFilter, RepositoryError> {
+        let created = sqlx::query_as!(
+            SavedFilterDAO,
+            r#"
+                INSERT INTO
                     SavedFilter (name, filtered_model, owner_user_id, visible_for_all, search, sorting_col, sorting_desc, custom_filters)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING *
             "#,
-                &saved_filter.name,
-                &saved_filter.filtered_model,
-                owner_user_id,
-                saved_filter.visible_for_all,
-                saved_filter.search,
-                saved_filter.sorting_col,
-                saved_filter.sorting_desc,
-                saved_filter.custom_filters
-            )
-            .fetch_one(&self.pool)
-            .await?;
+            &saved_filter.name,
+            &saved_filter.filtered_model,
+            owner_user_id,
+            saved_filter.visible_for_all,
+            saved_filter.search,
+            saved_filter.sorting_col,
+            saved_filter.sorting_desc,
+            saved_filter.custom_filters
+        )
+        .fetch_one(&self.pool)
+        .await?;
 
-        Ok(created)
+        Ok(SavedFilter::from(created))
     }
 
-    pub async fn fetch_all(
+    async fn fetch_all(
         &self,
         current_user_id: Uuid,
         filtered_model: Option<String>,
-    ) -> Result<Vec<SavedFilter>, sqlx::Error> {
+    ) -> Result<Vec<SavedFilter>, RepositoryError> {
         let saved_filters = sqlx::query_as!(
-            SavedFilter,
+            SavedFilterDAO,
             r#"
-            SELECT * 
-            FROM SavedFilter 
-            WHERE 
+            SELECT *
+            FROM SavedFilter
+            WHERE
                 (owner_user_id = $1 OR visible_for_all = true) AND
                 ($2::text IS NULL OR filtered_model = $2)
             "#,
@@ -85,14 +88,14 @@ impl SavedFilterRepo {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(saved_filters)
+        Ok(saved_filters.into_iter().map(SavedFilter::from).collect())
     }
 
-    pub async fn delete(
+    async fn delete(
         &self,
         saved_filter_name: &str,
         current_user_id: Uuid,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), RepositoryError> {
         sqlx::query!(
             "DELETE FROM SavedFilter WHERE name = $1 AND owner_user_id = $2",
             saved_filter_name,
