@@ -16,6 +16,7 @@ import EmailTemplates from "./components/email-templates/EmailTemplates";
 import SignupForm from "./components/signup-form/SignupForm";
 import { ThemeProvider } from "./components/theme-provider";
 import Success from "./components/application-form/Success";
+import UserHome from "./components/home/UserHome";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 const queryClient = new QueryClient();
@@ -105,6 +106,10 @@ const router = createBrowserRouter([
         <EmailTemplates />
       </Layout>
     ),
+  },
+  {
+    path: "/home",
+    element: <UserHome />,
   },
   {
     path: "/apply",
