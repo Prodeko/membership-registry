@@ -50,9 +50,7 @@ const UserHome = () => {
     <main className="flex justify-center min-h-screen w-screen px-4 py-20">
       <div className="max-w-2xl w-full space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">
-            Welcome, {member.first_name}
-          </h1>
+          <h1 className="text-3xl font-bold">Welcome, {member.first_name}</h1>
           <p className="text-muted-foreground mt-1">
             Here's an overview of your membership status.
           </p>
