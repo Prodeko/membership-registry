@@ -73,11 +73,7 @@ impl TemplateAdminService {
     ) -> TemplateAdminResult<EmailTemplate> {
         Self::validate_placeholders(subject)?;
         let sanitized_body = Self::sanitize_body(body_html)?;
-        let template = self
-            .repo
-            .create(name, subject, &sanitized_body)
-            .await
-            .map_err(RepositoryError::from)?;
+        let template = self.repo.create(name, subject, &sanitized_body).await?;
 
         self.audit_log
             .log(
@@ -101,11 +97,7 @@ impl TemplateAdminService {
     ) -> TemplateAdminResult<EmailTemplate> {
         Self::validate_placeholders(subject)?;
         let sanitized_body = Self::sanitize_body(body_html)?;
-        let template = self
-            .repo
-            .update(name, subject, &sanitized_body)
-            .await
-            .map_err(RepositoryError::from)?;
+        let template = self.repo.update(name, subject, &sanitized_body).await?;
 
         self.audit_log
             .log(
@@ -125,16 +117,10 @@ impl TemplateAdminService {
         name: &str,
         actor_user_id: Option<Uuid>,
     ) -> TemplateAdminResult<()> {
-        self.repo.delete(name).await.map_err(RepositoryError::from)?;
+        self.repo.delete(name).await?;
 
         self.audit_log
-            .log(
-                actor_user_id,
-                "template.delete",
-                "template",
-                name,
-                None,
-            )
+            .log(actor_user_id, "template.delete", "template", name, None)
             .await;
 
         Ok(())
