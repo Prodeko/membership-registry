@@ -3,31 +3,13 @@ use axum::{
     routing::{delete, get, post, put},
     Json, Router,
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use ts_rs::TS;
 
-use crate::domain::EmailTemplate;
+use crate::infrastructure::http::dto::email_template::EmailTemplateDTO;
 use crate::infrastructure::http::errors::ApiResult;
 
 use super::AppState;
-
-#[derive(Serialize, TS)]
-#[ts(export)]
-pub struct EmailTemplateDTO {
-    pub name: String,
-    pub subject: String,
-    pub body_html: String,
-}
-
-impl From<EmailTemplate> for EmailTemplateDTO {
-    fn from(t: EmailTemplate) -> Self {
-        Self {
-            name: t.name,
-            subject: t.subject,
-            body_html: t.body_html,
-        }
-    }
-}
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()

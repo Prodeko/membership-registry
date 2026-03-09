@@ -3,7 +3,7 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-use crate::application::ports::template_repository_port::TemplateRepositoryError;
+use crate::application::ports::repository_error::RepositoryError;
 use crate::application::services::template_admin_service::TemplateAdminError;
 use crate::application::services::errors::{ServiceError, ServiceResult};
 
@@ -124,14 +124,14 @@ impl From<TemplateAdminError> for ApiError {
         match err {
             TemplateAdminError::InvalidPlaceholder(_) => ApiError::BadRequest,
             TemplateAdminError::Repository(repo_err) => match repo_err {
-                TemplateRepositoryError::NotFound => ApiError::NotFound,
-                TemplateRepositoryError::AlreadyExists => {
+                RepositoryError::NotFound => ApiError::NotFound,
+                RepositoryError::AlreadyExists => {
                     ApiError::ServiceError(ServiceError::AlreadyExists)
                 }
-                TemplateRepositoryError::Constraint(_) => {
+                RepositoryError::Constraint(_) => {
                     ApiError::ServiceError(ServiceError::Constraint)
                 }
-                TemplateRepositoryError::Unexpected(_) => ApiError::InternalServerError,
+                RepositoryError::Unexpected(_) => ApiError::InternalServerError,
             },
         }
     }

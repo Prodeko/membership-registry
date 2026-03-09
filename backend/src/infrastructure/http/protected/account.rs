@@ -23,8 +23,8 @@ pub fn router(state: AppState) -> Router<AppState> {
 }
 
 #[derive(Serialize, TS)]
-#[ts(export)]
-struct LinkedProvider {
+#[ts(export, rename = "LinkedProvider")]
+struct LinkedProviderDTO {
     provider_name: String,
     provider_user_id: String,
     linked_at: chrono::DateTime<chrono::Utc>,
@@ -33,7 +33,7 @@ struct LinkedProvider {
 async fn get_linked_providers(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-) -> ApiResult<Json<Vec<LinkedProvider>>> {
+) -> ApiResult<Json<Vec<LinkedProviderDTO>>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
 
     let providers = state
@@ -44,7 +44,7 @@ async fn get_linked_providers(
 
     let linked_providers = providers
         .into_iter()
-        .map(|p| LinkedProvider {
+        .map(|p| LinkedProviderDTO {
             provider_name: p.provider_name,
             provider_user_id: p.provider_user_id,
             linked_at: p.linked_at,
@@ -55,15 +55,15 @@ async fn get_linked_providers(
 }
 
 #[derive(serde::Deserialize, TS)]
-#[ts(export)]
-struct UnlinkProviderPath {
+#[ts(export, rename = "UnlinkProviderPath")]
+struct UnlinkProviderPathDTO {
     provider_name: String,
 }
 
 async fn unlink_provider(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-    axum::extract::Path(path): axum::extract::Path<UnlinkProviderPath>,
+    axum::extract::Path(path): axum::extract::Path<UnlinkProviderPathDTO>,
 ) -> ApiResult<impl IntoResponse> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
 

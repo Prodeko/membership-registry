@@ -1,8 +1,7 @@
 use sqlx::PgPool;
 
-use crate::application::ports::template_repository_port::{
-    TemplateRepositoryError, TemplateRepositoryPort,
-};
+use crate::application::ports::repository_error::RepositoryError;
+use crate::application::ports::template_repository_port::TemplateRepositoryPort;
 use crate::domain::EmailTemplate;
 
 #[derive(Debug, sqlx::FromRow)]
@@ -22,23 +21,6 @@ impl From<EmailTemplateDAO> for EmailTemplate {
     }
 }
 
-fn map_sqlx_error(e: sqlx::Error) -> TemplateRepositoryError {
-    match e {
-        sqlx::Error::RowNotFound => TemplateRepositoryError::NotFound,
-        sqlx::Error::Database(ref db_err)
-            if db_err.constraint() == Some("emailtemplate_pkey") =>
-        {
-            TemplateRepositoryError::AlreadyExists
-        }
-        sqlx::Error::Database(ref db_err) if db_err.constraint().is_some() => {
-            TemplateRepositoryError::Constraint(
-                db_err.constraint().unwrap_or("unknown").to_string(),
-            )
-        }
-        other => TemplateRepositoryError::Unexpected(other.to_string()),
-    }
-}
-
 #[derive(Clone)]
 pub struct EmailTemplateRepo {
     pub pool: PgPool,
@@ -46,24 +28,22 @@ pub struct EmailTemplateRepo {
 
 #[async_trait::async_trait]
 impl TemplateRepositoryPort for EmailTemplateRepo {
-    async fn fetch_all(&self) -> Result<Vec<EmailTemplate>, TemplateRepositoryError> {
+    async fn fetch_all(&self) -> Result<Vec<EmailTemplate>, RepositoryError> {
         let templates =
             sqlx::query_as!(EmailTemplateDAO, "SELECT * FROM EmailTemplate")
                 .fetch_all(&self.pool)
-                .await
-                .map_err(map_sqlx_error)?;
+                .await?;
         Ok(templates.into_iter().map(Into::into).collect())
     }
 
-    async fn fetch_one(&self, name: &str) -> Result<EmailTemplate, TemplateRepositoryError> {
+    async fn fetch_one(&self, name: &str) -> Result<EmailTemplate, RepositoryError> {
         let template = sqlx::query_as!(
             EmailTemplateDAO,
             "SELECT * FROM EmailTemplate WHERE name = $1",
             name
         )
         .fetch_one(&self.pool)
-        .await
-        .map_err(map_sqlx_error)?;
+        .await?;
         Ok(template.into())
     }
 
@@ -72,7 +52,7 @@ impl TemplateRepositoryPort for EmailTemplateRepo {
         name: &str,
         subject: &str,
         body_html: &str,
-    ) -> Result<EmailTemplate, TemplateRepositoryError> {
+    ) -> Result<EmailTemplate, RepositoryError> {
         let template = sqlx::query_as!(
             EmailTemplateDAO,
             r#"
@@ -85,8 +65,7 @@ impl TemplateRepositoryPort for EmailTemplateRepo {
             body_html
         )
         .fetch_one(&self.pool)
-        .await
-        .map_err(map_sqlx_error)?;
+        .await?;
         Ok(template.into())
     }
 
@@ -95,7 +74,7 @@ impl TemplateRepositoryPort for EmailTemplateRepo {
         name: &str,
         subject: &str,
         body_html: &str,
-    ) -> Result<EmailTemplate, TemplateRepositoryError> {
+    ) -> Result<EmailTemplate, RepositoryError> {
         let template = sqlx::query_as!(
             EmailTemplateDAO,
             r#"
@@ -108,16 +87,14 @@ impl TemplateRepositoryPort for EmailTemplateRepo {
             body_html
         )
         .fetch_one(&self.pool)
-        .await
-        .map_err(map_sqlx_error)?;
+        .await?;
         Ok(template.into())
     }
 
-    async fn delete(&self, name: &str) -> Result<(), TemplateRepositoryError> {
+    async fn delete(&self, name: &str) -> Result<(), RepositoryError> {
         sqlx::query!("DELETE FROM EmailTemplate WHERE name = $1", name)
             .execute(&self.pool)
-            .await
-            .map_err(map_sqlx_error)?;
+            .await?;
         Ok(())
     }
 }

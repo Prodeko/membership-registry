@@ -70,8 +70,8 @@ async fn get_targetable_roles(
 }
 
 #[derive(Serialize, Debug, TS)]
-#[ts(export)]
-struct CreateApplicationResponse {
+#[ts(export, rename = "CreateApplicationResponse")]
+struct CreateApplicationResponseDTO {
     redirect_to: String,
 }
 
@@ -80,7 +80,7 @@ async fn post_application(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Json(req): Json<CreateApplicationRequestDTO>,
-) -> ApiResult<Json<CreateApplicationResponse>> {
+) -> ApiResult<Json<CreateApplicationResponseDTO>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
     let user_id = user_info.user_id;
     let role_name = req.role_name.clone();
@@ -111,5 +111,5 @@ async fn post_application(
         None => format!("{}/apply/success", state.config.frontend_url),
     };
 
-    Ok(Json(CreateApplicationResponse { redirect_to }))
+    Ok(Json(CreateApplicationResponseDTO { redirect_to }))
 }

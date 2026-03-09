@@ -78,28 +78,32 @@ pub struct RoleRepo {
 #[async_trait::async_trait]
 impl RoleRepositoryPort for RoleRepo {
     async fn create(&self, role: &Role) -> Result<Role, RepositoryError> {
-        let row = sqlx::query_as::<_, RoleDAO>(
-            "INSERT INTO Role (name, color) VALUES ($1, $2) RETURNING *",
+        let row = sqlx::query_as!(
+            RoleDAO,
+            "INSERT INTO Role (name, color) VALUES ($1, $2) RETURNING name, color, description",
+            &role.name.0,
+            role.color.as_deref(),
         )
-        .bind(&role.name.0)
-        .bind(&role.color)
         .fetch_one(&self.pool)
         .await?;
         Ok(row.into())
     }
 
     async fn fetch_all(&self) -> Result<Vec<Role>, RepositoryError> {
-        let rows = sqlx::query_as::<_, RoleDAO>("SELECT * FROM Role")
+        let rows = sqlx::query_as!(RoleDAO, "SELECT name, color, description FROM Role")
             .fetch_all(&self.pool)
             .await?;
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
     async fn fetch_by_name(&self, role_name: &str) -> Result<Role, RepositoryError> {
-        let row = sqlx::query_as::<_, RoleDAO>("SELECT * FROM Role WHERE name = $1")
-            .bind(role_name)
-            .fetch_one(&self.pool)
-            .await?;
+        let row = sqlx::query_as!(
+            RoleDAO,
+            "SELECT name, color, description FROM Role WHERE name = $1",
+            role_name,
+        )
+        .fetch_one(&self.pool)
+        .await?;
         Ok(row.into())
     }
 

@@ -52,6 +52,7 @@ use infrastructure::{
             KeycloakUserAdminAdapter,
         },
         sendgrid::{SendGridConfig, SendGridEmailAdapter},
+        stripe::StripeWebhookAdapter,
         template::renderer::SimpleTemplateRenderer,
     },
     http::serve,
@@ -67,6 +68,7 @@ pub struct Services {
     pub audit_log_service: AuditLogService,
     pub template_admin_service: TemplateAdminService,
     pub notification_service: NotificationService,
+    pub payment_webhook: StripeWebhookAdapter,
 }
 
 impl Services {
@@ -157,6 +159,8 @@ impl Services {
         let saved_filter_repo: Arc<dyn SavedFilterRepositoryPort> = Arc::new(repo.saved_filter);
         let saved_filter_service = SavedFilterService::new(saved_filter_repo);
 
+        let payment_webhook = StripeWebhookAdapter::new(config.stripe_endpoint_secret.clone());
+
         Self {
             member_service,
             application_service,
@@ -166,6 +170,7 @@ impl Services {
             audit_log_service,
             template_admin_service,
             notification_service,
+            payment_webhook,
         }
     }
 }

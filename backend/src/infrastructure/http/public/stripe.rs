@@ -1,20 +1,14 @@
-use std::str::FromStr;
-
+use crate::application::ports::payment_webhook_port::PaymentWebhookError;
 use crate::infrastructure::http::errors::{ApiError, ApiResult};
-use crate::application::services::errors::ServiceError;
 
 use super::AppState;
 use axum::{
     debug_handler,
     extract::{Json, State},
-    http::StatusCode,
-    response::IntoResponse,
     routing::post,
     Router,
 };
 use serde_json::{self, Value};
-use stripe::{CheckoutSession, EventObject};
-use uuid::Uuid;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
@@ -33,59 +27,33 @@ async fn stripe_webhook(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
-    let event = match stripe::Webhook::construct_event(
-        &body,
-        sig_header,
-        &state.config.stripe_endpoint_secret,
-    ) {
-        Ok(event) => event,
-        Err(err) => {
-            tracing::warn!("Invalid signature, {}", err);
-            return Err(ApiError::Unauthorized);
-        }
+    let event = state
+        .payment_webhook
+        .verify_and_parse(&body, sig_header)
+        .await
+        .map_err(|e| match e {
+            PaymentWebhookError::InvalidSignature => ApiError::Unauthorized,
+            PaymentWebhookError::MissingApplicationId | PaymentWebhookError::MissingPaymentIntent => {
+                ApiError::BadRequest
+            }
+            PaymentWebhookError::InvalidPayload(_) | PaymentWebhookError::UnhandledEvent => {
+                ApiError::BadRequest
+            }
+        })?;
+
+    let Some(event) = event else {
+        return Ok(Json(
+            serde_json::json!({"success": true, "message": "Unhandled event type."}),
+        ));
     };
 
-    match event.type_ {
-        stripe::EventType::CheckoutSessionCompleted => {
-            let checkout: CheckoutSession = match event.data.object {
-                EventObject::CheckoutSession(session) => session,
-                _ => {
-                    tracing::warn!("Unhandled event object");
-                    return Ok(Json(
-                        serde_json::json!({"success": true, "message": "Unhandled event object."}),
-                    ));
-                }
-            };
+    state
+        .application_service
+        .update_payment_id(event.application_id, event.payment_intent_id)
+        .await
+        .map_err(ApiError::ServiceError)?;
 
-            let application_id = match &checkout
-                .client_reference_id
-                .and_then(|s| Uuid::from_str(s.as_str()).ok())
-            {
-                Some(id) => *id,
-                None => {
-                    return Err(ApiError::BadRequest);
-                }
-            };
-
-            let payment_intent = checkout
-                .payment_intent
-                .ok_or(ApiError::BadRequest)?;
-
-            state
-                .application_service
-                .update_payment_id(
-                    application_id,
-                    payment_intent.id().to_string(),
-                )
-                .await
-                .map_err(ApiError::ServiceError)?;
-            
-            Ok(Json(
-                serde_json::json!({"success": true, "message": "Payment ID updated."}),
-            ))
-        }
-        _ => Ok(Json(
-            serde_json::json!({"success": true, "message": "Unhandled event type."}),
-        )),
-    }
+    Ok(Json(
+        serde_json::json!({"success": true, "message": "Payment ID updated."}),
+    ))
 }

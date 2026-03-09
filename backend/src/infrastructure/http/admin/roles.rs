@@ -72,8 +72,8 @@ async fn get_role_members(
 }
 
 #[derive(Deserialize, Debug, TS)]
-#[ts(export)]
-struct RolesWithStatsQuery {
+#[ts(export, rename = "RolesWithStatsQuery")]
+struct RolesWithStatsQueryDTO {
     page_size: Option<u64>,
     offset: Option<u64>,
     search: Option<String>,
@@ -83,7 +83,7 @@ struct RolesWithStatsQuery {
 
 async fn get_roles_stats(
     State(state): State<AppState>,
-    Query(query): Query<RolesWithStatsQuery>,
+    Query(query): Query<RolesWithStatsQueryDTO>,
 ) -> ApiResult<Json<Vec<RoleStatsDTO>>> {
     let result: Vec<RoleStatsDTO> = state
         .role_service

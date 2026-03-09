@@ -10,7 +10,6 @@ use axum::{
 use csv::WriterBuilder;
 use serde::Deserialize;
 use ts_rs::TS;
-use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::{
@@ -39,13 +38,13 @@ pub fn router(state: AppState) -> Router<AppState> {
 }
 
 #[derive(Deserialize, Debug, TS)]
-#[ts(export)]
-struct MembersQuery {
+#[ts(export, rename = "MembersQuery")]
+struct MembersQueryDTO {
     user_ids: Option<String>,
 }
 async fn get_members(
     State(state): State<AppState>,
-    Query(query): Query<MembersQuery>,
+    Query(query): Query<MembersQueryDTO>,
 ) -> ApiResult<Json<Vec<MemberDTO>>> {
     let user_ids = query
         .user_ids
@@ -74,8 +73,8 @@ async fn get_members(
 }
 
 #[derive(Deserialize, Debug, TS)]
-#[ts(export)]
-struct MembersWithRolesQuery {
+#[ts(export, rename = "MembersWithRolesQuery")]
+struct MembersWithRolesQueryDTO {
     page_size: Option<u64>,
     offset: Option<u64>,
     search: Option<String>,
@@ -89,7 +88,7 @@ struct MembersWithRolesQuery {
 #[debug_handler]
 async fn get_members_with_roles(
     State(state): State<AppState>,
-    Query(query): Query<MembersWithRolesQuery>,
+    Query(query): Query<MembersWithRolesQueryDTO>,
 ) -> ApiResult<Json<Vec<MemberWithRolesDTO>>> {
     let roles = query.roles.clone().map(|roles| {
         roles
@@ -122,7 +121,7 @@ async fn get_members_with_roles(
 async fn export_members_with_roles(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-    Query(query): Query<MembersWithRolesQuery>,
+    Query(query): Query<MembersWithRolesQueryDTO>,
 ) -> ApiResult<Response<Body>> {
     let actor_id = user_info.map(|u| u.user_id);
     state.member_service.log_export(actor_id).await;
@@ -147,9 +146,7 @@ async fn export_members_with_roles(
         )
         .await?;
 
-    // TODO make this more general, CSV is needed elsewhere also
-    // Write CSV to a string buffer
-    let mut wtr = WriterBuilder::new().from_writer(vec![]);
+    let mut wtr = WriterBuilder::new().from_writer(Vec::new());
     for record in members {
         wtr.write_record(record.to_csv_row())
             .map_err(|_| ApiError::InternalServerError)?;
@@ -158,28 +155,11 @@ async fn export_members_with_roles(
         .into_inner()
         .map_err(|_| ApiError::InternalServerError)?;
 
-    // Write the CSV data to a temporary file
-    let mut file = tokio::fs::File::create("/tmp/data.csv")
-        .await
-        .map_err(|_| ApiError::InternalServerError)?;
-
-    file.write_all(&csv_data)
-        .await
-        .map_err(|_| ApiError::InternalServerError)?;
-
-    // Read the file and respond with its content
-    let file = tokio::fs::File::open("/tmp/data.csv")
-        .await
-        .map_err(|_| ApiError::InternalServerError)?;
-
-    let stream = tokio_util::io::ReaderStream::new(file);
-
-    // Create the response
     let response = Response::builder()
         .status(StatusCode::OK)
         .header("Content-Type", "text/csv")
         .header("Content-Disposition", "attachment; filename=\"data.csv\"")
-        .body(Body::from_stream(stream))
+        .body(Body::from(csv_data))
         .map_err(|_| ApiError::InternalServerError)?;
 
     Ok(response)
@@ -250,15 +230,15 @@ async fn delete_member(
 }
 
 #[derive(Deserialize, TS)]
-#[ts(export)]
-struct DeleteManyBody {
+#[ts(export, rename = "DeleteManyBody")]
+struct DeleteManyBodyDTO {
     ids: Vec<Uuid>,
 }
 
 async fn delete_many(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-    Json(query): Json<DeleteManyBody>,
+    Json(query): Json<DeleteManyBodyDTO>,
 ) -> ApiResult<()> {
     let actor_id = user_info.map(|u| u.user_id);
     state
@@ -270,8 +250,8 @@ async fn delete_many(
 }
 
 #[derive(Deserialize, TS)]
-#[ts(export)]
-struct RoleMemberBody {
+#[ts(export, rename = "RoleMemberBody")]
+struct RoleMemberBodyDTO {
     role_name: String,
     valid_from: chrono::NaiveDate,
     valid_until: Option<chrono::NaiveDate>,
@@ -282,7 +262,7 @@ async fn add_role(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-    Json(query): Json<RoleMemberBody>,
+    Json(query): Json<RoleMemberBodyDTO>,
 ) -> ApiResult<()> {
     let actor_id = user_info.map(|u| u.user_id);
     state
@@ -294,8 +274,8 @@ async fn add_role(
 }
 
 #[derive(Deserialize, TS)]
-#[ts(export)]
-struct AddManyRolesBody {
+#[ts(export, rename = "AddManyRolesBody")]
+struct AddManyRolesBodyDTO {
     user_ids: Vec<Uuid>,
     role_names: Vec<String>,
     valid_from: chrono::NaiveDate,
@@ -306,7 +286,7 @@ struct AddManyRolesBody {
 async fn add_many_roles(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-    Json(query): Json<AddManyRolesBody>,
+    Json(query): Json<AddManyRolesBodyDTO>,
 ) -> ApiResult<()> {
     let actor_id = user_info.map(|u| u.user_id);
     state

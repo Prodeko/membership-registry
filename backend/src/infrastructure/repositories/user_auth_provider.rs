@@ -6,12 +6,12 @@ use crate::application::ports::auth_provider_repo_port::{
 };
 
 #[derive(Clone, Debug, sqlx::FromRow)]
-pub struct UserAuthProviderDAO {
-    pub user_id: Uuid,
-    pub provider_name: String,
-    pub provider_user_id: String,
-    pub linked_at: chrono::DateTime<chrono::Utc>,
-    pub metadata: Option<serde_json::Value>,
+pub(super) struct UserAuthProviderDAO {
+    pub(super) user_id: Uuid,
+    pub(super) provider_name: String,
+    pub(super) provider_user_id: String,
+    pub(super) linked_at: chrono::DateTime<chrono::Utc>,
+    pub(super) metadata: Option<serde_json::Value>,
 }
 
 impl From<UserAuthProviderDAO> for AuthProviderMapping {
@@ -43,7 +43,7 @@ pub struct UserAuthProviderRepo {
 }
 
 impl UserAuthProviderRepo {
-    pub async fn find_by_provider(
+    pub(super) async fn find_by_provider(
         &self,
         provider_name: &str,
         provider_user_id: &str,
@@ -59,7 +59,7 @@ impl UserAuthProviderRepo {
         .await
     }
 
-    pub async fn find_by_user_id(
+    pub(super) async fn find_by_user_id(
         &self,
         user_id: &Uuid,
     ) -> Result<Vec<UserAuthProviderDAO>, sqlx::Error> {
@@ -74,7 +74,7 @@ impl UserAuthProviderRepo {
         .await
     }
 
-    pub async fn create(
+    pub(super) async fn create(
         &self,
         user_id: &Uuid,
         provider_name: &str,
@@ -94,7 +94,7 @@ impl UserAuthProviderRepo {
         .await
     }
 
-    pub async fn delete(
+    pub(super) async fn delete(
         &self,
         user_id: &Uuid,
         provider_name: &str,
@@ -111,7 +111,7 @@ impl UserAuthProviderRepo {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn exists(
+    pub(super) async fn exists(
         &self,
         user_id: &Uuid,
         provider_name: &str,

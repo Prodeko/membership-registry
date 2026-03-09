@@ -12,15 +12,18 @@ use tower_http::{
 use tracing_subscriber::EnvFilter;
 
 use crate::{
-    application::services::{
-        application_service::ApplicationService,
-        audit_log_service::AuditLogService,
-        authentication_service::AuthenticationService,
-        member_service::MemberService,
-        notification_service::NotificationService,
-        role_service::RoleService,
-        saved_filter::SavedFilterService,
-        template_admin_service::TemplateAdminService,
+    application::{
+        ports::payment_webhook_port::PaymentWebhookPort,
+        services::{
+            application_service::ApplicationService,
+            audit_log_service::AuditLogService,
+            authentication_service::AuthenticationService,
+            member_service::MemberService,
+            notification_service::NotificationService,
+            role_service::RoleService,
+            saved_filter::SavedFilterService,
+            template_admin_service::TemplateAdminService,
+        },
     },
     config::Config,
     Services,
@@ -47,6 +50,7 @@ pub struct AppState {
     pub audit_log_service: Arc<AuditLogService>,
     pub template_admin_service: Arc<TemplateAdminService>,
     pub notification_service: Arc<NotificationService>,
+    pub payment_webhook: Arc<dyn PaymentWebhookPort>,
     pub oauth2_client: BasicClient,
 }
 
@@ -85,6 +89,7 @@ pub async fn serve(config: Config, services: Services) {
         audit_log_service: Arc::new(services.audit_log_service),
         template_admin_service: Arc::new(services.template_admin_service),
         notification_service: Arc::new(services.notification_service),
+        payment_webhook: Arc::new(services.payment_webhook),
         oauth2_client,
     };
 

@@ -2,9 +2,8 @@ use std::sync::{Arc, LazyLock};
 
 use regex::Regex;
 
-use crate::application::ports::template_repository_port::{
-    TemplateRepositoryError, TemplateRepositoryPort,
-};
+use crate::application::ports::repository_error::RepositoryError;
+use crate::application::ports::template_repository_port::TemplateRepositoryPort;
 use crate::domain::EmailTemplate;
 
 const ALLOWED_PLACEHOLDERS: &[&str] = &["name", "role_name"];
@@ -15,11 +14,11 @@ static PLACEHOLDER_RE: LazyLock<Regex> =
 #[derive(Debug)]
 pub enum TemplateAdminError {
     InvalidPlaceholder(String),
-    Repository(TemplateRepositoryError),
+    Repository(RepositoryError),
 }
 
-impl From<TemplateRepositoryError> for TemplateAdminError {
-    fn from(e: TemplateRepositoryError) -> Self {
+impl From<RepositoryError> for TemplateAdminError {
+    fn from(e: RepositoryError) -> Self {
         Self::Repository(e)
     }
 }

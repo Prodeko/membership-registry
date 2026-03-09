@@ -59,15 +59,15 @@ async fn get_applications(
 }
 
 #[derive(Deserialize, Debug, TS)]
-#[ts(export)]
-struct FilteredApplicationsParams {
+#[ts(export, rename = "FilteredApplicationsParams")]
+struct FilteredApplicationsParamsDTO {
     status: Option<ApplicationStatusDTO>,
     search: Option<String>,
 }
 
 async fn get_applications_filtered(
     State(state): State<AppState>,
-    Query(filter): Query<FilteredApplicationsParams>,
+    Query(filter): Query<FilteredApplicationsParamsDTO>,
 ) -> ApiResult<Json<Vec<ApplicationWithMemberDTO>>> {
     let applications = state
         .application_service
@@ -119,8 +119,8 @@ async fn update_application_status(
 }
 
 #[derive(Deserialize, Debug, TS)]
-#[ts(export)]
-struct PostTargetableRole {
+#[ts(export, rename = "PostTargetableRole")]
+struct PostTargetableRoleDTO {
     role_name: String,
     valid_until: chrono::NaiveDate,
     payment_link: Option<String>,
@@ -131,7 +131,7 @@ struct PostTargetableRole {
 async fn post_targetable_role(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-    Json(body): Json<PostTargetableRole>,
+    Json(body): Json<PostTargetableRoleDTO>,
 ) -> ApiResult<Json<()>> {
     let actor_id = user_info.map(|u| u.user_id);
 
@@ -153,8 +153,8 @@ async fn post_targetable_role(
 }
 
 #[derive(Deserialize, Debug, TS)]
-#[ts(export)]
-struct PutTargetableRole {
+#[ts(export, rename = "PutTargetableRole")]
+struct PutTargetableRoleDTO {
     role_name: String,
     valid_until: chrono::NaiveDate,
     active: bool,
@@ -163,7 +163,7 @@ struct PutTargetableRole {
 async fn put_targetable_role(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-    Json(body): Json<PutTargetableRole>,
+    Json(body): Json<PutTargetableRoleDTO>,
 ) -> ApiResult<Json<()>> {
     let actor_id = user_info.map(|u| u.user_id);
     let role_name = body.role_name;
@@ -180,8 +180,8 @@ async fn put_targetable_role(
 }
 
 #[derive(Deserialize, Debug, TS)]
-#[ts(export)]
-struct DeleteTargetableRoleQuery {
+#[ts(export, rename = "DeleteTargetableRoleQuery")]
+struct DeleteTargetableRoleQueryDTO {
     role_name: String,
     valid_until: chrono::NaiveDate,
 }
@@ -190,7 +190,7 @@ struct DeleteTargetableRoleQuery {
 async fn delete_targetable_role(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-    Query(query): Query<DeleteTargetableRoleQuery>,
+    Query(query): Query<DeleteTargetableRoleQueryDTO>,
 ) -> ApiResult<Json<()>> {
     let actor_id = user_info.map(|u| u.user_id);
     let delete = state
