@@ -1,6 +1,8 @@
 **/.DS_Store
 CLAUDE.md
 venv/
+keycloak/data/
+keycloak/themes/
 
 # E2E tests
 e2e/.auth/

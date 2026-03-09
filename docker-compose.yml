@@ -18,3 +18,4 @@ services:
       - "8180:8080"
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+      - ./keycloak/themes/membership:/opt/keycloak/themes/membership
