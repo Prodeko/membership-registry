@@ -2,20 +2,23 @@ use std::sync::Arc;
 
 use crate::application::ports::{
     auth_provider_repo_port::AuthProviderRepositoryPort,
+    role_repository_port::{
+        RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams,
+    },
     rolesync_port::{IdpSubject, RoleSyncPort},
 };
-use crate::domain::RoleName;
-use crate::repositories::{
-    member::Member,
-    role::{Role, RoleMember, RoleRepo, RoleStats, RolesWithStatsParams},
-};
+use crate::domain::{Person, Role, RoleName};
 use uuid::Uuid;
 
-use super::{audit_log_service::AuditLogService, errors::{ServiceError, ServiceResult}, member_service::MemberService};
+use super::{
+    audit_log_service::AuditLogService,
+    errors::{ServiceError, ServiceResult},
+    member_service::MemberService,
+};
 
 #[derive(Clone)]
 pub struct RoleService {
-    pub repo: RoleRepo,
+    pub role_repo: Arc<dyn RoleRepositoryPort>,
     pub member_service: MemberService,
     pub role_sync: Arc<dyn RoleSyncPort>,
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
@@ -24,14 +27,14 @@ pub struct RoleService {
 
 impl RoleService {
     pub fn new(
-        repo: RoleRepo,
+        role_repo: Arc<dyn RoleRepositoryPort>,
         member_service: MemberService,
         role_sync: Arc<dyn RoleSyncPort>,
         auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
         audit_log: AuditLogService,
     ) -> Self {
         Self {
-            repo,
+            role_repo,
             member_service,
             role_sync,
             auth_provider_repo,
@@ -39,43 +42,63 @@ impl RoleService {
         }
     }
 
-    pub async fn create_role(&self, new_role: Role, actor_user_id: Option<Uuid>) -> ServiceResult<Role> {
+    pub async fn create_role(
+        &self,
+        new_role: &Role,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<Role> {
         self.role_sync
-            .create_role(&RoleName(new_role.name.clone()))
+            .create_role(&new_role.name)
             .await
             .map_err(|_| ServiceError::IdpError)?;
 
-        let role = self.repo.create(new_role).await.map_err(|e| -> ServiceError { e.into() })?;
+        let role = self
+            .role_repo
+            .create(new_role)
+            .await
+            .map_err(ServiceError::from)?;
 
-        self.audit_log.log(
-            actor_user_id,
-            "role.create",
-            "role",
-            &role.name,
-            Some(serde_json::json!({ "role_name": role.name })),
-        ).await;
+        self.audit_log
+            .log(
+                actor_user_id,
+                "role.create",
+                "role",
+                &role.name.0,
+                Some(serde_json::json!({ "role_name": &role.name.0 })),
+            )
+            .await;
 
         Ok(role)
     }
 
     pub async fn get_all_roles(&self) -> ServiceResult<Vec<Role>> {
-        self.repo.fetch_all().await.map_err(|e| e.into())
+        self.role_repo
+            .fetch_all()
+            .await
+            .map_err(ServiceError::from)
     }
 
-    pub async fn delete_role(&self, role_name: &str, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
-        self.repo.delete(role_name).await.map_err(|e| -> ServiceError { e.into() })?;
+    pub async fn delete_role(
+        &self,
+        role_name: &str,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<()> {
+        self.role_repo
+            .delete(role_name)
+            .await
+            .map_err(ServiceError::from)?;
 
-        if let Err(e) = self.role_sync.delete_role(&RoleName(role_name.to_string())).await {
+        if let Err(e) = self
+            .role_sync
+            .delete_role(&RoleName(role_name.to_string()))
+            .await
+        {
             tracing::error!("Failed to delete role from IdP: {e:?}");
         }
 
-        self.audit_log.log(
-            actor_user_id,
-            "role.delete",
-            "role",
-            role_name,
-            None,
-        ).await;
+        self.audit_log
+            .log(actor_user_id, "role.delete", "role", role_name, None)
+            .await;
 
         Ok(())
     }
@@ -107,46 +130,48 @@ impl RoleService {
                 .map_err(|_| ServiceError::IdpError)?;
         }
 
-        self.repo
+        self.role_repo
             .create_role_member(&user_id, role_name, valid_from, valid_until)
             .await
-            .map_err(|e| -> ServiceError { e.into() })?;
+            .map_err(ServiceError::from)?;
 
-        self.audit_log.log(
-            actor_user_id,
-            "role_member.assign",
-            "role_member",
-            &format!("{}:{}", user_id, role_name),
-            Some(serde_json::json!({
-                "user_id": user_id,
-                "role_name": role_name,
-                "valid_from": valid_from.to_string(),
-                "valid_until": valid_until.map(|d| d.to_string()),
-            })),
-        ).await;
+        self.audit_log
+            .log(
+                actor_user_id,
+                "role_member.assign",
+                "role_member",
+                &format!("{}:{}", user_id, role_name),
+                Some(serde_json::json!({
+                    "user_id": user_id,
+                    "role_name": role_name,
+                    "valid_from": valid_from.to_string(),
+                    "valid_until": valid_until.map(|d| d.to_string()),
+                })),
+            )
+            .await;
 
         Ok(())
     }
 
     pub async fn get_role(&self, role_name: &str) -> ServiceResult<Role> {
-        self.repo
+        self.role_repo
             .fetch_by_name(role_name)
             .await
-            .map_err(|e| e.into())
+            .map_err(ServiceError::from)
     }
 
-    pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<RoleMember>> {
-        self.repo
+    pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<RoleMembership>> {
+        self.role_repo
             .fetch_roles_by_member(&user_id)
             .await
-            .map_err(|e| e.into())
+            .map_err(ServiceError::from)
     }
 
-    pub async fn get_role_members(&self, role_name: &str) -> ServiceResult<Vec<Member>> {
-        self.repo
+    pub async fn get_role_members(&self, role_name: &str) -> ServiceResult<Vec<Person>> {
+        self.role_repo
             .fetch_members_by_role(role_name)
             .await
-            .map_err(|e| e.into())
+            .map_err(ServiceError::from)
     }
 
     pub async fn add_many_role_members(
@@ -159,8 +184,14 @@ impl RoleService {
     ) -> ServiceResult<()> {
         for role_name in &role_names {
             for user_id in &user_ids {
-                self.add_role_member(*user_id, role_name.as_str(), valid_from, valid_until, actor_user_id)
-                    .await?;
+                self.add_role_member(
+                    *user_id,
+                    role_name.as_str(),
+                    valid_from,
+                    valid_until,
+                    actor_user_id,
+                )
+                .await?;
             }
         }
         Ok(())
@@ -174,22 +205,24 @@ impl RoleService {
         new_valid_until: chrono::NaiveDate,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
-        self.repo
+        self.role_repo
             .update_valid_until(&user_id, role_name, valid_from, new_valid_until)
             .await
-            .map_err(|e| -> ServiceError { e.into() })?;
+            .map_err(ServiceError::from)?;
 
-        self.audit_log.log(
-            actor_user_id,
-            "role_member.update",
-            "role_member",
-            &format!("{}:{}", user_id, role_name),
-            Some(serde_json::json!({
-                "user_id": user_id,
-                "role_name": role_name,
-                "new_valid_until": new_valid_until.to_string(),
-            })),
-        ).await;
+        self.audit_log
+            .log(
+                actor_user_id,
+                "role_member.update",
+                "role_member",
+                &format!("{}:{}", user_id, role_name),
+                Some(serde_json::json!({
+                    "user_id": user_id,
+                    "role_name": role_name,
+                    "new_valid_until": new_valid_until.to_string(),
+                })),
+            )
+            .await;
 
         Ok(())
     }
@@ -201,10 +234,10 @@ impl RoleService {
         valid_from: chrono::NaiveDate,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
-        self.repo
+        self.role_repo
             .delete_role_member(&user_id, role_name, valid_from)
             .await
-            .map_err(|e| -> ServiceError { e.into() })?;
+            .map_err(ServiceError::from)?;
 
         let providers = self
             .auth_provider_repo
@@ -224,20 +257,25 @@ impl RoleService {
                 )
                 .await
             {
-                tracing::error!("Failed to remove IdP role for provider {}: {e:?}", provider.provider_user_id);
+                tracing::error!(
+                    "Failed to remove IdP role for provider {}: {e:?}",
+                    provider.provider_user_id
+                );
             }
         }
 
-        self.audit_log.log(
-            actor_user_id,
-            "role_member.delete",
-            "role_member",
-            &format!("{}:{}", user_id, role_name),
-            Some(serde_json::json!({
-                "user_id": user_id,
-                "role_name": role_name,
-            })),
-        ).await;
+        self.audit_log
+            .log(
+                actor_user_id,
+                "role_member.delete",
+                "role_member",
+                &format!("{}:{}", user_id, role_name),
+                Some(serde_json::json!({
+                    "user_id": user_id,
+                    "role_name": role_name,
+                })),
+            )
+            .await;
 
         Ok(())
     }
@@ -250,7 +288,7 @@ impl RoleService {
         order_by: Option<String>,
         order_desc: Option<bool>,
     ) -> ServiceResult<Vec<RoleStats>> {
-        self.repo
+        self.role_repo
             .fetch_roles_with_stats(RolesWithStatsParams {
                 page_size,
                 offset,
@@ -259,6 +297,6 @@ impl RoleService {
                 order_desc,
             })
             .await
-            .map_err(|e| e.into())
+            .map_err(ServiceError::from)
     }
 }

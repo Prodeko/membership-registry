@@ -3,12 +3,15 @@ mod test_idp_roles {
     use std::sync::Arc;
 
     use chrono::NaiveDate;
+    use sqlx::PgPool;
     use uuid::Uuid;
     use wiremock::matchers::{body_json, method, path, path_regex};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     use crate::application::ports::{
         auth_provider_repo_port::AuthProviderRepositoryPort,
+        member_repository_port::MemberRepositoryPort,
+        role_repository_port::RoleRepositoryPort,
         rolesync_port::RoleSyncPort,
         user_admin_port::UserAdminPort,
     };
@@ -35,9 +38,13 @@ mod test_idp_roles {
         Arc<dyn UserAdminPort>,
         Arc<dyn AuthProviderRepositoryPort>,
         RoleService,
+        PgPool,
         String,
     ) {
         let (repo, db_url) = setup_test_db().await;
+
+        // Keep a handle to the pool for cleanup
+        let pool = repo.role.pool.clone();
 
         // Insert auth provider mapping for the test user
         repo.user_auth_provider
@@ -80,21 +87,25 @@ mod test_idp_roles {
         let _ = user_admin.get_user("warm").await;
 
         let audit_log_service = AuditLogService::new(repo.audit_log.clone());
+
+        let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member.clone());
+        let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role.clone());
+
         let member_service = MemberService::new(
-            repo.member.clone(),
+            member_repo,
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         );
         let role_service = RoleService::new(
-            repo.role.clone(),
+            role_repo,
             member_service,
             Arc::clone(&role_sync),
             Arc::clone(&auth_provider_repo),
             audit_log_service,
         );
 
-        (role_sync, user_admin, auth_provider_repo, role_service, db_url)
+        (role_sync, user_admin, auth_provider_repo, role_service, pool, db_url)
     }
 
     fn default_query_params() -> AuditLogQueryParams {
@@ -123,7 +134,7 @@ mod test_idp_roles {
     #[tokio::test]
     async fn add_role_member_syncs_to_idp_then_writes_db() {
         let mock_server = MockServer::start().await;
-        let (_, _, _, role_service, db_url) = setup(&mock_server).await;
+        let (_, _, _, role_service, pool, db_url) = setup(&mock_server).await;
 
         Mock::given(method("GET"))
             .and(path(
@@ -160,7 +171,7 @@ mod test_idp_roles {
         // Verify the DB row was created
         let roles = role_service.get_member_roles(user_uuid()).await.unwrap();
         let has_new_role = roles.iter().any(|r| {
-            r.role_name == "prodeko-external-member"
+            r.role_name.0 == "prodeko-external-member"
                 && r.valid_from == NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()
         });
         assert!(has_new_role, "Expected new role membership in DB");
@@ -182,13 +193,13 @@ mod test_idp_roles {
         assert!(logs[0].entity_type == "role_member");
         assert!(logs[0].entity_id.contains("prodeko-external-member"));
 
-        cleanup_test_db(role_service.repo.pool, &db_url).await;
+        cleanup_test_db(pool, &db_url).await;
     }
 
     #[tokio::test]
     async fn add_role_member_does_not_write_db_when_idp_fails() {
         let mock_server = MockServer::start().await;
-        let (_, _, _, role_service, db_url) = setup(&mock_server).await;
+        let (_, _, _, role_service, pool, db_url) = setup(&mock_server).await;
 
         // Return 404 for the role we're trying to assign
         Mock::given(method("GET"))
@@ -233,13 +244,13 @@ mod test_idp_roles {
             "No audit log should be written when operation fails"
         );
 
-        cleanup_test_db(role_service.repo.pool, &db_url).await;
+        cleanup_test_db(pool, &db_url).await;
     }
 
     #[tokio::test]
     async fn delete_role_membership_is_best_effort_for_idp() {
         let mock_server = MockServer::start().await;
-        let (_, _, _, role_service, db_url) = setup(&mock_server).await;
+        let (_, _, _, role_service, pool, db_url) = setup(&mock_server).await;
 
         // Keycloak returns 500 for remove role — should not prevent DB deletion
         Mock::given(method("GET"))
@@ -279,7 +290,7 @@ mod test_idp_roles {
         // Verify the DB row was deleted
         let roles = role_service.get_member_roles(user_uuid()).await.unwrap();
         let still_has_role = roles.iter().any(|r| {
-            r.role_name == "prodeko-external-member"
+            r.role_name.0 == "prodeko-external-member"
                 && r.valid_from == NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()
         });
         assert!(!still_has_role, "Role membership should be removed from DB");
@@ -301,6 +312,6 @@ mod test_idp_roles {
         assert!(logs[0].entity_type == "role_member");
         assert!(logs[0].entity_id.contains("prodeko-external-member"));
 
-        cleanup_test_db(role_service.repo.pool, &db_url).await;
+        cleanup_test_db(pool, &db_url).await;
     }
 }

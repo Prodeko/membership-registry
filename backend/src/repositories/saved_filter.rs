@@ -1,5 +1,3 @@
-use super::member::Member;
-use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use sqlx::{types::Json, PgPool};
 use ts_rs::TS;

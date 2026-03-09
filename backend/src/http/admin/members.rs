@@ -14,10 +14,12 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::{
-    http::errors::{ApiError, ApiResult},
-    repositories::{
-        member::{Member, MemberWithRoles},
-        role::RoleMember,
+    http::{
+        dto::{
+            member::{MemberDTO, MemberWithRolesDTO, UpdateMemberDTO},
+            role::RoleMembershipDTO,
+        },
+        errors::{ApiError, ApiResult},
     },
     application::services::authentication_service::AuthenticatedUser,
 };
@@ -44,7 +46,7 @@ struct MembersQuery {
 async fn get_members(
     State(state): State<AppState>,
     Query(query): Query<MembersQuery>,
-) -> ApiResult<Json<Vec<Member>>> {
+) -> ApiResult<Json<Vec<MemberDTO>>> {
     let user_ids = query
         .user_ids
         .clone()
@@ -60,13 +62,15 @@ async fn get_members(
     tracing::debug!("User ids: {:?}", user_ids);
     tracing::debug!("user ids query: {:?}", query.user_ids.clone());
 
-    let members = state
+    let members: Vec<MemberDTO> = state
         .member_service
         .get_members_with_ids(user_ids)
-        .await
-        .map(Json)?;
+        .await?
+        .into_iter()
+        .map(MemberDTO::from)
+        .collect();
 
-    Ok(members)
+    Ok(Json(members))
 }
 
 #[derive(Deserialize, Debug, TS)]
@@ -86,7 +90,7 @@ struct MembersWithRolesQuery {
 async fn get_members_with_roles(
     State(state): State<AppState>,
     Query(query): Query<MembersWithRolesQuery>,
-) -> ApiResult<Json<Vec<MemberWithRoles>>> {
+) -> ApiResult<Json<Vec<MemberWithRolesDTO>>> {
     let roles = query.roles.clone().map(|roles| {
         roles
             .split(',')
@@ -94,7 +98,7 @@ async fn get_members_with_roles(
             .collect::<Vec<String>>()
     });
 
-    let members = state
+    let members: Vec<MemberWithRolesDTO> = state
         .member_service
         .get_members_with_roles(
             query.page_size,
@@ -106,10 +110,12 @@ async fn get_members_with_roles(
             query.valid_from,
             query.valid_until,
         )
-        .await
-        .map(Json)?;
+        .await?
+        .into_iter()
+        .map(MemberWithRolesDTO::from)
+        .collect();
 
-    Ok(members)
+    Ok(Json(members))
 }
 
 #[debug_handler]
@@ -146,25 +152,25 @@ async fn export_members_with_roles(
     let mut wtr = WriterBuilder::new().from_writer(vec![]);
     for record in members {
         wtr.write_record(record.to_csv_row())
-            .map_err(|_| ApiError::InternalServerError)?; 
+            .map_err(|_| ApiError::InternalServerError)?;
     }
     let csv_data = wtr
         .into_inner()
-        .map_err(|_| ApiError::InternalServerError)?; 
+        .map_err(|_| ApiError::InternalServerError)?;
 
     // Write the CSV data to a temporary file
     let mut file = tokio::fs::File::create("/tmp/data.csv")
         .await
-        .map_err(|_| ApiError::InternalServerError)?; 
+        .map_err(|_| ApiError::InternalServerError)?;
 
     file.write_all(&csv_data)
         .await
-        .map_err(|_| ApiError::InternalServerError)?; 
+        .map_err(|_| ApiError::InternalServerError)?;
 
     // Read the file and respond with its content
     let file = tokio::fs::File::open("/tmp/data.csv")
         .await
-        .map_err(|_| ApiError::InternalServerError)?; 
+        .map_err(|_| ApiError::InternalServerError)?;
 
     let stream = tokio_util::io::ReaderStream::new(file);
 
@@ -183,11 +189,12 @@ async fn export_members_with_roles(
 async fn get_member(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-) -> ApiResult<Json<Member>> {
+) -> ApiResult<Json<MemberDTO>> {
     let member = state
         .member_service
         .get_member_with_user(user_id)
         .await
+        .map(MemberDTO::from)
         .map(Json)?;
 
     Ok(member)
@@ -197,14 +204,16 @@ async fn get_member(
 async fn get_member_roles(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-) -> ApiResult<Json<Vec<RoleMember>>> {
-    let roles = state
+) -> ApiResult<Json<Vec<RoleMembershipDTO>>> {
+    let roles: Vec<RoleMembershipDTO> = state
         .role_service
         .get_member_roles(user_id)
-        .await
-        .map(Json)?;
+        .await?
+        .into_iter()
+        .map(RoleMembershipDTO::from)
+        .collect();
 
-    Ok(roles)
+    Ok(Json(roles))
 }
 
 #[debug_handler]
@@ -212,13 +221,14 @@ async fn update_member(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-    Json(updated_member): Json<Member>,
-) -> ApiResult<Json<Member>> {
+    Json(body): Json<UpdateMemberDTO>,
+) -> ApiResult<Json<MemberDTO>> {
     let actor_id = user_info.map(|u| u.user_id);
     let result = state
         .member_service
-        .update_member(updated_member, actor_id)
+        .update_member(user_id, body.first_name, body.last_name, body.home_municipality, body.has_accepted_policies, actor_id)
         .await
+        .map(MemberDTO::from)
         .map(Json)?;
 
     Ok(result)

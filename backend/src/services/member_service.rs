@@ -2,16 +2,22 @@ use std::sync::Arc;
 
 use crate::application::ports::{
     auth_provider_repo_port::AuthProviderRepositoryPort,
+    member_repository_port::{
+        MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams,
+    },
     user_admin_port::UserAdminPort,
 };
-use crate::repositories::member::{Member, MemberRepo, MemberWithRoles, MembersWithRolesParams, NewMember};
+use crate::domain::{Email, NewPerson, Person};
 use uuid::Uuid;
 
-use super::{audit_log_service::AuditLogService, errors::{ServiceError, ServiceResult}};
+use super::{
+    audit_log_service::AuditLogService,
+    errors::{ServiceError, ServiceResult},
+};
 
 #[derive(Clone)]
 pub struct MemberService {
-    pub repo: MemberRepo,
+    pub member_repo: Arc<dyn MemberRepositoryPort>,
     pub user_admin: Arc<dyn UserAdminPort>,
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
@@ -19,62 +25,72 @@ pub struct MemberService {
 
 impl MemberService {
     pub fn new(
-        repo: MemberRepo,
+        member_repo: Arc<dyn MemberRepositoryPort>,
         user_admin: Arc<dyn UserAdminPort>,
         auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
         audit_log: AuditLogService,
     ) -> Self {
-        Self { repo, user_admin, auth_provider_repo, audit_log }
+        Self {
+            member_repo,
+            user_admin,
+            auth_provider_repo,
+            audit_log,
+        }
     }
 
     pub async fn create_member(
         &self,
-        member_to_add: NewMember,
+        new_person: NewPerson,
         actor_user_id: Option<Uuid>,
-    ) -> ServiceResult<Member> {
-        let member = self.repo
-            .create(member_to_add)
+    ) -> ServiceResult<Person> {
+        let person = self
+            .member_repo
+            .create(new_person)
             .await
-            .map_err(|e| -> ServiceError { e.into() })?;
+            .map_err(ServiceError::from)?;
 
-        self.audit_log.log(
-            actor_user_id,
-            "member.create",
-            "member",
-            &member.user_id.to_string(),
-            Some(serde_json::json!({
-                "email": member.email,
-                "first_name": member.first_name,
-                "last_name": member.last_name,
-            })),
-        ).await;
+        self.audit_log
+            .log(
+                actor_user_id,
+                "member.create",
+                "member",
+                &person.id.0.to_string(),
+                Some(serde_json::json!({
+                    "email": person.email.as_str(),
+                    "first_name": person.first_name,
+                    "last_name": person.last_name,
+                })),
+            )
+            .await;
 
-        Ok(member)
+        Ok(person)
     }
 
-    pub async fn get_all_members(&self) -> ServiceResult<Vec<Member>> {
-        self.repo.fetch_all().await.map_err(|e| e.into())
+    pub async fn get_all_members(&self) -> ServiceResult<Vec<Person>> {
+        self.member_repo
+            .fetch_all()
+            .await
+            .map_err(ServiceError::from)
     }
 
     pub async fn get_members_with_ids(
         &self,
         user_ids: Option<Vec<Uuid>>,
-    ) -> ServiceResult<Vec<Member>> {
-         self
-            .repo
+    ) -> ServiceResult<Vec<Person>> {
+        self.member_repo
             .fetch_with_ids(user_ids)
             .await
-            .map_err(|e| e.into())
+            .map_err(ServiceError::from)
     }
 
-    pub async fn get_member(&self, id: Uuid) -> ServiceResult<Member> {
-        self.repo.fetch_one(id).await.map_err(|e| e.into())
+    pub async fn get_member(&self, id: Uuid) -> ServiceResult<Person> {
+        self.member_repo
+            .fetch_one(id)
+            .await
+            .map_err(ServiceError::from)
     }
 
-    pub async fn get_member_with_user(
-        &self,
-        id: Uuid,
-    ) -> ServiceResult<Member> {
+    pub async fn get_member_with_user(&self, id: Uuid) -> ServiceResult<Person> {
         let auth_providers = self
             .auth_provider_repo
             .find_by_user_id(&id)
@@ -99,12 +115,19 @@ impl MemberService {
                 ServiceError::IdpError
             })?;
 
-        let member = self.repo.fetch_one(id).await?;
+        let member = self
+            .member_repo
+            .fetch_one(id)
+            .await
+            .map_err(ServiceError::from)?;
 
-        let email = user.email.unwrap_or(member.email);
+        let email = user
+            .email
+            .and_then(|e| Email::new(e).ok())
+            .unwrap_or(member.email.clone());
 
-        Ok(Member {
-            user_id: member.user_id,
+        Ok(Person {
+            id: member.id,
             first_name: member.first_name,
             last_name: member.last_name,
             full_name: member.full_name,
@@ -116,54 +139,72 @@ impl MemberService {
 
     pub async fn update_member(
         &self,
-        updated_member: Member,
+        user_id: Uuid,
+        first_name: String,
+        last_name: String,
+        home_municipality: String,
+        has_accepted_policies: bool,
         actor_user_id: Option<Uuid>,
-    ) -> ServiceResult<Member> {
-        let user_id = updated_member.user_id;
-        let member = self.repo
-            .update(updated_member, user_id, None)
+    ) -> ServiceResult<Person> {
+        let updated = self
+            .member_repo
+            .update(user_id, &first_name, &last_name, &home_municipality, has_accepted_policies)
             .await
-            .map_err(|e| -> ServiceError { e.into() })?;
+            .map_err(ServiceError::from)?;
 
-        self.audit_log.log(
-            actor_user_id,
-            "member.update",
-            "member",
-            &member.user_id.to_string(),
-            Some(serde_json::json!({
-                "email": member.email,
-                "first_name": member.first_name,
-                "last_name": member.last_name,
-            })),
-        ).await;
+        self.audit_log
+            .log(
+                actor_user_id,
+                "member.update",
+                "member",
+                &updated.id.0.to_string(),
+                Some(serde_json::json!({
+                    "email": updated.email.as_str(),
+                    "first_name": updated.first_name,
+                    "last_name": updated.last_name,
+                })),
+            )
+            .await;
 
-        Ok(member)
+        Ok(updated)
     }
 
-    pub async fn delete_member(&self, id: Uuid, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
-        self.repo.delete(id).await.map_err(|e| -> ServiceError { e.into() })?;
+    pub async fn delete_member(
+        &self,
+        id: Uuid,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<()> {
+        self.member_repo
+            .delete(id)
+            .await
+            .map_err(ServiceError::from)?;
 
-        self.audit_log.log(
-            actor_user_id,
-            "member.delete",
-            "member",
-            &id.to_string(),
-            None,
-        ).await;
+        self.audit_log
+            .log(actor_user_id, "member.delete", "member", &id.to_string(), None)
+            .await;
 
         Ok(())
     }
 
-    pub async fn delete_many(&self, ids: Vec<Uuid>, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
-        self.repo.delete_many(ids.clone()).await.map_err(|e| -> ServiceError { e.into() })?;
+    pub async fn delete_many(
+        &self,
+        ids: Vec<Uuid>,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<()> {
+        self.member_repo
+            .delete_many(ids.clone())
+            .await
+            .map_err(ServiceError::from)?;
 
-        self.audit_log.log(
-            actor_user_id,
-            "member.delete_many",
-            "member",
-            "batch",
-            Some(serde_json::json!({ "deleted_member_ids": ids })),
-        ).await;
+        self.audit_log
+            .log(
+                actor_user_id,
+                "member.delete_many",
+                "member",
+                "batch",
+                Some(serde_json::json!({ "deleted_member_ids": ids })),
+            )
+            .await;
 
         Ok(())
     }
@@ -180,30 +221,24 @@ impl MemberService {
         valid_from: Option<chrono::NaiveDate>,
         valid_until: Option<chrono::NaiveDate>,
     ) -> ServiceResult<Vec<MemberWithRoles>> {
-        self
-            .repo
-            .fetch_members_with_roles(
-                MembersWithRolesParams {
-                    valid_from,
-                    valid_until,
-                    roles,
-                    page_size,
-                    offset,
-                    search,
-                    order_by,
-                    order_desc,
-                },
-            )
-            .await.map_err(|e| e.into())
+        self.member_repo
+            .fetch_members_with_roles(MembersWithRolesParams {
+                valid_from,
+                valid_until,
+                roles,
+                page_size,
+                offset,
+                search,
+                order_by,
+                order_desc,
+            })
+            .await
+            .map_err(ServiceError::from)
     }
 
     pub async fn log_export(&self, actor_user_id: Option<Uuid>) {
-        self.audit_log.log(
-            actor_user_id,
-            "member.export_csv",
-            "member",
-            "export",
-            None,
-        ).await;
+        self.audit_log
+            .log(actor_user_id, "member.export_csv", "member", "export", None)
+            .await;
     }
 }

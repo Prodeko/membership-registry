@@ -7,8 +7,13 @@ use member_service::MemberService;
 use crate::{
     application::{
         ports::{
+            application_repository_port::{
+                ApplicationCommandPort, ApplicationQueryPort, TargetableRolePort,
+            },
             auth_provider_repo_port::AuthProviderRepositoryPort,
             email_port::EmailPort,
+            member_repository_port::MemberRepositoryPort,
+            role_repository_port::RoleRepositoryPort,
             rolesync_port::RoleSyncPort,
             template_renderer_port::TemplateRendererPort,
             template_repository_port::TemplateRepositoryPort,
@@ -110,21 +115,31 @@ impl Services {
         let notification_service =
             NotificationService::new(email_port, Arc::clone(&template_repo), renderer);
 
+        let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member);
+        let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role);
+        let application_commands: Arc<dyn ApplicationCommandPort> =
+            Arc::new(repo.application.clone());
+        let application_queries: Arc<dyn ApplicationQueryPort> =
+            Arc::new(repo.application.clone());
+        let targetable_roles: Arc<dyn TargetableRolePort> = Arc::new(repo.application);
+
         let member_service = MemberService::new(
-            repo.member,
+            Arc::clone(&member_repo),
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         );
         let role_service = role_service::RoleService::new(
-            repo.role,
+            Arc::clone(&role_repo),
             member_service.clone(),
             Arc::clone(&role_sync),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         );
         let application_service = ApplicationService::new(
-            repo.application,
+            application_commands,
+            application_queries,
+            targetable_roles,
             role_service.clone(),
             audit_log_service.clone(),
             notification_service.clone(),

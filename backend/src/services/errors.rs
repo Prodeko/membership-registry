@@ -1,6 +1,8 @@
 use serde::Serialize;
 use serde_with::serde_as;
 
+use crate::application::ports::repository_error::RepositoryError;
+
 #[serde_as]
 #[derive(Serialize, Debug)]
 pub enum ServiceError {
@@ -25,6 +27,17 @@ pub enum ServiceError {
 }
 
 pub type ServiceResult<T> = Result<T, ServiceError>;
+
+impl From<RepositoryError> for ServiceError {
+    fn from(val: RepositoryError) -> Self {
+        match val {
+            RepositoryError::NotFound => Self::NotFound,
+            RepositoryError::AlreadyExists => Self::AlreadyExists,
+            RepositoryError::Constraint(_) => Self::Constraint,
+            RepositoryError::Unexpected(_) => Self::DatabaseError,
+        }
+    }
+}
 
 impl From<sqlx::Error> for ServiceError {
     fn from(val: sqlx::Error) -> Self {

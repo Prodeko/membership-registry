@@ -3,10 +3,12 @@ mod test_role {
     use chrono::NaiveDate;
     use uuid::Uuid;
 
-    use crate::repositories::{
-        role::{Role, RolesWithStatsParams},
-        tests::{cleanup_test_db, setup_test_db},
+    use crate::application::ports::role_repository_port::{
+        RoleRepositoryPort, RolesWithStatsParams,
     };
+    use crate::domain::{Role, RoleName};
+    use crate::repositories::tests::{cleanup_test_db, setup_test_db};
+
     const ROLE_NAME: &str = "prodeko-external-member";
 
     fn _get_user_id() -> Uuid {
@@ -19,13 +21,14 @@ mod test_role {
 
         let name = "TestRole".to_string();
         let role_to_add = Role {
-            name: name.clone(),
-            ..Default::default()
+            name: RoleName(name.clone()),
+            color: None,
+            description: None,
         };
 
-        let role = repo.role.create(role_to_add).await;
+        let role = repo.role.create(&role_to_add).await;
 
-        assert!(role.unwrap().name == name);
+        assert!(role.unwrap().name.0 == name);
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }
@@ -46,11 +49,12 @@ mod test_role {
     async fn test_delete_role_without_members() {
         let (repo, db_url) = setup_test_db().await;
 
-        let created = repo
+        let _created = repo
             .role
-            .create(Role {
-                name: "test-role".to_string(),
-                ..Default::default()
+            .create(&Role {
+                name: RoleName("test-role".to_string()),
+                color: None,
+                description: None,
             })
             .await;
 
@@ -102,11 +106,11 @@ mod test_role {
 
         let roles = repo
             .role
-            .fetch_roles_with_stats(RolesWithStatsParams::new())
+            .fetch_roles_with_stats(RolesWithStatsParams::default())
             .await;
         let roles = roles.unwrap();
         assert!(roles.len() == 8);
-        assert!(roles[0].name == "pora-member");
+        assert!(roles[0].name.0 == "pora-member");
         assert!(roles[0].member_count.unwrap() == 2);
         assert!(roles[0].active_member_count.unwrap() == 1);
     }
@@ -156,7 +160,6 @@ mod test_role {
             .await;
         let roles = roles.unwrap();
         assert!(roles.len() == 8);
-        assert!(roles[0].name == "root-users");
+        assert!(roles[0].name.0 == "root-users");
     }
-
 }

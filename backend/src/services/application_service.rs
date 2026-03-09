@@ -1,9 +1,12 @@
+use std::sync::Arc;
+
+use crate::application::ports::application_repository_port::{
+    ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole,
+    ApplicationWithMember, TargetableRolePort,
+};
 use crate::domain::application::{
     Application, ApplicationAction, ApplicationStatus, ApplicationTransition, NewApplication,
     TransitionError,
-};
-use crate::repositories::application::{
-    ApplicationRepo, ApplicationTargetableRole, ApplicationWithMember,
 };
 use chrono::NaiveDate;
 use uuid::Uuid;
@@ -26,7 +29,9 @@ pub struct CreateApplicationParams {
 }
 
 pub struct ApplicationService {
-    pub repo: ApplicationRepo,
+    pub application_commands: Arc<dyn ApplicationCommandPort>,
+    pub application_queries: Arc<dyn ApplicationQueryPort>,
+    pub targetable_roles: Arc<dyn TargetableRolePort>,
     pub role_service: RoleService,
     pub audit_log: AuditLogService,
     pub notification_service: NotificationService,
@@ -34,13 +39,17 @@ pub struct ApplicationService {
 
 impl ApplicationService {
     pub fn new(
-        repo: ApplicationRepo,
+        application_commands: Arc<dyn ApplicationCommandPort>,
+        application_queries: Arc<dyn ApplicationQueryPort>,
+        targetable_roles: Arc<dyn TargetableRolePort>,
         role_service: RoleService,
         audit_log: AuditLogService,
         notification_service: NotificationService,
     ) -> Self {
         Self {
-            repo,
+            application_commands,
+            application_queries,
+            targetable_roles,
             role_service,
             audit_log,
             notification_service,
@@ -53,7 +62,7 @@ impl ApplicationService {
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Application> {
         let existing = self
-            .repo
+            .application_queries
             .fetch_existing(params.user_id, params.role_name.clone(), params.valid_until)
             .await;
 
@@ -62,10 +71,10 @@ impl ApplicationService {
         }
 
         let targetable_role = self
-            .repo
+            .targetable_roles
             .fetch_targetable_role(params.role_name.clone(), params.valid_until)
             .await
-            .map_err(|e| -> E { e.into() })?;
+            .map_err(E::from)?;
 
         if !targetable_role.active {
             return Err(E::NotActive);
@@ -85,17 +94,10 @@ impl ApplicationService {
         );
 
         let application = self
-            .repo
-            .create(
-                new_application.user_id,
-                new_application.role_name.clone(),
-                new_application.valid_until,
-                new_application.application_text.clone(),
-                new_application.optional_roles.clone(),
-                &new_application.status,
-            )
+            .application_commands
+            .create(&new_application)
             .await
-            .map_err(|e| -> E { e.into() })?;
+            .map_err(E::from)?;
 
         self.audit_log
             .log(
@@ -113,24 +115,27 @@ impl ApplicationService {
     }
 
     pub async fn get_all_applications(&self) -> ServiceResult<Vec<Application>> {
-        self.repo.fetch_all().await.map_err(|e| e.into())
+        self.application_queries
+            .fetch_all()
+            .await
+            .map_err(E::from)
     }
 
     pub async fn get_application(&self, application_id: Uuid) -> ServiceResult<Application> {
-        self.repo
+        self.application_queries
             .fetch_one(application_id)
             .await
-            .map_err(|e| e.into())
+            .map_err(E::from)
     }
 
     pub async fn get_application_with_member(
         &self,
         application_id: Uuid,
     ) -> ServiceResult<ApplicationWithMember> {
-        self.repo
+        self.application_queries
             .fetch_with_member_one(application_id)
             .await
-            .map_err(|e| e.into())
+            .map_err(E::from)
     }
 
     pub async fn get_applications_with_member_filtered(
@@ -138,20 +143,20 @@ impl ApplicationService {
         status: Option<ApplicationStatus>,
         search: Option<String>,
     ) -> ServiceResult<Vec<ApplicationWithMember>> {
-        self.repo
+        self.application_queries
             .fetch_with_user_filtered(status, search)
             .await
-            .map_err(|e| e.into())
+            .map_err(E::from)
     }
 
     pub async fn get_applications_for_user(
         &self,
         user_id: Uuid,
     ) -> ServiceResult<Vec<Application>> {
-        self.repo
+        self.application_queries
             .fetch_applications_for_user(user_id)
             .await
-            .map_err(|e| e.into())
+            .map_err(E::from)
     }
 
     pub async fn update_application_status(
@@ -167,7 +172,10 @@ impl ApplicationService {
             TransitionError::InvalidAction { .. } => E::InvalidStatus,
         })?;
 
-        self.repo.update_status(application_id, &new_status).await?;
+        self.application_commands
+            .update_status(application_id, &new_status)
+            .await
+            .map_err(E::from)?;
 
         match transition {
             ApplicationTransition::PaymentReceived => {
@@ -232,7 +240,7 @@ impl ApplicationService {
         status: &ApplicationStatus,
     ) {
         let template_name = self
-            .repo
+            .targetable_roles
             .fetch_targetable_role(application.role_name.clone(), application.valid_until)
             .await
             .ok()
@@ -243,7 +251,7 @@ impl ApplicationService {
             });
 
         let member = self
-            .repo
+            .application_queries
             .fetch_with_member_one(application.application_id.0)
             .await
             .ok();
@@ -266,10 +274,10 @@ impl ApplicationService {
         application_id: Uuid,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
-        self.repo
+        self.application_commands
             .delete(application_id)
             .await
-            .map_err(|e| -> E { e.into() })?;
+            .map_err(E::from)?;
 
         self.audit_log
             .log(
@@ -295,7 +303,7 @@ impl ApplicationService {
         rejected_email_template: Option<String>,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
-        self.repo
+        self.targetable_roles
             .create_targetable_role(
                 role_name.clone(),
                 valid_until,
@@ -305,7 +313,7 @@ impl ApplicationService {
                 rejected_email_template,
             )
             .await
-            .map_err(|e| -> E { e.into() })?;
+            .map_err(E::from)?;
 
         self.audit_log.log(
             actor_user_id,
@@ -321,10 +329,10 @@ impl ApplicationService {
     pub async fn fetch_all_targetable_roles(
         &self,
     ) -> ServiceResult<Vec<ApplicationTargetableRole>> {
-        self.repo
+        self.targetable_roles
             .fetch_all_targetable_roles()
             .await
-            .map_err(|e| e.into())
+            .map_err(E::from)
     }
 
     pub async fn update_targetable_role(
@@ -334,10 +342,10 @@ impl ApplicationService {
         active: Option<bool>,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
-        self.repo
+        self.targetable_roles
             .update_targetable_role(role_name.clone(), valid_until, active)
             .await
-            .map_err(|e| -> E { e.into() })?;
+            .map_err(E::from)?;
 
         self.audit_log
             .log(
@@ -357,10 +365,10 @@ impl ApplicationService {
         role_name: String,
         valid_until: chrono::NaiveDate,
     ) -> ServiceResult<ApplicationTargetableRole> {
-        self.repo
+        self.targetable_roles
             .fetch_targetable_role(role_name, valid_until)
             .await
-            .map_err(|e| e.into())
+            .map_err(E::from)
     }
 
     pub async fn delete_targetable_role(
@@ -369,10 +377,10 @@ impl ApplicationService {
         valid_until: chrono::NaiveDate,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
-        self.repo
+        self.targetable_roles
             .delete_targetable_role(role_name.clone(), valid_until)
             .await
-            .map_err(|e| -> E { e.into() })?;
+            .map_err(E::from)?;
 
         self.audit_log.log(
             actor_user_id,
@@ -398,10 +406,10 @@ impl ApplicationService {
                 TransitionError::InvalidAction { .. } => E::InvalidStatus,
             })?;
 
-        self.repo
+        self.application_commands
             .update_payment_id(application_id, stripe_payment_id.clone(), &new_status)
             .await
-            .map_err(|e| -> E { e.into() })?;
+            .map_err(E::from)?;
 
         self.audit_log
             .log(

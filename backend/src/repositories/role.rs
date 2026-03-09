@@ -1,87 +1,109 @@
-use super::member::Member;
 use chrono::NaiveDate;
-use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use ts_rs::TS;
 use uuid::Uuid;
+
+use super::member::MemberDAO;
+use crate::application::ports::repository_error::RepositoryError;
+use crate::application::ports::role_repository_port::{
+    RoleMembership, RoleRepositoryPort, RoleStats as PortRoleStats, RolesWithStatsParams,
+};
+use crate::domain::{Person, Role, RoleName};
+
+// --- DAO types (private, map DB shape) ---
+
+#[derive(Debug, sqlx::FromRow)]
+struct RoleDAO {
+    name: String,
+    color: Option<String>,
+    description: Option<String>,
+}
+
+impl From<RoleDAO> for Role {
+    fn from(row: RoleDAO) -> Self {
+        Self {
+            name: RoleName(row.name),
+            color: row.color,
+            description: row.description,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct RoleMemberDAO {
+    user_id: Uuid,
+    role_name: String,
+    valid_from: NaiveDate,
+    valid_until: Option<NaiveDate>,
+}
+
+impl From<RoleMemberDAO> for RoleMembership {
+    fn from(row: RoleMemberDAO) -> Self {
+        Self {
+            user_id: row.user_id,
+            role_name: RoleName(row.role_name),
+            valid_from: row.valid_from,
+            valid_until: row.valid_until,
+        }
+    }
+}
+
+#[derive(Debug)]
+struct RoleStatsDAO {
+    name: String,
+    color: Option<String>,
+    description: Option<String>,
+    member_count: Option<i64>,
+    active_member_count: Option<i64>,
+}
+
+impl From<RoleStatsDAO> for PortRoleStats {
+    fn from(row: RoleStatsDAO) -> Self {
+        Self {
+            name: RoleName(row.name),
+            color: row.color,
+            description: row.description,
+            member_count: row.member_count,
+            active_member_count: row.active_member_count,
+        }
+    }
+}
+
+// --- Repository ---
 
 #[derive(Clone)]
 pub struct RoleRepo {
     pub pool: PgPool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, Default, TS)]
-#[ts(export)]
-pub struct Role {
-    pub name: String,
-    pub color: Option<String>,
-    pub description: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, TS)]
-#[ts(export)]
-pub struct RoleMember {
-    pub user_id: Uuid,
-    pub role_name: String,
-    pub valid_from: NaiveDate,
-    pub valid_until: Option<NaiveDate>,
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, TS)]
-#[ts(export)]
-pub struct RoleStats {
-    pub name: String,
-    pub color: Option<String>,
-    pub description: Option<String>,
-    #[ts(type = "number | null")]
-    pub member_count: Option<i64>,
-    #[ts(type = "number | null")]
-    pub active_member_count: Option<i64>,
-}
-
-
-#[derive(Default)]
-pub struct RolesWithStatsParams {
-    pub page_size: Option<u64>,
-    pub offset: Option<u64>,
-    pub search: Option<String>,
-    pub order_by: Option<String>,
-    pub order_desc: Option<bool>,
-}
-
-impl RolesWithStatsParams {
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-impl RoleRepo {
-    pub async fn create(&self, role: Role) -> Result<Role, sqlx::Error> {
-        let created =
-            sqlx::query_as::<_, Role>("INSERT INTO Role (name, color) VALUES ($1, $2) RETURNING *")
-                .bind(role.name)
-                .bind(role.color)
-                .fetch_one(&self.pool)
-                .await?;
-        Ok(created)
+#[async_trait::async_trait]
+impl RoleRepositoryPort for RoleRepo {
+    async fn create(&self, role: &Role) -> Result<Role, RepositoryError> {
+        let row = sqlx::query_as::<_, RoleDAO>(
+            "INSERT INTO Role (name, color) VALUES ($1, $2) RETURNING *",
+        )
+        .bind(&role.name.0)
+        .bind(&role.color)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.into())
     }
 
-    pub async fn fetch_all(&self) -> Result<Vec<Role>, sqlx::Error> {
-        let roles = sqlx::query_as::<_, Role>("SELECT * FROM Role")
+    async fn fetch_all(&self) -> Result<Vec<Role>, RepositoryError> {
+        let rows = sqlx::query_as::<_, RoleDAO>("SELECT * FROM Role")
             .fetch_all(&self.pool)
             .await?;
-        Ok(roles)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    pub async fn fetch_by_name(&self, role_name: &str) -> Result<Role, sqlx::Error> {
-        let role = sqlx::query_as::<_, Role>("SELECT * FROM Role WHERE name = $1")
+    async fn fetch_by_name(&self, role_name: &str) -> Result<Role, RepositoryError> {
+        let row = sqlx::query_as::<_, RoleDAO>("SELECT * FROM Role WHERE name = $1")
             .bind(role_name)
             .fetch_one(&self.pool)
             .await?;
-        Ok(role)
+        Ok(row.into())
     }
 
-    pub async fn delete(&self, role_name: &str) -> Result<(), sqlx::Error> {
+    async fn delete(&self, role_name: &str) -> Result<(), RepositoryError> {
         sqlx::query("DELETE FROM Role WHERE name = $1")
             .bind(role_name)
             .execute(&self.pool)
@@ -89,13 +111,13 @@ impl RoleRepo {
         Ok(())
     }
 
-    pub async fn create_role_member(
+    async fn create_role_member(
         &self,
         user_id: &Uuid,
         role_name: &str,
         valid_from: NaiveDate,
         valid_until: Option<NaiveDate>,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), RepositoryError> {
         sqlx::query!(
             r#"
           INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until)
@@ -111,13 +133,13 @@ impl RoleRepo {
         Ok(())
     }
 
-    pub async fn update_valid_until(
+    async fn update_valid_until(
         &self,
         user_id: &Uuid,
         role_name: &str,
         valid_from: NaiveDate,
         new_valid_until: NaiveDate,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), RepositoryError> {
         sqlx::query!(
             r#"
           UPDATE RoleMember
@@ -134,12 +156,12 @@ impl RoleRepo {
         Ok(())
     }
 
-    pub async fn delete_role_member(
+    async fn delete_role_member(
         &self,
         user_id: &Uuid,
         role_name: &str,
         valid_from: NaiveDate,
-    ) -> Result<(), sqlx::Error> {
+    ) -> Result<(), RepositoryError> {
         sqlx::query!(
             r#"
           DELETE FROM RoleMember
@@ -154,12 +176,12 @@ impl RoleRepo {
         Ok(())
     }
 
-    pub async fn fetch_roles_by_member(
+    async fn fetch_roles_by_member(
         &self,
         user_id: &Uuid,
-    ) -> Result<Vec<RoleMember>, sqlx::Error> {
-        let records = sqlx::query_as!(
-            RoleMember,
+    ) -> Result<Vec<RoleMembership>, RepositoryError> {
+        let rows = sqlx::query_as!(
+            RoleMemberDAO,
             r#"
           SELECT user_id, role_name, valid_from, valid_until
           FROM RoleMember
@@ -170,12 +192,12 @@ impl RoleRepo {
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(records)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    pub async fn fetch_members_by_role(&self, role_name: &str) -> Result<Vec<Member>, sqlx::Error> {
-        let records = sqlx::query_as!(
-            Member,
+    async fn fetch_members_by_role(&self, role_name: &str) -> Result<Vec<Person>, RepositoryError> {
+        let rows = sqlx::query_as!(
+            MemberDAO,
             r#"
           SELECT Member.user_id, email, first_name, last_name, full_name, home_municipality, has_accepted_policies
           FROM RoleMember JOIN Member ON RoleMember.user_id = Member.user_id
@@ -185,10 +207,10 @@ impl RoleRepo {
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(records)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    pub async fn fetch_roles_with_stats(
+    async fn fetch_roles_with_stats(
         &self,
         RolesWithStatsParams {
             page_size,
@@ -197,9 +219,9 @@ impl RoleRepo {
             order_by,
             order_desc,
         }: RolesWithStatsParams,
-    ) -> Result<Vec<RoleStats>, sqlx::Error> {
-        let records = sqlx::query_as!(
-            RoleStats,
+    ) -> Result<Vec<PortRoleStats>, RepositoryError> {
+        let rows = sqlx::query_as!(
+            RoleStatsDAO,
             r#"-- sql
             SELECT
                 Role.*,
@@ -214,7 +236,7 @@ impl RoleRepo {
                     END
                 ) as active_member_count
             FROM Role LEFT JOIN RoleMember ON Role.name = RoleMember.role_name
-            WHERE 
+            WHERE
                 $3::varchar IS NULL OR Role.name ILIKE '%' || $3 || '%'
             GROUP BY Role.name, Role.color
             ORDER BY
@@ -224,7 +246,7 @@ impl RoleRepo {
                         WHEN 'color' THEN Role.color
                         WHEN 'description' THEN Role.description
                         WHEN 'member_count' THEN COUNT(DISTINCT RoleMember.user_id)::text
-                        WHEN 'active_member_cout' THEN 
+                        WHEN 'active_member_cout' THEN
                             COUNT(
                                 CASE WHEN (
                                     valid_until IS NULL OR (
@@ -243,7 +265,7 @@ impl RoleRepo {
                         WHEN 'color' THEN Role.color
                         WHEN 'description' THEN Role.description
                         WHEN 'member_count' THEN COUNT(RoleMember.user_id)::text
-                        WHEN 'active_member_cout' THEN 
+                        WHEN 'active_member_cout' THEN
                             COUNT(
                                 CASE WHEN (
                                     valid_until IS NULL OR (
@@ -266,6 +288,6 @@ impl RoleRepo {
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(records)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 }

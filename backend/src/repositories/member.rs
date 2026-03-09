@@ -1,182 +1,182 @@
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use ts_rs::TS;
 use uuid::Uuid;
 
-#[derive(Deserialize, Debug, Clone, TS)]
-#[ts(export)]
-pub struct NewMember {
-    pub user_id: Uuid,
-    pub email: String,
-    pub first_name: String,
-    pub last_name: String,
-    pub home_municipality: String,
-    pub has_accepted_policies: bool,
+use crate::application::ports::member_repository_port::{
+    MemberRepositoryPort, MemberWithRoles as PortMemberWithRoles, MembersWithRolesParams,
+};
+use crate::application::ports::repository_error::RepositoryError;
+use crate::domain::{Email, NewPerson, Person, PersonId};
+
+// --- DAO types (private to repo) ---
+
+#[derive(Debug, sqlx::FromRow)]
+pub(super) struct MemberDAO {
+    pub(super) user_id: Uuid,
+    pub(super) email: String,
+    pub(super) first_name: String,
+    pub(super) last_name: String,
+    pub(super) full_name: Option<String>,
+    pub(super) home_municipality: String,
+    pub(super) has_accepted_policies: bool,
 }
 
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct Member {
-    pub user_id: Uuid,
-    pub email: String,
-    pub first_name: String,
-    pub last_name: String,
-    pub full_name: Option<String>,
-    pub home_municipality: String,
-    pub has_accepted_policies: bool,
-}
-
-#[derive(Debug, sqlx::FromRow, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct MemberWithRoles {
-    pub user_id: Uuid,
-    pub email: String,
-    pub first_name: String,
-    pub last_name: String,
-    pub full_name: Option<String>,
-    pub home_municipality: String,
-    pub has_accepted_policies: bool,
-    #[ts(type = "Array<string | null>")]
-    pub role_names: Value,
-}
-
-impl MemberWithRoles {
-    // Method to convert the struct to a CSV row
-    pub fn to_csv_row(&self) -> Vec<String> {
-        vec![
-            self.user_id.to_string(),
-            self.first_name.clone(),
-            self.last_name.clone(),
-            self.full_name.clone().unwrap_or_default(),
-            self.home_municipality.clone(),
-            self.has_accepted_policies.to_string(),
-            self.email.clone(),
-            self.role_names.to_string(),
-        ]
+impl From<MemberDAO> for Person {
+    fn from(row: MemberDAO) -> Self {
+        Self {
+            id: PersonId(row.user_id),
+            email: Email::new_unchecked(row.email),
+            first_name: row.first_name,
+            last_name: row.last_name,
+            full_name: row.full_name,
+            home_municipality: row.home_municipality,
+            has_accepted_policies: row.has_accepted_policies,
+        }
     }
 }
 
-#[derive(Default)]
-pub struct MembersWithRolesParams {
-    pub valid_from: Option<chrono::NaiveDate>,
-    pub valid_until: Option<chrono::NaiveDate>,
-    pub roles: Option<Vec<String>>,
-    pub search: Option<String>,
-    pub order_by: Option<String>,
-    pub order_desc: Option<bool>,
-    pub page_size: Option<u64>,
-    pub offset: Option<u64>,
+#[derive(Debug, sqlx::FromRow)]
+struct MemberWithRolesDAO {
+    user_id: Uuid,
+    email: String,
+    first_name: String,
+    last_name: String,
+    full_name: Option<String>,
+    home_municipality: String,
+    has_accepted_policies: bool,
+    role_names: Value,
 }
 
-impl MembersWithRolesParams {
-    pub fn new() -> Self {
-        Self::default()
+impl From<MemberWithRolesDAO> for PortMemberWithRoles {
+    fn from(row: MemberWithRolesDAO) -> Self {
+        Self {
+            person: Person {
+                id: PersonId(row.user_id),
+                email: Email::new_unchecked(row.email),
+                first_name: row.first_name,
+                last_name: row.last_name,
+                full_name: row.full_name,
+                home_municipality: row.home_municipality,
+                has_accepted_policies: row.has_accepted_policies,
+            },
+            role_names: row.role_names,
+        }
     }
 }
+
+// --- Repository ---
 
 #[derive(Clone)]
 pub struct MemberRepo {
     pub pool: sqlx::PgPool,
 }
 
-impl MemberRepo {
-    pub async fn create(&self, member_to_add: NewMember) -> Result<Member, sqlx::Error> {
-        let member_created = sqlx::query_as!(
-            Member,
+#[async_trait::async_trait]
+impl MemberRepositoryPort for MemberRepo {
+    async fn create(&self, new: NewPerson) -> Result<Person, RepositoryError> {
+        let row = sqlx::query_as!(
+            MemberDAO,
             r#"
             INSERT INTO member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies)
             VALUES (CAST($1 AS UUID), $2, $3, $4, $5, $6)
             RETURNING *
         "#,
-        member_to_add.user_id,
-        member_to_add.email,
-        member_to_add.first_name,
-        member_to_add.last_name,
-        member_to_add.home_municipality,
-        member_to_add.has_accepted_policies)
+            new.id.0,
+            new.email.as_str(),
+            new.first_name,
+            new.last_name,
+            new.home_municipality,
+            new.has_accepted_policies
+        )
         .fetch_one(&self.pool)
         .await?;
-        Ok(member_created)
+        Ok(row.into())
     }
 
-    pub async fn fetch_all(&self) -> Result<Vec<Member>, sqlx::Error> {
-        let members = sqlx::query_as!(Member, "SELECT * FROM member")
+    async fn fetch_all(&self) -> Result<Vec<Person>, RepositoryError> {
+        let rows = sqlx::query_as!(MemberDAO, "SELECT * FROM member")
             .fetch_all(&self.pool)
             .await?;
-        Ok(members)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    pub async fn fetch_with_ids(&self, ids: Option<Vec<Uuid>>) -> Result<Vec<Member>, sqlx::Error> {
-        let members = sqlx::query_as!(Member,             
+    async fn fetch_with_ids(
+        &self,
+        ids: Option<Vec<Uuid>>,
+    ) -> Result<Vec<Person>, RepositoryError> {
+        let rows = sqlx::query_as!(
+            MemberDAO,
             r#"
-            SELECT * 
-            FROM member 
-            WHERE 
-                array_length($1::uuid[], 1) IS NULL OR 
-                array_length($1::uuid[], 1) = 0  OR 
+            SELECT *
+            FROM member
+            WHERE
+                array_length($1::uuid[], 1) IS NULL OR
+                array_length($1::uuid[], 1) = 0  OR
                 user_id = ANY($1)
-            "#, &ids.unwrap_or_default())
-            .fetch_all(&self.pool)
-            .await?;
-        Ok(members)
+            "#,
+            &ids.unwrap_or_default()
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    pub async fn fetch_one(&self, id: Uuid) -> Result<Member, sqlx::Error> {
-        let member = sqlx::query_as!(Member, "SELECT * FROM member WHERE user_id = $1", id)
+    async fn fetch_one(&self, id: Uuid) -> Result<Person, RepositoryError> {
+        let row = sqlx::query_as!(MemberDAO, "SELECT * FROM member WHERE user_id = $1", id)
             .fetch_one(&self.pool)
             .await?;
-        Ok(member)
+        Ok(row.into())
     }
 
-    pub async fn update(
+    async fn update(
         &self,
-        item: Member,
-        id: Uuid,
-        _: Option<String>,
-    ) -> Result<Member, sqlx::Error> {
-        let member = sqlx::query_as!(
-            Member,
+        user_id: Uuid,
+        first_name: &str,
+        last_name: &str,
+        home_municipality: &str,
+        has_accepted_policies: bool,
+    ) -> Result<Person, RepositoryError> {
+        let row = sqlx::query_as!(
+            MemberDAO,
             r#"--sql
             UPDATE member
-            SET 
+            SET
                 first_name = $1,
                 last_name = $2,
                 home_municipality = $3,
                 has_accepted_policies = $4
             WHERE user_id = $5
             RETURNING *"#,
-            item.first_name,
-            item.last_name,
-            item.home_municipality,
-            item.has_accepted_policies,
-            id
+            first_name,
+            last_name,
+            home_municipality,
+            has_accepted_policies,
+            user_id
         )
         .fetch_one(&self.pool)
         .await?;
-        Ok(member)
+        Ok(row.into())
     }
 
-    pub async fn delete(&self, id: Uuid) -> Result<(), sqlx::Error> {
+    async fn delete(&self, id: Uuid) -> Result<(), RepositoryError> {
         sqlx::query!("DELETE FROM member WHERE user_id = $1", id)
             .execute(&self.pool)
             .await?;
         Ok(())
     }
 
-    pub async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), sqlx::Error> {
+    async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), RepositoryError> {
         sqlx::query!("DELETE FROM member WHERE user_id = ANY($1)", &ids)
             .execute(&self.pool)
             .await?;
         Ok(())
     }
 
-
-    pub async fn fetch_members_with_roles(
+    async fn fetch_members_with_roles(
         &self,
         params: MembersWithRolesParams,
-    ) -> Result<Vec<MemberWithRoles>, sqlx::Error> {
-        let members_with_roles = sqlx::query_as!(
-            MemberWithRoles,
+    ) -> Result<Vec<PortMemberWithRoles>, RepositoryError> {
+        let rows = sqlx::query_as!(
+            MemberWithRolesDAO,
             r#"--sql
             SELECT
                 Member.*,
@@ -186,7 +186,7 @@ impl MemberRepo {
             LEFT JOIN
                 RoleMember ON Member.user_id = RoleMember.user_id
             WHERE (
-                $4::varchar IS NULL OR 
+                $4::varchar IS NULL OR
                 Member.full_name ILIKE '%' || $4 || '%' OR
                 Member.email ILIKE '%' || $4 || '%'
             ) AND (
@@ -238,6 +238,6 @@ impl MemberRepo {
         .fetch_all(&self.pool)
         .await?;
 
-        Ok(members_with_roles)
+        Ok(rows.into_iter().map(Into::into).collect())
     }
 }

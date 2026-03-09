@@ -1,21 +1,20 @@
 use axum::{
     debug_handler,
     extract::{Path, State},
-    http::StatusCode,
-    response::{IntoResponse, Redirect, Response},
     routing::{get, post, put},
     Extension, Json, Router,
 };
-use chrono::format;
 use uuid::Uuid;
 
 use crate::{
-    http::errors::{ApiError, ApiResult},
-    middleware::check_member_access,
-    repositories::{
-        member::{self, Member, NewMember},
-        role::RoleMember,
+    http::{
+        dto::{
+            member::{MemberDTO, NewMemberDTO, UpdateMemberDTO},
+            role::RoleMembershipDTO,
+        },
+        errors::{ApiError, ApiResult},
     },
+    middleware::check_member_access,
     application::services::authentication_service::AuthenticatedUser,
 };
 
@@ -39,8 +38,13 @@ async fn get_member(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-) -> ApiResult<Json<Member>> {
-    let member = state.member_service.get_member(user_id).await.map(Json)?;
+) -> ApiResult<Json<MemberDTO>> {
+    let member = state
+        .member_service
+        .get_member(user_id)
+        .await
+        .map(MemberDTO::from)
+        .map(Json)?;
 
     Ok(member)
 }
@@ -49,13 +53,14 @@ async fn get_member(
 async fn get_me(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-) -> ApiResult<Json<Member>> {
+) -> ApiResult<Json<MemberDTO>> {
     match user_info {
         Some(user_info) => {
             let member = state
                 .member_service
                 .get_member(user_info.user_id)
                 .await
+                .map(MemberDTO::from)
                 .map(Json)?;
 
             Ok(member)
@@ -68,14 +73,16 @@ async fn get_me(
 async fn get_member_roles(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-) -> ApiResult<Json<Vec<RoleMember>>> {
-    let roles = state
+) -> ApiResult<Json<Vec<RoleMembershipDTO>>> {
+    let roles: Vec<RoleMembershipDTO> = state
         .role_service
         .get_member_roles(user_id)
-        .await
-        .map(Json)?;
+        .await?
+        .into_iter()
+        .map(RoleMembershipDTO::from)
+        .collect();
 
-    Ok(roles)
+    Ok(Json(roles))
 }
 
 #[debug_handler]
@@ -83,13 +90,14 @@ async fn update_member(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
-    Json(updated_member): Json<Member>,
-) -> ApiResult<Json<Member>> {
+    Json(body): Json<UpdateMemberDTO>,
+) -> ApiResult<Json<MemberDTO>> {
     let actor_id = user_info.map(|u| u.user_id);
     let member = state
         .member_service
-        .update_member(updated_member, actor_id)
+        .update_member(user_id, body.first_name, body.last_name, body.home_municipality, body.has_accepted_policies, actor_id)
         .await
+        .map(MemberDTO::from)
         .map(Json)?;
 
     Ok(member)
@@ -99,8 +107,8 @@ async fn update_member(
 async fn post_member(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
-    Json(new_member): Json<NewMember>,
-) -> ApiResult<Json<Member>> {
+    Json(new_member): Json<NewMemberDTO>,
+) -> ApiResult<Json<MemberDTO>> {
     let user_info = match user_info {
         None => return Err(ApiError::Unauthorized),
         Some(user_info) => user_info,
@@ -110,10 +118,14 @@ async fn post_member(
         return Err(ApiError::BadRequest);
     }
 
+    let new_person = new_member
+        .into_new_person()
+        .map_err(|_| ApiError::BadRequest)?;
     let member = state
         .member_service
-        .create_member(new_member, Some(user_info.user_id))
+        .create_member(new_person, Some(user_info.user_id))
         .await
+        .map(MemberDTO::from)
         .map(Json)?;
 
     Ok(member)

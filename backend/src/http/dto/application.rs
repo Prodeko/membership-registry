@@ -3,8 +3,10 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
+use crate::application::ports::application_repository_port::{
+    ApplicationTargetableRole, ApplicationWithMember,
+};
 use crate::domain;
-use crate::repositories::application::{ApplicationTargetableRole, ApplicationWithMember};
 
 // --- ID ---
 
@@ -154,7 +156,7 @@ impl From<ApplicationWithMember> for ApplicationWithMemberDTO {
             email: awm.email,
             role_name: awm.role_name,
             valid_until: awm.valid_until,
-            created_at: awm.timestamp,
+            created_at: awm.created_at,
             stripe_payment_id: awm.stripe_payment_id,
             optional_roles: awm.optional_roles,
             application_text: awm.application_text,

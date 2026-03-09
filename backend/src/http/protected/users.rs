@@ -1,22 +1,12 @@
 use axum::{
     debug_handler,
-    extract::{Path, State},
+    extract::State,
     http::StatusCode,
-    response::{IntoResponse, Redirect, Response},
-    routing::{get, post, put},
+    routing::get,
     Extension, Json, Router,
 };
-use chrono::format;
-use uuid::Uuid;
 
-use crate::{
-    middleware::check_member_access,
-    repositories::{
-        member::{Member, NewMember},
-        role::RoleMember,
-    },
-    application::services::authentication_service::AuthenticatedUser,
-};
+use crate::application::services::authentication_service::AuthenticatedUser;
 
 use super::AppState;
 
