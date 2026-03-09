@@ -5,18 +5,18 @@ This backend follows Domain-Driven Design with Clean Architecture (Ports & Adapt
 ## Layers
 
 ```
-┌─────────────────────────────────┐
-│  HTTP (controllers, DTOs, MW)   │  Outermost — framework-specific
-├─────────────────────────────────┤
-│  Infrastructure (adapters)      │  Implements ports with real services
-├─────────────────────────────────┤
-│  Application (services, ports)  │  Orchestrates use cases
-├─────────────────────────────────┤
-│  Domain (entities, values, SM)  │  Innermost — pure business logic
-└─────────────────────────────────┘
+src/
+├── domain/                        Pure business logic, no IO
+├── application/
+│   ├── ports/                     Traits defining external capabilities
+│   └── services/                  Use-case orchestration
+└── infrastructure/
+    ├── adapters/                  Keycloak, SendGrid, template renderer
+    ├── http/                      Axum controllers, DTOs, middleware
+    └── repositories/              PostgreSQL DAOs
 ```
 
-Dependencies point inward. Domain depends on nothing. Application depends on domain. Infrastructure and HTTP depend on application and domain. No reverse imports, ever.
+Dependencies point inward. Domain depends on nothing. Application depends on domain. Infrastructure depends on application and domain. No reverse imports, ever.
 
 
 ## Domain layer — `src/domain/`
@@ -78,6 +78,10 @@ Services map domain and port errors into service-level errors. They never leak d
 
 ## Infrastructure layer — `src/infrastructure/`
 
+The infrastructure layer contains all IO and framework-specific code, organized into three submodules.
+
+### Adapters — `infrastructure/adapters/`
+
 Adapters implement port traits using real external services.
 
 - `KeycloakAuthAdapter` implements `AuthPort` — JWT validation via JWKS, token refresh
@@ -89,8 +93,7 @@ Each adapter maps its internal errors to port error types. `KeycloakError::Expir
 
 Adapters must not contain business logic. They translate between external service APIs and port contracts.
 
-
-## Repository layer — `src/repositories/`
+### Repositories — `infrastructure/repositories/`
 
 Repositories use the DAO pattern with sqlx. Each repository has private DAO structs that match database column shapes, with `From` impls to convert between DAOs and domain types.
 
@@ -122,10 +125,9 @@ All queries use `sqlx::query_as!` for compile-time verification against the data
 
 Read models (joined queries producing `MemberWithRoles`, `ApplicationWithMember`, `RoleStats`) are kept separate from domain types. They serve the query side without polluting the domain.
 
+### HTTP — `infrastructure/http/`
 
-## HTTP layer — `src/http/`
-
-Controllers are thin. They parse request DTOs, call a service method, map the result to a response DTO, and return it. No business logic, no direct repository access.
+Controllers are thin. They parse request DTOs, call a service method, map the result to a response DTO, and return it. No business logic, no direct repository or adapter access — only application services.
 
 ```rust
 async fn get_members(State(state): State<AppState>, Query(q): Query<MembersQuery>)
@@ -136,25 +138,15 @@ async fn get_members(State(state): State<AppState>, Query(q): Query<MembersQuery
 }
 ```
 
-### DTOs
+Routes are organized into three groups:
 
-All API types end with `DTO` and derive `ts_rs::TS` for automatic TypeScript type generation. DTOs match API shape, not domain shape.
+- `admin/` — requires admin role (members, applications, roles, audit logs, email templates, saved filters)
+- `protected/` — requires authentication (account, user applications, member profile)
+- `public/` — no auth required (OAuth2 login flow, Stripe webhooks)
 
-```rust
-#[derive(Serialize, Deserialize, TS)]
-#[ts(export, rename = "Member")]
-pub struct MemberDTO { ... }
-```
+DTOs live in `http/dto/` and all end with `DTO`. They derive `ts_rs::TS` with `#[ts(export)]` to generate TypeScript interfaces in `frontend/src/types/`, keeping frontend types in sync.
 
-The `#[ts(export)]` attribute generates TypeScript interfaces in `frontend/src/types/`, keeping frontend types in sync with the backend.
-
-### Middleware
-
-- `check_auth` — extracts JWT from cookies, validates via `AuthenticationService`, handles token refresh
-- `check_permission` — requires admin role, returns 403 if not
-- `check_member_access` — allows access to own data or admin access
-
-### Error responses
+Middleware handles auth (`check_auth` extracts JWT from cookies, validates via `AuthenticationService`, handles token refresh), permissions (`check_permission` requires admin role), and member access control (`check_member_access` allows own-data or admin access).
 
 `ApiError` maps service errors to HTTP status codes. `ServiceError::NotFound` becomes 404, `ServiceError::AlreadyExists` becomes 400, `TransitionError` becomes 409. Internal details are stripped from responses.
 
@@ -211,4 +203,4 @@ When adding or modifying features, work from the inside out:
 1. Define or update domain types, invariants, and transitions in `src/domain/`
 2. Add orchestration in `src/application/services/`, matching on new transitions
 3. Add new ports in `src/application/ports/` only if a new external capability is needed
-4. Implement adapters in `src/infrastructure/` and add controllers/DTOs in `src/http/` last
+4. Implement adapters in `src/infrastructure/adapters/` and add controllers/DTOs in `src/infrastructure/http/` last
