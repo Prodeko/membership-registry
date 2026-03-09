@@ -1,6 +1,6 @@
 use axum::Router;
 
-use crate::middleware::check_auth;
+use super::middleware::check_auth;
 
 use super::AppState;
 

@@ -5,7 +5,7 @@ use axum::{
 
 use crate::application::ports::template_repository_port::TemplateRepositoryError;
 use crate::application::services::template_admin_service::TemplateAdminError;
-use crate::services::errors::{ServiceError, ServiceResult};
+use crate::application::services::errors::{ServiceError, ServiceResult};
 
 pub enum ApiError {
     ServiceError(ServiceError),

@@ -7,7 +7,7 @@ use axum::{
 
 use crate::{
     application::services::authentication_service::AuthenticatedUser,
-    http::{
+    infrastructure::http::{
         dto::saved_filter::{GetSavedFilterParamsDTO, NewSavedFilterDTO, SavedFilterDTO},
         errors::{ApiError, ApiResult},
     },

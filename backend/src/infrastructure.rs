@@ -1,3 +1,3 @@
-pub mod keycloak;
-pub mod sendgrid;
-pub mod template;
+pub mod adapters;
+pub mod http;
+pub mod repositories;

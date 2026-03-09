@@ -6,7 +6,7 @@ mod test_member {
         MemberRepositoryPort, MembersWithRolesParams,
     };
     use crate::domain::{Email, NewPerson, PersonId};
-    use crate::repositories::tests::{cleanup_test_db, setup_test_db};
+    use crate::infrastructure::repositories::tests::{cleanup_test_db, setup_test_db};
 
     fn _get_new_member() -> NewPerson {
         let user_id = Uuid::new_v4();

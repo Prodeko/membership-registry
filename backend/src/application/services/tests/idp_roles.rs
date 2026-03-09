@@ -15,14 +15,14 @@ mod test_idp_roles {
         rolesync_port::RoleSyncPort,
         user_admin_port::UserAdminPort,
     };
-    use crate::infrastructure::keycloak::{
+    use crate::infrastructure::adapters::keycloak::{
         KeycloakClient, KeycloakConfig, KeycloakRoleSyncAdapter, KeycloakUserAdminAdapter,
     };
     use crate::application::ports::audit_log_repository_port::AuditLogQueryParams;
-    use crate::repositories::tests::{cleanup_test_db, setup_test_db};
-    use crate::services::audit_log_service::AuditLogService;
-    use crate::services::member_service::MemberService;
-    use crate::services::role_service::RoleService;
+    use crate::infrastructure::repositories::tests::{cleanup_test_db, setup_test_db};
+    use crate::application::services::audit_log_service::AuditLogService;
+    use crate::application::services::member_service::MemberService;
+    use crate::application::services::role_service::RoleService;
 
     const USER_ID: &str = "9707582e-c149-45a7-bae1-4b0f4de4b06f";
     const KEYCLOAK_USER_ID: &str = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";

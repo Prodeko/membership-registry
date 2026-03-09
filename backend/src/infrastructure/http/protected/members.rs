@@ -7,14 +7,14 @@ use axum::{
 use uuid::Uuid;
 
 use crate::{
-    http::{
+    infrastructure::http::{
         dto::{
             member::{MemberDTO, NewMemberDTO, UpdateMemberDTO},
             role::RoleMembershipDTO,
         },
         errors::{ApiError, ApiResult},
+        middleware::check_member_access,
     },
-    middleware::check_member_access,
     application::services::authentication_service::AuthenticatedUser,
 };
 

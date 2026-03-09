@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use crate::http::errors::{ApiError, ApiResult};
-use crate::services::errors::ServiceError;
+use crate::infrastructure::http::errors::{ApiError, ApiResult};
+use crate::application::services::errors::ServiceError;
 
 use super::AppState;
 use axum::{

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use ts_rs::TS;
 
 use crate::{
-    http::{
+    infrastructure::http::{
         dto::{
             member::MemberDTO,
             role::{RoleDTO, RoleStatsDTO},

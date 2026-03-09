@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::domain::EmailTemplate;
-use crate::http::errors::ApiResult;
+use crate::infrastructure::http::errors::ApiResult;
 
 use super::AppState;
 

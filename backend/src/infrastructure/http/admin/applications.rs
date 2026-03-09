@@ -8,7 +8,7 @@ use serde::Deserialize;
 use ts_rs::TS;
 
 use crate::{
-    http::{
+    infrastructure::http::{
         dto::application::{
             ApplicationActionDTO, ApplicationDTO, ApplicationStatusDTO, ApplicationWithMemberDTO,
         },

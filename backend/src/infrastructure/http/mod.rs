@@ -13,22 +13,24 @@ use tracing_subscriber::EnvFilter;
 
 use crate::{
     application::services::{
+        application_service::ApplicationService,
+        audit_log_service::AuditLogService,
         authentication_service::AuthenticationService,
+        member_service::MemberService,
         notification_service::NotificationService,
+        role_service::RoleService,
+        saved_filter::SavedFilterService,
         template_admin_service::TemplateAdminService,
     },
     config::Config,
-    services::{
-        application_service::ApplicationService, audit_log_service::AuditLogService,
-        member_service::MemberService,
-        role_service::RoleService, saved_filter::SavedFilterService, Services,
-    },
+    Services,
 };
 
 mod admin;
 pub(crate) mod dto;
 mod errors;
 mod index;
+pub(crate) mod middleware;
 mod protected;
 mod public;
 mod static_files;

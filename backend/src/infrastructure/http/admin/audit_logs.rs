@@ -4,7 +4,7 @@ use axum::{
     Json, Router,
 };
 
-use crate::http::{
+use crate::infrastructure::http::{
     dto::audit_log::{AuditLogEntryWithActorDTO, AuditLogQueryParamsDTO},
     errors::ApiResult,
 };

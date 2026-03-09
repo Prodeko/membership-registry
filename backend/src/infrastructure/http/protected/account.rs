@@ -9,7 +9,7 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use crate::{
-    http::errors::{ApiError, ApiResult},
+    infrastructure::http::errors::{ApiError, ApiResult},
     application::services::authentication_service::AuthenticatedUser,
 };
 

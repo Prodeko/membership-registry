@@ -12,8 +12,9 @@ use uuid::Uuid;
 use crate::{
     application::services::authentication_service::{AuthServiceError, AuthenticatedUser},
     helpers::{set_refresh_token_cookie, set_session_cookie},
-    http::AppState,
 };
+
+use super::AppState;
 
 pub async fn check_auth(
     State(state): State<AppState>,

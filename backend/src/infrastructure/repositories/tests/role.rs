@@ -7,7 +7,7 @@ mod test_role {
         RoleRepositoryPort, RolesWithStatsParams,
     };
     use crate::domain::{Role, RoleName};
-    use crate::repositories::tests::{cleanup_test_db, setup_test_db};
+    use crate::infrastructure::repositories::tests::{cleanup_test_db, setup_test_db};
 
     const ROLE_NAME: &str = "prodeko-external-member";
 

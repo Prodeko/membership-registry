@@ -14,7 +14,7 @@ use tokio::io::AsyncWriteExt;
 use uuid::Uuid;
 
 use crate::{
-    http::{
+    infrastructure::http::{
         dto::{
             member::{MemberDTO, MemberWithRolesDTO, UpdateMemberDTO},
             role::RoleMembershipDTO,

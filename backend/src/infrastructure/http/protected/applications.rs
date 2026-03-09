@@ -5,13 +5,15 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use crate::{
-    http::{
+    infrastructure::http::{
         dto::application::{ApplicationDTO, ApplicationTargetableRoleDTO, CreateApplicationRequestDTO},
         errors::{ApiError, ApiResult},
         types::ApplicationPath,
     },
-    application::services::authentication_service::AuthenticatedUser,
-    services::application_service::CreateApplicationParams,
+    application::services::{
+        authentication_service::AuthenticatedUser,
+        application_service::CreateApplicationParams,
+    },
 };
 
 use super::AppState;
