@@ -53,4 +53,5 @@ uuid = { version = "1.8", features = ["serde", "v4"] }
 validator = { version = "0.16.1", features = ["derive"] }
 
 [dev-dependencies]
+mockall = "0.13"
 wiremock = "0.6"

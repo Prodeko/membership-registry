@@ -48,7 +48,7 @@ mod test_idp_roles {
 
         // Insert auth provider mapping for the test user
         repo.user_auth_provider
-            .create(&user_uuid(), "keycloak", KEYCLOAK_USER_ID, None)
+            .create(&user_uuid(), "keycloak", KEYCLOAK_USER_ID)
             .await
             .unwrap();
 

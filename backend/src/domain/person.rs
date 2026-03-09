@@ -48,3 +48,49 @@ pub struct NewPerson {
     pub home_municipality: String,
     pub has_accepted_policies: bool,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn email_valid_simple() {
+        assert!(Email::new("user@example.com".to_string()).is_ok());
+    }
+
+    #[test]
+    fn email_valid_with_plus_and_subdomain() {
+        assert!(Email::new("user+tag@sub.domain.co.uk".to_string()).is_ok());
+    }
+
+    #[test]
+    fn email_invalid_empty() {
+        assert!(Email::new(String::new()).is_err());
+    }
+
+    #[test]
+    fn email_invalid_no_at() {
+        assert!(Email::new("no-at-sign".to_string()).is_err());
+    }
+
+    #[test]
+    fn email_invalid_no_local() {
+        assert!(Email::new("@no-local.com".to_string()).is_err());
+    }
+
+    #[test]
+    fn email_invalid_trailing_at() {
+        assert!(Email::new("trailing@".to_string()).is_err());
+    }
+
+    #[test]
+    fn email_invalid_spaces() {
+        assert!(Email::new("spaces in@email.com".to_string()).is_err());
+    }
+
+    #[test]
+    fn email_unchecked_always_succeeds() {
+        let email = Email::new_unchecked("anything".to_string());
+        assert_eq!(email.as_str(), "anything");
+    }
+}
