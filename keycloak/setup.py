@@ -267,42 +267,69 @@ class KeycloakAdmin:
         else:
             print("  Service account roles already assigned.")
 
-    # -- test user --
+    # -- test users --
 
-    def configure_test_user(self):
-        """Create test user if it doesn't exist."""
-        username = "testuser"
-        print(f"Configuring test user '{username}'...")
+    def _ensure_user(
+        self,
+        username: str,
+        email: str,
+        password: str,
+        roles: list[str] | None = None,
+    ):
+        """Create or update a user, with optional realm roles."""
+        print(f"Configuring user '{username}' ({email})...")
 
-        existing = self.get(f"/users?username={username}&exact=true")
-        if existing:
-            print(f"  User '{username}' already exists, skipping.")
-            return
-
-        self.post("/users", {
+        user_payload = {
             "username": username,
-            "email": "test@example.com",
+            "email": email,
             "firstName": "Test",
             "lastName": "User",
             "enabled": True,
             "emailVerified": True,
-            "credentials": [
-                {
-                    "type": "password",
-                    "value": "testpassword",
-                    "temporary": False,
-                }
-            ],
-        })
-        print(f"  Created user '{username}'.")
+        }
 
-        # Assign admin role
-        users = self.get(f"/users?username={username}&exact=true")
-        user_id = users[0]["id"]
-        admin_roles = [r for r in self.get("/roles") if r["name"] == "admin"]
-        if admin_roles:
-            self.post(f"/users/{user_id}/role-mappings/realm", admin_roles)
-            print(f"  Assigned 'admin' role to '{username}'.")
+        existing = self.get(f"/users?username={username}&exact=true")
+        if existing:
+            user_id = existing[0]["id"]
+            self.put(f"/users/{user_id}", user_payload)
+            print(f"  Updated user '{username}'.")
+        else:
+            user_payload["credentials"] = [
+                {"type": "password", "value": password, "temporary": False}
+            ]
+            self.post("/users", user_payload)
+            existing = self.get(f"/users?username={username}&exact=true")
+            user_id = existing[0]["id"]
+            print(f"  Created user '{username}'.")
+
+        # Reset password (idempotent)
+        self.put(f"/users/{user_id}/reset-password", {
+            "type": "password",
+            "value": password,
+            "temporary": False,
+        })
+
+        if roles:
+            all_roles = self.get("/roles")
+            roles_to_assign = [r for r in all_roles if r["name"] in roles]
+            if roles_to_assign:
+                self.post(f"/users/{user_id}/role-mappings/realm", roles_to_assign)
+                assigned = [r["name"] for r in roles_to_assign]
+                print(f"  Assigned roles: {', '.join(assigned)}")
+
+    def configure_test_users(self):
+        """Create test users for development and e2e testing."""
+        self._ensure_user(
+            username="testadmin",
+            email="test-admin@example.com",
+            password="testpassword",
+            roles=["admin"],
+        )
+        self._ensure_user(
+            username="testuser",
+            email="test-user@example.com",
+            password="testpassword",
+        )
 
     # -- authentication flows --
 
@@ -408,7 +435,7 @@ def main():
     kc.configure_realm_roles()
     kc.configure_auth_client()
     kc.configure_m2m_client()
-    kc.configure_test_user()
+    kc.configure_test_users()
 
     print("Configuring authentication flows...")
     kc.configure_browser_flow()
