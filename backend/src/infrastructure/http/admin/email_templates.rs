@@ -1,11 +1,12 @@
 use axum::{
     extract::{Path, State},
     routing::{delete, get, post, put},
-    Json, Router,
+    Extension, Json, Router,
 };
 use serde::Deserialize;
 use ts_rs::TS;
 
+use crate::application::services::authentication_service::AuthenticatedUser;
 use crate::infrastructure::http::dto::email_template::EmailTemplateDTO;
 use crate::infrastructure::http::errors::ApiResult;
 
@@ -42,12 +43,18 @@ struct CreateEmailTemplate {
 }
 
 async fn create_template(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Json(body): Json<CreateEmailTemplate>,
 ) -> ApiResult<Json<EmailTemplateDTO>> {
     let template = state
         .template_admin_service
-        .create_template(&body.name, &body.subject, &body.body_html)
+        .create_template(
+            &body.name,
+            &body.subject,
+            &body.body_html,
+            user_info.map(|u| u.user_id),
+        )
         .await?;
     Ok(Json(template.into()))
 }
@@ -60,21 +67,31 @@ struct UpdateEmailTemplate {
 }
 
 async fn update_template(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     Path(name): Path<String>,
     State(state): State<AppState>,
     Json(body): Json<UpdateEmailTemplate>,
 ) -> ApiResult<Json<EmailTemplateDTO>> {
     let template = state
         .template_admin_service
-        .update_template(&name, &body.subject, &body.body_html)
+        .update_template(
+            &name,
+            &body.subject,
+            &body.body_html,
+            user_info.map(|u| u.user_id),
+        )
         .await?;
     Ok(Json(template.into()))
 }
 
 async fn delete_template(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
     Path(name): Path<String>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<()>> {
-    state.template_admin_service.delete_template(&name).await?;
+    state
+        .template_admin_service
+        .delete_template(&name, user_info.map(|u| u.user_id))
+        .await?;
     Ok(Json(()))
 }

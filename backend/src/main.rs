@@ -94,15 +94,16 @@ impl Services {
         let auth_provider_repo: Arc<dyn AuthProviderRepositoryPort> =
             Arc::new(repo.user_auth_provider.clone());
 
+        let audit_log_repo: Arc<dyn AuditLogRepositoryPort> = Arc::new(repo.audit_log);
+        let audit_log_service = AuditLogService::new(audit_log_repo);
+
         let authentication_service = AuthenticationService::new(
             Arc::clone(&auth_adapter),
             Arc::clone(&auth_provider_repo),
             Arc::clone(&role_sync),
             RoleName(keycloak_cfg.admin_role_name),
+            audit_log_service.clone(),
         );
-
-        let audit_log_repo: Arc<dyn AuditLogRepositoryPort> = Arc::new(repo.audit_log);
-        let audit_log_service = AuditLogService::new(audit_log_repo);
         let email_port: Option<Arc<dyn EmailPort>> = config
             .sendgrid_api_key
             .filter(|k| !k.is_empty())
@@ -123,7 +124,8 @@ impl Services {
         let template_repo: Arc<dyn TemplateRepositoryPort> = Arc::new(repo.email_template);
         let renderer: Arc<dyn TemplateRendererPort> = Arc::new(SimpleTemplateRenderer);
 
-        let template_admin_service = TemplateAdminService::new(Arc::clone(&template_repo));
+        let template_admin_service =
+            TemplateAdminService::new(Arc::clone(&template_repo), audit_log_service.clone());
         let notification_service =
             NotificationService::new(email_port, Arc::clone(&template_repo), renderer);
 

@@ -1,10 +1,14 @@
 use std::sync::{Arc, LazyLock};
 
 use regex::Regex;
+use serde_json;
+use uuid::Uuid;
 
 use crate::application::ports::repository_error::RepositoryError;
 use crate::application::ports::template_repository_port::TemplateRepositoryPort;
 use crate::domain::EmailTemplate;
+
+use super::audit_log_service::AuditLogService;
 
 const ALLOWED_PLACEHOLDERS: &[&str] = &["name", "role_name"];
 #[allow(clippy::expect_used)] // Regex literal, cannot fail
@@ -28,11 +32,12 @@ pub type TemplateAdminResult<T> = Result<T, TemplateAdminError>;
 #[derive(Clone)]
 pub struct TemplateAdminService {
     repo: Arc<dyn TemplateRepositoryPort>,
+    audit_log: AuditLogService,
 }
 
 impl TemplateAdminService {
-    pub fn new(repo: Arc<dyn TemplateRepositoryPort>) -> Self {
-        Self { repo }
+    pub fn new(repo: Arc<dyn TemplateRepositoryPort>, audit_log: AuditLogService) -> Self {
+        Self { repo, audit_log }
     }
 
     fn validate_placeholders(text: &str) -> TemplateAdminResult<()> {
@@ -64,13 +69,27 @@ impl TemplateAdminService {
         name: &str,
         subject: &str,
         body_html: &str,
+        actor_user_id: Option<Uuid>,
     ) -> TemplateAdminResult<EmailTemplate> {
         Self::validate_placeholders(subject)?;
         let sanitized_body = Self::sanitize_body(body_html)?;
-        self.repo
+        let template = self
+            .repo
             .create(name, subject, &sanitized_body)
             .await
-            .map_err(Into::into)
+            .map_err(RepositoryError::from)?;
+
+        self.audit_log
+            .log(
+                actor_user_id,
+                "template.create",
+                "template",
+                name,
+                Some(serde_json::json!({ "subject": subject })),
+            )
+            .await;
+
+        Ok(template)
     }
 
     pub async fn update_template(
@@ -78,16 +97,46 @@ impl TemplateAdminService {
         name: &str,
         subject: &str,
         body_html: &str,
+        actor_user_id: Option<Uuid>,
     ) -> TemplateAdminResult<EmailTemplate> {
         Self::validate_placeholders(subject)?;
         let sanitized_body = Self::sanitize_body(body_html)?;
-        self.repo
+        let template = self
+            .repo
             .update(name, subject, &sanitized_body)
             .await
-            .map_err(Into::into)
+            .map_err(RepositoryError::from)?;
+
+        self.audit_log
+            .log(
+                actor_user_id,
+                "template.update",
+                "template",
+                name,
+                Some(serde_json::json!({ "subject": subject })),
+            )
+            .await;
+
+        Ok(template)
     }
 
-    pub async fn delete_template(&self, name: &str) -> TemplateAdminResult<()> {
-        self.repo.delete(name).await.map_err(Into::into)
+    pub async fn delete_template(
+        &self,
+        name: &str,
+        actor_user_id: Option<Uuid>,
+    ) -> TemplateAdminResult<()> {
+        self.repo.delete(name).await.map_err(RepositoryError::from)?;
+
+        self.audit_log
+            .log(
+                actor_user_id,
+                "template.delete",
+                "template",
+                name,
+                None,
+            )
+            .await;
+
+        Ok(())
     }
 }

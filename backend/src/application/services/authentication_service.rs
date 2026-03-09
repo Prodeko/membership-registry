@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use moka::future::Cache;
 use serde::Serialize;
+use serde_json;
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -12,6 +13,8 @@ use crate::application::ports::{
     rolesync_port::{IdpSubject, RoleSyncError, RoleSyncPort},
 };
 use crate::domain::RoleName;
+
+use super::audit_log_service::AuditLogService;
 
 #[derive(Clone, Debug, Serialize, TS)]
 #[ts(export)]
@@ -69,6 +72,7 @@ pub struct AuthenticationService {
     provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     role_sync: Arc<dyn RoleSyncPort>,
     admin_role_name: RoleName,
+    audit_log: AuditLogService,
     token_cache: Cache<String, AuthenticatedUser>,
     admin_cache: Cache<Uuid, bool>,
 }
@@ -79,12 +83,14 @@ impl AuthenticationService {
         provider_repo: Arc<dyn AuthProviderRepositoryPort>,
         role_sync: Arc<dyn RoleSyncPort>,
         admin_role_name: RoleName,
+        audit_log: AuditLogService,
     ) -> Self {
         Self {
             auth,
             provider_repo,
             role_sync,
             admin_role_name,
+            audit_log,
             token_cache: Cache::builder()
                 .max_capacity(1000)
                 .time_to_live(Duration::from_secs(300))
@@ -114,16 +120,43 @@ impl AuthenticationService {
             .find_by_provider(&provider_name, &provider_user_id)
             .await?;
 
-        let user_id = match mapping {
-            Some(m) => m.user_id,
+        let (user_id, is_new_link) = match mapping {
+            Some(m) => (m.user_id, false),
             None => {
                 let new_id = Uuid::new_v4();
                 self.provider_repo
                     .create(&new_id, &provider_name, &provider_user_id)
                     .await?;
-                new_id
+                (new_id, true)
             }
         };
+
+        if is_new_link {
+            self.audit_log
+                .log(
+                    Some(user_id),
+                    "auth_provider.link",
+                    "auth_provider",
+                    &user_id.to_string(),
+                    Some(serde_json::json!({
+                        "provider_name": &provider_name,
+                        "provider_user_id": &provider_user_id,
+                    })),
+                )
+                .await;
+        }
+
+        self.audit_log
+            .log(
+                Some(user_id),
+                "auth.login",
+                "user",
+                &user_id.to_string(),
+                Some(serde_json::json!({
+                    "provider_name": &provider_name,
+                })),
+            )
+            .await;
 
         let user = AuthenticatedUser {
             user_id,
@@ -192,6 +225,18 @@ impl AuthenticationService {
         if !deleted {
             return Err(AuthServiceError::ProviderNotFound);
         }
+
+        self.audit_log
+            .log(
+                Some(user_id),
+                "auth_provider.unlink",
+                "auth_provider",
+                &user_id.to_string(),
+                Some(serde_json::json!({
+                    "provider_name": provider_name,
+                })),
+            )
+            .await;
 
         Ok(())
     }

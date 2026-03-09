@@ -27,6 +27,7 @@ The `actor_user_id` column has no foreign key to `member`, so audit entries surv
 - `targetable_role.create`, `targetable_role.update`, `targetable_role.delete`
 - `auth.login`
 - `auth_provider.link`, `auth_provider.unlink`
+- `template.create`, `template.update`, `template.delete`
 
 ## API
 
