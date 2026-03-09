@@ -42,8 +42,5 @@ pub trait AuthProviderRepositoryPort: Send + Sync {
         provider_name: &str,
     ) -> Result<bool, AuthProviderRepoError>;
 
-    async fn count_by_user_id(
-        &self,
-        user_id: &Uuid,
-    ) -> Result<usize, AuthProviderRepoError>;
+    async fn count_by_user_id(&self, user_id: &Uuid) -> Result<usize, AuthProviderRepoError>;
 }

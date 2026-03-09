@@ -8,6 +8,8 @@ use serde::Deserialize;
 use ts_rs::TS;
 
 use crate::{
+    application::services::authentication_service::AuthenticatedUser,
+    domain::{Role, RoleName},
     infrastructure::http::{
         dto::{
             member::MemberDTO,
@@ -16,8 +18,6 @@ use crate::{
         errors::ApiResult,
         types::RolePath,
     },
-    application::services::authentication_service::AuthenticatedUser,
-    domain::{Role, RoleName},
 };
 
 use super::AppState;

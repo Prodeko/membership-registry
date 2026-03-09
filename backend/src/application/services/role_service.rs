@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use crate::application::ports::{
     auth_provider_repo_port::AuthProviderRepositoryPort,
-    role_repository_port::{
-        RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams,
-    },
+    role_repository_port::{RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams},
     rolesync_port::{IdpSubject, RoleSyncPort},
 };
 use crate::domain::{Person, Role, RoleName};
@@ -72,10 +70,7 @@ impl RoleService {
     }
 
     pub async fn get_all_roles(&self) -> ServiceResult<Vec<Role>> {
-        self.role_repo
-            .fetch_all()
-            .await
-            .map_err(ServiceError::from)
+        self.role_repo.fetch_all().await.map_err(ServiceError::from)
     }
 
     pub async fn delete_role(

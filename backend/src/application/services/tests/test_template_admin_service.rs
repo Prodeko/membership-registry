@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use crate::application::ports::repository_error::RepositoryError;
-use crate::application::services::template_admin_service::{TemplateAdminError, TemplateAdminService};
+use crate::application::services::template_admin_service::{
+    TemplateAdminError, TemplateAdminService,
+};
 use crate::domain::EmailTemplate;
 
 use super::mocks::*;
@@ -25,7 +27,12 @@ async fn create_template_valid_placeholders() {
 
     let svc = build_service(repo);
     let result = svc
-        .create_template("{name} got {role_name}", "{name} got {role_name}", "<p>{name}</p>", None)
+        .create_template(
+            "{name} got {role_name}",
+            "{name} got {role_name}",
+            "<p>{name}</p>",
+            None,
+        )
         .await;
 
     assert!(result.is_ok());

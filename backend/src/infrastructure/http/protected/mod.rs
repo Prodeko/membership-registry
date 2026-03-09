@@ -19,5 +19,4 @@ pub fn router(state: AppState) -> Router<AppState> {
             state.clone(),
             check_auth,
         ))
-
 }

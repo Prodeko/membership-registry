@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use crate::application::ports::application_repository_port::{
-    ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole,
-    ApplicationWithMember, TargetableRolePort,
+    ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole, ApplicationWithMember,
+    TargetableRolePort,
 };
 use crate::domain::application::{
     Application, ApplicationAction, ApplicationStatus, ApplicationTransition, NewApplication,
@@ -115,10 +115,7 @@ impl ApplicationService {
     }
 
     pub async fn get_all_applications(&self) -> ServiceResult<Vec<Application>> {
-        self.application_queries
-            .fetch_all()
-            .await
-            .map_err(E::from)
+        self.application_queries.fetch_all().await.map_err(E::from)
     }
 
     pub async fn get_application(&self, application_id: Uuid) -> ServiceResult<Application> {
@@ -400,8 +397,9 @@ impl ApplicationService {
     ) -> ServiceResult<()> {
         let application = self.get_application(application_id).await?;
 
-        let (new_status, _transition) =
-            application.apply(ApplicationAction::PaymentReceived).map_err(|e| match e {
+        let (new_status, _transition) = application
+            .apply(ApplicationAction::PaymentReceived)
+            .map_err(|e| match e {
                 TransitionError::AlreadyTerminal => E::ApplicationAlreadyProcessed,
                 TransitionError::InvalidAction { .. } => E::InvalidStatus,
             })?;

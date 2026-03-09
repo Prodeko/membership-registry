@@ -4,8 +4,7 @@ use chrono::{NaiveDate, Utc};
 use uuid::Uuid;
 
 use crate::application::ports::{
-    application_repository_port::ApplicationTargetableRole,
-    repository_error::RepositoryError,
+    application_repository_port::ApplicationTargetableRole, repository_error::RepositoryError,
 };
 use crate::application::services::{
     application_service::{ApplicationService, CreateApplicationParams},
@@ -13,7 +12,9 @@ use crate::application::services::{
     notification_service::NotificationService,
     role_service::RoleService,
 };
-use crate::domain::{Application, ApplicationAction, ApplicationId, ApplicationStatus, NewApplication};
+use crate::domain::{
+    Application, ApplicationAction, ApplicationId, ApplicationStatus, NewApplication,
+};
 
 use super::mocks::*;
 
@@ -256,9 +257,11 @@ async fn create_application_payment_required_sets_unpaid() {
         .expect_fetch_existing()
         .returning(|_, _, _| Err(RepositoryError::NotFound));
 
-    targetable
-        .expect_fetch_targetable_role()
-        .returning(|_, _| Ok(active_targetable_role(Some("https://pay.example.com".to_string()))));
+    targetable.expect_fetch_targetable_role().returning(|_, _| {
+        Ok(active_targetable_role(Some(
+            "https://pay.example.com".to_string(),
+        )))
+    });
 
     commands.expect_create().returning(|new| {
         Ok(Application::from((
@@ -444,11 +447,7 @@ async fn update_status_payment_received() {
 
     let svc = build_service(commands, queries, targetable);
     let result = svc
-        .update_application_status(
-            Uuid::new_v4(),
-            ApplicationAction::PaymentReceived,
-            None,
-        )
+        .update_application_status(Uuid::new_v4(), ApplicationAction::PaymentReceived, None)
         .await;
 
     assert!(result.is_ok());
@@ -487,11 +486,7 @@ async fn update_status_invalid_action() {
 
     let svc = build_service(commands, queries, targetable);
     let result = svc
-        .update_application_status(
-            Uuid::new_v4(),
-            ApplicationAction::PaymentReceived,
-            None,
-        )
+        .update_application_status(Uuid::new_v4(), ApplicationAction::PaymentReceived, None)
         .await;
 
     assert!(matches!(

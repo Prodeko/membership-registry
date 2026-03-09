@@ -13,6 +13,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{
+    application::services::authentication_service::AuthenticatedUser,
     infrastructure::http::{
         dto::{
             member::{MemberDTO, MemberWithRolesDTO, UpdateMemberDTO},
@@ -20,7 +21,6 @@ use crate::{
         },
         errors::{ApiError, ApiResult},
     },
-    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -46,17 +46,14 @@ async fn get_members(
     State(state): State<AppState>,
     Query(query): Query<MembersQueryDTO>,
 ) -> ApiResult<Json<Vec<MemberDTO>>> {
-    let user_ids = query
-        .user_ids
-        .clone()
-        .and_then(|s| {
-            s.split(',')
-                .map(|uuid| {
-                    Uuid::parse_str(uuid).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UUID"))
-                })
-                .collect::<Result<Vec<Uuid>, _>>()
-                .ok()
-        });
+    let user_ids = query.user_ids.clone().and_then(|s| {
+        s.split(',')
+            .map(|uuid| {
+                Uuid::parse_str(uuid).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UUID"))
+            })
+            .collect::<Result<Vec<Uuid>, _>>()
+            .ok()
+    });
 
     tracing::debug!("User ids: {:?}", user_ids);
     tracing::debug!("user ids query: {:?}", query.user_ids.clone());
@@ -206,7 +203,14 @@ async fn update_member(
     let actor_id = user_info.map(|u| u.user_id);
     let result = state
         .member_service
-        .update_member(user_id, body.first_name, body.last_name, body.home_municipality, body.has_accepted_policies, actor_id)
+        .update_member(
+            user_id,
+            body.first_name,
+            body.last_name,
+            body.home_municipality,
+            body.has_accepted_policies,
+            actor_id,
+        )
         .await
         .map(MemberDTO::from)
         .map(Json)?;
@@ -267,7 +271,13 @@ async fn add_role(
     let actor_id = user_info.map(|u| u.user_id);
     state
         .role_service
-        .add_role_member(user_id, &query.role_name, query.valid_from, query.valid_until, actor_id)
+        .add_role_member(
+            user_id,
+            &query.role_name,
+            query.valid_from,
+            query.valid_until,
+            actor_id,
+        )
         .await?;
 
     Ok(())
@@ -291,7 +301,13 @@ async fn add_many_roles(
     let actor_id = user_info.map(|u| u.user_id);
     state
         .role_service
-        .add_many_role_members(query.user_ids, query.role_names, query.valid_from, query.valid_until, actor_id)
+        .add_many_role_members(
+            query.user_ids,
+            query.role_names,
+            query.valid_from,
+            query.valid_until,
+            actor_id,
+        )
         .await?;
 
     Ok(())

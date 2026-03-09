@@ -68,10 +68,7 @@ pub trait RoleRepositoryPort: Send + Sync {
         user_id: &Uuid,
     ) -> Result<Vec<RoleMembership>, RepositoryError>;
 
-    async fn fetch_members_by_role(
-        &self,
-        role_name: &str,
-    ) -> Result<Vec<Person>, RepositoryError>;
+    async fn fetch_members_by_role(&self, role_name: &str) -> Result<Vec<Person>, RepositoryError>;
 
     async fn fetch_roles_with_stats(
         &self,

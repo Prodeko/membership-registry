@@ -29,14 +29,8 @@ impl From<KeycloakError> for AuthError {
 
 #[async_trait::async_trait]
 impl AuthPort for KeycloakAuthAdapter {
-    async fn verify_access_token(
-        &self,
-        access_token: &str,
-    ) -> Result<VerifiedIdentity, AuthError> {
-        let claims = self
-            .client
-            .decode_access_token_claims(access_token)
-            .await?;
+    async fn verify_access_token(&self, access_token: &str) -> Result<VerifiedIdentity, AuthError> {
+        let claims = self.client.decode_access_token_claims(access_token).await?;
 
         Ok(VerifiedIdentity {
             subject: claims.sub,

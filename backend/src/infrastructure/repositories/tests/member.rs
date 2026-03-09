@@ -230,13 +230,17 @@ mod test_member {
 
         let member_to_update = repo.member.fetch_one(user_id).await.unwrap();
 
-        let updated_member = repo.member.update(
-            user_id,
-            "Uusi",
-            &member_to_update.last_name,
-            &member_to_update.home_municipality,
-            member_to_update.has_accepted_policies,
-        ).await.unwrap();
+        let updated_member = repo
+            .member
+            .update(
+                user_id,
+                "Uusi",
+                &member_to_update.last_name,
+                &member_to_update.home_municipality,
+                member_to_update.has_accepted_policies,
+            )
+            .await
+            .unwrap();
 
         assert!(updated_member.first_name == "Uusi");
 

@@ -60,10 +60,7 @@ pub trait ApplicationCommandPort: Send + Sync {
 pub trait ApplicationQueryPort: Send + Sync {
     async fn fetch_all(&self) -> Result<Vec<Application>, RepositoryError>;
 
-    async fn fetch_one(
-        &self,
-        application_id: Uuid,
-    ) -> Result<Application, RepositoryError>;
+    async fn fetch_one(&self, application_id: Uuid) -> Result<Application, RepositoryError>;
 
     async fn fetch_with_member_one(
         &self,

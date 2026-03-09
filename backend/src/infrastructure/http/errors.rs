@@ -4,8 +4,8 @@ use axum::{
 };
 
 use crate::application::ports::repository_error::RepositoryError;
-use crate::application::services::template_admin_service::TemplateAdminError;
 use crate::application::services::errors::{ServiceError, ServiceResult};
+use crate::application::services::template_admin_service::TemplateAdminError;
 
 pub enum ApiError {
     ServiceError(ServiceError),
@@ -128,9 +128,7 @@ impl From<TemplateAdminError> for ApiError {
                 RepositoryError::AlreadyExists => {
                     ApiError::ServiceError(ServiceError::AlreadyExists)
                 }
-                RepositoryError::Constraint(_) => {
-                    ApiError::ServiceError(ServiceError::Constraint)
-                }
+                RepositoryError::Constraint(_) => ApiError::ServiceError(ServiceError::Constraint),
                 RepositoryError::Unexpected(_) => ApiError::InternalServerError,
             },
         }

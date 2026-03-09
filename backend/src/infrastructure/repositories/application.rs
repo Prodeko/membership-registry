@@ -2,8 +2,7 @@ use sqlx::{types::chrono, PgPool};
 use uuid::Uuid;
 
 use crate::application::ports::application_repository_port::{
-    ApplicationCommandPort, ApplicationQueryPort,
-    ApplicationTargetableRole as PortTargetableRole,
+    ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole as PortTargetableRole,
     ApplicationWithMember as PortWithMember, TargetableRolePort,
 };
 use crate::application::ports::repository_error::RepositoryError;
@@ -136,10 +135,7 @@ pub struct ApplicationRepo {
 
 #[async_trait::async_trait]
 impl ApplicationCommandPort for ApplicationRepo {
-    async fn create(
-        &self,
-        app: &NewApplication,
-    ) -> Result<Application, RepositoryError> {
+    async fn create(&self, app: &NewApplication) -> Result<Application, RepositoryError> {
         let db_status: ApplicationStatusDAO = app.status.into();
         let row = sqlx::query_as!(
             ApplicationDAO,
@@ -221,10 +217,7 @@ impl ApplicationQueryPort for ApplicationRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    async fn fetch_one(
-        &self,
-        application_id: Uuid,
-    ) -> Result<Application, RepositoryError> {
+    async fn fetch_one(&self, application_id: Uuid) -> Result<Application, RepositoryError> {
         let row = sqlx::query_as!(
             ApplicationDAO,
             r#"SELECT application_id, user_id, role_name, valid_until, timestamp, stripe_payment_id, optional_roles, application_text, status as "status: ApplicationStatusDAO" FROM Application WHERE application_id = $1"#,
@@ -318,9 +311,7 @@ impl ApplicationQueryPort for ApplicationRepo {
 
 #[async_trait::async_trait]
 impl TargetableRolePort for ApplicationRepo {
-    async fn fetch_all_targetable_roles(
-        &self,
-    ) -> Result<Vec<PortTargetableRole>, RepositoryError> {
+    async fn fetch_all_targetable_roles(&self) -> Result<Vec<PortTargetableRole>, RepositoryError> {
         let rows = sqlx::query_as!(
             ApplicationTargetableRoleDAO,
             "SELECT * FROM ApplicationTargetableRole"

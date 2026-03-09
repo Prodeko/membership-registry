@@ -8,6 +8,7 @@ use serde::Deserialize;
 use ts_rs::TS;
 
 use crate::{
+    application::services::authentication_service::AuthenticatedUser,
     infrastructure::http::{
         dto::application::{
             ApplicationActionDTO, ApplicationDTO, ApplicationStatusDTO, ApplicationWithMemberDTO,
@@ -15,7 +16,6 @@ use crate::{
         errors::ApiResult,
         types::ApplicationPath,
     },
-    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -47,15 +47,12 @@ async fn get_application(
     Ok(application)
 }
 
-async fn get_applications(
-    State(state): State<AppState>,
-) -> ApiResult<Json<Vec<ApplicationDTO>>> {
-    let applications = state
-        .application_service
-        .get_all_applications()
-        .await?;
+async fn get_applications(State(state): State<AppState>) -> ApiResult<Json<Vec<ApplicationDTO>>> {
+    let applications = state.application_service.get_all_applications().await?;
 
-    Ok(Json(applications.into_iter().map(ApplicationDTO::from).collect()))
+    Ok(Json(
+        applications.into_iter().map(ApplicationDTO::from).collect(),
+    ))
 }
 
 #[derive(Deserialize, Debug, TS)]
@@ -74,7 +71,12 @@ async fn get_applications_filtered(
         .get_applications_with_member_filtered(filter.status.map(Into::into), filter.search)
         .await?;
 
-    Ok(Json(applications.into_iter().map(ApplicationWithMemberDTO::from).collect()))
+    Ok(Json(
+        applications
+            .into_iter()
+            .map(ApplicationWithMemberDTO::from)
+            .collect(),
+    ))
 }
 
 async fn delete_application(

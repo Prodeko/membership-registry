@@ -8,7 +8,9 @@ use crate::application::ports::{
     auth_provider_repo_port::AuthProviderMapping,
     rolesync_port::RoleSyncError,
 };
-use crate::application::services::authentication_service::{AuthServiceError, AuthenticationService};
+use crate::application::services::authentication_service::{
+    AuthServiceError, AuthenticationService,
+};
 use crate::domain::RoleName;
 
 use super::mocks::*;
@@ -239,9 +241,7 @@ async fn unlink_provider_success() {
 
     let user_id = Uuid::new_v4();
 
-    provider_repo
-        .expect_count_by_user_id()
-        .returning(|_| Ok(2));
+    provider_repo.expect_count_by_user_id().returning(|_| Ok(2));
     provider_repo.expect_delete().returning(|_, _| Ok(true));
 
     let svc = build_service(auth, provider_repo, role_sync);
@@ -254,9 +254,7 @@ async fn unlink_provider_last_provider() {
     let mut provider_repo = MockAuthProviderRepo::new();
     let role_sync = MockRoleSyncPort::new();
 
-    provider_repo
-        .expect_count_by_user_id()
-        .returning(|_| Ok(1));
+    provider_repo.expect_count_by_user_id().returning(|_| Ok(1));
 
     let svc = build_service(auth, provider_repo, role_sync);
     let result = svc.unlink_provider(Uuid::new_v4(), "keycloak").await;
@@ -273,9 +271,7 @@ async fn unlink_provider_not_found() {
     let mut provider_repo = MockAuthProviderRepo::new();
     let role_sync = MockRoleSyncPort::new();
 
-    provider_repo
-        .expect_count_by_user_id()
-        .returning(|_| Ok(2));
+    provider_repo.expect_count_by_user_id().returning(|_| Ok(2));
     provider_repo.expect_delete().returning(|_, _| Ok(false));
 
     let svc = build_service(auth, provider_repo, role_sync);

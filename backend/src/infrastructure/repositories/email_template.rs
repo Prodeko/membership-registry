@@ -29,10 +29,9 @@ pub struct EmailTemplateRepo {
 #[async_trait::async_trait]
 impl TemplateRepositoryPort for EmailTemplateRepo {
     async fn fetch_all(&self) -> Result<Vec<EmailTemplate>, RepositoryError> {
-        let templates =
-            sqlx::query_as!(EmailTemplateDAO, "SELECT * FROM EmailTemplate")
-                .fetch_all(&self.pool)
-                .await?;
+        let templates = sqlx::query_as!(EmailTemplateDAO, "SELECT * FROM EmailTemplate")
+            .fetch_all(&self.pool)
+            .await?;
         Ok(templates.into_iter().map(Into::into).collect())
     }
 

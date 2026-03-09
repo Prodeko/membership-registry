@@ -21,9 +21,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .with_state(state)
 }
 
-async fn list_templates(
-    State(state): State<AppState>,
-) -> ApiResult<Json<Vec<EmailTemplateDTO>>> {
+async fn list_templates(State(state): State<AppState>) -> ApiResult<Json<Vec<EmailTemplateDTO>>> {
     let templates = state
         .template_admin_service
         .get_all_templates()

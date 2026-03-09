@@ -159,7 +159,10 @@ impl AuthProviderRepositoryPort for UserAuthProviderRepo {
         provider_name: &str,
         provider_user_id: &str,
     ) -> Result<AuthProviderMapping, AuthProviderRepoError> {
-        Ok(self.create(user_id, provider_name, provider_user_id, None).await?.into())
+        Ok(self
+            .create(user_id, provider_name, provider_user_id, None)
+            .await?
+            .into())
     }
 
     async fn delete(
@@ -170,10 +173,7 @@ impl AuthProviderRepositoryPort for UserAuthProviderRepo {
         Ok(self.delete(user_id, provider_name).await?)
     }
 
-    async fn count_by_user_id(
-        &self,
-        user_id: &Uuid,
-    ) -> Result<usize, AuthProviderRepoError> {
+    async fn count_by_user_id(&self, user_id: &Uuid) -> Result<usize, AuthProviderRepoError> {
         Ok(self.find_by_user_id(user_id).await?.len())
     }
 }

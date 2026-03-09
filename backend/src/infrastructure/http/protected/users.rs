@@ -1,9 +1,5 @@
 use axum::{
-    debug_handler,
-    extract::State,
-    http::StatusCode,
-    routing::get,
-    Extension, Json, Router,
+    debug_handler, extract::State, http::StatusCode, routing::get, Extension, Json, Router,
 };
 
 use crate::application::services::authentication_service::AuthenticatedUser;

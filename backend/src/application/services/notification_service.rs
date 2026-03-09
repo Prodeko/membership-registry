@@ -42,9 +42,7 @@ impl NotificationService {
         let template = match self.template_repo.fetch_one(template_name).await {
             Ok(t) => t,
             Err(e) => {
-                tracing::error!(
-                    "Email template '{template_name}' configured but not found: {e:?}"
-                );
+                tracing::error!("Email template '{template_name}' configured but not found: {e:?}");
                 return;
             }
         };

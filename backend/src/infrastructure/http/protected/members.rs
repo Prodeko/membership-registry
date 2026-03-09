@@ -7,6 +7,7 @@ use axum::{
 use uuid::Uuid;
 
 use crate::{
+    application::services::authentication_service::AuthenticatedUser,
     infrastructure::http::{
         dto::{
             member::{MemberDTO, NewMemberDTO, UpdateMemberDTO},
@@ -15,7 +16,6 @@ use crate::{
         errors::{ApiError, ApiResult},
         middleware::check_member_access,
     },
-    application::services::authentication_service::AuthenticatedUser,
 };
 
 use super::AppState;
@@ -95,7 +95,14 @@ async fn update_member(
     let actor_id = user_info.map(|u| u.user_id);
     let member = state
         .member_service
-        .update_member(user_id, body.first_name, body.last_name, body.home_municipality, body.has_accepted_policies, actor_id)
+        .update_member(
+            user_id,
+            body.first_name,
+            body.last_name,
+            body.home_municipality,
+            body.has_accepted_policies,
+            actor_id,
+        )
         .await
         .map(MemberDTO::from)
         .map(Json)?;

@@ -82,11 +82,7 @@ impl RoleSyncPort for KeycloakRoleSyncAdapter {
             .map_err(|_| RoleSyncError::IdpError)
     }
 
-    async fn has_role(
-        &self,
-        subject: &IdpSubject,
-        role: &RoleName,
-    ) -> Result<bool, RoleSyncError> {
+    async fn has_role(&self, subject: &IdpSubject, role: &RoleName) -> Result<bool, RoleSyncError> {
         let roles = self
             .client
             .list_user_realm_roles(&subject.0)

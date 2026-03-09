@@ -99,10 +99,7 @@ impl MemberRepositoryPort for MemberRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    async fn fetch_with_ids(
-        &self,
-        ids: Option<Vec<Uuid>>,
-    ) -> Result<Vec<Person>, RepositoryError> {
+    async fn fetch_with_ids(&self, ids: Option<Vec<Uuid>>) -> Result<Vec<Person>, RepositoryError> {
         let rows = sqlx::query_as!(
             MemberDAO,
             r#"

@@ -18,12 +18,7 @@ impl SendGridEmailAdapter {
 
 #[async_trait::async_trait]
 impl EmailPort for SendGridEmailAdapter {
-    async fn send_email(
-        &self,
-        to: &str,
-        subject: &str,
-        html_body: &str,
-    ) -> Result<(), EmailError> {
+    async fn send_email(&self, to: &str, subject: &str, html_body: &str) -> Result<(), EmailError> {
         let url = format!("{}/v3/mail/send", self.config.base_url);
 
         let payload = serde_json::json!({
@@ -47,9 +42,7 @@ impl EmailPort for SendGridEmailAdapter {
         } else {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            Err(EmailError::SendFailed(format!(
-                "SendGrid {status}: {body}"
-            )))
+            Err(EmailError::SendFailed(format!("SendGrid {status}: {body}")))
         }
     }
 }

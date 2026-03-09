@@ -152,11 +152,7 @@ mod tests {
             application_text: None,
             status,
         };
-        Application::from((
-            ApplicationId(Uuid::new_v4()),
-            Utc::now(),
-            new,
-        ))
+        Application::from((ApplicationId(Uuid::new_v4()), Utc::now(), new))
     }
 
     // --- State machine transitions ---
@@ -277,6 +273,9 @@ mod tests {
 
     #[test]
     fn initial_without_payment_is_pending() {
-        assert_eq!(ApplicationStatus::initial(false), ApplicationStatus::Pending);
+        assert_eq!(
+            ApplicationStatus::initial(false),
+            ApplicationStatus::Pending
+        );
     }
 }

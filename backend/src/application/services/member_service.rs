@@ -2,9 +2,7 @@ use std::sync::Arc;
 
 use crate::application::ports::{
     auth_provider_repo_port::AuthProviderRepositoryPort,
-    member_repository_port::{
-        MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams,
-    },
+    member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     user_admin_port::UserAdminPort,
 };
 use crate::domain::{Email, NewPerson, Person};
@@ -148,7 +146,13 @@ impl MemberService {
     ) -> ServiceResult<Person> {
         let updated = self
             .member_repo
-            .update(user_id, &first_name, &last_name, &home_municipality, has_accepted_policies)
+            .update(
+                user_id,
+                &first_name,
+                &last_name,
+                &home_municipality,
+                has_accepted_policies,
+            )
             .await
             .map_err(ServiceError::from)?;
 
@@ -169,18 +173,20 @@ impl MemberService {
         Ok(updated)
     }
 
-    pub async fn delete_member(
-        &self,
-        id: Uuid,
-        actor_user_id: Option<Uuid>,
-    ) -> ServiceResult<()> {
+    pub async fn delete_member(&self, id: Uuid, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
         self.member_repo
             .delete(id)
             .await
             .map_err(ServiceError::from)?;
 
         self.audit_log
-            .log(actor_user_id, "member.delete", "member", &id.to_string(), None)
+            .log(
+                actor_user_id,
+                "member.delete",
+                "member",
+                &id.to_string(),
+                None,
+            )
             .await;
 
         Ok(())

@@ -69,10 +69,9 @@ pub async fn check_auth(
                             };
                             for cookie in new_jar.iter() {
                                 if let Ok(val) = cookie.to_string().parse() {
-                                    response.headers_mut().append(
-                                        axum::http::header::SET_COOKIE,
-                                        val,
-                                    );
+                                    response
+                                        .headers_mut()
+                                        .append(axum::http::header::SET_COOKIE, val);
                                 }
                             }
 

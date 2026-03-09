@@ -77,7 +77,6 @@ pub struct KeycloakUserDTO {
     pub last_name: Option<String>,
 }
 
-
 // ---------------------------------------------------------------------------
 // Client
 // ---------------------------------------------------------------------------
@@ -228,10 +227,7 @@ impl KeycloakClient {
     // Refresh tokens (user-facing OIDC flow)
     // -----------------------------------------------------------------------
 
-    pub async fn refresh_tokens(
-        &self,
-        refresh_token: &str,
-    ) -> Result<TokenPairDTO, KeycloakError> {
+    pub async fn refresh_tokens(&self, refresh_token: &str) -> Result<TokenPairDTO, KeycloakError> {
         let url = self.oidc_url("token");
 
         let mut form = vec![
@@ -441,10 +437,7 @@ impl KeycloakClient {
         Ok(())
     }
 
-    pub async fn list_user_realm_roles(
-        &self,
-        subject: &str,
-    ) -> Result<Vec<String>, KeycloakError> {
+    pub async fn list_user_realm_roles(&self, subject: &str) -> Result<Vec<String>, KeycloakError> {
         let token = self.get_service_token().await?;
         let url = self.admin_url(&format!("users/{subject}/role-mappings/realm"));
 
@@ -529,9 +522,7 @@ impl KeycloakClient {
             KeycloakError::BadResponse(format!("Role parse error: {e}"))
         })?;
 
-        self.role_id_cache
-            .insert(role.name, role.id.clone())
-            .await;
+        self.role_id_cache.insert(role.name, role.id.clone()).await;
         Ok(Some(role.id))
     }
 

@@ -32,14 +32,10 @@ use application::{
         user_admin_port::UserAdminPort,
     },
     services::{
-        application_service::ApplicationService,
-        audit_log_service::AuditLogService,
-        authentication_service::AuthenticationService,
-        member_service::MemberService,
-        notification_service::NotificationService,
-        role_service::RoleService,
-        saved_filter::SavedFilterService,
-        template_admin_service::TemplateAdminService,
+        application_service::ApplicationService, audit_log_service::AuditLogService,
+        authentication_service::AuthenticationService, member_service::MemberService,
+        notification_service::NotificationService, role_service::RoleService,
+        saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
     },
 };
 use config::Config;
@@ -133,8 +129,7 @@ impl Services {
         let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role);
         let application_commands: Arc<dyn ApplicationCommandPort> =
             Arc::new(repo.application.clone());
-        let application_queries: Arc<dyn ApplicationQueryPort> =
-            Arc::new(repo.application.clone());
+        let application_queries: Arc<dyn ApplicationQueryPort> = Arc::new(repo.application.clone());
         let targetable_roles: Arc<dyn TargetableRolePort> = Arc::new(repo.application);
 
         let member_service = MemberService::new(

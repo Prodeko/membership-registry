@@ -43,10 +43,7 @@ pub trait MemberRepositoryPort: Send + Sync {
 
     async fn fetch_all(&self) -> Result<Vec<Person>, RepositoryError>;
 
-    async fn fetch_with_ids(
-        &self,
-        ids: Option<Vec<Uuid>>,
-    ) -> Result<Vec<Person>, RepositoryError>;
+    async fn fetch_with_ids(&self, ids: Option<Vec<Uuid>>) -> Result<Vec<Person>, RepositoryError>;
 
     async fn fetch_one(&self, id: Uuid) -> Result<Person, RepositoryError>;
 

@@ -9,8 +9,8 @@ use serde::Serialize;
 use ts_rs::TS;
 
 use crate::{
-    infrastructure::http::errors::{ApiError, ApiResult},
     application::services::authentication_service::AuthenticatedUser,
+    infrastructure::http::errors::{ApiError, ApiResult},
 };
 
 use super::AppState;
@@ -76,13 +76,16 @@ async fn unlink_provider(
             ApiError::InternalServerError
         })?;
 
-    state.audit_log_service.log(
-        Some(user_info.user_id),
-        "auth_provider.unlink",
-        "auth_provider",
-        &user_info.user_id.to_string(),
-        Some(serde_json::json!({ "provider_name": path.provider_name })),
-    ).await;
+    state
+        .audit_log_service
+        .log(
+            Some(user_info.user_id),
+            "auth_provider.unlink",
+            "auth_provider",
+            &user_info.user_id.to_string(),
+            Some(serde_json::json!({ "provider_name": path.provider_name })),
+        )
+        .await;
 
     Ok((StatusCode::OK, "Provider unlinked successfully"))
 }

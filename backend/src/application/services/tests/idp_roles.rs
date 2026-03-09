@@ -8,21 +8,19 @@ mod test_idp_roles {
     use wiremock::matchers::{body_json, method, path, path_regex};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    use crate::application::ports::audit_log_repository_port::AuditLogQueryParams;
     use crate::application::ports::{
         auth_provider_repo_port::AuthProviderRepositoryPort,
-        member_repository_port::MemberRepositoryPort,
-        role_repository_port::RoleRepositoryPort,
-        rolesync_port::RoleSyncPort,
-        user_admin_port::UserAdminPort,
+        member_repository_port::MemberRepositoryPort, role_repository_port::RoleRepositoryPort,
+        rolesync_port::RoleSyncPort, user_admin_port::UserAdminPort,
     };
-    use crate::infrastructure::adapters::keycloak::{
-        KeycloakClient, KeycloakConfig, KeycloakRoleSyncAdapter, KeycloakUserAdminAdapter,
-    };
-    use crate::application::ports::audit_log_repository_port::AuditLogQueryParams;
-    use crate::infrastructure::repositories::tests::{cleanup_test_db, setup_test_db};
     use crate::application::services::audit_log_service::AuditLogService;
     use crate::application::services::member_service::MemberService;
     use crate::application::services::role_service::RoleService;
+    use crate::infrastructure::adapters::keycloak::{
+        KeycloakClient, KeycloakConfig, KeycloakRoleSyncAdapter, KeycloakUserAdminAdapter,
+    };
+    use crate::infrastructure::repositories::tests::{cleanup_test_db, setup_test_db};
 
     const USER_ID: &str = "9707582e-c149-45a7-bae1-4b0f4de4b06f";
     const KEYCLOAK_USER_ID: &str = "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
@@ -86,7 +84,9 @@ mod test_idp_roles {
         // Warm the token cache by making a user_admin call
         let _ = user_admin.get_user("warm").await;
 
-        let audit_log_repo: Arc<dyn crate::application::ports::audit_log_repository_port::AuditLogRepositoryPort> = Arc::new(repo.audit_log.clone());
+        let audit_log_repo: Arc<
+            dyn crate::application::ports::audit_log_repository_port::AuditLogRepositoryPort,
+        > = Arc::new(repo.audit_log.clone());
         let audit_log_service = AuditLogService::new(audit_log_repo);
 
         let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member.clone());
@@ -106,7 +106,14 @@ mod test_idp_roles {
             audit_log_service,
         );
 
-        (role_sync, user_admin, auth_provider_repo, role_service, pool, db_url)
+        (
+            role_sync,
+            user_admin,
+            auth_provider_repo,
+            role_service,
+            pool,
+            db_url,
+        )
     }
 
     fn default_query_params() -> AuditLogQueryParams {
@@ -141,10 +148,10 @@ mod test_idp_roles {
             .and(path(
                 "/admin/realms/membership-registry/roles/prodeko-external-member",
             ))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(mock_role_response("prodeko-external-member", "rol_member456")),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_role_response(
+                "prodeko-external-member",
+                "rol_member456",
+            )))
             .mount(&mock_server)
             .await;
 
@@ -222,7 +229,10 @@ mod test_idp_roles {
             )
             .await;
 
-        assert!(result.is_err(), "Expected error when Keycloak role not found");
+        assert!(
+            result.is_err(),
+            "Expected error when Keycloak role not found"
+        );
 
         // Verify no new DB row was written
         let roles_after = role_service.get_member_roles(user_uuid()).await.unwrap();
@@ -256,10 +266,10 @@ mod test_idp_roles {
             .and(path(
                 "/admin/realms/membership-registry/roles/prodeko-external-member",
             ))
-            .respond_with(
-                ResponseTemplate::new(200)
-                    .set_body_json(mock_role_response("prodeko-external-member", "rol_member456")),
-            )
+            .respond_with(ResponseTemplate::new(200).set_body_json(mock_role_response(
+                "prodeko-external-member",
+                "rol_member456",
+            )))
             .mount(&mock_server)
             .await;
 

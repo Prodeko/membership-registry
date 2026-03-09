@@ -288,7 +288,11 @@ impl RoleRepositoryPort for RoleRepo {
             offset.unwrap_or(0) as i64,
             search,
             order_by,
-            if order_desc.unwrap_or(false) { "DESC" } else { "ASC" },
+            if order_desc.unwrap_or(false) {
+                "DESC"
+            } else {
+                "ASC"
+            },
         )
         .fetch_all(&self.pool)
         .await?;

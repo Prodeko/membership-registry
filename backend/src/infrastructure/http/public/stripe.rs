@@ -33,9 +33,8 @@ async fn stripe_webhook(
         .await
         .map_err(|e| match e {
             PaymentWebhookError::InvalidSignature => ApiError::Unauthorized,
-            PaymentWebhookError::MissingApplicationId | PaymentWebhookError::MissingPaymentIntent => {
-                ApiError::BadRequest
-            }
+            PaymentWebhookError::MissingApplicationId
+            | PaymentWebhookError::MissingPaymentIntent => ApiError::BadRequest,
             PaymentWebhookError::InvalidPayload(_) | PaymentWebhookError::UnhandledEvent => {
                 ApiError::BadRequest
             }

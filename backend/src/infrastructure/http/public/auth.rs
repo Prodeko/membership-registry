@@ -1,9 +1,17 @@
-use axum::{extract::State, http::StatusCode, response::{IntoResponse, Redirect, Response}, routing::get, Json, Router};
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::{IntoResponse, Redirect, Response},
+    routing::get,
+    Json, Router,
+};
 use axum_extra::extract::CookieJar;
 use oauth2::{AuthorizationCode, CsrfToken, Scope, TokenResponse};
 use serde::Serialize;
 
-use crate::helpers::{remove_oauth_state_cookie, set_oauth_state_cookie, set_refresh_token_cookie, set_session_cookie};
+use crate::helpers::{
+    remove_oauth_state_cookie, set_oauth_state_cookie, set_refresh_token_cookie, set_session_cookie,
+};
 
 use super::AppState;
 
@@ -77,7 +85,11 @@ async fn callback(
         .await
         .map_err(|err| {
             tracing::error!("Failed to validate token: {:?}", err);
-            (StatusCode::INTERNAL_SERVER_ERROR, "Failed to validate token").into_response()
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Failed to validate token",
+            )
+                .into_response()
         })?;
 
     let jar = remove_oauth_state_cookie(&jar);
@@ -92,13 +104,16 @@ async fn callback(
         Err(_) => "/signup".to_string(),
     };
 
-    state.audit_log_service.log(
-        Some(user_info.user_id),
-        "auth.login",
-        "auth",
-        &user_info.user_id.to_string(),
-        Some(serde_json::json!({ "provider": user_info.provider_name })),
-    ).await;
+    state
+        .audit_log_service
+        .log(
+            Some(user_info.user_id),
+            "auth.login",
+            "auth",
+            &user_info.user_id.to_string(),
+            Some(serde_json::json!({ "provider": user_info.provider_name })),
+        )
+        .await;
 
     Ok((jar, Json(CallbackResponse { redirect_to })))
 }

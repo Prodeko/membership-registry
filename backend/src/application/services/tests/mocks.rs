@@ -14,13 +14,13 @@ use crate::application::ports::{
         AuditLogEntryWithActor, AuditLogQueryParams, AuditLogRepositoryPort, NewAuditLogEntry,
     },
     auth_port::{AuthError, AuthPort, RefreshedTokens, VerifiedIdentity},
-    auth_provider_repo_port::{AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort},
+    auth_provider_repo_port::{
+        AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort,
+    },
     email_port::{EmailError, EmailPort},
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     repository_error::RepositoryError,
-    role_repository_port::{
-        RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams,
-    },
+    role_repository_port::{RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams},
     rolesync_port::{IdpSubject, RoleSyncError, RoleSyncPort},
     template_renderer_port::TemplateRendererPort,
     template_repository_port::TemplateRepositoryPort,

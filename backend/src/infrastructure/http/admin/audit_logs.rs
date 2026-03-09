@@ -21,10 +21,11 @@ async fn get_audit_logs(
     State(state): State<AppState>,
     Query(params): Query<AuditLogQueryParamsDTO>,
 ) -> ApiResult<Json<Vec<AuditLogEntryWithActorDTO>>> {
-    let logs = state
-        .audit_log_service
-        .get_logs(params.into())
-        .await?;
+    let logs = state.audit_log_service.get_logs(params.into()).await?;
 
-    Ok(Json(logs.into_iter().map(AuditLogEntryWithActorDTO::from).collect()))
+    Ok(Json(
+        logs.into_iter()
+            .map(AuditLogEntryWithActorDTO::from)
+            .collect(),
+    ))
 }

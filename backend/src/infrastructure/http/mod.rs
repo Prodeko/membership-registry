@@ -15,14 +15,10 @@ use crate::{
     application::{
         ports::payment_webhook_port::PaymentWebhookPort,
         services::{
-            application_service::ApplicationService,
-            audit_log_service::AuditLogService,
-            authentication_service::AuthenticationService,
-            member_service::MemberService,
-            notification_service::NotificationService,
-            role_service::RoleService,
-            saved_filter::SavedFilterService,
-            template_admin_service::TemplateAdminService,
+            application_service::ApplicationService, audit_log_service::AuditLogService,
+            authentication_service::AuthenticationService, member_service::MemberService,
+            notification_service::NotificationService, role_service::RoleService,
+            saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
         },
     },
     config::Config,

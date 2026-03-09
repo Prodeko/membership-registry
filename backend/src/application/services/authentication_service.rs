@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 use crate::application::ports::{
     auth_port::{AuthError, AuthPort, RefreshedTokens},
-    auth_provider_repo_port::{AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort},
+    auth_provider_repo_port::{
+        AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort,
+    },
     rolesync_port::{IdpSubject, RoleSyncError, RoleSyncPort},
 };
 use crate::domain::RoleName;

@@ -35,7 +35,12 @@ async fn get_saved_filters(
         .fetch_all_for_model(user_info.user_id, params.model)
         .await?;
 
-    Ok(Json(saved_filters.into_iter().map(SavedFilterDTO::from).collect()))
+    Ok(Json(
+        saved_filters
+            .into_iter()
+            .map(SavedFilterDTO::from)
+            .collect(),
+    ))
 }
 
 #[debug_handler]

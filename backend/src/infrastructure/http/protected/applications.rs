@@ -1,18 +1,22 @@
 use axum::{
-    debug_handler, extract::{Path, State}, routing::{get, post}, Extension, Json, Router
+    debug_handler,
+    extract::{Path, State},
+    routing::{get, post},
+    Extension, Json, Router,
 };
 use serde::Serialize;
 use ts_rs::TS;
 
 use crate::{
+    application::services::{
+        application_service::CreateApplicationParams, authentication_service::AuthenticatedUser,
+    },
     infrastructure::http::{
-        dto::application::{ApplicationDTO, ApplicationTargetableRoleDTO, CreateApplicationRequestDTO},
+        dto::application::{
+            ApplicationDTO, ApplicationTargetableRoleDTO, CreateApplicationRequestDTO,
+        },
         errors::{ApiError, ApiResult},
         types::ApplicationPath,
-    },
-    application::services::{
-        authentication_service::AuthenticatedUser,
-        application_service::CreateApplicationParams,
     },
 };
 
@@ -54,7 +58,9 @@ async fn get_user_applications(
         .get_applications_for_user(user_info.user_id)
         .await?;
 
-    Ok(Json(applications.into_iter().map(ApplicationDTO::from).collect()))
+    Ok(Json(
+        applications.into_iter().map(ApplicationDTO::from).collect(),
+    ))
 }
 
 #[debug_handler]
@@ -66,7 +72,12 @@ async fn get_targetable_roles(
         .fetch_all_targetable_roles()
         .await?;
 
-    Ok(Json(targetable_roles.into_iter().map(ApplicationTargetableRoleDTO::from).collect()))
+    Ok(Json(
+        targetable_roles
+            .into_iter()
+            .map(ApplicationTargetableRoleDTO::from)
+            .collect(),
+    ))
 }
 
 #[derive(Serialize, Debug, TS)]
@@ -107,7 +118,10 @@ async fn post_application(
         .await?;
 
     let redirect_to = match targetable_role.payment_link {
-        Some(link) => format!("{}?client_reference_id={}", link, application.application_id.0),
+        Some(link) => format!(
+            "{}?client_reference_id={}",
+            link, application.application_id.0
+        ),
         None => format!("{}/apply/success", state.config.frontend_url),
     };
 
