@@ -3,6 +3,7 @@ CLAUDE.md
 venv/
 keycloak/data/
 keycloak/themes/
+keycloak/.env
 
 # E2E tests
 e2e/.auth/

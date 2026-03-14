@@ -15,7 +15,10 @@ import sys
 import time
 from urllib.parse import quote
 
+from dotenv import load_dotenv
 import requests
+
+load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
 
 BASE_URL = os.environ.get("KEYCLOAK_URL", "http://localhost:8180")
 REALM = "membership-registry"
@@ -90,9 +93,15 @@ class KeycloakAdmin:
 
     def configure_realm(self):
         print("Configuring realm settings...")
-        self.put("", {
+
+        smtp_from = os.environ.get("SMTP_FROM", "noreply@example.com")
+        smtp_from_name = os.environ.get("SMTP_FROM_NAME", "Membership Registry")
+        sendgrid_api_key = os.environ.get("SENDGRID_API_KEY", "")
+
+        realm_payload = {
             "loginTheme": "membership",
             "registrationAllowed": True,
+            "verifyEmail": True,
             "resetPasswordAllowed": True,
             "loginWithEmailAllowed": True,
             "duplicateEmailsAllowed": False,
@@ -101,7 +110,24 @@ class KeycloakAdmin:
             "accessTokenLifespan": 1800,
             "ssoSessionIdleTimeout": 1800,
             "ssoSessionMaxLifespan": 36000,
-        })
+        }
+
+        if sendgrid_api_key:
+            realm_payload["smtpServer"] = {
+                "host": "smtp.sendgrid.net",
+                "port": "587",
+                "from": smtp_from,
+                "fromDisplayName": smtp_from_name,
+                "auth": "true",
+                "starttls": "true",
+                "user": "apikey",
+                "password": sendgrid_api_key,
+            }
+            print("  SMTP configured (SendGrid).")
+        else:
+            print("  SMTP not configured (set SENDGRID_API_KEY to enable).")
+
+        self.put("", realm_payload)
 
     # -- realm roles --
 
