@@ -1,6 +1,8 @@
 use axum::{
+    body::Body,
     debug_handler,
     extract::{Path, Query, State},
+    http::Response,
     routing::{get, post},
     Extension, Json, Router,
 };
@@ -20,13 +22,14 @@ use crate::{
     },
 };
 
-use super::AppState;
+use super::{members::build_export_response, AppState};
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_roles))
         .route("/", post(post_role))
         .route("/stats", get(get_roles_stats))
+        .route("/export", post(export_roles))
         .route("/:id", get(get_role))
         .route("/:id/members", get(get_role_members))
         .with_state(state)
@@ -129,4 +132,24 @@ async fn post_role(
         .map(Json)?;
 
     Ok(role)
+}
+
+#[debug_handler]
+async fn export_roles(
+    State(state): State<AppState>,
+    Query(query): Query<RolesWithStatsQueryDTO>,
+) -> ApiResult<Response<Body>> {
+    let roles = state
+        .role_service
+        .get_role_stats(
+            query.page_size,
+            query.offset,
+            query.search,
+            query.sorting,
+            query.sort_desc,
+        )
+        .await?;
+
+    let exported = state.export_service.export(&roles)?;
+    build_export_response(exported)
 }

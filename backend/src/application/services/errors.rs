@@ -1,6 +1,7 @@
 use serde::Serialize;
 use serde_with::serde_as;
 
+use crate::application::ports::data_export_port::DataExportError;
 use crate::application::ports::repository_error::RepositoryError;
 
 #[serde_as]
@@ -24,6 +25,13 @@ pub enum ServiceError {
     ProviderNotFound,
     CannotUnlinkLastProvider,
     InvalidTemplate,
+    ExportFailed,
+}
+
+impl From<DataExportError> for ServiceError {
+    fn from(_: DataExportError) -> Self {
+        Self::ExportFailed
+    }
 }
 
 pub type ServiceResult<T> = Result<T, ServiceError>;

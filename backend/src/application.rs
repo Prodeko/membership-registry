@@ -4,6 +4,7 @@ pub mod ports {
     pub mod audit_log_repository_port;
     pub mod auth_port;
     pub mod auth_provider_repo_port;
+    pub mod data_export_port;
     pub mod email_port;
     pub mod member_repository_port;
     pub mod payment_webhook_port;

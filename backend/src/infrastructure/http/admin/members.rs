@@ -7,13 +7,15 @@ use axum::{
     routing::{delete, get, post},
     Extension, Json, Router,
 };
-use csv::WriterBuilder;
 use serde::Deserialize;
 use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{
-    application::services::authentication_service::AuthenticatedUser,
+    application::{
+        ports::data_export_port::ExportedData,
+        services::authentication_service::AuthenticatedUser,
+    },
     domain::UpdatePersonData,
     infrastructure::http::{
         dto::{
@@ -25,6 +27,18 @@ use crate::{
 };
 
 use super::AppState;
+
+pub fn build_export_response(data: ExportedData) -> Result<Response<Body>, ApiError> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header("Content-Type", &data.content_type)
+        .header(
+            "Content-Disposition",
+            format!("attachment; filename=\"data.{}\"", data.file_extension),
+        )
+        .body(Body::from(data.bytes))
+        .map_err(|_| ApiError::InternalServerError)
+}
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
@@ -123,6 +137,7 @@ async fn export_members_with_roles(
 ) -> ApiResult<Response<Body>> {
     let actor_id = user_info.map(|u| u.user_id);
     state.member_service.log_export(actor_id).await;
+
     let roles = query.roles.clone().map(|roles| {
         roles
             .split(',')
@@ -144,23 +159,8 @@ async fn export_members_with_roles(
         )
         .await?;
 
-    let mut wtr = WriterBuilder::new().from_writer(Vec::new());
-    for record in members {
-        wtr.write_record(record.to_csv_row())
-            .map_err(|_| ApiError::InternalServerError)?;
-    }
-    let csv_data = wtr
-        .into_inner()
-        .map_err(|_| ApiError::InternalServerError)?;
-
-    let response = Response::builder()
-        .status(StatusCode::OK)
-        .header("Content-Type", "text/csv")
-        .header("Content-Disposition", "attachment; filename=\"data.csv\"")
-        .body(Body::from(csv_data))
-        .map_err(|_| ApiError::InternalServerError)?;
-
-    Ok(response)
+    let exported = state.export_service.export(&members)?;
+    build_export_response(exported)
 }
 
 #[debug_handler]

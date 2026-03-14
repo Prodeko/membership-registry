@@ -16,12 +16,14 @@ use crate::{
         ports::payment_webhook_port::PaymentWebhookPort,
         services::{
             application_service::ApplicationService, audit_log_service::AuditLogService,
-            authentication_service::AuthenticationService, member_service::MemberService,
-            notification_service::NotificationService, role_service::RoleService,
-            saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
+            authentication_service::AuthenticationService, export_service::ExportService,
+            member_service::MemberService, notification_service::NotificationService,
+            role_service::RoleService, saved_filter::SavedFilterService,
+            template_admin_service::TemplateAdminService,
         },
     },
     config::Config,
+    infrastructure::adapters::csv_adapter::CsvAdapter,
     Services,
 };
 
@@ -47,6 +49,7 @@ pub struct AppState {
     pub template_admin_service: Arc<TemplateAdminService>,
     pub notification_service: Arc<NotificationService>,
     pub payment_webhook: Arc<dyn PaymentWebhookPort>,
+    pub export_service: Arc<ExportService>,
     pub oauth2_client: BasicClient,
 }
 
@@ -86,6 +89,7 @@ pub async fn serve(config: Config, services: Services) {
         template_admin_service: Arc::new(services.template_admin_service),
         notification_service: Arc::new(services.notification_service),
         payment_webhook: Arc::new(services.payment_webhook),
+        export_service: Arc::new(ExportService::new(Arc::new(CsvAdapter))),
         oauth2_client,
     };
 

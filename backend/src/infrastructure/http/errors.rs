@@ -88,6 +88,9 @@ impl IntoResponse for ServiceError {
                 "Invalid template: unknown placeholder",
             )
                 .into_response(),
+            ServiceError::ExportFailed => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Export failed").into_response()
+            }
         }
     }
 }
@@ -115,6 +118,7 @@ impl From<ServiceError> for ApiError {
             ServiceError::ProviderNotFound => ApiError::NotFound,
             ServiceError::CannotUnlinkLastProvider => ApiError::BadRequest,
             ServiceError::InvalidTemplate => ApiError::BadRequest,
+            ServiceError::ExportFailed => ApiError::InternalServerError,
         }
     }
 }

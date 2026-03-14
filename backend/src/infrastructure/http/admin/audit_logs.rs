@@ -1,6 +1,8 @@
 use axum::{
+    body::Body,
     extract::{Query, State},
-    routing::get,
+    http::Response,
+    routing::{get, post},
     Json, Router,
 };
 
@@ -9,11 +11,12 @@ use crate::infrastructure::http::{
     errors::ApiResult,
 };
 
-use super::AppState;
+use super::{members::build_export_response, AppState};
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_audit_logs))
+        .route("/export", post(export_audit_logs))
         .with_state(state)
 }
 
@@ -28,4 +31,14 @@ async fn get_audit_logs(
             .map(AuditLogEntryWithActorDTO::from)
             .collect(),
     ))
+}
+
+async fn export_audit_logs(
+    State(state): State<AppState>,
+    Query(params): Query<AuditLogQueryParamsDTO>,
+) -> ApiResult<Response<Body>> {
+    let logs = state.audit_log_service.get_logs(params.into()).await?;
+
+    let exported = state.export_service.export(&logs)?;
+    build_export_response(exported)
 }

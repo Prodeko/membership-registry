@@ -10,22 +10,6 @@ pub struct MemberWithRoles {
     pub role_names: Value,
 }
 
-impl MemberWithRoles {
-    pub fn to_csv_row(&self) -> Vec<String> {
-        vec![
-            self.person.id.0.to_string(),
-            self.person.first_name.clone(),
-            self.person.last_name.clone(),
-            self.person.full_name.clone().unwrap_or_default(),
-            self.person.home_municipality.clone(),
-            self.person.has_accepted_policies.to_string(),
-            self.person.email_notifications.to_string(),
-            self.person.email.as_str().to_string(),
-            self.role_names.to_string(),
-        ]
-    }
-}
-
 #[derive(Default)]
 pub struct MembersWithRolesParams {
     pub valid_from: Option<chrono::NaiveDate>,

@@ -1,6 +1,8 @@
 use axum::{
+    body::Body,
     debug_handler,
     extract::{Path, Query, State},
+    http::Response,
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
@@ -18,12 +20,13 @@ use crate::{
     },
 };
 
-use super::AppState;
+use super::{members::build_export_response, AppState};
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_applications))
         .route("/filter", get(get_applications_filtered))
+        .route("/export", post(export_applications))
         .route("/:application_id", get(get_application))
         .route("/:application_id", delete(delete_application))
         .route("/:application_id/status", put(update_application_status))
@@ -202,4 +205,18 @@ async fn delete_targetable_role(
         .map(Json)?;
 
     Ok(delete)
+}
+
+#[debug_handler]
+async fn export_applications(
+    State(state): State<AppState>,
+    Query(filter): Query<FilteredApplicationsParamsDTO>,
+) -> ApiResult<Response<Body>> {
+    let applications = state
+        .application_service
+        .get_applications_with_member_filtered(filter.status.map(Into::into), filter.search)
+        .await?;
+
+    let exported = state.export_service.export(&applications)?;
+    build_export_response(exported)
 }

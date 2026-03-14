@@ -2,6 +2,7 @@ pub mod application_service;
 pub mod audit_log_service;
 pub mod authentication_service;
 pub mod errors;
+pub mod export_service;
 pub mod member_service;
 pub mod notification_service;
 pub mod role_service;
