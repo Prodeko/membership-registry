@@ -12,6 +12,7 @@ import Members from "./components/members/Members";
 import Role from "./components/roles/Role";
 import Roles from "./components/roles/Roles";
 import AuditLogs from "./components/audit-logs/AuditLogs";
+import DataManagement from "./components/data/DataManagement";
 import EmailTemplates from "./components/email-templates/EmailTemplates";
 import SignupForm from "./components/signup-form/SignupForm";
 import { ThemeProvider } from "./components/theme-provider";
@@ -105,6 +106,14 @@ const router = createBrowserRouter([
     element: (
       <Layout>
         <EmailTemplates />
+      </Layout>
+    ),
+  },
+  {
+    path: "/data",
+    element: (
+      <Layout>
+        <DataManagement />
       </Layout>
     ),
   },

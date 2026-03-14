@@ -115,27 +115,65 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
   });
 }
 
-export function useExportMembersWithRoles() {
+export function useExportAllMembers() {
   return useMutation({
-    mutationFn: async (params: PaginatedQueryParams) => {
+    mutationFn: async () => {
       const response = await admin_axios_client.post(
         "/members/roles/export",
         null,
-        {
-          params: {
-            ...params,
-            roles: params.customFilters?.roles?.join(",") || undefined,
-            valid_from:
-              getDateAsString(params.customFilters?.valid_from) || undefined,
-            valid_until:
-              getDateAsString(params.customFilters?.valid_until) || undefined,
-          },
-          responseType: "blob",
-        },
+        { responseType: "blob" },
       );
       return downloadCsv(
         response.data,
-        `prodeko_members_${new Date().toISOString()}.csv`,
+        `members_${new Date().toISOString()}.csv`,
+      );
+    },
+  });
+}
+
+export function useExportApplications() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post(
+        "/applications/export",
+        null,
+        { responseType: "blob" },
+      );
+      return downloadCsv(
+        response.data,
+        `applications_${new Date().toISOString()}.csv`,
+      );
+    },
+  });
+}
+
+export function useExportAuditLogs() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post(
+        "/audit-logs/export",
+        null,
+        { responseType: "blob" },
+      );
+      return downloadCsv(
+        response.data,
+        `audit_logs_${new Date().toISOString()}.csv`,
+      );
+    },
+  });
+}
+
+export function useExportRoles() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post(
+        "/roles/export",
+        null,
+        { responseType: "blob" },
+      );
+      return downloadCsv(
+        response.data,
+        `roles_${new Date().toISOString()}.csv`,
       );
     },
   });

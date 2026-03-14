@@ -7,7 +7,6 @@ import MultipleSelector, { Option } from "../ui/multiple-selector";
 import AddRolesModal from "./AddRolesModal";
 import DeleteMembersModal from "./DeleteMembersModal";
 import { columns } from "./columns";
-import ExportMembersButton from "./ExportMembersButton";
 import { Button } from "../ui/button";
 
 const Members: React.FC = () => {
@@ -94,16 +93,6 @@ const Members: React.FC = () => {
               userIds={ids}
               onClose={() => table.setRowSelection({})}
               disabled={ids.length === 0}
-            />
-          ),
-          (table) => (
-            <ExportMembersButton
-              table={table}
-              customFilters={{
-                roles: selectedRoles.map((role) => role.value),
-                valid_until: selectedValidUntil,
-                valid_from: selectedValidFrom,
-              }}
             />
           ),
         ]}
