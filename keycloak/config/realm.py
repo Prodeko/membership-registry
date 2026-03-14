@@ -18,6 +18,7 @@ def configure_realm(kc: KeycloakAdmin) -> None:
 
     realm_payload: dict[str, object] = {
         "loginTheme": "membership",
+        "accountTheme": "membership",
         "registrationAllowed": True,
         "verifyEmail": True,
         "resetPasswordAllowed": True,

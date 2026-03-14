@@ -2,7 +2,6 @@
 CLAUDE.md
 venv/
 keycloak/data/
-keycloak/themes/
 keycloak/.env
 __pycache__
 
