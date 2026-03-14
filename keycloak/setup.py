@@ -16,7 +16,7 @@ from dotenv import load_dotenv
 
 from admin import KeycloakAdmin
 from config.clients import configure_auth_client, configure_m2m_client
-from config.flows import configure_browser_flow, configure_registration_flow
+from config.flows import configure_browser_flow, configure_passkeys, configure_registration_flow
 from config.realm import configure_realm
 from config.roles import configure_realm_roles
 from config.users import configure_test_users
@@ -39,6 +39,7 @@ def main() -> None:
     configure_test_users(kc)
 
     print("Configuring authentication flows...")
+    configure_passkeys(kc)
     configure_browser_flow(kc)
     configure_registration_flow(kc)
 

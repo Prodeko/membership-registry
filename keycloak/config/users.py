@@ -10,16 +10,19 @@ if TYPE_CHECKING:
 
 def _ensure_user(
     kc: KeycloakAdmin,
-    username: str,
     email: str,
     password: str,
     roles: list[str] | None = None,
 ) -> None:
-    """Create or update a user, with optional realm roles."""
-    print(f"Configuring user '{username}' ({email})...")
+    """Create or update a user, with optional realm roles.
+
+    With registrationEmailAsUsername=True, username is always set to email.
+    Looks up existing users by email for idempotency.
+    """
+    print(f"Configuring user '{email}'...")
 
     user_payload: dict[str, Any] = {
-        "username": username,
+        "username": email,
         "email": email,
         "firstName": "Test",
         "lastName": "User",
@@ -27,19 +30,19 @@ def _ensure_user(
         "emailVerified": True,
     }
 
-    existing: list[dict[str, Any]] = kc.get(f"/users?username={username}&exact=true")
+    existing: list[dict[str, Any]] = kc.get(f"/users?email={email}&exact=true")
     if existing:
         user_id: str = existing[0]["id"]
         kc.put(f"/users/{user_id}", user_payload)
-        print(f"  Updated user '{username}'.")
+        print(f"  Updated user '{email}'.")
     else:
         user_payload["credentials"] = [
             {"type": "password", "value": password, "temporary": False}
         ]
         kc.post("/users", user_payload)
-        existing = kc.get(f"/users?username={username}&exact=true")
+        existing = kc.get(f"/users?email={email}&exact=true")
         user_id = existing[0]["id"]
-        print(f"  Created user '{username}'.")
+        print(f"  Created user '{email}'.")
 
     kc.put(f"/users/{user_id}/reset-password", {
         "type": "password",
@@ -60,14 +63,12 @@ def configure_test_users(kc: KeycloakAdmin) -> None:
     """Create test users for development and e2e testing."""
     _ensure_user(
         kc,
-        username="testadmin",
-        email="test-admin@example.com",
-        password="testpassword",
+        email="cto@prodeko.org",
+        password="kananugetti",
         roles=["admin"],
     )
     _ensure_user(
         kc,
-        username="testuser",
-        email="test-user@example.com",
-        password="testpassword",
+        email="user@prodeko.org",
+        password="sateenkaari",
     )

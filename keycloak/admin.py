@@ -77,6 +77,18 @@ class KeycloakAdmin:
         r.raise_for_status()
         return r
 
+    def post_ignore_conflict(
+        self,
+        path: str,
+        data: dict[str, Any] | None = None,
+    ) -> bool:
+        """POST that returns False on 409 instead of raising."""
+        r = self.session.post(self._url(path), json=data)
+        if r.status_code == 409:
+            return False
+        r.raise_for_status()
+        return True
+
     def delete(self, path: str) -> None:
         r = self.session.delete(self._url(path))
         r.raise_for_status()
@@ -124,27 +136,38 @@ class KeycloakAdmin:
             {"provider": provider},
         )
 
-    def add_subflow(self, parent_alias: str, alias: str, flow_type: str) -> None:
+    def add_subflow(
+        self, parent_alias: str, alias: str, flow_type: str, provider: str = ""
+    ) -> None:
         self.post(
             f"/authentication/flows/{quote(parent_alias, safe='')}/executions/flow",
             {
                 "alias": alias,
                 "type": flow_type,
-                "provider": "registration-page-form",
+                "provider": provider,
             },
+        )
+
+    def delete_execution(self, execution_id: str) -> None:
+        self.delete(f"/authentication/executions/{execution_id}")
+
+    def find_execution(self, flow_alias: str, display_name: str) -> dict[str, Any]:
+        for exe in self.get_executions(flow_alias):
+            if exe.get("displayName") == display_name:
+                return exe
+        raise ValueError(
+            f"Execution '{display_name}' not found in flow '{flow_alias}'"
         )
 
     def set_execution_requirement(
         self, flow_alias: str, display_name: str, requirement: str
     ) -> None:
-        for exe in self.get_executions(flow_alias):
-            if exe.get("displayName") == display_name:
-                exe["requirement"] = requirement
-                self.update_execution(flow_alias, exe)
-                return
-        raise ValueError(
-            f"Execution '{display_name}' not found in flow '{flow_alias}'"
-        )
+        exe = self.find_execution(flow_alias, display_name)
+        exe["requirement"] = requirement
+        self.update_execution(flow_alias, exe)
+
+    def raise_execution_priority(self, execution_id: str) -> None:
+        self.post(f"/authentication/executions/{execution_id}/raise-priority")
 
     def bind_flow(self, **kwargs: str) -> None:
         """Bind custom flows to the realm. E.g. browserFlow='my-browser'."""

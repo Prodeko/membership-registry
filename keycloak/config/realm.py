@@ -22,6 +22,7 @@ def configure_realm(kc: KeycloakAdmin) -> None:
         "verifyEmail": True,
         "resetPasswordAllowed": True,
         "loginWithEmailAllowed": True,
+        "registrationEmailAsUsername": True,
         "duplicateEmailsAllowed": False,
         "editUsernameAllowed": False,
         "bruteForceProtected": True,
