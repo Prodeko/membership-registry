@@ -76,15 +76,27 @@ const ApplicationForm = () => {
   };
 
   if (isRolesLoading || isMeLoading) {
-    return <div>Loading...</div>;
+    return (
+      <main className="flex justify-center min-h-screen w-screen px-4 py-20">
+        <p className="text-muted-foreground">Loading...</p>
+      </main>
+    );
   }
 
   if (!targetableRoles) {
-    return <div>No roles to apply to!</div>;
+    return (
+      <main className="flex justify-center min-h-screen w-screen px-4 py-20">
+        <p className="text-muted-foreground">No roles to apply to.</p>
+      </main>
+    );
   }
 
   if (!currentMember) {
-    return <div>No member found!</div>;
+    return (
+      <main className="flex justify-center min-h-screen w-screen px-4 py-20">
+        <p className="text-muted-foreground">Could not load your profile.</p>
+      </main>
+    );
   }
 
   return (

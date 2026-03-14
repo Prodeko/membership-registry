@@ -54,12 +54,16 @@ export const axios_client = axios.create({
 });
 
 axios_client.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response;
-  },
+  (response: AxiosResponse) => response,
   (error: AxiosError) => {
-    console.error("Axios error: ", error);
-    window.location.href = `/error/${error.response?.status || "500"}`;
+    if (
+      error.response?.status === 401 &&
+      !error.config?.url?.includes("/auth/callback")
+    ) {
+      window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/login`;
+      return new Promise(() => {}); // halt chain during redirect
+    }
+    return Promise.reject(error);
   },
 );
 
@@ -72,12 +76,13 @@ export const admin_axios_client = axios.create({
 });
 
 admin_axios_client.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response;
-  },
+  (response: AxiosResponse) => response,
   (error: AxiosError) => {
-    console.error("Axios error: ", error);
-    window.location.href = `/error/${error.response?.status || "500"}`;
+    if (error.response?.status === 401) {
+      window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/login`;
+      return new Promise(() => {}); // halt chain during redirect
+    }
+    return Promise.reject(error);
   },
 );
 
