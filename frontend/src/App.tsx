@@ -17,6 +17,7 @@ import SignupForm from "./components/signup-form/SignupForm";
 import { ThemeProvider } from "./components/theme-provider";
 import Success from "./components/application-form/Success";
 import UserHome from "./components/home/UserHome";
+import ProfileEdit from "./components/profile/ProfileEdit";
 import { TooltipProvider } from "./components/ui/tooltip";
 
 const queryClient = new QueryClient();
@@ -110,6 +111,10 @@ const router = createBrowserRouter([
   {
     path: "/home",
     element: <UserHome />,
+  },
+  {
+    path: "/profile/edit",
+    element: <ProfileEdit />,
   },
   {
     path: "/apply",

@@ -3,4 +3,4 @@
 /**
  * DTO for updating a member. Only contains mutable fields.
  */
-export type UpdateMember = { first_name: string, last_name: string, home_municipality: string, has_accepted_policies: boolean, };
+export type UpdateMember = { first_name: string, last_name: string, home_municipality: string, has_accepted_policies: boolean, email_notifications: boolean, };

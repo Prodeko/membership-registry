@@ -17,6 +17,7 @@ pub enum ApplicationAction {
     PaymentReceived,
     Approve,
     Reject,
+    Withdraw,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,6 +89,21 @@ impl Application {
             (Pending | Unpaid, Approve) => Ok((Approved, ApplicationTransition::Approved)),
             (Pending | Unpaid, Reject) => Ok((Rejected, ApplicationTransition::Rejected)),
             (from, action) => Err(TransitionError::InvalidAction { from, action }),
+        }
+    }
+
+    /// Validates that this application can be withdrawn (deleted by the applicant).
+    /// Only unpaid applications may be withdrawn.
+    pub fn can_withdraw(&self) -> Result<(), TransitionError> {
+        match self.status {
+            ApplicationStatus::Unpaid => Ok(()),
+            ApplicationStatus::Approved | ApplicationStatus::Rejected => {
+                Err(TransitionError::AlreadyTerminal)
+            }
+            _ => Err(TransitionError::InvalidAction {
+                from: self.status,
+                action: ApplicationAction::Withdraw,
+            }),
         }
     }
 }
@@ -260,6 +276,44 @@ mod tests {
         let app = test_application(ApplicationStatus::Rejected);
         assert_eq!(
             app.apply(ApplicationAction::Reject).unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    // --- can_withdraw ---
+
+    #[test]
+    fn unpaid_can_withdraw() {
+        let app = test_application(ApplicationStatus::Unpaid);
+        assert!(app.can_withdraw().is_ok());
+    }
+
+    #[test]
+    fn pending_cannot_withdraw() {
+        let app = test_application(ApplicationStatus::Pending);
+        assert_eq!(
+            app.can_withdraw().unwrap_err(),
+            TransitionError::InvalidAction {
+                from: ApplicationStatus::Pending,
+                action: ApplicationAction::Withdraw,
+            }
+        );
+    }
+
+    #[test]
+    fn approved_cannot_withdraw() {
+        let app = test_application(ApplicationStatus::Approved);
+        assert_eq!(
+            app.can_withdraw().unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    #[test]
+    fn rejected_cannot_withdraw() {
+        let app = test_application(ApplicationStatus::Rejected);
+        assert_eq!(
+            app.can_withdraw().unwrap_err(),
             TransitionError::AlreadyTerminal,
         );
     }

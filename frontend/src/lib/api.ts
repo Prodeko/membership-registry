@@ -15,11 +15,13 @@ import {
   NewMember,
   NewSavedFilter,
   PostTargetableRole,
+  PublicConfig,
   Role,
   RoleMember,
   RoleStats,
   SavedFilter,
   UpdateEmailTemplate,
+  UpdateMember,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios, { AxiosError, AxiosResponse } from "axios";
@@ -40,6 +42,7 @@ export enum QueryKey {
   LOGOUT = "logout",
   AUDIT_LOGS = "audit_logs",
   EMAIL_TEMPLATES = "email_templates",
+  PUBLIC_CONFIG = "public_config",
 }
 
 export const axios_client = axios.create({
@@ -162,7 +165,10 @@ export const useGetMember = (id: string) => {
   });
 };
 
-export const useGetMemberRoles = (id: string) => {
+export const useGetMemberRoles = (
+  id: string,
+  options?: { enabled?: boolean },
+) => {
   return useQuery<RoleMember[]>({
     queryKey: [QueryKey.MEMBER_ROLES, { id }],
     queryFn: async () => {
@@ -171,6 +177,7 @@ export const useGetMemberRoles = (id: string) => {
       );
       return response.data;
     },
+    enabled: options?.enabled,
   });
 };
 
@@ -564,5 +571,45 @@ export const useDeleteEmailTemplate = () => {
         `/email-templates/${encodeURIComponent(name)}`,
       );
     },
+  });
+};
+
+export const useUpdateMember = () => {
+  const queryClient = useQueryClient();
+  return useMutation<Member, Error, { userId: string; data: UpdateMember }>({
+    mutationFn: async ({ userId, data }) => {
+      const response = await axios_client.put<Member>(
+        `/members/${userId}`,
+        data,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.ME] });
+    },
+  });
+};
+
+export const useWithdrawApplication = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, AxiosError, string>({
+    mutationFn: async (applicationId: string) => {
+      await axios_client.delete(`/applications/${applicationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.APPLICATIONS] });
+    },
+  });
+};
+
+export const useGetPublicConfig = () => {
+  return useQuery<PublicConfig>({
+    queryKey: [QueryKey.PUBLIC_CONFIG],
+    queryFn: async () => {
+      const response =
+        await axios_client.get<PublicConfig>("/config");
+      return response.data;
+    },
+    staleTime: Infinity,
   });
 };

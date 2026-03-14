@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     application::services::authentication_service::AuthenticatedUser,
+    domain::UpdatePersonData,
     infrastructure::http::{
         dto::{
             member::{MemberDTO, MemberWithRolesDTO, UpdateMemberDTO},
@@ -201,16 +202,16 @@ async fn update_member(
     Json(body): Json<UpdateMemberDTO>,
 ) -> ApiResult<Json<MemberDTO>> {
     let actor_id = user_info.map(|u| u.user_id);
+    let data = UpdatePersonData {
+        first_name: body.first_name,
+        last_name: body.last_name,
+        home_municipality: body.home_municipality,
+        has_accepted_policies: body.has_accepted_policies,
+        email_notifications: body.email_notifications,
+    };
     let result = state
         .member_service
-        .update_member(
-            user_id,
-            body.first_name,
-            body.last_name,
-            body.home_municipality,
-            body.has_accepted_policies,
-            actor_id,
-        )
+        .update_member(user_id, data, actor_id)
         .await
         .map(MemberDTO::from)
         .map(Json)?;

@@ -1,7 +1,7 @@
 use axum::{
     debug_handler,
     extract::{Path, State},
-    routing::{get, post},
+    routing::{delete, get, post},
     Extension, Json, Router,
 };
 use serde::Serialize;
@@ -27,8 +27,23 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/", post(post_application))
         .route("/user", get(get_user_applications))
         .route("/:application_id", get(get_application))
+        .route("/:application_id", delete(withdraw_application))
         .route("/targetable-roles", get(get_targetable_roles))
         .with_state(state)
+}
+
+#[debug_handler]
+async fn withdraw_application(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    Path(path): Path<ApplicationPath>,
+    State(state): State<AppState>,
+) -> ApiResult<()> {
+    let user_info = user_info.ok_or(ApiError::Unauthorized)?;
+    state
+        .application_service
+        .withdraw_application(path.application_id, user_info.user_id)
+        .await?;
+    Ok(())
 }
 
 async fn get_application(

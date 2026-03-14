@@ -5,7 +5,7 @@ use crate::application::ports::member_repository_port::{
     MemberRepositoryPort, MemberWithRoles as PortMemberWithRoles, MembersWithRolesParams,
 };
 use crate::application::ports::repository_error::RepositoryError;
-use crate::domain::{Email, NewPerson, Person, PersonId};
+use crate::domain::{Email, NewPerson, Person, PersonId, UpdatePersonData};
 
 // --- DAO types (private to repo) ---
 
@@ -18,6 +18,7 @@ pub(super) struct MemberDAO {
     pub(super) full_name: Option<String>,
     pub(super) home_municipality: String,
     pub(super) has_accepted_policies: bool,
+    pub(super) email_notifications: bool,
 }
 
 impl From<MemberDAO> for Person {
@@ -30,6 +31,7 @@ impl From<MemberDAO> for Person {
             full_name: row.full_name,
             home_municipality: row.home_municipality,
             has_accepted_policies: row.has_accepted_policies,
+            email_notifications: row.email_notifications,
         }
     }
 }
@@ -43,6 +45,7 @@ struct MemberWithRolesDAO {
     full_name: Option<String>,
     home_municipality: String,
     has_accepted_policies: bool,
+    email_notifications: bool,
     role_names: Value,
 }
 
@@ -57,6 +60,7 @@ impl From<MemberWithRolesDAO> for PortMemberWithRoles {
                 full_name: row.full_name,
                 home_municipality: row.home_municipality,
                 has_accepted_policies: row.has_accepted_policies,
+                email_notifications: row.email_notifications,
             },
             role_names: row.role_names,
         }
@@ -76,8 +80,8 @@ impl MemberRepositoryPort for MemberRepo {
         let row = sqlx::query_as!(
             MemberDAO,
             r#"
-            INSERT INTO member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies)
-            VALUES (CAST($1 AS UUID), $2, $3, $4, $5, $6)
+            INSERT INTO member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies, email_notifications)
+            VALUES (CAST($1 AS UUID), $2, $3, $4, $5, $6, $7)
             RETURNING *
         "#,
             new.id.0,
@@ -85,7 +89,8 @@ impl MemberRepositoryPort for MemberRepo {
             new.first_name,
             new.last_name,
             new.home_municipality,
-            new.has_accepted_policies
+            new.has_accepted_policies,
+            new.email_notifications
         )
         .fetch_one(&self.pool)
         .await?;
@@ -127,10 +132,7 @@ impl MemberRepositoryPort for MemberRepo {
     async fn update(
         &self,
         user_id: Uuid,
-        first_name: &str,
-        last_name: &str,
-        home_municipality: &str,
-        has_accepted_policies: bool,
+        data: &UpdatePersonData,
     ) -> Result<Person, RepositoryError> {
         let row = sqlx::query_as!(
             MemberDAO,
@@ -140,13 +142,15 @@ impl MemberRepositoryPort for MemberRepo {
                 first_name = $1,
                 last_name = $2,
                 home_municipality = $3,
-                has_accepted_policies = $4
-            WHERE user_id = $5
+                has_accepted_policies = $4,
+                email_notifications = $5
+            WHERE user_id = $6
             RETURNING *"#,
-            first_name,
-            last_name,
-            home_municipality,
-            has_accepted_policies,
+            data.first_name,
+            data.last_name,
+            data.home_municipality,
+            data.has_accepted_policies,
+            data.email_notifications,
             user_id
         )
         .fetch_one(&self.pool)
@@ -192,7 +196,7 @@ impl MemberRepositoryPort for MemberRepo {
                  ($7::date is NULL OR RoleMember.valid_from  <= $7))
             )
             GROUP BY
-                Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.has_accepted_policies
+                Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.has_accepted_policies, Member.email_notifications
             HAVING
                 $3 IS NULL OR
                 EXISTS (

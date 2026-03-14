@@ -16,6 +16,7 @@ pub struct MemberDTO {
     pub full_name: Option<String>,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
+    pub email_notifications: bool,
 }
 
 impl From<Person> for MemberDTO {
@@ -28,6 +29,7 @@ impl From<Person> for MemberDTO {
             full_name: p.full_name,
             home_municipality: p.home_municipality,
             has_accepted_policies: p.has_accepted_policies,
+            email_notifications: p.email_notifications,
         }
     }
 }
@@ -42,6 +44,7 @@ pub struct MemberWithRolesDTO {
     pub full_name: Option<String>,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
+    pub email_notifications: bool,
     #[ts(type = "Array<string | null>")]
     pub role_names: Value,
 }
@@ -56,6 +59,7 @@ impl From<MemberWithRoles> for MemberWithRolesDTO {
             full_name: mwr.person.full_name,
             home_municipality: mwr.person.home_municipality,
             has_accepted_policies: mwr.person.has_accepted_policies,
+            email_notifications: mwr.person.email_notifications,
             role_names: mwr.role_names,
         }
     }
@@ -70,6 +74,12 @@ pub struct NewMemberDTO {
     pub last_name: String,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
+    #[serde(default = "default_true")]
+    pub email_notifications: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 impl NewMemberDTO {
@@ -81,6 +91,7 @@ impl NewMemberDTO {
             last_name: self.last_name,
             home_municipality: self.home_municipality,
             has_accepted_policies: self.has_accepted_policies,
+            email_notifications: self.email_notifications,
         })
     }
 }
@@ -93,4 +104,5 @@ pub struct UpdateMemberDTO {
     pub last_name: String,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
+    pub email_notifications: bool,
 }

@@ -8,59 +8,72 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useCreateMember, useGetMeUser } from "@/lib/api";
+import { useGetMeMember, useUpdateMember } from "@/lib/api";
 import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
+import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { Card } from "../ui/card";
-import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
-import MunicipalitySelect from "./MunicipalitySelect";
+import { Switch } from "../ui/switch";
+import MunicipalitySelect from "../signup-form/MunicipalitySelect";
 
 const formSchema = z.object({
   first_name: z.string().min(1, "First name is required"),
   last_name: z.string().min(1, "Last name is required"),
   home_municipality: z.enum([...FINNISH_MUNICIPALITIES, ...COUNTRIES]),
-  has_accepted_policies: z.boolean({
-    required_error: "You must accept the policies",
-  }),
+  email_notifications: z.boolean(),
 });
 
-export type SingupFormValues = z.infer<typeof formSchema>;
+type ProfileFormValues = z.infer<typeof formSchema>;
 
-const SignupForm = () => {
-  const form = useForm<z.infer<typeof formSchema>>({
+const ProfileEdit = () => {
+  const { data: member, isLoading } = useGetMeMember();
+  const { mutate: updateMember, isPending } = useUpdateMember();
+  const navigate = useNavigate();
+
+  const form = useForm<ProfileFormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      first_name: "",
-      last_name: "",
-      home_municipality: "Espoo",
-      has_accepted_policies: false,
-    },
+    values: member
+      ? {
+          first_name: member.first_name,
+          last_name: member.last_name,
+          home_municipality: member.home_municipality as ProfileFormValues["home_municipality"],
+          email_notifications: member.email_notifications,
+        }
+      : undefined,
   });
 
-  const { mutate: createMember } = useCreateMember();
-  const { data: me } = useGetMeUser();
+  if (isLoading || !member) {
+    return (
+      <main className="flex justify-center min-h-screen w-screen px-4 py-20">
+        <p className="text-muted-foreground">Loading...</p>
+      </main>
+    );
+  }
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
-    if (me === undefined) {
-      throw Error("User not defined! Login or signup");
-    }
-    createMember(
-      { ...me, ...values, email_notifications: true },
+  const onSubmit = (values: ProfileFormValues) => {
+    updateMember(
+      {
+        userId: member.user_id,
+        data: {
+          ...values,
+          has_accepted_policies: member.has_accepted_policies,
+        },
+      },
       {
         onSuccess: () => {
-          window.location.href = "/apply";
+          navigate("/home");
         },
       },
     );
   };
 
   return (
-    <main className="flex justify-center align-middle h-screen w-screen py-20 px-4">
-      <Card className="p-10 space-y-4 h-fit">
-        <h1 className="text-4xl">Signup form</h1>
+    <main className="flex justify-center min-h-screen w-screen px-4 py-20">
+      <Card className="p-10 space-y-4 h-fit max-w-lg w-full">
+        <h1 className="text-2xl font-bold">Edit profile</h1>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -108,23 +121,39 @@ const SignupForm = () => {
             />
             <FormField
               control={form.control}
-              name="has_accepted_policies"
+              name="email_notifications"
               render={({ field }) => (
-                <FormItem className="flex flex-row items-start space-x-3 space-y-0 ">
-                  <FormLabel>
-                    I have read and accept the <a href="#">policies</a>
-                  </FormLabel>
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">
+                      Email notifications
+                    </FormLabel>
+                    <FormDescription>
+                      Receive email notifications about application status
+                      changes.
+                    </FormDescription>
+                  </div>
                   <FormControl>
-                    <Checkbox
+                    <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
                     />
                   </FormControl>
-                  <FormMessage />
                 </FormItem>
               )}
             />
-            <Button type="submit">Submit</Button>
+            <div className="flex gap-2">
+              <Button type="submit" disabled={isPending}>
+                {isPending ? "Saving..." : "Save changes"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => navigate("/home")}
+              >
+                Cancel
+              </Button>
+            </div>
           </form>
         </Form>
       </Card>
@@ -132,4 +161,4 @@ const SignupForm = () => {
   );
 };
 
-export default SignupForm;
+export default ProfileEdit;

@@ -5,7 +5,7 @@ use crate::application::ports::{
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     user_admin_port::UserAdminPort,
 };
-use crate::domain::{Email, NewPerson, Person};
+use crate::domain::{Email, NewPerson, Person, UpdatePersonData};
 use uuid::Uuid;
 
 use super::{
@@ -131,6 +131,7 @@ impl MemberService {
             full_name: member.full_name,
             home_municipality: member.home_municipality,
             has_accepted_policies: member.has_accepted_policies,
+            email_notifications: member.email_notifications,
             email,
         })
     }
@@ -138,21 +139,12 @@ impl MemberService {
     pub async fn update_member(
         &self,
         user_id: Uuid,
-        first_name: String,
-        last_name: String,
-        home_municipality: String,
-        has_accepted_policies: bool,
+        data: UpdatePersonData,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Person> {
         let updated = self
             .member_repo
-            .update(
-                user_id,
-                &first_name,
-                &last_name,
-                &home_municipality,
-                has_accepted_policies,
-            )
+            .update(user_id, &data)
             .await
             .map_err(ServiceError::from)?;
 

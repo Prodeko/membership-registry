@@ -28,7 +28,7 @@ use crate::application::ports::{
 };
 use crate::domain::{
     Application, ApplicationId, ApplicationStatus, EmailTemplate, NewApplication, NewPerson,
-    Person, Role, RoleName,
+    Person, Role, RoleName, UpdatePersonData,
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
@@ -89,7 +89,7 @@ mock! {
         async fn fetch_all(&self) -> Result<Vec<Person>, RepositoryError>;
         async fn fetch_with_ids(&self, ids: Option<Vec<Uuid>>) -> Result<Vec<Person>, RepositoryError>;
         async fn fetch_one(&self, id: Uuid) -> Result<Person, RepositoryError>;
-        async fn update(&self, user_id: Uuid, first_name: &str, last_name: &str, home_municipality: &str, has_accepted_policies: bool) -> Result<Person, RepositoryError>;
+        async fn update(&self, user_id: Uuid, data: &UpdatePersonData) -> Result<Person, RepositoryError>;
         async fn delete(&self, id: Uuid) -> Result<(), RepositoryError>;
         async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), RepositoryError>;
         async fn fetch_members_with_roles(&self, params: MembersWithRolesParams) -> Result<Vec<MemberWithRoles>, RepositoryError>;

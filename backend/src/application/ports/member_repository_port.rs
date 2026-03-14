@@ -2,7 +2,7 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use super::repository_error::RepositoryError;
-use crate::domain::{NewPerson, Person};
+use crate::domain::{NewPerson, Person, UpdatePersonData};
 
 #[derive(Debug)]
 pub struct MemberWithRoles {
@@ -19,6 +19,7 @@ impl MemberWithRoles {
             self.person.full_name.clone().unwrap_or_default(),
             self.person.home_municipality.clone(),
             self.person.has_accepted_policies.to_string(),
+            self.person.email_notifications.to_string(),
             self.person.email.as_str().to_string(),
             self.role_names.to_string(),
         ]
@@ -50,10 +51,7 @@ pub trait MemberRepositoryPort: Send + Sync {
     async fn update(
         &self,
         user_id: Uuid,
-        first_name: &str,
-        last_name: &str,
-        home_municipality: &str,
-        has_accepted_policies: bool,
+        data: &UpdatePersonData,
     ) -> Result<Person, RepositoryError>;
 
     async fn delete(&self, id: Uuid) -> Result<(), RepositoryError>;

@@ -37,6 +37,7 @@ pub struct Person {
     pub full_name: Option<String>,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
+    pub email_notifications: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -47,6 +48,16 @@ pub struct NewPerson {
     pub last_name: String,
     pub home_municipality: String,
     pub has_accepted_policies: bool,
+    pub email_notifications: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UpdatePersonData {
+    pub first_name: String,
+    pub last_name: String,
+    pub home_municipality: String,
+    pub has_accepted_policies: bool,
+    pub email_notifications: bool,
 }
 
 #[cfg(test)]

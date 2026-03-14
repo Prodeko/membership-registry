@@ -5,7 +5,7 @@ mod test_member {
     use crate::application::ports::member_repository_port::{
         MemberRepositoryPort, MembersWithRolesParams,
     };
-    use crate::domain::{Email, NewPerson, PersonId};
+    use crate::domain::{Email, NewPerson, PersonId, UpdatePersonData};
     use crate::infrastructure::repositories::tests::{cleanup_test_db, setup_test_db};
 
     fn _get_new_member() -> NewPerson {
@@ -17,6 +17,7 @@ mod test_member {
             home_municipality: "Helsinki".to_string(),
             email: Email::new("john@example.com".to_string()).unwrap(),
             has_accepted_policies: true,
+            email_notifications: true,
         }
     }
 
@@ -234,10 +235,13 @@ mod test_member {
             .member
             .update(
                 user_id,
-                "Uusi",
-                &member_to_update.last_name,
-                &member_to_update.home_municipality,
-                member_to_update.has_accepted_policies,
+                &UpdatePersonData {
+                    first_name: "Uusi".to_string(),
+                    last_name: member_to_update.last_name,
+                    home_municipality: member_to_update.home_municipality,
+                    has_accepted_policies: member_to_update.has_accepted_policies,
+                    email_notifications: member_to_update.email_notifications,
+                },
             )
             .await
             .unwrap();

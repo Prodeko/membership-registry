@@ -16,11 +16,13 @@ export type {
   NewMember,
   NewSavedFilter,
   PostTargetableRole,
+  PublicConfig,
   Role,
   RoleMember,
   RoleStats,
   SavedFilter,
   UpdateEmailTemplate,
+  UpdateMember,
 } from "./generated";
 
 // Frontend-only types (no backend equivalent)

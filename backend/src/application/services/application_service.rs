@@ -266,6 +266,42 @@ impl ApplicationService {
             .await;
     }
 
+    pub async fn withdraw_application(
+        &self,
+        application_id: Uuid,
+        user_id: Uuid,
+    ) -> ServiceResult<()> {
+        let application = self.get_application(application_id).await?;
+
+        if application.user_id != user_id {
+            return Err(E::Forbidden);
+        }
+
+        application.can_withdraw().map_err(|e| match e {
+            TransitionError::AlreadyTerminal => E::ApplicationAlreadyProcessed,
+            TransitionError::InvalidAction { .. } => E::InvalidStatus,
+        })?;
+
+        self.application_commands
+            .delete(application_id)
+            .await
+            .map_err(E::from)?;
+
+        self.audit_log
+            .log(
+                Some(user_id),
+                "application.withdraw",
+                "application",
+                &application_id.to_string(),
+                Some(serde_json::json!({
+                    "role_name": &application.role_name,
+                })),
+            )
+            .await;
+
+        Ok(())
+    }
+
     pub async fn delete_application(
         &self,
         application_id: Uuid,
