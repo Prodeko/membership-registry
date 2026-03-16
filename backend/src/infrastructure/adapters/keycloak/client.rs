@@ -208,7 +208,7 @@ impl KeycloakClient {
         let mut validation = Validation::new(header.alg);
         let issuer = format!("{}/realms/{}", self.cfg.base_url, self.cfg.realm);
         validation.set_issuer(&[&issuer]);
-        validation.validate_aud = false;
+        validation.set_audience(&[&self.cfg.client_id]);
 
         let token_data =
             decode::<KeycloakClaimsDTO>(token, &decoding_key, &validation).map_err(|e| {
