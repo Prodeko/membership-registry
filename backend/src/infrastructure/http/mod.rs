@@ -7,6 +7,7 @@ use axum::{
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
 use tower_http::{
     cors::{AllowHeaders, CorsLayer},
+    set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
 use tracing_subscriber::EnvFilter;
@@ -114,6 +115,14 @@ pub async fn serve(config: Config, services: Services) {
     let app: Router = router(state.clone())
         .with_state(state)
         .layer(cors)
+        .layer(SetResponseHeaderLayer::overriding(
+            HeaderName::from_static("x-content-type-options"),
+            HeaderValue::from_static("nosniff"),
+        ))
+        .layer(SetResponseHeaderLayer::overriding(
+            HeaderName::from_static("x-frame-options"),
+            HeaderValue::from_static("DENY"),
+        ))
         .layer(TraceLayer::new_for_http());
 
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", port.clone()))
