@@ -15,6 +15,7 @@ export type { CreateEmailTemplate } from "./CreateEmailTemplate";
 export type { DeleteManyBody } from "./DeleteManyBody";
 export type { DeleteTargetableRoleQuery } from "./DeleteTargetableRoleQuery";
 export type { EmailTemplate } from "./EmailTemplate";
+export type { EmailTemplateTranslationDTO as EmailTemplateTranslation } from "./EmailTemplateTranslationDTO";
 export type { FilteredApplicationsParams } from "./FilteredApplicationsParams";
 export type { GetSavedFilterParams } from "./GetSavedFilterParams";
 export type { LinkedProvider } from "./LinkedProvider";

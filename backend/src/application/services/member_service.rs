@@ -41,6 +41,8 @@ impl MemberService {
         new_person: NewPerson,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Person> {
+        let language = new_person.language.clone();
+        let user_id = new_person.id.0;
         let person = self
             .member_repo
             .create(new_person)
@@ -60,6 +62,25 @@ impl MemberService {
                 })),
             )
             .await;
+
+        // Fire-and-forget sync of locale to Keycloak
+        let auth_providers = self
+            .auth_provider_repo
+            .find_by_user_id(&user_id)
+            .await
+            .ok();
+
+        if let Some(providers) = auth_providers {
+            if let Some(primary) = providers.first() {
+                let subject = primary.provider_user_id.clone();
+                let user_admin = Arc::clone(&self.user_admin);
+                tokio::spawn(async move {
+                    if let Err(e) = user_admin.update_user_locale(&subject, &language).await {
+                        tracing::error!("Failed to sync locale to Keycloak: {e:?}");
+                    }
+                });
+            }
+        }
 
         Ok(person)
     }
@@ -132,6 +153,7 @@ impl MemberService {
             home_municipality: member.home_municipality,
             has_accepted_policies: member.has_accepted_policies,
             email_notifications: member.email_notifications,
+            language: member.language,
             email,
         })
     }
@@ -142,6 +164,7 @@ impl MemberService {
         data: UpdatePersonData,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Person> {
+        let language = data.language.clone();
         let updated = self
             .member_repo
             .update(user_id, &data)
@@ -161,6 +184,25 @@ impl MemberService {
                 })),
             )
             .await;
+
+        // Fire-and-forget sync of locale to Keycloak
+        let auth_providers = self
+            .auth_provider_repo
+            .find_by_user_id(&user_id)
+            .await
+            .ok();
+
+        if let Some(providers) = auth_providers {
+            if let Some(primary) = providers.first() {
+                let subject = primary.provider_user_id.clone();
+                let user_admin = Arc::clone(&self.user_admin);
+                tokio::spawn(async move {
+                    if let Err(e) = user_admin.update_user_locale(&subject, &language).await {
+                        tracing::error!("Failed to sync locale to Keycloak: {e:?}");
+                    }
+                });
+            }
+        }
 
         Ok(updated)
     }

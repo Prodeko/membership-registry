@@ -53,8 +53,8 @@ fn active_targetable_role(payment_link: Option<String>) -> ApplicationTargetable
 fn build_notification_service() -> NotificationService {
     let mut template_repo = MockTemplateRepositoryPort::new();
     template_repo
-        .expect_fetch_one()
-        .returning(|_| Err(RepositoryError::NotFound));
+        .expect_fetch_translation()
+        .returning(|_, _| Err(RepositoryError::NotFound));
 
     let mut renderer = MockTemplateRendererPort::new();
     renderer.expect_render().returning(|t, _| t.to_string());

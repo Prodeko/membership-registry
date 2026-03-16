@@ -19,6 +19,7 @@ pub(super) struct MemberDAO {
     pub(super) home_municipality: String,
     pub(super) has_accepted_policies: bool,
     pub(super) email_notifications: bool,
+    pub(super) language: String,
 }
 
 impl From<MemberDAO> for Person {
@@ -32,6 +33,7 @@ impl From<MemberDAO> for Person {
             home_municipality: row.home_municipality,
             has_accepted_policies: row.has_accepted_policies,
             email_notifications: row.email_notifications,
+            language: row.language,
         }
     }
 }
@@ -46,6 +48,7 @@ struct MemberWithRolesDAO {
     home_municipality: String,
     has_accepted_policies: bool,
     email_notifications: bool,
+    language: String,
     role_names: Value,
 }
 
@@ -61,6 +64,7 @@ impl From<MemberWithRolesDAO> for PortMemberWithRoles {
                 home_municipality: row.home_municipality,
                 has_accepted_policies: row.has_accepted_policies,
                 email_notifications: row.email_notifications,
+                language: row.language,
             },
             role_names: row.role_names,
         }
@@ -80,8 +84,8 @@ impl MemberRepositoryPort for MemberRepo {
         let row = sqlx::query_as!(
             MemberDAO,
             r#"
-            INSERT INTO member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies, email_notifications)
-            VALUES (CAST($1 AS UUID), $2, $3, $4, $5, $6, $7)
+            INSERT INTO member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies, email_notifications, language)
+            VALUES (CAST($1 AS UUID), $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
         "#,
             new.id.0,
@@ -90,7 +94,8 @@ impl MemberRepositoryPort for MemberRepo {
             new.last_name,
             new.home_municipality,
             new.has_accepted_policies,
-            new.email_notifications
+            new.email_notifications,
+            new.language
         )
         .fetch_one(&self.pool)
         .await?;
@@ -143,14 +148,16 @@ impl MemberRepositoryPort for MemberRepo {
                 last_name = $2,
                 home_municipality = $3,
                 has_accepted_policies = $4,
-                email_notifications = $5
-            WHERE user_id = $6
+                email_notifications = $5,
+                language = $6
+            WHERE user_id = $7
             RETURNING *"#,
             data.first_name,
             data.last_name,
             data.home_municipality,
             data.has_accepted_policies,
             data.email_notifications,
+            data.language,
             user_id
         )
         .fetch_one(&self.pool)
@@ -196,7 +203,7 @@ impl MemberRepositoryPort for MemberRepo {
                  ($7::date is NULL OR RoleMember.valid_from  <= $7))
             )
             GROUP BY
-                Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.has_accepted_policies, Member.email_notifications
+                Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.has_accepted_policies, Member.email_notifications, Member.language
             HAVING
                 $3 IS NULL OR
                 EXISTS (

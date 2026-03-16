@@ -47,12 +47,6 @@ export const columns: ColumnDef<EmailTemplate>[] = [
     ),
   },
   {
-    accessorKey: "subject",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Subject" />
-    ),
-  },
-  {
     accessorKey: "actions",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Actions" />

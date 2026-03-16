@@ -10,6 +10,7 @@ import {
   CreateApplicationResponse,
   CreateEmailTemplate,
   EmailTemplate,
+  EmailTemplateTranslation,
   Member,
   MemberWithRoles,
   NewMember,
@@ -20,7 +21,6 @@ import {
   RoleMember,
   RoleStats,
   SavedFilter,
-  UpdateEmailTemplate,
   UpdateMember,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -591,15 +591,38 @@ export const useCreateEmailTemplate = () => {
   });
 };
 
-export const useUpdateEmailTemplate = () => {
-  return useMutation<
-    EmailTemplate,
-    Error,
-    { name: string } & UpdateEmailTemplate
-  >({
-    mutationFn: async ({ name, ...body }) => {
-      const response = await admin_axios_client.put<EmailTemplate>(
+export const useDeleteEmailTemplate = () => {
+  return useMutation<void, Error, string>({
+    mutationFn: async (name) => {
+      await admin_axios_client.delete(
         `/email-templates/${encodeURIComponent(name)}`,
+      );
+    },
+  });
+};
+
+export const useGetEmailTemplateTranslations = (name: string) => {
+  return useQuery<EmailTemplateTranslation[]>({
+    queryKey: [QueryKey.EMAIL_TEMPLATES, name, "translations"],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<
+        EmailTemplateTranslation[]
+      >(`/email-templates/${encodeURIComponent(name)}/translations`);
+      return response.data;
+    },
+    enabled: !!name,
+  });
+};
+
+export const useUpsertEmailTemplateTranslation = () => {
+  return useMutation<
+    EmailTemplateTranslation,
+    Error,
+    { name: string; locale: string; subject: string; body_html: string }
+  >({
+    mutationFn: async ({ name, locale, ...body }) => {
+      const response = await admin_axios_client.put<EmailTemplateTranslation>(
+        `/email-templates/${encodeURIComponent(name)}/translations/${encodeURIComponent(locale)}`,
         body,
       );
       return response.data;
@@ -607,11 +630,11 @@ export const useUpdateEmailTemplate = () => {
   });
 };
 
-export const useDeleteEmailTemplate = () => {
-  return useMutation<void, Error, string>({
-    mutationFn: async (name) => {
+export const useDeleteEmailTemplateTranslation = () => {
+  return useMutation<void, Error, { name: string; locale: string }>({
+    mutationFn: async ({ name, locale }) => {
       await admin_axios_client.delete(
-        `/email-templates/${encodeURIComponent(name)}`,
+        `/email-templates/${encodeURIComponent(name)}/translations/${encodeURIComponent(locale)}`,
       );
     },
   });

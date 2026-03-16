@@ -37,4 +37,18 @@ impl UserAdminPort for KeycloakUserAdminAdapter {
             last_name: user.last_name,
         })
     }
+
+    async fn update_user_locale(
+        &self,
+        subject: &str,
+        locale: &str,
+    ) -> Result<(), UserAdminError> {
+        self.client
+            .update_user_attributes(
+                subject,
+                serde_json::json!({ "locale": [locale] }),
+            )
+            .await?;
+        Ok(())
+    }
 }

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 import time
 from typing import Any
@@ -31,7 +32,9 @@ class KeycloakAdmin:
         print("ERROR: Keycloak not ready", file=sys.stderr)
         sys.exit(1)
 
-    def authenticate(self, username: str = "admin", password: str = "admin") -> None:
+    def authenticate(self, username: str | None = None, password: str | None = None) -> None:
+        username = username or os.environ.get("KEYCLOAK_ADMIN", "admin")
+        password = password or os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin")
         r = self.session.post(
             f"{self.base_url}/realms/master/protocol/openid-connect/token",
             data={

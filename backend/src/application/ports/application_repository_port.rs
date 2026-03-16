@@ -12,6 +12,7 @@ pub struct ApplicationWithMember {
     pub user_id: Uuid,
     pub full_name: Option<String>,
     pub email: Option<String>,
+    pub language: Option<String>,
     pub role_name: String,
     pub valid_until: NaiveDate,
     pub created_at: DateTime<Utc>,

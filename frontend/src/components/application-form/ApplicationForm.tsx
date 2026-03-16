@@ -16,6 +16,7 @@ import {
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { z } from "zod";
 import RenderMemberData from "../members/RenderMemberData";
 import { Card } from "../ui/card";
@@ -33,16 +34,15 @@ import InfoTooltip from "../ui/info-tooltip";
 import { kebabCaseToTitleCase } from "@/lib/utils";
 
 const formSchema = z.object({
-  application_text: z.string({
-    required_error: "Application text is required",
-  }),
-  role_name: z.string({ required_error: "Role is required" }),
-  valid_until: z.date({ required_error: "Valid until is required" }),
+  application_text: z.string(),
+  role_name: z.string(),
+  valid_until: z.date(),
 });
 
 export type ApplicationFormValues = z.infer<typeof formSchema>;
 
 const ApplicationForm = () => {
+  const { t } = useTranslation();
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
   });
@@ -78,7 +78,7 @@ const ApplicationForm = () => {
   if (isRolesLoading || isMeLoading) {
     return (
       <main className="flex justify-center min-h-screen w-screen px-4 py-20">
-        <p className="text-muted-foreground">Loading...</p>
+        <p className="text-muted-foreground">{t("common.loading")}</p>
       </main>
     );
   }
@@ -86,7 +86,7 @@ const ApplicationForm = () => {
   if (!targetableRoles) {
     return (
       <main className="flex justify-center min-h-screen w-screen px-4 py-20">
-        <p className="text-muted-foreground">No roles to apply to.</p>
+        <p className="text-muted-foreground">{t("errors.no_roles")}</p>
       </main>
     );
   }
@@ -94,7 +94,7 @@ const ApplicationForm = () => {
   if (!currentMember) {
     return (
       <main className="flex justify-center min-h-screen w-screen px-4 py-20">
-        <p className="text-muted-foreground">Could not load your profile.</p>
+        <p className="text-muted-foreground">{t("errors.profile_load_failed")}</p>
       </main>
     );
   }
@@ -102,13 +102,11 @@ const ApplicationForm = () => {
   return (
     <main className="flex justify-center align-middle h-screen w-screen py-20 px-4">
       <Card className="p-10 space-y-4 h-fit">
-        <h1 className="text-4xl">Application form</h1>
+        <h1 className="text-4xl">{t("application.form.title")}</h1>
         <Separator />
         <RenderMemberData member={currentMember} variant="enduser" />
         <div>
-          Confirm that the information above is correct before submitting the
-          application. If not, please update your information in the profile
-          page.
+          {t("application.form.instructions")}
         </div>
         <UserApplications />
         <Form {...form}>
@@ -119,13 +117,9 @@ const ApplicationForm = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Membership type
+                    {t("application.form.membership_type_label")}
                     <InfoTooltip>
-                      <p>Select the memnbership type you want to apply for.</p>
-                      <p>
-                        If you have already applied for a role, you can't apply
-                        for it again until the current application is processed.
-                      </p>
+                      <p>{t("application.form.membership_tooltip")}</p>
                     </InfoTooltip>
                   </FormLabel>
                   <Select
@@ -149,7 +143,7 @@ const ApplicationForm = () => {
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
+                        <SelectValue placeholder={t("application.form.role_placeholder")} />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -168,8 +162,9 @@ const ApplicationForm = () => {
                           >
                             {kebabCaseToTitleCase(role.role_name)}{" "}
                             <span>
-                              (Valid until{" "}
-                              {new Date(role.valid_until).toLocaleDateString()})
+                              {t("application.form.valid_until_text", {
+                                date: new Date(role.valid_until).toLocaleDateString(),
+                              })}
                             </span>
                           </SelectItem>
                         );
@@ -185,16 +180,16 @@ const ApplicationForm = () => {
               name="application_text"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Application text</FormLabel>
+                  <FormLabel>{t("application.form.application_text_label")}</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Short application text" {...field} />
+                    <Textarea placeholder={t("application.form.application_text_placeholder")} {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <Button type="submit">
-              {paymentLink ? "Proceed to payment" : "Submit application"}
+              {paymentLink ? t("application.form.proceed_payment") : t("application.form.submit")}
             </Button>
           </form>
         </Form>

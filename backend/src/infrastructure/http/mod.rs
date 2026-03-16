@@ -93,8 +93,9 @@ pub async fn serve(config: Config, services: Services) {
         oauth2_client,
     };
 
+    let frontend_origin: HeaderValue = state.config.frontend_url.parse().expect("Invalid FRONTEND_URL for CORS origin");
     let cors = CorsLayer::new()
-        .allow_origin(HeaderValue::from_static("http://127.0.0.1:5173")) // TODO: Change this to the frontend URL
+        .allow_origin(frontend_origin)
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])
         .allow_headers(AllowHeaders::list([
             HeaderName::from_static("authorization"),

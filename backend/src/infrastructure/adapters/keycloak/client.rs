@@ -370,6 +370,85 @@ impl KeycloakClient {
     }
 
     // -----------------------------------------------------------------------
+    // User update (admin API)
+    // -----------------------------------------------------------------------
+
+    pub async fn update_user_attributes(
+        &self,
+        subject: &str,
+        attributes: serde_json::Value,
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!("users/{subject}"));
+
+        // GET current user
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch user for attribute update: {e:?}");
+                KeycloakError::Unavailable(format!("Get user request failed: {e}"))
+            })?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(KeycloakError::NotFound);
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            return Err(KeycloakError::Unavailable(format!(
+                "Get user returned status {status}"
+            )));
+        }
+
+        let mut user: serde_json::Value = response.json().await.map_err(|e| {
+            tracing::error!("Failed to parse user response: {e:?}");
+            KeycloakError::BadResponse(format!("User parse error: {e}"))
+        })?;
+
+        // Merge attributes into the user JSON
+        if let Some(obj) = user.as_object_mut() {
+            let attrs = obj
+                .entry("attributes")
+                .or_insert_with(|| serde_json::json!({}));
+            if let (Some(existing), Some(new_attrs)) =
+                (attrs.as_object_mut(), attributes.as_object())
+            {
+                for (k, v) in new_attrs {
+                    existing.insert(k.clone(), v.clone());
+                }
+            }
+        }
+
+        // PUT updated user
+        let put_response = self
+            .http
+            .put(&url)
+            .bearer_auth(&token)
+            .json(&user)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to update user attributes: {e:?}");
+                KeycloakError::Unavailable(format!("Update user request failed: {e}"))
+            })?;
+
+        if !put_response.status().is_success() {
+            let status = put_response.status();
+            let body = put_response.text().await.unwrap_or_default();
+            tracing::error!("Update user attributes returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Update user returned status {status}"
+            )));
+        }
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
     // Role management (admin API)
     // -----------------------------------------------------------------------
 

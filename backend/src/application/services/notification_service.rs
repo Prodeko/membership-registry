@@ -30,6 +30,7 @@ impl NotificationService {
         to: Option<&str>,
         recipient_name: &str,
         role_name: &str,
+        locale: &str,
     ) {
         let Some(template_name) = template_name else {
             return;
@@ -39,7 +40,7 @@ impl NotificationService {
             return;
         };
 
-        let template = match self.template_repo.fetch_one(template_name).await {
+        let translation = match self.template_repo.fetch_translation(template_name, locale).await {
             Ok(t) => t,
             Err(e) => {
                 tracing::error!("Email template '{template_name}' configured but not found: {e:?}");
@@ -48,8 +49,8 @@ impl NotificationService {
         };
 
         let variables = &[("name", recipient_name), ("role_name", role_name)];
-        let subject = self.renderer.render(&template.subject, variables);
-        let body = self.renderer.render(&template.body_html, variables);
+        let subject = self.renderer.render(&translation.subject, variables);
+        let body = self.renderer.render(&translation.body_html, variables);
 
         let Some(port) = &self.email_port else {
             tracing::info!("[MOCK EMAIL] To: {to}, Subject: {subject}");

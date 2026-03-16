@@ -18,6 +18,7 @@ mod test_member {
             email: Email::new("john@example.com".to_string()).unwrap(),
             has_accepted_policies: true,
             email_notifications: true,
+            language: "fi".to_string(),
         }
     }
 
@@ -241,6 +242,7 @@ mod test_member {
                     home_municipality: member_to_update.home_municipality,
                     has_accepted_policies: member_to_update.has_accepted_policies,
                     email_notifications: member_to_update.email_notifications,
+                    language: member_to_update.language,
                 },
             )
             .await

@@ -1,0 +1,131 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "cancel": "Cancel",
+    "save": "Save",
+    "yes": "Yes",
+    "no": "No"
+  },
+  "status": {
+    "approved": "Approved",
+    "rejected": "Rejected",
+    "pending": "Pending",
+    "unpaid": "Unpaid",
+    "active": "Active",
+    "expired": "Expired"
+  },
+  "validation": {
+    "first_name_required": "First name is required",
+    "last_name_required": "Last name is required",
+    "application_text_required": "Application text is required",
+    "role_required": "Role is required",
+    "valid_until_required": "Valid until is required",
+    "policies_required": "You must accept the policies"
+  },
+  "errors": {
+    "profile_load_failed": "Could not load your profile.",
+    "no_roles": "No roles to apply to."
+  },
+  "home": {
+    "welcome": "Welcome, {{name}}",
+    "subtitle": "Here's an overview of your membership status.",
+    "apply_button": "Apply for membership",
+    "applications": {
+      "title": "Your applications",
+      "description": "Track the status of your membership applications.",
+      "empty": "You haven't submitted any applications yet.",
+      "valid_until": "Valid until {{date}}",
+      "pay_fee": "Pay fee",
+      "withdraw": "Withdraw"
+    },
+    "roles": {
+      "title": "Active roles",
+      "description": "Your current membership roles.",
+      "empty": "You don't have any active roles yet.",
+      "no_expiry": "No expiry"
+    },
+    "profile": {
+      "title": "Profile"
+    }
+  },
+  "profile": {
+    "fields": {
+      "name": "Name",
+      "email": "Email",
+      "municipality": "Municipality",
+      "email_notifications": "Email notifications",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "first_name": "First name",
+      "last_name": "Last name",
+      "home_municipality": "Home municipality",
+      "language": "Language"
+    },
+    "edit_button": "Edit",
+    "account_settings": "Account settings",
+    "edit": {
+      "title": "Edit profile",
+      "save_button": "Save changes",
+      "saving": "Saving..."
+    },
+    "municipality_description": "Select the municipality where you mainly live. If you mainly live outside of Finland, select your country.",
+    "notifications_description": "Receive email notifications about application status changes."
+  },
+  "application": {
+    "form": {
+      "title": "Application form",
+      "instructions": "Confirm that the information above is correct before submitting the application. If not, please update your information in the profile page.",
+      "membership_type_label": "Membership type",
+      "role_placeholder": "Select role",
+      "valid_until_text": "(Valid until {{date}})",
+      "application_text_label": "Application text",
+      "application_text_placeholder": "Short application text",
+      "membership_tooltip": "Select the membership type you want to apply for. If you have already applied for a role, you can't apply for it again until the current application is processed.",
+      "proceed_payment": "Proceed to payment",
+      "submit": "Submit application"
+    }
+  },
+  "success": {
+    "title": "Application submitted",
+    "message": "Your application has been received and is now being reviewed. You will be notified by email once a decision has been made.",
+    "go_home": "Go to home page",
+    "submit_another": "Submit another application"
+  },
+  "signup": {
+    "form": {
+      "title": "Signup form"
+    },
+    "fields": {
+      "first_name": "First name",
+      "last_name": "Last name",
+      "home_municipality": "Home municipality"
+    },
+    "municipality_description": "Select the municipality where you mainly live. If you mainly live outside of Finland, select your country.",
+    "policies_checkbox": "I have read and accept the policies",
+    "submit": "Submit"
+  },
+  "applications": {
+    "existing": {
+      "title": "Existing applications",
+      "tooltip": "This section shows the applications you have submitted for role memberships. If you want to delete an application, please contact mediakeisari@prodeko.org.",
+      "role_validity": "{{role_name}} - Role valid until: {{date}}",
+      "status_label": "Status:",
+      "pay_fee": "Pay the fee"
+    }
+  },
+  "dialogs": {
+    "cancel": "Cancel",
+    "withdraw": {
+      "title": "Withdraw application",
+      "description": "Are you sure you want to withdraw this application? This action cannot be undone.",
+      "confirm": "Withdraw"
+    }
+  },
+  "member": {
+    "accepted_policies": "Accepted policies"
+  },
+  "language": {
+    "fi": "Suomi",
+    "en": "English"
+  }
+}

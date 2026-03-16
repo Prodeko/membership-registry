@@ -253,6 +253,11 @@ impl ApplicationService {
             .await
             .ok();
 
+        let locale = member
+            .as_ref()
+            .and_then(|m| m.language.as_deref())
+            .unwrap_or("fi");
+
         self.notification_service
             .send_notification(
                 template_name.as_deref(),
@@ -262,6 +267,7 @@ impl ApplicationService {
                     .and_then(|m| m.full_name.as_deref())
                     .unwrap_or_default(),
                 &application.role_name,
+                locale,
             )
             .await;
     }

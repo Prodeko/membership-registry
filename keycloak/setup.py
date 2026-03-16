@@ -36,7 +36,10 @@ def main() -> None:
     configure_realm_roles(kc)
     configure_auth_client(kc)
     configure_m2m_client(kc)
-    configure_test_users(kc)
+    if os.environ.get("KC_SKIP_TEST_USERS", "").lower() != "true":
+        configure_test_users(kc)
+    else:
+        print("Skipping test users (KC_SKIP_TEST_USERS=true).")
 
     print("Configuring authentication flows...")
     configure_passkeys(kc)

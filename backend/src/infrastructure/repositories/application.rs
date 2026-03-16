@@ -74,6 +74,7 @@ struct ApplicationWithMemberDAO {
     user_id: Uuid,
     full_name: Option<String>,
     email: Option<String>,
+    language: Option<String>,
     role_name: String,
     valid_until: chrono::NaiveDate,
     timestamp: chrono::DateTime<chrono::Utc>,
@@ -90,6 +91,7 @@ impl From<ApplicationWithMemberDAO> for PortWithMember {
             user_id: row.user_id,
             full_name: row.full_name,
             email: row.email,
+            language: row.language,
             role_name: row.role_name,
             valid_until: row.valid_until,
             created_at: row.timestamp,
@@ -236,7 +238,7 @@ impl ApplicationQueryPort for ApplicationRepo {
         let row = sqlx::query_as!(
             ApplicationWithMemberDAO,
             r#"
-            SELECT a.application_id, a.user_id, m.full_name, m.email, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO"
+            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO"
             FROM Application a
             JOIN Member m ON a.user_id = m.user_id
             WHERE a.application_id = $1
@@ -258,7 +260,7 @@ impl ApplicationQueryPort for ApplicationRepo {
         let rows = sqlx::query_as!(
             ApplicationWithMemberDAO,
             r#"
-            SELECT a.application_id, a.user_id, m.full_name, m.email, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO"
+            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO"
             FROM Application a
             JOIN Member m ON a.user_id = m.user_id
             WHERE ($1::application_status IS NULL OR a.status = $1)

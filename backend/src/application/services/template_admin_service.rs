@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::application::ports::repository_error::RepositoryError;
 use crate::application::ports::template_repository_port::TemplateRepositoryPort;
-use crate::domain::EmailTemplate;
+use crate::domain::{EmailTemplate, EmailTemplateTranslation};
 
 use super::audit_log_service::AuditLogService;
 
@@ -60,20 +60,12 @@ impl TemplateAdminService {
         self.repo.fetch_all().await.map_err(Into::into)
     }
 
-    pub async fn get_template(&self, name: &str) -> TemplateAdminResult<EmailTemplate> {
-        self.repo.fetch_one(name).await.map_err(Into::into)
-    }
-
     pub async fn create_template(
         &self,
         name: &str,
-        subject: &str,
-        body_html: &str,
         actor_user_id: Option<Uuid>,
     ) -> TemplateAdminResult<EmailTemplate> {
-        Self::validate_placeholders(subject)?;
-        let sanitized_body = Self::sanitize_body(body_html)?;
-        let template = self.repo.create(name, subject, &sanitized_body).await?;
+        let template = self.repo.create(name).await?;
 
         self.audit_log
             .log(
@@ -81,31 +73,7 @@ impl TemplateAdminService {
                 "template.create",
                 "template",
                 name,
-                Some(serde_json::json!({ "subject": subject })),
-            )
-            .await;
-
-        Ok(template)
-    }
-
-    pub async fn update_template(
-        &self,
-        name: &str,
-        subject: &str,
-        body_html: &str,
-        actor_user_id: Option<Uuid>,
-    ) -> TemplateAdminResult<EmailTemplate> {
-        Self::validate_placeholders(subject)?;
-        let sanitized_body = Self::sanitize_body(body_html)?;
-        let template = self.repo.update(name, subject, &sanitized_body).await?;
-
-        self.audit_log
-            .log(
-                actor_user_id,
-                "template.update",
-                "template",
-                name,
-                Some(serde_json::json!({ "subject": subject })),
+                None,
             )
             .await;
 
@@ -121,6 +89,65 @@ impl TemplateAdminService {
 
         self.audit_log
             .log(actor_user_id, "template.delete", "template", name, None)
+            .await;
+
+        Ok(())
+    }
+
+    pub async fn get_translations(
+        &self,
+        name: &str,
+    ) -> TemplateAdminResult<Vec<EmailTemplateTranslation>> {
+        self.repo.fetch_translations(name).await.map_err(Into::into)
+    }
+
+    pub async fn upsert_translation(
+        &self,
+        template_name: &str,
+        locale: &str,
+        subject: &str,
+        body_html: &str,
+        actor_user_id: Option<Uuid>,
+    ) -> TemplateAdminResult<EmailTemplateTranslation> {
+        Self::validate_placeholders(subject)?;
+        let sanitized_body = Self::sanitize_body(body_html)?;
+
+        let translation = self
+            .repo
+            .upsert_translation(template_name, locale, subject, &sanitized_body)
+            .await?;
+
+        self.audit_log
+            .log(
+                actor_user_id,
+                "template.upsert_translation",
+                "template",
+                template_name,
+                Some(serde_json::json!({ "locale": locale, "subject": subject })),
+            )
+            .await;
+
+        Ok(translation)
+    }
+
+    pub async fn delete_translation(
+        &self,
+        template_name: &str,
+        locale: &str,
+        actor_user_id: Option<Uuid>,
+    ) -> TemplateAdminResult<()> {
+        self.repo
+            .delete_translation(template_name, locale)
+            .await?;
+
+        self.audit_log
+            .log(
+                actor_user_id,
+                "template.delete_translation",
+                "template",
+                template_name,
+                Some(serde_json::json!({ "locale": locale })),
+            )
             .await;
 
         Ok(())

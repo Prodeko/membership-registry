@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import json
+import os
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from admin import KeycloakAdmin
+
+
+def _env_json_list(key: str, default: list[str]) -> list[str]:
+    """Read a JSON array from env, falling back to default."""
+    raw = os.environ.get(key)
+    if raw:
+        result: list[str] = json.loads(raw)
+        return result
+    return default
 
 
 def _find_client_id(kc: KeycloakAdmin, client_id: str) -> str | None:
@@ -27,17 +38,17 @@ def configure_auth_client(kc: KeycloakAdmin) -> None:
         "clientId": client_id_str,
         "enabled": True,
         "publicClient": False,
-        "secret": "dev-secret-membership-registry",
-        "redirectUris": [
+        "secret": os.environ.get("KC_AUTH_CLIENT_SECRET", "dev-secret-membership-registry"),
+        "redirectUris": _env_json_list("KC_AUTH_REDIRECT_URIS", [
             "http://127.0.0.1:5173/*",
             "http://localhost:5173/*",
             "http://127.0.0.1:8080/*",
             "http://localhost:8080/*",
-        ],
-        "webOrigins": [
+        ]),
+        "webOrigins": _env_json_list("KC_AUTH_WEB_ORIGINS", [
             "http://127.0.0.1:5173",
             "http://localhost:5173",
-        ],
+        ]),
         "standardFlowEnabled": True,
         "directAccessGrantsEnabled": True,
         "protocol": "openid-connect",
@@ -76,6 +87,19 @@ def configure_auth_client(kc: KeycloakAdmin) -> None:
                 "config": {
                     "claim.name": "family_name",
                     "user.attribute": "lastName",
+                    "id.token.claim": "true",
+                    "access.token.claim": "true",
+                    "userinfo.token.claim": "true",
+                    "jsonType.label": "String",
+                },
+            },
+            {
+                "name": "locale",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-usermodel-attribute-mapper",
+                "config": {
+                    "claim.name": "locale",
+                    "user.attribute": "locale",
                     "id.token.claim": "true",
                     "access.token.claim": "true",
                     "userinfo.token.claim": "true",
@@ -136,7 +160,7 @@ def configure_m2m_client(kc: KeycloakAdmin) -> None:
         "clientId": client_id_str,
         "enabled": True,
         "publicClient": False,
-        "secret": "dev-secret-membership-registry-m2m",
+        "secret": os.environ.get("KC_M2M_CLIENT_SECRET", "dev-secret-membership-registry-m2m"),
         "serviceAccountsEnabled": True,
         "standardFlowEnabled": False,
         "directAccessGrantsEnabled": False,

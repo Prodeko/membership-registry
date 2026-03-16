@@ -15,4 +15,9 @@ pub enum UserAdminError {
 #[async_trait::async_trait]
 pub trait UserAdminPort: Send + Sync {
     async fn get_user(&self, subject: &str) -> Result<IdpUser, UserAdminError>;
+    async fn update_user_locale(
+        &self,
+        subject: &str,
+        locale: &str,
+    ) -> Result<(), UserAdminError>;
 }

@@ -11,6 +11,7 @@ export type {
   CreateApplicationResponse,
   CreateEmailTemplate,
   EmailTemplate,
+  EmailTemplateTranslation,
   Member,
   MemberWithRoles,
   NewMember,
@@ -21,7 +22,6 @@ export type {
   RoleMember,
   RoleStats,
   SavedFilter,
-  UpdateEmailTemplate,
   UpdateMember,
 } from "./generated";
 

@@ -27,8 +27,8 @@ use crate::application::ports::{
     user_admin_port::{IdpUser, UserAdminError, UserAdminPort},
 };
 use crate::domain::{
-    Application, ApplicationId, ApplicationStatus, EmailTemplate, NewApplication, NewPerson,
-    Person, Role, RoleName, UpdatePersonData,
+    Application, ApplicationId, ApplicationStatus, EmailTemplate, EmailTemplateTranslation,
+    NewApplication, NewPerson, Person, Role, RoleName, UpdatePersonData,
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
@@ -177,10 +177,12 @@ mock! {
     #[async_trait::async_trait]
     impl TemplateRepositoryPort for TemplateRepositoryPort {
         async fn fetch_all(&self) -> Result<Vec<EmailTemplate>, RepositoryError>;
-        async fn fetch_one(&self, name: &str) -> Result<EmailTemplate, RepositoryError>;
-        async fn create(&self, name: &str, subject: &str, body_html: &str) -> Result<EmailTemplate, RepositoryError>;
-        async fn update(&self, name: &str, subject: &str, body_html: &str) -> Result<EmailTemplate, RepositoryError>;
+        async fn create(&self, name: &str) -> Result<EmailTemplate, RepositoryError>;
         async fn delete(&self, name: &str) -> Result<(), RepositoryError>;
+        async fn fetch_translation(&self, name: &str, locale: &str) -> Result<EmailTemplateTranslation, RepositoryError>;
+        async fn fetch_translations(&self, name: &str) -> Result<Vec<EmailTemplateTranslation>, RepositoryError>;
+        async fn upsert_translation(&self, template_name: &str, locale: &str, subject: &str, body_html: &str) -> Result<EmailTemplateTranslation, RepositoryError>;
+        async fn delete_translation(&self, template_name: &str, locale: &str) -> Result<(), RepositoryError>;
     }
 }
 
@@ -222,6 +224,7 @@ mock! {
     #[async_trait::async_trait]
     impl UserAdminPort for UserAdminPort {
         async fn get_user(&self, subject: &str) -> Result<IdpUser, UserAdminError>;
+        async fn update_user_locale(&self, subject: &str, locale: &str) -> Result<(), UserAdminError>;
     }
 }
 

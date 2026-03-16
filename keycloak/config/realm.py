@@ -30,6 +30,9 @@ def configure_realm(kc: KeycloakAdmin) -> None:
         "accessTokenLifespan": 1800,
         "ssoSessionIdleTimeout": 1800,
         "ssoSessionMaxLifespan": 36000,
+        "internationalizationEnabled": True,
+        "supportedLocales": ["fi", "en"],
+        "defaultLocale": "fi",
     }
 
     if sendgrid_api_key:
