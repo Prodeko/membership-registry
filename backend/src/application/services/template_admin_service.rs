@@ -4,6 +4,7 @@ use regex::Regex;
 use serde_json;
 use uuid::Uuid;
 
+use crate::application::ports::html_sanitizer_port::HtmlSanitizerPort;
 use crate::application::ports::repository_error::RepositoryError;
 use crate::application::ports::template_repository_port::TemplateRepositoryPort;
 use crate::domain::{EmailTemplate, EmailTemplateTranslation};
@@ -32,12 +33,21 @@ pub type TemplateAdminResult<T> = Result<T, TemplateAdminError>;
 #[derive(Clone)]
 pub struct TemplateAdminService {
     repo: Arc<dyn TemplateRepositoryPort>,
+    sanitizer: Arc<dyn HtmlSanitizerPort>,
     audit_log: AuditLogService,
 }
 
 impl TemplateAdminService {
-    pub fn new(repo: Arc<dyn TemplateRepositoryPort>, audit_log: AuditLogService) -> Self {
-        Self { repo, audit_log }
+    pub fn new(
+        repo: Arc<dyn TemplateRepositoryPort>,
+        sanitizer: Arc<dyn HtmlSanitizerPort>,
+        audit_log: AuditLogService,
+    ) -> Self {
+        Self {
+            repo,
+            sanitizer,
+            audit_log,
+        }
     }
 
     fn validate_placeholders(text: &str) -> TemplateAdminResult<()> {
@@ -51,9 +61,9 @@ impl TemplateAdminService {
         Ok(())
     }
 
-    fn sanitize_body(body_html: &str) -> TemplateAdminResult<String> {
+    fn sanitize_body(&self, body_html: &str) -> TemplateAdminResult<String> {
         Self::validate_placeholders(body_html)?;
-        Ok(ammonia::clean(body_html))
+        Ok(self.sanitizer.sanitize(body_html))
     }
 
     pub async fn get_all_templates(&self) -> TemplateAdminResult<Vec<EmailTemplate>> {
@@ -110,7 +120,7 @@ impl TemplateAdminService {
         actor_user_id: Option<Uuid>,
     ) -> TemplateAdminResult<EmailTemplateTranslation> {
         Self::validate_placeholders(subject)?;
-        let sanitized_body = Self::sanitize_body(body_html)?;
+        let sanitized_body = self.sanitize_body(body_html)?;
 
         let translation = self
             .repo

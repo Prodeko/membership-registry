@@ -4,11 +4,12 @@ use crate::application::services::template_admin_service::{
     TemplateAdminError, TemplateAdminService,
 };
 use crate::domain::{EmailTemplate, EmailTemplateTranslation};
+use crate::infrastructure::adapters::ammonia_sanitizer::AmmoniaSanitizer;
 
 use super::mocks::*;
 
 fn build_service(repo: MockTemplateRepositoryPort) -> TemplateAdminService {
-    TemplateAdminService::new(Arc::new(repo), noop_audit_log())
+    TemplateAdminService::new(Arc::new(repo), Arc::new(AmmoniaSanitizer), noop_audit_log())
 }
 
 // --- create_template ---

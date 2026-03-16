@@ -49,6 +49,7 @@ use infrastructure::{
             KeycloakUserAdminAdapter,
         },
         sendgrid::{SendGridConfig, SendGridEmailAdapter},
+        ammonia_sanitizer::AmmoniaSanitizer,
         csv_adapter::CsvAdapter,
         stripe::StripeWebhookAdapter,
         template::renderer::SimpleTemplateRenderer,
@@ -124,7 +125,7 @@ impl Services {
         let renderer: Arc<dyn TemplateRendererPort> = Arc::new(SimpleTemplateRenderer);
 
         let template_admin_service =
-            TemplateAdminService::new(Arc::clone(&template_repo), audit_log_service.clone());
+            TemplateAdminService::new(Arc::clone(&template_repo), Arc::new(AmmoniaSanitizer), audit_log_service.clone());
         let notification_service =
             NotificationService::new(email_port, Arc::clone(&template_repo), renderer);
 
