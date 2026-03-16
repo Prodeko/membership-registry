@@ -61,14 +61,15 @@ async fn get_members(
     State(state): State<AppState>,
     Query(query): Query<MembersQueryDTO>,
 ) -> ApiResult<Json<Vec<MemberDTO>>> {
-    let user_ids = query.user_ids.clone().and_then(|s| {
-        s.split(',')
-            .map(|uuid| {
-                Uuid::parse_str(uuid).map_err(|_| (StatusCode::BAD_REQUEST, "Invalid UUID"))
-            })
-            .collect::<Result<Vec<Uuid>, _>>()
-            .ok()
-    });
+    let user_ids = query
+        .user_ids
+        .clone()
+        .map(|s| {
+            s.split(',')
+                .map(|uuid| Uuid::parse_str(uuid).map_err(|_| ApiError::BadRequest))
+                .collect::<Result<Vec<Uuid>, _>>()
+        })
+        .transpose()?;
 
     tracing::debug!("User ids: {:?}", user_ids);
     tracing::debug!("user ids query: {:?}", query.user_ids.clone());
