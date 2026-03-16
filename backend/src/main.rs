@@ -33,9 +33,10 @@ use application::{
     },
     services::{
         application_service::ApplicationService, audit_log_service::AuditLogService,
-        authentication_service::AuthenticationService, member_service::MemberService,
-        notification_service::NotificationService, role_service::RoleService,
-        saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
+        authentication_service::AuthenticationService, export_service::ExportService,
+        member_service::MemberService, notification_service::NotificationService,
+        role_service::RoleService, saved_filter::SavedFilterService,
+        template_admin_service::TemplateAdminService,
     },
 };
 use config::Config;
@@ -48,6 +49,7 @@ use infrastructure::{
             KeycloakUserAdminAdapter,
         },
         sendgrid::{SendGridConfig, SendGridEmailAdapter},
+        csv_adapter::CsvAdapter,
         stripe::StripeWebhookAdapter,
         template::renderer::SimpleTemplateRenderer,
     },
@@ -65,6 +67,7 @@ pub struct Services {
     pub template_admin_service: TemplateAdminService,
     pub notification_service: NotificationService,
     pub payment_webhook: StripeWebhookAdapter,
+    pub export_service: ExportService,
 }
 
 impl Services {
@@ -157,6 +160,7 @@ impl Services {
         let saved_filter_service = SavedFilterService::new(saved_filter_repo);
 
         let payment_webhook = StripeWebhookAdapter::new(config.stripe_endpoint_secret.clone());
+        let export_service = ExportService::new(Arc::new(CsvAdapter));
 
         Self {
             member_service,
@@ -168,6 +172,7 @@ impl Services {
             template_admin_service,
             notification_service,
             payment_webhook,
+            export_service,
         }
     }
 }

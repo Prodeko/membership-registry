@@ -24,7 +24,6 @@ use crate::{
         },
     },
     config::Config,
-    infrastructure::adapters::csv_adapter::CsvAdapter,
     Services,
 };
 
@@ -90,7 +89,7 @@ pub async fn serve(config: Config, services: Services) {
         template_admin_service: Arc::new(services.template_admin_service),
         notification_service: Arc::new(services.notification_service),
         payment_webhook: Arc::new(services.payment_webhook),
-        export_service: Arc::new(ExportService::new(Arc::new(CsvAdapter))),
+        export_service: Arc::new(services.export_service),
         oauth2_client,
     };
 
