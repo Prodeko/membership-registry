@@ -94,7 +94,9 @@ const ApplicationForm = () => {
   if (!currentMember) {
     return (
       <main className="flex justify-center min-h-screen w-screen px-4 py-20">
-        <p className="text-muted-foreground">{t("errors.profile_load_failed")}</p>
+        <p className="text-muted-foreground">
+          {t("errors.profile_load_failed")}
+        </p>
       </main>
     );
   }
@@ -105,9 +107,7 @@ const ApplicationForm = () => {
         <h1 className="text-4xl">{t("application.form.title")}</h1>
         <Separator />
         <RenderMemberData member={currentMember} variant="enduser" />
-        <div>
-          {t("application.form.instructions")}
-        </div>
+        <div>{t("application.form.instructions")}</div>
         <UserApplications />
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -143,7 +143,9 @@ const ApplicationForm = () => {
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder={t("application.form.role_placeholder")} />
+                        <SelectValue
+                          placeholder={t("application.form.role_placeholder")}
+                        />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -163,7 +165,9 @@ const ApplicationForm = () => {
                             {kebabCaseToTitleCase(role.role_name)}{" "}
                             <span>
                               {t("application.form.valid_until_text", {
-                                date: new Date(role.valid_until).toLocaleDateString(),
+                                date: new Date(
+                                  role.valid_until,
+                                ).toLocaleDateString(),
                               })}
                             </span>
                           </SelectItem>
@@ -180,16 +184,25 @@ const ApplicationForm = () => {
               name="application_text"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t("application.form.application_text_label")}</FormLabel>
+                  <FormLabel>
+                    {t("application.form.application_text_label")}
+                  </FormLabel>
                   <FormControl>
-                    <Textarea placeholder={t("application.form.application_text_placeholder")} {...field} />
+                    <Textarea
+                      placeholder={t(
+                        "application.form.application_text_placeholder",
+                      )}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
             <Button type="submit">
-              {paymentLink ? t("application.form.proceed_payment") : t("application.form.submit")}
+              {paymentLink
+                ? t("application.form.proceed_payment")
+                : t("application.form.submit")}
             </Button>
           </form>
         </Form>

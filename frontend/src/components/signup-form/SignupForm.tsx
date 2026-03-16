@@ -109,9 +109,7 @@ const SignupForm = () => {
               name="has_accepted_policies"
               render={({ field }) => (
                 <FormItem className="flex flex-row items-start space-x-3 space-y-0 ">
-                  <FormLabel>
-                    {t("signup.policies_checkbox")}
-                  </FormLabel>
+                  <FormLabel>{t("signup.policies_checkbox")}</FormLabel>
                   <FormControl>
                     <Checkbox
                       checked={field.value}

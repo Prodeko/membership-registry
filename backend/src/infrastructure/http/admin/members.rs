@@ -13,8 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     application::{
-        ports::data_export_port::ExportedData,
-        services::authentication_service::AuthenticatedUser,
+        ports::data_export_port::ExportedData, services::authentication_service::AuthenticatedUser,
     },
     domain::UpdatePersonData,
     infrastructure::http::{

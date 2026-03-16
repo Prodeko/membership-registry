@@ -560,7 +560,10 @@ impl KeycloakClient {
 
     pub async fn list_user_realm_roles(&self, subject: &str) -> Result<Vec<String>, KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("users/{}/role-mappings/realm", encode_path(subject)));
+        let url = self.admin_url(&format!(
+            "users/{}/role-mappings/realm",
+            encode_path(subject)
+        ));
 
         let response = self
             .http
@@ -653,7 +656,10 @@ impl KeycloakClient {
         roles: &[RealmRoleDTO],
     ) -> Result<(), KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("users/{}/role-mappings/realm", encode_path(subject)));
+        let url = self.admin_url(&format!(
+            "users/{}/role-mappings/realm",
+            encode_path(subject)
+        ));
 
         let response = self
             .http
@@ -689,7 +695,10 @@ impl KeycloakClient {
         roles: &[RealmRoleDTO],
     ) -> Result<(), KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("users/{}/role-mappings/realm", encode_path(subject)));
+        let url = self.admin_url(&format!(
+            "users/{}/role-mappings/realm",
+            encode_path(subject)
+        ));
 
         let response = self
             .http

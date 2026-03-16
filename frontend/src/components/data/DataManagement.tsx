@@ -92,7 +92,9 @@ const DataManagement = () => {
         </div>
       )}
       {activeTab === "import" && (
-        <p className="text-muted-foreground">Import functionality coming soon.</p>
+        <p className="text-muted-foreground">
+          Import functionality coming soon.
+        </p>
       )}
     </div>
   );

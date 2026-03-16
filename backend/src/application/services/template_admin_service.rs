@@ -78,13 +78,7 @@ impl TemplateAdminService {
         let template = self.repo.create(name).await?;
 
         self.audit_log
-            .log(
-                actor_user_id,
-                "template.create",
-                "template",
-                name,
-                None,
-            )
+            .log(actor_user_id, "template.create", "template", name, None)
             .await;
 
         Ok(template)
@@ -146,9 +140,7 @@ impl TemplateAdminService {
         locale: &str,
         actor_user_id: Option<Uuid>,
     ) -> TemplateAdminResult<()> {
-        self.repo
-            .delete_translation(template_name, locale)
-            .await?;
+        self.repo.delete_translation(template_name, locale).await?;
 
         self.audit_log
             .log(

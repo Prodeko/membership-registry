@@ -18,10 +18,9 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .nest(
             "/auth",
-            auth::router(state.clone())
-                .layer(GovernorLayer {
-                    config: auth_rate_limit.into(),
-                }),
+            auth::router(state.clone()).layer(GovernorLayer {
+                config: auth_rate_limit.into(),
+            }),
         )
         .nest("/config", config::router())
         .nest("/stripe", stripe::router(state.clone()))

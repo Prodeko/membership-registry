@@ -49,9 +49,7 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
   const queryClient = useQueryClient();
 
   const dialogOpen = isEdit ? open : internalOpen;
-  const setDialogOpen = isEdit
-    ? (onOpenChange ?? (() => {}))
-    : setInternalOpen;
+  const setDialogOpen = isEdit ? (onOpenChange ?? (() => {})) : setInternalOpen;
 
   useEffect(() => {
     if (existingTranslations) {

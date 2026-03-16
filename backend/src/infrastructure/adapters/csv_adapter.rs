@@ -44,7 +44,9 @@ mod tests {
             ],
         };
 
-        let result = adapter.serialize(&data).expect("serialization should succeed");
+        let result = adapter
+            .serialize(&data)
+            .expect("serialization should succeed");
         let output = String::from_utf8(result).expect("valid utf-8");
 
         assert_eq!(output, "name,age\nAlice,30\nBob,25\n");
@@ -58,7 +60,9 @@ mod tests {
             rows: vec![],
         };
 
-        let result = adapter.serialize(&data).expect("serialization should succeed");
+        let result = adapter
+            .serialize(&data)
+            .expect("serialization should succeed");
         let output = String::from_utf8(result).expect("valid utf-8");
 
         assert_eq!(output, "col1,col2\n");
@@ -69,10 +73,15 @@ mod tests {
         let adapter = CsvAdapter;
         let data = TabularData {
             headers: vec!["field".into()],
-            rows: vec![vec!["value with, comma".into()], vec!["value with \"quotes\"".into()]],
+            rows: vec![
+                vec!["value with, comma".into()],
+                vec!["value with \"quotes\"".into()],
+            ],
         };
 
-        let result = adapter.serialize(&data).expect("serialization should succeed");
+        let result = adapter
+            .serialize(&data)
+            .expect("serialization should succeed");
         let output = String::from_utf8(result).expect("valid utf-8");
 
         assert!(output.contains("\"value with, comma\""));

@@ -66,7 +66,9 @@ const UserHome = () => {
   if (!member) {
     return (
       <main className="flex justify-center min-h-screen w-screen px-4 py-20">
-        <p className="text-muted-foreground">{t("errors.profile_load_failed")}</p>
+        <p className="text-muted-foreground">
+          {t("errors.profile_load_failed")}
+        </p>
       </main>
     );
   }
@@ -79,9 +81,7 @@ const UserHome = () => {
             <h1 className="text-3xl font-bold">
               {t("home.welcome", { name: member.first_name })}
             </h1>
-            <p className="text-muted-foreground mt-1">
-              {t("home.subtitle")}
-            </p>
+            <p className="text-muted-foreground mt-1">{t("home.subtitle")}</p>
           </div>
           <LanguageSwitcher />
         </div>
@@ -119,7 +119,9 @@ const UserHome = () => {
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
                             <Clock className="h-3 w-3" />
                             {t("home.applications.valid_until", {
-                              date: new Date(app.valid_until).toLocaleDateString(),
+                              date: new Date(
+                                app.valid_until,
+                              ).toLocaleDateString(),
                             })}
                           </p>
                         </div>
@@ -163,9 +165,7 @@ const UserHome = () => {
               <Shield className="h-5 w-5" />
               {t("home.roles.title")}
             </CardTitle>
-            <CardDescription>
-              {t("home.roles.description")}
-            </CardDescription>
+            <CardDescription>{t("home.roles.description")}</CardDescription>
           </CardHeader>
           <CardContent>
             {!roles || roles.length === 0 ? (
@@ -212,7 +212,9 @@ const UserHome = () => {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">{t("home.profile.title")}</CardTitle>
+              <CardTitle className="text-lg">
+                {t("home.profile.title")}
+              </CardTitle>
               <Button variant="ghost" size="sm" asChild>
                 <Link to="/profile/edit">
                   <Pencil className="h-4 w-4 mr-1" />
@@ -223,11 +225,17 @@ const UserHome = () => {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-              <span className="text-muted-foreground">{t("profile.fields.name")}</span>
+              <span className="text-muted-foreground">
+                {t("profile.fields.name")}
+              </span>
               <span>{member.full_name}</span>
-              <span className="text-muted-foreground">{t("profile.fields.email")}</span>
+              <span className="text-muted-foreground">
+                {t("profile.fields.email")}
+              </span>
               <span>{member.email}</span>
-              <span className="text-muted-foreground">{t("profile.fields.municipality")}</span>
+              <span className="text-muted-foreground">
+                {t("profile.fields.municipality")}
+              </span>
               <span>{member.home_municipality}</span>
               <span className="text-muted-foreground">
                 {t("profile.fields.email_notifications")}

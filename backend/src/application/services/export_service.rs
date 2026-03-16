@@ -150,9 +150,7 @@ impl Exportable for RoleStats {
             self.name.0.clone(),
             self.color.clone().unwrap_or_default(),
             self.description.clone().unwrap_or_default(),
-            self.member_count
-                .map(|c| c.to_string())
-                .unwrap_or_default(),
+            self.member_count.map(|c| c.to_string()).unwrap_or_default(),
             self.active_member_count
                 .map(|c| c.to_string())
                 .unwrap_or_default(),

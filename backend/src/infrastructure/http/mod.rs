@@ -93,7 +93,11 @@ pub async fn serve(config: Config, services: Services) {
         oauth2_client,
     };
 
-    let frontend_origin: HeaderValue = state.config.frontend_url.parse().expect("Invalid FRONTEND_URL for CORS origin");
+    let frontend_origin: HeaderValue = state
+        .config
+        .frontend_url
+        .parse()
+        .expect("Invalid FRONTEND_URL for CORS origin");
     let cors = CorsLayer::new()
         .allow_origin(frontend_origin)
         .allow_methods([Method::GET, Method::POST, Method::DELETE, Method::PUT])

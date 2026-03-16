@@ -47,7 +47,13 @@ async fn upsert_translation_valid_placeholders() {
 
     let svc = build_service(repo);
     let result = svc
-        .upsert_translation("welcome", "fi", "{name} got {role_name}", "<p>{name}</p>", None)
+        .upsert_translation(
+            "welcome",
+            "fi",
+            "{name} got {role_name}",
+            "<p>{name}</p>",
+            None,
+        )
         .await;
 
     assert!(result.is_ok());

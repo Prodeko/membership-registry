@@ -50,7 +50,8 @@ const ProfileEdit = () => {
       ? {
           first_name: member.first_name,
           last_name: member.last_name,
-          home_municipality: member.home_municipality as ProfileFormValues["home_municipality"],
+          home_municipality:
+            member.home_municipality as ProfileFormValues["home_municipality"],
           email_notifications: member.email_notifications,
           language: (member.language as "fi" | "en") || "fi",
         }
@@ -175,7 +176,9 @@ const ProfileEdit = () => {
             />
             <div className="flex gap-2">
               <Button type="submit" disabled={isPending}>
-                {isPending ? t("profile.edit.saving") : t("profile.edit.save_button")}
+                {isPending
+                  ? t("profile.edit.saving")
+                  : t("profile.edit.save_button")}
               </Button>
               <Button
                 type="button"

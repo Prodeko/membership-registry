@@ -24,9 +24,7 @@ const Success = () => {
         </CardHeader>
         <Separator className="mx-6" />
         <CardContent className="pt-6 text-center space-y-2">
-          <p className="text-muted-foreground">
-            {t("success.message")}
-          </p>
+          <p className="text-muted-foreground">{t("success.message")}</p>
         </CardContent>
         <CardFooter className="flex flex-col gap-2">
           <Button asChild className="w-full">

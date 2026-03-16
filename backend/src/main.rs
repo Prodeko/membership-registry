@@ -44,13 +44,13 @@ use domain::RoleName;
 use helpers::create_pg_pool;
 use infrastructure::{
     adapters::{
+        ammonia_sanitizer::AmmoniaSanitizer,
+        csv_adapter::CsvAdapter,
         keycloak::{
             KeycloakAuthAdapter, KeycloakClient, KeycloakConfig, KeycloakRoleSyncAdapter,
             KeycloakUserAdminAdapter,
         },
         sendgrid::{SendGridConfig, SendGridEmailAdapter},
-        ammonia_sanitizer::AmmoniaSanitizer,
-        csv_adapter::CsvAdapter,
         stripe::StripeWebhookAdapter,
         template::renderer::SimpleTemplateRenderer,
     },
@@ -124,8 +124,11 @@ impl Services {
         let template_repo: Arc<dyn TemplateRepositoryPort> = Arc::new(repo.email_template);
         let renderer: Arc<dyn TemplateRendererPort> = Arc::new(SimpleTemplateRenderer);
 
-        let template_admin_service =
-            TemplateAdminService::new(Arc::clone(&template_repo), Arc::new(AmmoniaSanitizer), audit_log_service.clone());
+        let template_admin_service = TemplateAdminService::new(
+            Arc::clone(&template_repo),
+            Arc::new(AmmoniaSanitizer),
+            audit_log_service.clone(),
+        );
         let notification_service =
             NotificationService::new(email_port, Arc::clone(&template_repo), renderer);
 

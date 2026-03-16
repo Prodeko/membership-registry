@@ -40,7 +40,11 @@ impl NotificationService {
             return;
         };
 
-        let translation = match self.template_repo.fetch_translation(template_name, locale).await {
+        let translation = match self
+            .template_repo
+            .fetch_translation(template_name, locale)
+            .await
+        {
             Ok(t) => t,
             Err(e) => {
                 tracing::error!("Email template '{template_name}' configured but not found: {e:?}");

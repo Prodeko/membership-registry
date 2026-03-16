@@ -171,11 +171,9 @@ export function useExportAuditLogs() {
 export function useExportRoles() {
   return useMutation({
     mutationFn: async () => {
-      const response = await admin_axios_client.post(
-        "/roles/export",
-        null,
-        { responseType: "blob" },
-      );
+      const response = await admin_axios_client.post("/roles/export", null, {
+        responseType: "blob",
+      });
       return downloadCsv(
         response.data,
         `roles_${new Date().toISOString()}.csv`,
@@ -605,9 +603,9 @@ export const useGetEmailTemplateTranslations = (name: string) => {
   return useQuery<EmailTemplateTranslation[]>({
     queryKey: [QueryKey.EMAIL_TEMPLATES, name, "translations"],
     queryFn: async () => {
-      const response = await admin_axios_client.get<
-        EmailTemplateTranslation[]
-      >(`/email-templates/${encodeURIComponent(name)}/translations`);
+      const response = await admin_axios_client.get<EmailTemplateTranslation[]>(
+        `/email-templates/${encodeURIComponent(name)}/translations`,
+      );
       return response.data;
     },
     enabled: !!name,
@@ -672,8 +670,7 @@ export const useGetPublicConfig = () => {
   return useQuery<PublicConfig>({
     queryKey: [QueryKey.PUBLIC_CONFIG],
     queryFn: async () => {
-      const response =
-        await axios_client.get<PublicConfig>("/config");
+      const response = await axios_client.get<PublicConfig>("/config");
       return response.data;
     },
     staleTime: Infinity,
