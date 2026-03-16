@@ -129,7 +129,12 @@ pub async fn serve(config: Config, services: Services) {
         .unwrap();
 
     tracing::info!("Listening on port {}", port);
-    axum::serve(listener, app).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 fn router(state: AppState) -> Router<AppState> {

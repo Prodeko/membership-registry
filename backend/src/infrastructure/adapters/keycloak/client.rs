@@ -74,6 +74,7 @@ pub struct KeycloakClaimsDTO {
     pub email: Option<String>,
     pub given_name: Option<String>,
     pub family_name: Option<String>,
+    pub azp: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -238,7 +239,8 @@ impl KeycloakClient {
         let mut validation = Validation::new(header.alg);
         let issuer = format!("{}/realms/{}", self.cfg.base_url, self.cfg.realm);
         validation.set_issuer(&[&issuer]);
-        validation.set_audience(&[&self.cfg.client_id]);
+        // Keycloak sets aud="account", not the client_id. Validate azp instead.
+        validation.validate_aud = false;
 
         let token_data =
             decode::<KeycloakClaimsDTO>(token, &decoding_key, &validation).map_err(|e| {
@@ -249,6 +251,16 @@ impl KeycloakClient {
                 tracing::error!("JWT validation failed: {e:?}");
                 KeycloakError::Unauthorized
             })?;
+
+        // Validate authorized party (azp) matches our client
+        if token_data.claims.azp.as_deref() != Some(&self.cfg.client_id) {
+            tracing::error!(
+                "JWT azp mismatch: expected {}, got {:?}",
+                self.cfg.client_id,
+                token_data.claims.azp
+            );
+            return Err(KeycloakError::Unauthorized);
+        }
 
         Ok(token_data.claims)
     }
