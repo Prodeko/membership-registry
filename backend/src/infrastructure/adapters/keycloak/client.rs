@@ -94,7 +94,10 @@ impl KeycloakClient {
     pub fn new(cfg: KeycloakConfig) -> Self {
         Self {
             cfg,
-            http: Client::new(),
+            http: Client::builder()
+                .timeout(Duration::from_secs(30))
+                .build()
+                .unwrap_or_default(),
             jwks: Default::default(),
             service_token: Default::default(),
             role_id_cache: Cache::builder()

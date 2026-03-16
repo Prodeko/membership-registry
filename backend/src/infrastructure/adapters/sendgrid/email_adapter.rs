@@ -11,7 +11,10 @@ impl SendGridEmailAdapter {
     pub fn new(config: SendGridConfig) -> Self {
         Self {
             config,
-            http: reqwest::Client::new(),
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(30))
+                .build()
+                .unwrap_or_default(),
         }
     }
 }
