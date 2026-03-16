@@ -2,7 +2,7 @@ use axum::{
     extract::State,
     http::StatusCode,
     response::{IntoResponse, Redirect, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use axum_extra::extract::CookieJar;
@@ -24,7 +24,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/login", get(login))
         .route("/callback", get(callback))
-        .route("/logout", get(logout))
+        .route("/logout", post(logout))
         .with_state(state)
 }
 

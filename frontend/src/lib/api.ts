@@ -537,7 +537,7 @@ export const useLogout = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const response = await axios_client.get("/auth/logout");
+      const response = await axios_client.post("/auth/logout");
       return response.data;
     },
     onSuccess: () => {
