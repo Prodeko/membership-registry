@@ -40,7 +40,7 @@ const MunicipalitySelect = ({ field, form }: { field: any; form: any }) => {
         <Command>
           <CommandInput placeholder="Search region..." />
           <CommandEmpty>No region found.</CommandEmpty>
-          <CommandList>
+          <CommandList className="max-h-[300px] overflow-y-auto">
             {REGIONS.map((region) => (
               <CommandItem
                 asChild={false}

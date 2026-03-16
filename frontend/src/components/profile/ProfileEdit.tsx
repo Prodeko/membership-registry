@@ -25,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import MunicipalitySelect from "../signup-form/MunicipalitySelect";
+import MunicipalitySelect from "../ui/MunicipalitySelect";
 
 const ProfileEdit = () => {
   const { t } = useTranslation();
@@ -33,7 +33,7 @@ const ProfileEdit = () => {
   const formSchema = z.object({
     first_name: z.string().min(1, t("validation.first_name_required")),
     last_name: z.string().min(1, t("validation.last_name_required")),
-    home_municipality: z.enum([...FINNISH_MUNICIPALITIES, ...COUNTRIES]),
+    home_municipality: z.enum([...FINNISH_MUNICIPALITIES, ...COUNTRIES]).optional(),
     email_notifications: z.boolean(),
     language: z.enum(["fi", "en"]),
   });
@@ -51,7 +51,8 @@ const ProfileEdit = () => {
           first_name: member.first_name,
           last_name: member.last_name,
           home_municipality:
-            member.home_municipality as ProfileFormValues["home_municipality"],
+            (member.home_municipality as ProfileFormValues["home_municipality"]) ??
+            undefined,
           email_notifications: member.email_notifications,
           language: (member.language as "fi" | "en") || "fi",
         }
@@ -72,6 +73,7 @@ const ProfileEdit = () => {
         userId: member.user_id,
         data: {
           ...values,
+          home_municipality: values.home_municipality ?? null,
           has_accepted_policies: member.has_accepted_policies,
         },
       },

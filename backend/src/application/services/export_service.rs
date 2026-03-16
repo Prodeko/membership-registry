@@ -55,7 +55,7 @@ impl Exportable for MemberWithRoles {
             self.person.first_name.clone(),
             self.person.last_name.clone(),
             self.person.full_name.clone().unwrap_or_default(),
-            self.person.home_municipality.clone(),
+            self.person.home_municipality.clone().unwrap_or_default(),
             self.person.has_accepted_policies.to_string(),
             self.person.email_notifications.to_string(),
             self.person.email.as_str().to_string(),

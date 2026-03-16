@@ -1,0 +1,1 @@
+ALTER TABLE Member ALTER COLUMN home_municipality DROP NOT NULL;

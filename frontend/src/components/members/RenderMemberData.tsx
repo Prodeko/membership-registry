@@ -24,7 +24,7 @@ const RenderMemberData = ({
         <div>{t("profile.fields.email")}:</div>
         <div>{member.email}</div>
         <div>{t("profile.fields.home_municipality")}:</div>
-        <div>{member.home_municipality}</div>
+        <div>{member.home_municipality ?? "-"}</div>
         <div>{t("member.accepted_policies")}:</div>
         <div>
           {member.has_accepted_policies ? t("common.yes") : t("common.no")}

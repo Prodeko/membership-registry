@@ -37,6 +37,7 @@ pub enum AuthServiceError {
     TokenExpired,
     Unauthorized,
     IdpError,
+    MissingProfileData,
     DatabaseError(String),
     ProviderNotFound,
     CannotUnlinkLastProvider,
@@ -160,12 +161,25 @@ impl AuthenticationService {
             )
             .await;
 
+        let first_name = identity
+            .given_name
+            .filter(|s| !s.is_empty())
+            .ok_or(AuthServiceError::MissingProfileData)?;
+        let last_name = identity
+            .family_name
+            .filter(|s| !s.is_empty())
+            .ok_or(AuthServiceError::MissingProfileData)?;
+        let email = identity
+            .email
+            .filter(|s| !s.is_empty())
+            .ok_or(AuthServiceError::MissingProfileData)?;
+
         let user = AuthenticatedUser {
             user_id,
             access_token: access_token.clone(),
-            first_name: identity.given_name.unwrap_or_default(),
-            last_name: identity.family_name.unwrap_or_default(),
-            email: identity.email.unwrap_or_default(),
+            first_name,
+            last_name,
+            email,
             provider_name,
             provider_user_id,
         };

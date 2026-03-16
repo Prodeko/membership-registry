@@ -21,7 +21,6 @@ import Roles from "./components/roles/Roles";
 import AuditLogs from "./components/audit-logs/AuditLogs";
 import DataManagement from "./components/data/DataManagement";
 import EmailTemplates from "./components/email-templates/EmailTemplates";
-import SignupForm from "./components/signup-form/SignupForm";
 import { ThemeProvider } from "./components/theme-provider";
 import Success from "./components/application-form/Success";
 import UserHome from "./components/home/UserHome";
@@ -170,11 +169,7 @@ const router = createBrowserRouter([
     path: "/apply/success",
     element: <Success />,
   },
-  {
-    path: "/signup",
-    element: <SignupForm />,
-  },
-  {
+{
     path: "/auth/callback",
     element: <Callback />,
   },

@@ -14,7 +14,7 @@ mod test_member {
             id: PersonId(user_id),
             first_name: "Testi".to_string(),
             last_name: "Käyttäjä".to_string(),
-            home_municipality: "Helsinki".to_string(),
+            home_municipality: Some("Helsinki".to_string()),
             email: Email::new("john@example.com".to_string()).unwrap(),
             has_accepted_policies: true,
             email_notifications: true,

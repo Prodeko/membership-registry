@@ -236,7 +236,7 @@ const UserHome = () => {
               <span className="text-muted-foreground">
                 {t("profile.fields.municipality")}
               </span>
-              <span>{member.home_municipality}</span>
+              <span>{member.home_municipality ?? "-"}</span>
               <span className="text-muted-foreground">
                 {t("profile.fields.email_notifications")}
               </span>

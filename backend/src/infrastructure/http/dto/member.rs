@@ -14,7 +14,7 @@ pub struct MemberDTO {
     pub first_name: String,
     pub last_name: String,
     pub full_name: Option<String>,
-    pub home_municipality: String,
+    pub home_municipality: Option<String>,
     pub has_accepted_policies: bool,
     pub email_notifications: bool,
     pub language: String,
@@ -44,7 +44,7 @@ pub struct MemberWithRolesDTO {
     pub first_name: String,
     pub last_name: String,
     pub full_name: Option<String>,
-    pub home_municipality: String,
+    pub home_municipality: Option<String>,
     pub has_accepted_policies: bool,
     pub email_notifications: bool,
     pub language: String,
@@ -78,8 +78,8 @@ pub struct NewMemberDTO {
     pub first_name: String,
     #[validate(length(min = 1, max = 200))]
     pub last_name: String,
-    #[validate(length(min = 1, max = 200))]
-    pub home_municipality: String,
+    #[validate(length(max = 200))]
+    pub home_municipality: Option<String>,
     pub has_accepted_policies: bool,
     #[serde(default = "default_true")]
     pub email_notifications: bool,
@@ -119,8 +119,8 @@ pub struct UpdateMemberDTO {
     pub first_name: String,
     #[validate(length(min = 1, max = 200))]
     pub last_name: String,
-    #[validate(length(min = 1, max = 200))]
-    pub home_municipality: String,
+    #[validate(length(max = 200))]
+    pub home_municipality: Option<String>,
     pub has_accepted_policies: bool,
     pub email_notifications: bool,
     #[validate(length(min = 2, max = 10))]
