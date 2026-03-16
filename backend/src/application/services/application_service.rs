@@ -439,6 +439,12 @@ impl ApplicationService {
     ) -> ServiceResult<()> {
         let application = self.get_application(application_id).await?;
 
+        // Idempotent: if payment was already recorded, return Ok so Stripe
+        // does not keep retrying the webhook.
+        if application.stripe_payment_id.as_deref() == Some(stripe_payment_id.as_str()) {
+            return Ok(());
+        }
+
         let (new_status, _transition) = application
             .apply(ApplicationAction::PaymentReceived)
             .map_err(|e| match e {
