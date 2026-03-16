@@ -112,7 +112,7 @@ impl RoleService {
             .await
             .map_err(|e| {
                 tracing::error!("Failed to find auth providers for user: {e:?}");
-                ServiceError::DatabaseError
+                ServiceError::DatabaseError(format!("{e:?}"))
             })?;
 
         for provider in providers {
@@ -185,7 +185,7 @@ impl RoleService {
                 .await
                 .map_err(|e| {
                     tracing::error!("Failed to find auth providers for user: {e:?}");
-                    ServiceError::DatabaseError
+                    ServiceError::DatabaseError(format!("{e:?}"))
                 })?;
 
             for role_name in &role_names {
@@ -278,7 +278,7 @@ impl RoleService {
             .await
             .map_err(|e| {
                 tracing::error!("Failed to find auth providers for user: {e:?}");
-                ServiceError::DatabaseError
+                ServiceError::DatabaseError(format!("{e:?}"))
             })?;
 
         for provider in providers {

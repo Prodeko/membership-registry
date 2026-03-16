@@ -41,7 +41,7 @@ impl IntoResponse for ServiceError {
             ServiceError::AlreadyExists => {
                 (StatusCode::BAD_REQUEST, "Application already exists").into_response()
             }
-            ServiceError::Constraint => {
+            ServiceError::Constraint(_) => {
                 (StatusCode::BAD_REQUEST, "Constraint violation").into_response()
             }
             ServiceError::InvalidInput => {
@@ -58,7 +58,7 @@ impl IntoResponse for ServiceError {
                 (StatusCode::UNAUTHORIZED, "Unauthorized").into_response()
             }
             ServiceError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden").into_response(),
-            ServiceError::DatabaseError => {
+            ServiceError::DatabaseError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Database error").into_response()
             }
             ServiceError::NotActive => {
@@ -99,7 +99,7 @@ impl From<ServiceError> for ApiError {
     fn from(err: ServiceError) -> Self {
         match err {
             ServiceError::AlreadyExists => ApiError::ServiceError(ServiceError::AlreadyExists),
-            ServiceError::Constraint => ApiError::ServiceError(ServiceError::Constraint),
+            ServiceError::Constraint(msg) => ApiError::ServiceError(ServiceError::Constraint(msg)),
             ServiceError::InvalidInput => ApiError::ServiceError(ServiceError::InvalidInput),
             ServiceError::ApplicationAlreadyProcessed => {
                 ApiError::ServiceError(ServiceError::ApplicationAlreadyProcessed)
@@ -108,7 +108,7 @@ impl From<ServiceError> for ApiError {
             ServiceError::NotFound => ApiError::NotFound,
             ServiceError::Unauthorized => ApiError::Unauthorized,
             ServiceError::Forbidden => ApiError::Forbidden,
-            ServiceError::DatabaseError => ApiError::InternalServerError,
+            ServiceError::DatabaseError(_) => ApiError::InternalServerError,
             ServiceError::NotActive => ApiError::BadRequest,
             ServiceError::IdpError => ApiError::ServiceError(ServiceError::IdpError),
             ServiceError::TokenExpired => ApiError::Unauthorized,
@@ -132,7 +132,9 @@ impl From<TemplateAdminError> for ApiError {
                 RepositoryError::AlreadyExists => {
                     ApiError::ServiceError(ServiceError::AlreadyExists)
                 }
-                RepositoryError::Constraint(_) => ApiError::ServiceError(ServiceError::Constraint),
+                RepositoryError::Constraint(msg) => {
+                    ApiError::ServiceError(ServiceError::Constraint(msg))
+                }
                 RepositoryError::Unexpected(_) => ApiError::InternalServerError,
             },
         }

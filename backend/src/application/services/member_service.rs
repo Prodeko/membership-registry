@@ -116,7 +116,7 @@ impl MemberService {
             .await
             .map_err(|e| {
                 tracing::error!("Failed to find auth providers: {e:?}");
-                ServiceError::DatabaseError
+                ServiceError::DatabaseError(format!("{e:?}"))
             })?;
 
         if auth_providers.is_empty() {

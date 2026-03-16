@@ -7,14 +7,14 @@ use crate::application::ports::repository_error::RepositoryError;
 #[serde_as]
 #[derive(Serialize, Debug)]
 pub enum ServiceError {
-    Constraint,
+    Constraint(String),
     AlreadyExists,
     InvalidStatus,
     InvalidInput,
     ApplicationAlreadyProcessed,
     NotFound,
     NotActive,
-    DatabaseError,
+    DatabaseError(String),
     Unauthorized,
     Forbidden,
     IdpError,
@@ -41,8 +41,8 @@ impl From<RepositoryError> for ServiceError {
         match val {
             RepositoryError::NotFound => Self::NotFound,
             RepositoryError::AlreadyExists => Self::AlreadyExists,
-            RepositoryError::Constraint(_) => Self::Constraint,
-            RepositoryError::Unexpected(_) => Self::DatabaseError,
+            RepositoryError::Constraint(msg) => Self::Constraint(msg),
+            RepositoryError::Unexpected(msg) => Self::DatabaseError(msg),
         }
     }
 }
