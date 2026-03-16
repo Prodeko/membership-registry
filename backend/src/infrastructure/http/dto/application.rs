@@ -2,6 +2,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::application::ports::application_repository_port::{
     ApplicationTargetableRole, ApplicationWithMember,
@@ -81,12 +82,14 @@ pub struct ApplicationTargetableRoleDTO {
 
 // --- Request DTOs ---
 
-#[derive(Deserialize, Debug, TS)]
+#[derive(Deserialize, Debug, TS, Validate)]
 #[ts(export, rename = "CreateApplicationRequest")]
 pub struct CreateApplicationRequestDTO {
+    #[validate(length(min = 1, max = 200))]
     pub role_name: String,
     pub valid_until: NaiveDate,
     pub stripe_payment_id: Option<String>,
+    #[validate(length(max = 10000))]
     pub application_text: Option<String>,
     pub optional_roles: Option<Vec<String>>,
 }

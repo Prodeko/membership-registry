@@ -6,6 +6,8 @@ use axum::{
 };
 use uuid::Uuid;
 
+use validator::Validate;
+
 use crate::{
     application::services::authentication_service::AuthenticatedUser,
     domain::UpdatePersonData,
@@ -93,6 +95,8 @@ async fn update_member(
     Path((user_id,)): Path<(Uuid,)>,
     Json(body): Json<UpdateMemberDTO>,
 ) -> ApiResult<Json<MemberDTO>> {
+    body.validate().map_err(|_| ApiError::BadRequest)?;
+
     let actor_id = user_info.map(|u| u.user_id);
     let data = UpdatePersonData {
         first_name: body.first_name,
@@ -122,6 +126,8 @@ async fn post_member(
         None => return Err(ApiError::Unauthorized),
         Some(user_info) => user_info,
     };
+
+    new_member.validate().map_err(|_| ApiError::BadRequest)?;
 
     if user_info.user_id != new_member.user_id {
         return Err(ApiError::BadRequest);

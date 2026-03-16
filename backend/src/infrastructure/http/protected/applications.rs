@@ -6,6 +6,7 @@ use axum::{
 };
 use serde::Serialize;
 use ts_rs::TS;
+use validator::Validate;
 
 use crate::{
     application::services::{
@@ -108,6 +109,7 @@ async fn post_application(
     Json(req): Json<CreateApplicationRequestDTO>,
 ) -> ApiResult<Json<CreateApplicationResponseDTO>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
+    req.validate().map_err(|_| ApiError::BadRequest)?;
     let user_id = user_info.user_id;
 
     let result = state

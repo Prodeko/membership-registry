@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use ts_rs::TS;
 use uuid::Uuid;
+use validator::Validate;
 
 use crate::application::ports::member_repository_port::MemberWithRoles;
 use crate::domain::{Email, NewPerson, Person, PersonId};
@@ -69,18 +70,23 @@ impl From<MemberWithRoles> for MemberWithRolesDTO {
     }
 }
 
-#[derive(Deserialize, Debug, Clone, TS)]
+#[derive(Deserialize, Debug, Clone, TS, Validate)]
 #[ts(export, rename = "NewMember")]
 pub struct NewMemberDTO {
     pub user_id: Uuid,
+    #[validate(email, length(max = 320))]
     pub email: String,
+    #[validate(length(min = 1, max = 200))]
     pub first_name: String,
+    #[validate(length(min = 1, max = 200))]
     pub last_name: String,
+    #[validate(length(min = 1, max = 200))]
     pub home_municipality: String,
     pub has_accepted_policies: bool,
     #[serde(default = "default_true")]
     pub email_notifications: bool,
     #[serde(default = "default_language")]
+    #[validate(length(min = 2, max = 10))]
     pub language: String,
 }
 
@@ -108,13 +114,17 @@ impl NewMemberDTO {
 }
 
 /// DTO for updating a member. Only contains mutable fields.
-#[derive(Deserialize, Debug, TS)]
+#[derive(Deserialize, Debug, TS, Validate)]
 #[ts(export, rename = "UpdateMember")]
 pub struct UpdateMemberDTO {
+    #[validate(length(min = 1, max = 200))]
     pub first_name: String,
+    #[validate(length(min = 1, max = 200))]
     pub last_name: String,
+    #[validate(length(min = 1, max = 200))]
     pub home_municipality: String,
     pub has_accepted_policies: bool,
     pub email_notifications: bool,
+    #[validate(length(min = 2, max = 10))]
     pub language: String,
 }
