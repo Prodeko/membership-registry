@@ -25,7 +25,7 @@ async fn stripe_webhook(
     let sig_header = headers
         .get("stripe-signature")
         .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
+        .ok_or(ApiError::Unauthorized)?;
 
     let event = state
         .payment_webhook
