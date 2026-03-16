@@ -8,6 +8,7 @@ use super::super::AppState;
 #[ts(export, rename = "PublicConfig")]
 struct PublicConfigDTO {
     keycloak_account_url: String,
+    keycloak_admin_url: String,
 }
 
 pub fn router() -> Router<AppState> {
@@ -15,11 +16,16 @@ pub fn router() -> Router<AppState> {
 }
 
 async fn get_public_config(State(state): State<AppState>) -> Json<PublicConfigDTO> {
-    let url = format!(
+    let account_url = format!(
         "{}/realms/{}/account/",
         state.config.keycloak_url, state.config.keycloak_realm
     );
+    let admin_url = format!(
+        "{}/admin/{}/console/",
+        state.config.keycloak_url, state.config.keycloak_realm
+    );
     Json(PublicConfigDTO {
-        keycloak_account_url: url,
+        keycloak_account_url: account_url,
+        keycloak_admin_url: admin_url,
     })
 }
