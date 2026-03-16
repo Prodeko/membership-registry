@@ -99,7 +99,7 @@ impl AuthenticationService {
                 .build(),
             admin_cache: Cache::builder()
                 .max_capacity(1000)
-                .time_to_live(Duration::from_secs(300))
+                .time_to_live(Duration::from_secs(60))
                 .build(),
         }
     }
