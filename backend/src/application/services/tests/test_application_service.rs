@@ -134,13 +134,17 @@ async fn create_application_happy_path() {
                 stripe_payment_id: None,
                 optional_roles: None,
                 application_text: None,
+                frontend_url: "http://localhost".to_string(),
             },
             None,
         )
         .await;
 
     assert!(result.is_ok());
-    assert_eq!(result.unwrap().status, ApplicationStatus::Pending);
+    assert_eq!(
+        result.unwrap().application.status,
+        ApplicationStatus::Pending
+    );
 }
 
 #[tokio::test]
@@ -163,6 +167,7 @@ async fn create_application_duplicate_returns_already_exists() {
                 stripe_payment_id: None,
                 optional_roles: None,
                 application_text: None,
+                frontend_url: "http://localhost".to_string(),
             },
             None,
         )
@@ -198,6 +203,7 @@ async fn create_application_targetable_not_found() {
                 stripe_payment_id: None,
                 optional_roles: None,
                 application_text: None,
+                frontend_url: "http://localhost".to_string(),
             },
             None,
         )
@@ -236,6 +242,7 @@ async fn create_application_inactive_role() {
                 stripe_payment_id: None,
                 optional_roles: None,
                 application_text: None,
+                frontend_url: "http://localhost".to_string(),
             },
             None,
         )
@@ -281,13 +288,17 @@ async fn create_application_payment_required_sets_unpaid() {
                 stripe_payment_id: None,
                 optional_roles: None,
                 application_text: None,
+                frontend_url: "http://localhost".to_string(),
             },
             None,
         )
         .await;
 
     assert!(result.is_ok());
-    assert_eq!(result.unwrap().status, ApplicationStatus::Unpaid);
+    assert_eq!(
+        result.unwrap().application.status,
+        ApplicationStatus::Unpaid
+    );
 }
 
 // --- update_application_status ---

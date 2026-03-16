@@ -26,6 +26,12 @@ pub struct CreateApplicationParams {
     pub stripe_payment_id: Option<String>,
     pub optional_roles: Option<Vec<String>>,
     pub application_text: Option<String>,
+    pub frontend_url: String,
+}
+
+pub struct CreateApplicationResult {
+    pub application: Application,
+    pub redirect_to: String,
 }
 
 pub struct ApplicationService {
@@ -60,7 +66,7 @@ impl ApplicationService {
         &self,
         params: CreateApplicationParams,
         actor_user_id: Option<Uuid>,
-    ) -> ServiceResult<Application> {
+    ) -> ServiceResult<CreateApplicationResult> {
         let existing = self
             .application_queries
             .fetch_existing(params.user_id, params.role_name.clone(), params.valid_until)
@@ -99,6 +105,14 @@ impl ApplicationService {
             .await
             .map_err(E::from)?;
 
+        let redirect_to = match targetable_role.payment_link {
+            Some(link) => format!(
+                "{}?client_reference_id={}",
+                link, application.application_id.0
+            ),
+            None => format!("{}/apply/success", params.frontend_url),
+        };
+
         self.audit_log
             .log(
                 actor_user_id,
@@ -111,7 +125,10 @@ impl ApplicationService {
             )
             .await;
 
-        Ok(application)
+        Ok(CreateApplicationResult {
+            application,
+            redirect_to,
+        })
     }
 
     pub async fn get_all_applications(&self) -> ServiceResult<Vec<Application>> {

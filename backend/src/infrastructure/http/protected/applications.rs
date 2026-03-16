@@ -109,10 +109,8 @@ async fn post_application(
 ) -> ApiResult<Json<CreateApplicationResponseDTO>> {
     let user_info = user_info.ok_or(ApiError::Unauthorized)?;
     let user_id = user_info.user_id;
-    let role_name = req.role_name.clone();
-    let valid_until = req.valid_until;
 
-    let application = state
+    let result = state
         .application_service
         .create_application(
             CreateApplicationParams {
@@ -122,23 +120,13 @@ async fn post_application(
                 stripe_payment_id: req.stripe_payment_id,
                 optional_roles: req.optional_roles,
                 application_text: req.application_text,
+                frontend_url: state.config.frontend_url.clone(),
             },
             Some(user_id),
         )
         .await?;
 
-    let targetable_role = state
-        .application_service
-        .get_targetable_role(role_name, valid_until)
-        .await?;
-
-    let redirect_to = match targetable_role.payment_link {
-        Some(link) => format!(
-            "{}?client_reference_id={}",
-            link, application.application_id.0
-        ),
-        None => format!("{}/apply/success", state.config.frontend_url),
-    };
-
-    Ok(Json(CreateApplicationResponseDTO { redirect_to }))
+    Ok(Json(CreateApplicationResponseDTO {
+        redirect_to: result.redirect_to,
+    }))
 }
