@@ -174,6 +174,12 @@ impl AuthProviderRepositoryPort for UserAuthProviderRepo {
     }
 
     async fn count_by_user_id(&self, user_id: &Uuid) -> Result<usize, AuthProviderRepoError> {
-        Ok(self.find_by_user_id(user_id).await?.len())
+        let row = sqlx::query!(
+            "SELECT COUNT(*) as count FROM UserAuthProvider WHERE user_id = $1",
+            user_id
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.count.unwrap_or(0) as usize)
     }
 }
