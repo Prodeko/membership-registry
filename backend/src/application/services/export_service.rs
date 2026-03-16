@@ -59,7 +59,7 @@ impl Exportable for MemberWithRoles {
             self.person.has_accepted_policies.to_string(),
             self.person.email_notifications.to_string(),
             self.person.email.as_str().to_string(),
-            self.role_names.to_string(),
+            self.role_names.join(", "),
         ]
     }
 }

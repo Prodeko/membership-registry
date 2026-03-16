@@ -1,4 +1,3 @@
-use serde_json::Value;
 use uuid::Uuid;
 
 use super::repository_error::RepositoryError;
@@ -7,7 +6,7 @@ use crate::domain::{NewPerson, Person, UpdatePersonData};
 #[derive(Debug)]
 pub struct MemberWithRoles {
     pub person: Person,
-    pub role_names: Value,
+    pub role_names: Vec<String>,
 }
 
 #[derive(Default)]

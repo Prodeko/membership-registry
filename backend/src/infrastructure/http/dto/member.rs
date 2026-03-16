@@ -1,5 +1,4 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use ts_rs::TS;
 use uuid::Uuid;
 use validator::Validate;
@@ -49,8 +48,7 @@ pub struct MemberWithRolesDTO {
     pub has_accepted_policies: bool,
     pub email_notifications: bool,
     pub language: String,
-    #[ts(type = "Array<string | null>")]
-    pub role_names: Value,
+    pub role_names: Vec<String>,
 }
 
 impl From<MemberWithRoles> for MemberWithRolesDTO {

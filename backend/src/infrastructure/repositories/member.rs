@@ -54,6 +54,16 @@ struct MemberWithRolesDAO {
 
 impl From<MemberWithRolesDAO> for PortMemberWithRoles {
     fn from(row: MemberWithRolesDAO) -> Self {
+        let role_names = row
+            .role_names
+            .as_array()
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+
         Self {
             person: Person {
                 id: PersonId(row.user_id),
@@ -66,7 +76,7 @@ impl From<MemberWithRolesDAO> for PortMemberWithRoles {
                 email_notifications: row.email_notifications,
                 language: row.language,
             },
-            role_names: row.role_names,
+            role_names,
         }
     }
 }
