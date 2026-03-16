@@ -101,7 +101,7 @@ async fn delete_application(
 
 #[derive(Deserialize, Debug, TS)]
 #[ts(export)]
-struct UpdateApplicationStatus {
+struct UpdateApplicationStatusDTO {
     action: ApplicationActionDTO,
 }
 
@@ -109,7 +109,7 @@ async fn update_application_status(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     Path(path): Path<ApplicationPath>,
     State(state): State<AppState>,
-    Json(body): Json<UpdateApplicationStatus>,
+    Json(body): Json<UpdateApplicationStatusDTO>,
 ) -> ApiResult<Json<()>> {
     let actor_id = user_info.map(|u| u.user_id);
     let application_id = path.application_id;

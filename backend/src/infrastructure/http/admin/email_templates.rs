@@ -81,7 +81,7 @@ async fn list_translations(
 }
 
 #[derive(Deserialize, Debug)]
-struct UpsertTranslationBody {
+struct UpsertTranslationBodyDTO {
     subject: String,
     body_html: String,
 }
@@ -90,7 +90,7 @@ async fn upsert_translation(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     Path((name, locale)): Path<(String, String)>,
     State(state): State<AppState>,
-    Json(body): Json<UpsertTranslationBody>,
+    Json(body): Json<UpsertTranslationBodyDTO>,
 ) -> ApiResult<Json<EmailTemplateTranslationDTO>> {
     let translation = state
         .template_admin_service
