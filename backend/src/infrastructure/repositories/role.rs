@@ -137,6 +137,41 @@ impl RoleRepositoryPort for RoleRepo {
         Ok(())
     }
 
+    async fn create_role_members_batch(
+        &self,
+        user_ids: &[Uuid],
+        role_names: &[String],
+        valid_from: NaiveDate,
+        valid_until: Option<NaiveDate>,
+    ) -> Result<(), RepositoryError> {
+        let mut batch_user_ids = Vec::with_capacity(user_ids.len() * role_names.len());
+        let mut batch_role_names = Vec::with_capacity(user_ids.len() * role_names.len());
+        for role_name in role_names {
+            for user_id in user_ids {
+                batch_user_ids.push(*user_id);
+                batch_role_names.push(role_name.clone());
+            }
+        }
+
+        sqlx::query!(
+            r#"
+            INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until)
+            SELECT * FROM UNNEST($1::uuid[], $2::text[], $3::date[], $4::date[])
+            ON CONFLICT DO NOTHING
+            "#,
+            &batch_user_ids,
+            &batch_role_names,
+            &vec![valid_from; batch_user_ids.len()],
+            &batch_user_ids
+                .iter()
+                .map(|_| valid_until)
+                .collect::<Vec<_>>() as _,
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     async fn update_valid_until(
         &self,
         user_id: &Uuid,

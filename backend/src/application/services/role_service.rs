@@ -177,18 +177,56 @@ impl RoleService {
         valid_until: Option<chrono::NaiveDate>,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
-        for role_name in &role_names {
-            for user_id in &user_ids {
-                self.add_role_member(
-                    *user_id,
-                    role_name.as_str(),
-                    valid_from,
-                    valid_until,
-                    actor_user_id,
-                )
-                .await?;
+        // Sync roles to IdP for each user (external calls, cannot be batched)
+        for user_id in &user_ids {
+            let providers = self
+                .auth_provider_repo
+                .find_by_user_id(user_id)
+                .await
+                .map_err(|e| {
+                    tracing::error!("Failed to find auth providers for user: {e:?}");
+                    ServiceError::DatabaseError
+                })?;
+
+            for role_name in &role_names {
+                for provider in &providers {
+                    self.role_sync
+                        .assign_role(
+                            &IdpSubject(provider.provider_user_id.clone()),
+                            &RoleName(role_name.to_string()),
+                        )
+                        .await
+                        .map_err(|_| ServiceError::IdpError)?;
+                }
             }
         }
+
+        // Batch insert all role memberships in a single query
+        self.role_repo
+            .create_role_members_batch(&user_ids, &role_names, valid_from, valid_until)
+            .await
+            .map_err(ServiceError::from)?;
+
+        // Audit log each assignment
+        for role_name in &role_names {
+            for user_id in &user_ids {
+                self.audit_log
+                    .log(
+                        actor_user_id,
+                        "role_member.assign",
+                        "role_member",
+                        &format!("{}:{}", user_id, role_name),
+                        Some(serde_json::json!({
+                            "user_id": user_id,
+                            "role_name": role_name,
+                            "valid_from": valid_from.to_string(),
+                            "valid_until": valid_until.map(|d| d.to_string()),
+                        })),
+                    )
+                    .await;
+            }
+        }
+
         Ok(())
     }
 

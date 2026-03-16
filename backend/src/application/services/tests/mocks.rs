@@ -108,6 +108,7 @@ mock! {
         async fn fetch_by_name(&self, role_name: &str) -> Result<Role, RepositoryError>;
         async fn delete(&self, role_name: &str) -> Result<(), RepositoryError>;
         async fn create_role_member(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate, valid_until: Option<NaiveDate>) -> Result<(), RepositoryError>;
+        async fn create_role_members_batch(&self, user_ids: &[Uuid], role_names: &[String], valid_from: NaiveDate, valid_until: Option<NaiveDate>) -> Result<(), RepositoryError>;
         async fn update_valid_until(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate, new_valid_until: NaiveDate) -> Result<(), RepositoryError>;
         async fn delete_role_member(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate) -> Result<(), RepositoryError>;
         async fn fetch_roles_by_member(&self, user_id: &Uuid) -> Result<Vec<RoleMembership>, RepositoryError>;

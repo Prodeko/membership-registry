@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until)\n            SELECT * FROM UNNEST($1::uuid[], $2::text[], $3::date[], $4::date[])\n            ON CONFLICT DO NOTHING\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "UuidArray",
+        "TextArray",
+        "DateArray",
+        "DateArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "da92e9ce3e63e3ddacc45a12447bfe15d4ccc410e364a58e884f673efefc8e45"
+}

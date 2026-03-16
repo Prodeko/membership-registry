@@ -48,6 +48,14 @@ pub trait RoleRepositoryPort: Send + Sync {
         valid_until: Option<NaiveDate>,
     ) -> Result<(), RepositoryError>;
 
+    async fn create_role_members_batch(
+        &self,
+        user_ids: &[Uuid],
+        role_names: &[String],
+        valid_from: NaiveDate,
+        valid_until: Option<NaiveDate>,
+    ) -> Result<(), RepositoryError>;
+
     async fn update_valid_until(
         &self,
         user_id: &Uuid,
