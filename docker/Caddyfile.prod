@@ -1,0 +1,18 @@
+http://localhost {
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		root * /srv/www/jasenrekisteri/frontend
+		try_files {path} /index.html
+		file_server
+	}
+
+	encode zstd gzip
+}
+
+http://auth.localhost {
+	reverse_proxy keycloak:8080
+	encode zstd gzip
+}

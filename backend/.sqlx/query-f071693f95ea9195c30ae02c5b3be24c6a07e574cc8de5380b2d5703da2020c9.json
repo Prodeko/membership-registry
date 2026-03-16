@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                al.id,\n                al.actor_user_id,\n                m.full_name as actor_name,\n                al.action,\n                al.entity_type,\n                al.entity_id,\n                al.details,\n                al.created_at\n            FROM audit_log al\n            LEFT JOIN member m ON al.actor_user_id = m.user_id\n            WHERE\n                ($1::text IS NULL OR al.action = $1)\n                AND ($2::text IS NULL OR al.entity_type = $2)\n                AND ($3::text IS NULL OR al.entity_id = $3)\n                AND ($4::uuid IS NULL OR al.actor_user_id = $4)\n                AND ($5::text IS NULL OR\n                    al.action ILIKE '%' || $5 || '%'\n                    OR al.entity_type ILIKE '%' || $5 || '%'\n                    OR al.entity_id ILIKE '%' || $5 || '%'\n                    OR m.full_name ILIKE '%' || $5 || '%'\n                )\n            ORDER BY al.created_at DESC\n            LIMIT $6 OFFSET $7\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "actor_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "actor_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "action",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "entity_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "entity_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "details",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Uuid",
+        "Text",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "f071693f95ea9195c30ae02c5b3be24c6a07e574cc8de5380b2d5703da2020c9"
+}

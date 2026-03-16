@@ -1,0 +1,80 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT application_id, user_id, role_name, valid_until, timestamp, stripe_payment_id, optional_roles, application_text, status as \"status: ApplicationStatusDAO\" FROM Application ORDER BY timestamp DESC",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "role_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 5,
+        "name": "stripe_payment_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "optional_roles",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 7,
+        "name": "application_text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "status: ApplicationStatusDAO",
+        "type_info": {
+          "Custom": {
+            "name": "application_status",
+            "kind": {
+              "Enum": [
+                "unpaid",
+                "pending",
+                "approved",
+                "rejected"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "93720c46cf32c5d75fe4d34d3a4d647d1045e588c2f1f59f5086399abb913c91"
+}

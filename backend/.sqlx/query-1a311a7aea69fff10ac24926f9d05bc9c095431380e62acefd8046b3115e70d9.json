@@ -1,0 +1,65 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM SavedFilter\n            WHERE\n                (owner_user_id = $1 OR visible_for_all = true) AND\n                ($2::text IS NULL OR filtered_model = $2)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "filtered_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "owner_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "visible_for_all",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "search",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "sorting_col",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "sorting_desc",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "custom_filters",
+        "type_info": "Json"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "1a311a7aea69fff10ac24926f9d05bc9c095431380e62acefd8046b3115e70d9"
+}

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n          INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until)\n          VALUES ($1, $2, $3, $4)\n          ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "82521c2dc61e8784177f0b311c0f6b06650997f1f94a50d945a7b0e576d796bc"
+}

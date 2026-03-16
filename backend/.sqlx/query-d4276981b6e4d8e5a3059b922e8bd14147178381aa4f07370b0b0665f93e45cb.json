@@ -1,0 +1,43 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO EmailTemplateTranslation (template_name, locale, subject, body_html)\n            VALUES ($1, $2, $3, $4)\n            ON CONFLICT (template_name, locale) DO UPDATE\n            SET subject = EXCLUDED.subject, body_html = EXCLUDED.body_html\n            RETURNING template_name, locale, subject, body_html\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "template_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "locale",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "subject",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "body_html",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "d4276981b6e4d8e5a3059b922e8bd14147178381aa4f07370b0b0665f93e45cb"
+}

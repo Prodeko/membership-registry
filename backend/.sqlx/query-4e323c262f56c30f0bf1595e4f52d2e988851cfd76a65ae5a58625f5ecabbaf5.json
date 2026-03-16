@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT template_name, locale, subject, body_html\n            FROM EmailTemplateTranslation\n            WHERE template_name = $1 AND locale = 'fi'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "template_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "locale",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "subject",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "body_html",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "4e323c262f56c30f0bf1595e4f52d2e988851cfd76a65ae5a58625f5ecabbaf5"
+}
