@@ -235,10 +235,8 @@ async fn main() {
         signal_cancel.cancel();
     });
 
-    let scheduler_handle = tokio::spawn(run_scheduler(
-        services.role_service.clone(),
-        cancel.clone(),
-    ));
+    let scheduler_handle =
+        tokio::spawn(run_scheduler(services.role_service.clone(), cancel.clone()));
 
     serve(config, services, cancel.clone()).await;
 

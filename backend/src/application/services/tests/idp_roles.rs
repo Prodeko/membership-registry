@@ -286,7 +286,10 @@ mod test_idp_roles {
             .await;
 
         let synced = role_service.cleanup_expired_roles().await.unwrap();
-        assert!(synced > 0, "Expected at least one expired role to be synced");
+        assert!(
+            synced > 0,
+            "Expected at least one expired role to be synced"
+        );
 
         // Verify keycloak_removed_at is set for the synced rows
         let row = sqlx::query_scalar::<_, i64>(
@@ -351,7 +354,10 @@ mod test_idp_roles {
         .fetch_one(&pool)
         .await
         .unwrap();
-        assert!(user_expired_before > 0, "Test user should have expired memberships");
+        assert!(
+            user_expired_before > 0,
+            "Test user should have expired memberships"
+        );
 
         let synced = role_service.cleanup_expired_roles().await.unwrap();
 
