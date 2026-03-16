@@ -68,6 +68,7 @@ impl MemberService {
             .auth_provider_repo
             .find_by_user_id(&user_id)
             .await
+            .map_err(|e| tracing::warn!("Failed to fetch auth providers for locale sync: {e:?}"))
             .ok();
 
         if let Some(providers) = auth_providers {
@@ -190,6 +191,7 @@ impl MemberService {
             .auth_provider_repo
             .find_by_user_id(&user_id)
             .await
+            .map_err(|e| tracing::warn!("Failed to fetch auth providers for locale sync: {e:?}"))
             .ok();
 
         if let Some(providers) = auth_providers {
