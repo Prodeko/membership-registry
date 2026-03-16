@@ -5,12 +5,12 @@ use axum::{
     Router,
 };
 use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
+use tokio_util::sync::CancellationToken;
 use tower_http::{
     cors::{AllowHeaders, CorsLayer},
     set_header::SetResponseHeaderLayer,
     trace::TraceLayer,
 };
-use tracing_subscriber::EnvFilter;
 
 use crate::{
     application::{
@@ -54,7 +54,7 @@ pub struct AppState {
 }
 
 #[allow(clippy::unwrap_used)]
-pub async fn serve(config: Config, services: Services) {
+pub async fn serve(config: Config, services: Services, cancel: CancellationToken) {
     let port = config.port;
 
     let realm = config.keycloak_realm.clone();
@@ -107,14 +107,6 @@ pub async fn serve(config: Config, services: Services) {
         ]))
         .allow_credentials(true);
 
-    tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env()) // Allows filtering with RUST_LOG
-        .with_target(false) // Hides the module path in logs
-        .with_thread_ids(false) // Hides thread IDs
-        .with_level(true) // Shows log levels
-        .compact() // Use a compact log format
-        .init();
-
     let app: Router = router(state.clone())
         .with_state(state)
         .layer(cors)
@@ -137,6 +129,7 @@ pub async fn serve(config: Config, services: Services) {
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
+    .with_graceful_shutdown(async move { cancel.cancelled().await })
     .await
     .unwrap();
 }

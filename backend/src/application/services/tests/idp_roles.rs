@@ -256,6 +256,139 @@ mod test_idp_roles {
         cleanup_test_db(pool, &db_url).await;
     }
 
+    // ---- cleanup_expired_roles tests ----
+
+    #[tokio::test]
+    async fn cleanup_expired_roles_syncs_and_marks_db() {
+        let mock_server = MockServer::start().await;
+        let (_, _, _, role_service, pool, db_url) = setup(&mock_server).await;
+
+        // The test data seeds several expired role memberships for USER_ID (9707582e...).
+        // They have keycloak_removed_at = NULL, so they should all be picked up.
+
+        // Mock: GET role by name (called for each role removal)
+        Mock::given(method("GET"))
+            .and(path_regex("/admin/realms/membership-registry/roles/.+"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(mock_role_response("any-role", "rol_test123")),
+            )
+            .mount(&mock_server)
+            .await;
+
+        // Mock: DELETE role mapping (remove_role)
+        Mock::given(method("DELETE"))
+            .and(path_regex(
+                "/admin/realms/membership-registry/users/.+/role-mappings/realm",
+            ))
+            .respond_with(ResponseTemplate::new(204))
+            .mount(&mock_server)
+            .await;
+
+        let synced = role_service.cleanup_expired_roles().await.unwrap();
+        assert!(synced > 0, "Expected at least one expired role to be synced");
+
+        // Verify keycloak_removed_at is set for the synced rows
+        let row = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM RoleMember WHERE valid_until < CURRENT_DATE AND keycloak_removed_at IS NULL",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(row, 0, "All expired memberships should be marked as synced");
+
+        // Running again should find nothing to sync (idempotent)
+        let synced_again = role_service.cleanup_expired_roles().await.unwrap();
+        assert_eq!(synced_again, 0, "Second run should be a no-op");
+
+        // Verify audit log entries were created
+        let logs = role_service
+            .audit_log
+            .get_logs(AuditLogQueryParams {
+                action: Some("role_member.expired".to_string()),
+                ..default_query_params()
+            })
+            .await
+            .unwrap();
+        assert_eq!(
+            logs.len(),
+            synced as usize,
+            "Should have one audit entry per synced membership"
+        );
+
+        cleanup_test_db(pool, &db_url).await;
+    }
+
+    #[tokio::test]
+    async fn cleanup_expired_roles_skips_on_idp_failure() {
+        let mock_server = MockServer::start().await;
+        let (_, _, _, role_service, pool, db_url) = setup(&mock_server).await;
+
+        // Mock: GET role returns 200
+        Mock::given(method("GET"))
+            .and(path_regex("/admin/realms/membership-registry/roles/.+"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(mock_role_response("any-role", "rol_test123")),
+            )
+            .mount(&mock_server)
+            .await;
+
+        // Mock: DELETE role mapping returns 500 — all removals fail
+        Mock::given(method("DELETE"))
+            .and(path_regex(
+                "/admin/realms/membership-registry/users/.+/role-mappings/realm",
+            ))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        // Count how many expired memberships belong to USER_ID (the only user with an auth provider)
+        let user_expired_before = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM RoleMember WHERE user_id = $1 AND valid_until < CURRENT_DATE AND keycloak_removed_at IS NULL",
+        )
+        .bind(user_uuid())
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert!(user_expired_before > 0, "Test user should have expired memberships");
+
+        let synced = role_service.cleanup_expired_roles().await.unwrap();
+
+        // Users without auth providers get synced (nothing to remove from IdP).
+        // USER_ID's memberships should be skipped because Keycloak returned 500.
+        let user_unsynced = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM RoleMember WHERE user_id = $1 AND valid_until < CURRENT_DATE AND keycloak_removed_at IS NULL",
+        )
+        .bind(user_uuid())
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            user_unsynced, user_expired_before,
+            "User's expired memberships should remain unsynced when IdP fails"
+        );
+
+        // No audit log entries for USER_ID's memberships
+        let logs = role_service
+            .audit_log
+            .get_logs(AuditLogQueryParams {
+                action: Some("role_member.expired".to_string()),
+                entity_id: Some(format!("{}:", user_uuid())),
+                ..default_query_params()
+            })
+            .await
+            .unwrap();
+        assert!(
+            logs.is_empty(),
+            "No audit log should be written for failed syncs"
+        );
+
+        cleanup_test_db(pool, &db_url).await;
+    }
+
+    // ---- delete_role_membership tests ----
+
     #[tokio::test]
     async fn delete_role_membership_is_best_effort_for_idp() {
         let mock_server = MockServer::start().await;

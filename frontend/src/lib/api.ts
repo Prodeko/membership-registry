@@ -283,6 +283,17 @@ export const useGetRolesStats = (params: PaginatedQueryParams) => {
   });
 };
 
+export const useCleanupExpiredRoles = () => {
+  return useMutation<{ synced: number }, Error>({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post<{ synced: number }>(
+        "/roles/cleanup-expired",
+      );
+      return response.data;
+    },
+  });
+};
+
 export const useDeleteMember = () => {
   return useMutation({
     mutationFn: async (id: string) => {

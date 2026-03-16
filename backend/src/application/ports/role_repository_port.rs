@@ -82,4 +82,13 @@ pub trait RoleRepositoryPort: Send + Sync {
         &self,
         params: RolesWithStatsParams,
     ) -> Result<Vec<RoleStats>, RepositoryError>;
+
+    async fn fetch_expired_unsynced(&self) -> Result<Vec<RoleMembership>, RepositoryError>;
+
+    async fn mark_keycloak_synced(
+        &self,
+        user_id: &Uuid,
+        role_name: &str,
+        valid_from: NaiveDate,
+    ) -> Result<(), RepositoryError>;
 }

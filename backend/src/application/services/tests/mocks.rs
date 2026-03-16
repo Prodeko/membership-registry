@@ -114,6 +114,8 @@ mock! {
         async fn fetch_roles_by_member(&self, user_id: &Uuid) -> Result<Vec<RoleMembership>, RepositoryError>;
         async fn fetch_members_by_role(&self, role_name: &str) -> Result<Vec<Person>, RepositoryError>;
         async fn fetch_roles_with_stats(&self, params: RolesWithStatsParams) -> Result<Vec<RoleStats>, RepositoryError>;
+        async fn fetch_expired_unsynced(&self) -> Result<Vec<RoleMembership>, RepositoryError>;
+        async fn mark_keycloak_synced(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate) -> Result<(), RepositoryError>;
     }
 }
 

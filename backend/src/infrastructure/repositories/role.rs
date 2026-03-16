@@ -249,6 +249,41 @@ impl RoleRepositoryPort for RoleRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
+    async fn fetch_expired_unsynced(&self) -> Result<Vec<RoleMembership>, RepositoryError> {
+        let rows = sqlx::query_as!(
+            RoleMemberDAO,
+            r#"
+            SELECT user_id, role_name, valid_from, valid_until
+            FROM RoleMember
+            WHERE valid_until < CURRENT_DATE AND keycloak_removed_at IS NULL
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    async fn mark_keycloak_synced(
+        &self,
+        user_id: &Uuid,
+        role_name: &str,
+        valid_from: NaiveDate,
+    ) -> Result<(), RepositoryError> {
+        sqlx::query!(
+            r#"
+            UPDATE RoleMember
+            SET keycloak_removed_at = NOW()
+            WHERE user_id = $1 AND role_name = $2 AND valid_from = $3
+            "#,
+            user_id,
+            role_name,
+            valid_from
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     async fn fetch_roles_with_stats(
         &self,
         RolesWithStatsParams {

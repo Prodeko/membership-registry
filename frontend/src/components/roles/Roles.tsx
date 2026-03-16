@@ -1,22 +1,61 @@
-import { useGetRolesStats } from "@/lib/api";
+import { useCleanupExpiredRoles, useGetRolesStats } from "@/lib/api";
 import { DataTable } from "../ui/data-table";
 import { columns } from "./columns";
 import CreateRoleModal from "./CreateRoleModal";
 import { Link } from "react-router-dom";
-import { buttonVariants } from "../ui/button";
+import { Button, buttonVariants } from "../ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "../ui/tooltip";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 const Roles = () => {
+  const queryClient = useQueryClient();
+  const cleanupMutation = useCleanupExpiredRoles();
+
+  const handleCleanupExpired = () => {
+    cleanupMutation.mutate(undefined, {
+      onSuccess: (data) => {
+        toast.success(
+          data.synced > 0
+            ? `Removed ${data.synced} expired role(s) from Keycloak`
+            : "No expired roles to clean up",
+        );
+        queryClient.invalidateQueries({ queryKey: ["roles"] });
+      },
+      onError: () => {
+        toast.error("Failed to clean up expired roles");
+      },
+    });
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex justify-between">
         <h1 className="text-4xl">Roles</h1>
         <div className="space-x-4">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  onClick={handleCleanupExpired}
+                  disabled={cleanupMutation.isPending}
+                >
+                  {cleanupMutation.isPending
+                    ? "Cleaning up..."
+                    : "Clean up expired"}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                Remove expired role memberships from Keycloak.
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

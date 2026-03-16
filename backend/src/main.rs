@@ -14,6 +14,8 @@ use std::sync::Arc;
 
 use dotenv::dotenv;
 use envconfig::Envconfig;
+use tokio_util::sync::CancellationToken;
+use tracing_subscriber::EnvFilter;
 
 use application::{
     ports::{
@@ -56,6 +58,7 @@ use infrastructure::{
     },
     http::serve,
     repositories::PostgresRepo,
+    scheduler::run_scheduler,
 };
 
 pub struct Services {
@@ -185,6 +188,15 @@ impl Services {
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 async fn main() {
     dotenv().ok();
+
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_target(false)
+        .with_thread_ids(false)
+        .with_level(true)
+        .compact()
+        .init();
+
     let config = Config::init_from_env().unwrap();
 
     let pool = create_pg_pool(&config.database_url, 3)
@@ -200,5 +212,35 @@ async fn main() {
 
     let services = Services::new(repo, config.clone());
 
-    serve(config, services).await;
+    let cancel = CancellationToken::new();
+
+    // Shutdown signal handler
+    let signal_cancel = cancel.clone();
+    tokio::spawn(async move {
+        let ctrl_c = tokio::signal::ctrl_c();
+        #[cfg(unix)]
+        {
+            use tokio::signal::unix::{signal, SignalKind};
+            let mut sigterm = signal(SignalKind::terminate()).unwrap();
+            tokio::select! {
+                _ = ctrl_c => {}
+                _ = sigterm.recv() => {}
+            }
+        }
+        #[cfg(not(unix))]
+        {
+            ctrl_c.await.ok();
+        }
+        tracing::info!("Shutdown signal received");
+        signal_cancel.cancel();
+    });
+
+    let scheduler_handle = tokio::spawn(run_scheduler(
+        services.role_service.clone(),
+        cancel.clone(),
+    ));
+
+    serve(config, services, cancel.clone()).await;
+
+    scheduler_handle.await.ok();
 }

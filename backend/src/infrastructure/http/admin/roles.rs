@@ -30,6 +30,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/", post(post_role))
         .route("/stats", get(get_roles_stats))
         .route("/export", post(export_roles))
+        .route("/cleanup-expired", post(cleanup_expired_roles))
         .route("/:id", get(get_role))
         .route("/:id/members", get(get_role_members))
         .with_state(state)
@@ -132,6 +133,19 @@ async fn post_role(
         .map(Json)?;
 
     Ok(role)
+}
+
+#[derive(serde::Serialize)]
+struct CleanupExpiredResponseDTO {
+    synced: u32,
+}
+
+#[debug_handler]
+async fn cleanup_expired_roles(
+    State(state): State<AppState>,
+) -> ApiResult<Json<CleanupExpiredResponseDTO>> {
+    let synced = state.role_service.cleanup_expired_roles().await?;
+    Ok(Json(CleanupExpiredResponseDTO { synced }))
 }
 
 #[debug_handler]

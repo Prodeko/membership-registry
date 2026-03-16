@@ -313,6 +313,101 @@ impl RoleService {
         Ok(())
     }
 
+    pub async fn cleanup_expired_roles(&self) -> ServiceResult<u32> {
+        let expired = self
+            .role_repo
+            .fetch_expired_unsynced()
+            .await
+            .map_err(ServiceError::from)?;
+
+        let total = expired.len();
+        let mut synced: u32 = 0;
+
+        for membership in &expired {
+            let providers = match self
+                .auth_provider_repo
+                .find_by_user_id(&membership.user_id)
+                .await
+            {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!(
+                        user_id = %membership.user_id,
+                        role = %membership.role_name.0,
+                        "Failed to fetch auth providers for expired role cleanup: {e:?}"
+                    );
+                    continue;
+                }
+            };
+
+            let mut any_failed = false;
+            for provider in &providers {
+                if let Err(e) = self
+                    .role_sync
+                    .remove_role(
+                        &IdpSubject(provider.provider_user_id.clone()),
+                        &membership.role_name,
+                    )
+                    .await
+                {
+                    tracing::error!(
+                        user_id = %membership.user_id,
+                        provider = %provider.provider_user_id,
+                        role = %membership.role_name.0,
+                        "Failed to remove expired role from IdP: {e:?}"
+                    );
+                    any_failed = true;
+                }
+            }
+
+            if any_failed {
+                continue;
+            }
+
+            if let Err(e) = self
+                .role_repo
+                .mark_keycloak_synced(
+                    &membership.user_id,
+                    &membership.role_name.0,
+                    membership.valid_from,
+                )
+                .await
+            {
+                tracing::error!(
+                    user_id = %membership.user_id,
+                    role = %membership.role_name.0,
+                    "Failed to mark expired role as synced: {e:?}"
+                );
+                continue;
+            }
+
+            self.audit_log
+                .log(
+                    None,
+                    "role_member.expired",
+                    "role_member",
+                    &format!("{}:{}", membership.user_id, membership.role_name.0),
+                    Some(serde_json::json!({
+                        "user_id": membership.user_id,
+                        "role_name": membership.role_name.0,
+                        "valid_from": membership.valid_from.to_string(),
+                        "valid_until": membership.valid_until.map(|d| d.to_string()),
+                    })),
+                )
+                .await;
+
+            synced += 1;
+        }
+
+        tracing::info!(
+            total_expired = total,
+            synced = synced,
+            "Expired role cleanup complete"
+        );
+
+        Ok(synced)
+    }
+
     pub async fn get_role_stats(
         &self,
         page_size: Option<u64>,
