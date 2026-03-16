@@ -250,7 +250,7 @@ impl RoleRepositoryPort for RoleRepo {
                         WHEN 'color' THEN Role.color
                         WHEN 'description' THEN Role.description
                         WHEN 'member_count' THEN COUNT(DISTINCT RoleMember.user_id)::text
-                        WHEN 'active_member_cout' THEN
+                        WHEN 'active_member_count' THEN
                             COUNT(
                                 CASE WHEN (
                                     valid_until IS NULL OR (
@@ -269,7 +269,7 @@ impl RoleRepositoryPort for RoleRepo {
                         WHEN 'color' THEN Role.color
                         WHEN 'description' THEN Role.description
                         WHEN 'member_count' THEN COUNT(RoleMember.user_id)::text
-                        WHEN 'active_member_cout' THEN
+                        WHEN 'active_member_count' THEN
                             COUNT(
                                 CASE WHEN (
                                     valid_until IS NULL OR (
