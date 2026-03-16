@@ -2,6 +2,7 @@ use jsonwebtoken::{
     decode, decode_header, errors::ErrorKind, jwk::JwkSet, DecodingKey, Validation,
 };
 use moka::future::Cache;
+use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -9,6 +10,32 @@ use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 use super::config::KeycloakConfig;
+
+/// Encode a URL path segment, escaping characters unsafe in paths (RFC 3986).
+const PATH_SEGMENT_ENCODE_SET: &AsciiSet = &CONTROLS
+    .add(b' ')
+    .add(b'/')
+    .add(b'?')
+    .add(b'#')
+    .add(b'[')
+    .add(b']')
+    .add(b'@')
+    .add(b'!')
+    .add(b'$')
+    .add(b'&')
+    .add(b'\'')
+    .add(b'(')
+    .add(b')')
+    .add(b'*')
+    .add(b'+')
+    .add(b',')
+    .add(b';')
+    .add(b'=')
+    .add(b'%');
+
+fn encode_path(segment: &str) -> String {
+    utf8_percent_encode(segment, PATH_SEGMENT_ENCODE_SET).to_string()
+}
 
 // ---------------------------------------------------------------------------
 // Error
@@ -341,7 +368,7 @@ impl KeycloakClient {
 
     pub async fn get_user(&self, subject: &str) -> Result<KeycloakUserDTO, KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("users/{subject}"));
+        let url = self.admin_url(&format!("users/{}", encode_path(subject)));
 
         let response = self
             .http
@@ -382,7 +409,7 @@ impl KeycloakClient {
         attributes: serde_json::Value,
     ) -> Result<(), KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("users/{subject}"));
+        let url = self.admin_url(&format!("users/{}", encode_path(subject)));
 
         // GET current user
         let response = self
@@ -490,7 +517,7 @@ impl KeycloakClient {
 
     pub async fn delete_realm_role(&self, role_name: &str) -> Result<(), KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("roles/{role_name}"));
+        let url = self.admin_url(&format!("roles/{}", encode_path(role_name)));
 
         let response = self
             .http
@@ -521,7 +548,7 @@ impl KeycloakClient {
 
     pub async fn list_user_realm_roles(&self, subject: &str) -> Result<Vec<String>, KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("users/{subject}/role-mappings/realm"));
+        let url = self.admin_url(&format!("users/{}/role-mappings/realm", encode_path(subject)));
 
         let response = self
             .http
@@ -568,7 +595,7 @@ impl KeycloakClient {
         }
 
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("roles/{role_name}"));
+        let url = self.admin_url(&format!("roles/{}", encode_path(role_name)));
 
         let response = self
             .http
@@ -614,7 +641,7 @@ impl KeycloakClient {
         roles: &[RealmRoleDTO],
     ) -> Result<(), KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("users/{subject}/role-mappings/realm"));
+        let url = self.admin_url(&format!("users/{}/role-mappings/realm", encode_path(subject)));
 
         let response = self
             .http
@@ -650,7 +677,7 @@ impl KeycloakClient {
         roles: &[RealmRoleDTO],
     ) -> Result<(), KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!("users/{subject}/role-mappings/realm"));
+        let url = self.admin_url(&format!("users/{}/role-mappings/realm", encode_path(subject)));
 
         let response = self
             .http
