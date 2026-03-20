@@ -1,4 +1,4 @@
-import { MemberWithRoles } from "@/common/types";
+import { KeycloakSyncStatusMap, MemberWithRoles } from "@/common/types";
 import { Checkbox } from "@/components/ui/checkbox";
 import { QueryKey, useDeleteMember } from "@/lib/api";
 import { CopyIcon } from "@radix-ui/react-icons";
@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
 import { MoreHorizontal, TrashIcon, UserIcon } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { DataTableColumnHeader } from "../ui/column-header";
 import {
@@ -17,8 +18,16 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import RoleBadge from "../ui/role-badge";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "../ui/tooltip";
 
-export const columns: ColumnDef<MemberWithRoles>[] = [
+export const getColumns = (
+  syncStatus?: KeycloakSyncStatusMap,
+): ColumnDef<MemberWithRoles>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -109,6 +118,57 @@ export const columns: ColumnDef<MemberWithRoles>[] = [
         </div>
       );
     },
+  },
+  {
+    id: "kc_sync",
+    header: () => <span className="text-xs">KC Status</span>,
+    cell: ({ row }) => {
+      if (!syncStatus) {
+        return <span className="text-xs text-muted-foreground">...</span>;
+      }
+      const status = syncStatus.statuses[row.original.user_id];
+      if (!status) {
+        return (
+          <Badge
+            variant="outline"
+            className="text-xs bg-green-50 text-green-700 border-green-200"
+          >
+            In sync
+          </Badge>
+        );
+      }
+      return (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger className="cursor-help">
+              <Badge
+                variant="outline"
+                className="text-xs bg-red-50 text-red-700 border-red-200"
+              >
+                Mismatch
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              <div className="space-y-1 text-xs">
+                {status.extra_in_keycloak.length > 0 && (
+                  <div>
+                    <span className="font-medium">Extra in KC:</span>{" "}
+                    {status.extra_in_keycloak.join(", ")}
+                  </div>
+                )}
+                {status.missing_in_keycloak.length > 0 && (
+                  <div>
+                    <span className="font-medium">Missing in KC:</span>{" "}
+                    {status.missing_in_keycloak.join(", ")}
+                  </div>
+                )}
+              </div>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      );
+    },
+    enableSorting: false,
   },
   {
     accessorKey: "home_municipality",

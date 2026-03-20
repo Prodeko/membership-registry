@@ -143,6 +143,7 @@ mock! {
         async fn create(&self, user_id: &Uuid, provider_name: &str, provider_user_id: &str) -> Result<AuthProviderMapping, AuthProviderRepoError>;
         async fn delete(&self, user_id: &Uuid, provider_name: &str) -> Result<bool, AuthProviderRepoError>;
         async fn count_by_user_id(&self, user_id: &Uuid) -> Result<usize, AuthProviderRepoError>;
+        async fn find_all_by_provider_name(&self, provider_name: &str) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError>;
     }
 }
 
@@ -158,6 +159,7 @@ mock! {
         async fn assign_role(&self, subject: &IdpSubject, role: &RoleName) -> Result<(), RoleSyncError>;
         async fn remove_role(&self, user_id: &IdpSubject, role: &RoleName) -> Result<(), RoleSyncError>;
         async fn has_role(&self, user_id: &IdpSubject, role: &RoleName) -> Result<bool, RoleSyncError>;
+        async fn list_role_members(&self, role: &RoleName) -> Result<Vec<IdpSubject>, RoleSyncError>;
     }
 }
 

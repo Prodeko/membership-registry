@@ -1,4 +1,8 @@
-import { useGetAllMembersWithRoles, useGetRoles } from "@/lib/api";
+import {
+  useGetAllMembersWithRoles,
+  useGetKeycloakSyncStatus,
+  useGetRoles,
+} from "@/lib/api";
 import { defaultFrom, defaultTo, stringsToOptions } from "@/lib/utils";
 import React from "react";
 import { DataTable } from "../ui/data-table";
@@ -6,17 +10,20 @@ import { DateRangePicker } from "../ui/date-range-picker";
 import MultipleSelector, { Option } from "../ui/multiple-selector";
 import AddRolesModal from "./AddRolesModal";
 import DeleteMembersModal from "./DeleteMembersModal";
-import { columns } from "./columns";
+import { getColumns } from "./columns";
 import { Button } from "../ui/button";
 
 const Members: React.FC = () => {
   const { data: roles, isLoading, error } = useGetRoles();
+  const { data: syncStatus } = useGetKeycloakSyncStatus();
   const [selectedRoles, setSelectedRoles] = React.useState<Option[]>([]);
   const [filterVisible, setFilterVisible] = React.useState(false);
   const [selectedValidFrom, setSelectedValidFrom] =
     React.useState<Date>(defaultFrom);
   const [selectedValidUntil, setSelectedValidUntil] =
     React.useState<Date>(defaultTo);
+
+  const columns = React.useMemo(() => getColumns(syncStatus), [syncStatus]);
 
   const onRoleChange = (selectedRoles: Option[]) => {
     setSelectedRoles(selectedRoles);

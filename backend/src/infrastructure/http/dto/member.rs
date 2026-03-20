@@ -3,7 +3,10 @@ use ts_rs::TS;
 use uuid::Uuid;
 use validator::Validate;
 
+use std::collections::HashMap;
+
 use crate::application::ports::member_repository_port::MemberWithRoles;
+use crate::application::services::role_service::MemberKeycloakSyncStatus;
 use crate::domain::{Email, NewPerson, Person, PersonId};
 
 #[derive(Debug, Serialize, Deserialize, TS)]
@@ -109,6 +112,30 @@ impl NewMemberDTO {
             language: self.language,
         })
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export, rename = "MemberKeycloakSyncStatus")]
+pub struct MemberKeycloakSyncStatusDTO {
+    pub in_sync: bool,
+    pub extra_in_keycloak: Vec<String>,
+    pub missing_in_keycloak: Vec<String>,
+}
+
+impl From<MemberKeycloakSyncStatus> for MemberKeycloakSyncStatusDTO {
+    fn from(s: MemberKeycloakSyncStatus) -> Self {
+        Self {
+            in_sync: s.in_sync,
+            extra_in_keycloak: s.extra_in_keycloak,
+            missing_in_keycloak: s.missing_in_keycloak,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, TS)]
+#[ts(export, rename = "KeycloakSyncStatusMap")]
+pub struct KeycloakSyncStatusMapDTO {
+    pub statuses: HashMap<String, MemberKeycloakSyncStatusDTO>,
 }
 
 /// DTO for updating a member. Only contains mutable fields.

@@ -43,4 +43,9 @@ pub trait AuthProviderRepositoryPort: Send + Sync {
     ) -> Result<bool, AuthProviderRepoError>;
 
     async fn count_by_user_id(&self, user_id: &Uuid) -> Result<usize, AuthProviderRepoError>;
+
+    async fn find_all_by_provider_name(
+        &self,
+        provider_name: &str,
+    ) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError>;
 }

@@ -173,6 +173,21 @@ impl AuthProviderRepositoryPort for UserAuthProviderRepo {
         Ok(self.delete(user_id, provider_name).await?)
     }
 
+    async fn find_all_by_provider_name(
+        &self,
+        provider_name: &str,
+    ) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError> {
+        let rows = sqlx::query_as::<_, UserAuthProviderDAO>(
+            "SELECT user_id, provider_name, provider_user_id, linked_at, metadata
+             FROM UserAuthProvider
+             WHERE provider_name = $1",
+        )
+        .bind(provider_name)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
     async fn count_by_user_id(&self, user_id: &Uuid) -> Result<usize, AuthProviderRepoError> {
         let row = sqlx::query!(
             "SELECT COUNT(*) as count FROM UserAuthProvider WHERE user_id = $1",

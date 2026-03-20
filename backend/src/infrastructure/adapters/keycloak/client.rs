@@ -601,6 +601,45 @@ impl KeycloakClient {
         Ok(roles.into_iter().map(|r| r.name).collect())
     }
 
+    pub async fn list_role_members(&self, role_name: &str) -> Result<Vec<String>, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "roles/{}/users",
+            encode_path(role_name)
+        ));
+
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .query(&[("first", "0"), ("max", "10000")])
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to list role members: {e:?}");
+                KeycloakError::Unavailable(format!("List role members request failed: {e}"))
+            })?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(Vec::new());
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            tracing::error!("List role members returned {status}");
+            return Err(KeycloakError::Unavailable(format!(
+                "List role members returned status {status}"
+            )));
+        }
+
+        let users: Vec<KeycloakUserDTO> = response.json().await.map_err(|e| {
+            tracing::error!("Failed to parse role members: {e:?}");
+            KeycloakError::BadResponse(format!("Role members parse error: {e}"))
+        })?;
+
+        Ok(users.into_iter().map(|u| u.id).collect())
+    }
+
     pub async fn get_realm_role_id(
         &self,
         role_name: &str,

@@ -18,7 +18,10 @@ use crate::{
     domain::UpdatePersonData,
     infrastructure::http::{
         dto::{
-            member::{MemberDTO, MemberWithRolesDTO, UpdateMemberDTO},
+            member::{
+                KeycloakSyncStatusMapDTO, MemberDTO, MemberKeycloakSyncStatusDTO,
+                MemberWithRolesDTO, UpdateMemberDTO,
+            },
             role::RoleMembershipDTO,
         },
         errors::{ApiError, ApiResult},
@@ -46,6 +49,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/roles", get(get_members_with_roles))
         .route("/roles", post(add_many_roles))
         .route("/roles/export", post(export_members_with_roles))
+        .route("/keycloak-sync-status", get(get_keycloak_sync_status))
         .route("/:user_id", delete(delete_member))
         .route("/:user_id/roles", post(add_role))
         .with_state(state)
@@ -313,4 +317,18 @@ async fn add_many_roles(
         .await?;
 
     Ok(())
+}
+
+#[debug_handler]
+async fn get_keycloak_sync_status(
+    State(state): State<AppState>,
+) -> ApiResult<Json<KeycloakSyncStatusMapDTO>> {
+    let status_map = state.role_service.get_keycloak_sync_status().await?;
+
+    let statuses = status_map
+        .into_iter()
+        .map(|(user_id, status)| (user_id.to_string(), MemberKeycloakSyncStatusDTO::from(status)))
+        .collect();
+
+    Ok(Json(KeycloakSyncStatusMapDTO { statuses }))
 }

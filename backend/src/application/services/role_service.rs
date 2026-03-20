@@ -1,4 +1,9 @@
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use std::time::Duration;
+
+use moka::future::Cache;
+use serde::{Deserialize, Serialize};
 
 use crate::application::ports::{
     auth_provider_repo_port::AuthProviderRepositoryPort,
@@ -14,6 +19,13 @@ use super::{
     member_service::MemberService,
 };
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MemberKeycloakSyncStatus {
+    pub in_sync: bool,
+    pub extra_in_keycloak: Vec<String>,
+    pub missing_in_keycloak: Vec<String>,
+}
+
 #[derive(Clone)]
 pub struct RoleService {
     pub role_repo: Arc<dyn RoleRepositoryPort>,
@@ -21,6 +33,7 @@ pub struct RoleService {
     pub role_sync: Arc<dyn RoleSyncPort>,
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
+    keycloak_sync_cache: Cache<String, HashMap<Uuid, MemberKeycloakSyncStatus>>,
 }
 
 impl RoleService {
@@ -37,7 +50,15 @@ impl RoleService {
             role_sync,
             auth_provider_repo,
             audit_log,
+            keycloak_sync_cache: Cache::builder()
+                .max_capacity(1)
+                .time_to_live(Duration::from_secs(60))
+                .build(),
         }
+    }
+
+    fn invalidate_sync_cache(&self) {
+        self.keycloak_sync_cache.invalidate_all();
     }
 
     pub async fn create_role(
@@ -66,6 +87,7 @@ impl RoleService {
             )
             .await;
 
+        self.invalidate_sync_cache();
         Ok(role)
     }
 
@@ -95,6 +117,7 @@ impl RoleService {
             .log(actor_user_id, "role.delete", "role", role_name, None)
             .await;
 
+        self.invalidate_sync_cache();
         Ok(())
     }
 
@@ -145,6 +168,7 @@ impl RoleService {
             )
             .await;
 
+        self.invalidate_sync_cache();
         Ok(())
     }
 
@@ -227,6 +251,7 @@ impl RoleService {
             }
         }
 
+        self.invalidate_sync_cache();
         Ok(())
     }
 
@@ -257,6 +282,7 @@ impl RoleService {
             )
             .await;
 
+        self.invalidate_sync_cache();
         Ok(())
     }
 
@@ -310,6 +336,7 @@ impl RoleService {
             )
             .await;
 
+        self.invalidate_sync_cache();
         Ok(())
     }
 
@@ -405,6 +432,10 @@ impl RoleService {
             "Expired role cleanup complete"
         );
 
+        if synced > 0 {
+            self.invalidate_sync_cache();
+        }
+
         Ok(synced)
     }
 
@@ -426,5 +457,120 @@ impl RoleService {
             })
             .await
             .map_err(ServiceError::from)
+    }
+
+    pub async fn get_keycloak_sync_status(
+        &self,
+    ) -> ServiceResult<HashMap<Uuid, MemberKeycloakSyncStatus>> {
+        const CACHE_KEY: &str = "sync";
+
+        if let Some(cached) = self.keycloak_sync_cache.get(CACHE_KEY).await {
+            return Ok(cached);
+        }
+
+        let status = self.compute_keycloak_sync_status().await?;
+        self.keycloak_sync_cache
+            .insert(CACHE_KEY.to_string(), status.clone())
+            .await;
+        Ok(status)
+    }
+
+    async fn compute_keycloak_sync_status(
+        &self,
+    ) -> ServiceResult<HashMap<Uuid, MemberKeycloakSyncStatus>> {
+        // 1. Get all app-managed roles
+        let roles = self
+            .role_repo
+            .fetch_all()
+            .await
+            .map_err(ServiceError::from)?;
+
+        // 2. For each role, get KC subjects that have it
+        let mut kc_roles_by_subject: HashMap<String, HashSet<String>> = HashMap::new();
+        for role in &roles {
+            match self.role_sync.list_role_members(&role.name).await {
+                Ok(subjects) => {
+                    for subject in subjects {
+                        kc_roles_by_subject
+                            .entry(subject.0)
+                            .or_default()
+                            .insert(role.name.0.clone());
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(role = %role.name.0, "Failed to list KC role members: {e:?}");
+                }
+            }
+        }
+
+        // 3. Get all auth provider mappings (subject → user_id)
+        let providers = self
+            .auth_provider_repo
+            .find_all_by_provider_name("keycloak")
+            .await
+            .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
+
+        let subject_to_user: HashMap<String, Uuid> = providers
+            .iter()
+            .map(|p| (p.provider_user_id.clone(), p.user_id))
+            .collect();
+
+        // 4. Build KC roles by user_id
+        let mut kc_roles_by_user: HashMap<Uuid, HashSet<String>> = HashMap::new();
+        for (subject, roles) in &kc_roles_by_subject {
+            if let Some(&user_id) = subject_to_user.get(subject) {
+                kc_roles_by_user.insert(user_id, roles.clone());
+            }
+        }
+
+        // 5. Get all active registry role memberships
+        let role_names: Vec<String> = roles.iter().map(|r| r.name.0.clone()).collect();
+        let members_with_roles = self
+            .member_service
+            .get_members_with_roles(None, None, Some(role_names), None, None, None, None, None)
+            .await?;
+
+        // Also include members with no roles (they should show as in_sync if KC also has none)
+        let all_members = self
+            .member_service
+            .get_members_with_roles(None, None, None, None, None, None, None, None)
+            .await?;
+
+        let mut registry_roles_by_user: HashMap<Uuid, HashSet<String>> = HashMap::new();
+        for mwr in &members_with_roles {
+            registry_roles_by_user
+                .insert(mwr.person.id.0, mwr.role_names.iter().cloned().collect());
+        }
+
+        // 6. Collect all user_ids we know about
+        let all_user_ids: HashSet<Uuid> = all_members.iter().map(|m| m.person.id.0).collect();
+
+        // 7. Compare
+        let mut result = HashMap::new();
+        for user_id in all_user_ids {
+            let kc_roles = kc_roles_by_user.get(&user_id).cloned().unwrap_or_default();
+            let reg_roles = registry_roles_by_user
+                .get(&user_id)
+                .cloned()
+                .unwrap_or_default();
+
+            let extra_in_keycloak: Vec<String> = kc_roles.difference(&reg_roles).cloned().collect();
+            let missing_in_keycloak: Vec<String> =
+                reg_roles.difference(&kc_roles).cloned().collect();
+            let in_sync = extra_in_keycloak.is_empty() && missing_in_keycloak.is_empty();
+
+            if !in_sync {
+                result.insert(
+                    user_id,
+                    MemberKeycloakSyncStatus {
+                        in_sync,
+                        extra_in_keycloak,
+                        missing_in_keycloak,
+                    },
+                );
+            }
+        }
+
+        Ok(result)
     }
 }

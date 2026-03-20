@@ -11,6 +11,7 @@ import {
   CreateEmailTemplate,
   EmailTemplate,
   EmailTemplateTranslation,
+  KeycloakSyncStatusMap,
   Member,
   MemberWithRoles,
   NewMember,
@@ -43,6 +44,7 @@ export enum QueryKey {
   AUDIT_LOGS = "audit_logs",
   EMAIL_TEMPLATES = "email_templates",
   PUBLIC_CONFIG = "public_config",
+  KEYCLOAK_SYNC_STATUS = "keycloak_sync_status",
 }
 
 export const axios_client = axios.create({
@@ -117,6 +119,19 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
 
       return response.data;
     },
+  });
+}
+
+export function useGetKeycloakSyncStatus() {
+  return useQuery<KeycloakSyncStatusMap>({
+    queryKey: [QueryKey.KEYCLOAK_SYNC_STATUS],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<KeycloakSyncStatusMap>(
+        "/members/keycloak-sync-status",
+      );
+      return response.data;
+    },
+    staleTime: 60_000,
   });
 }
 
