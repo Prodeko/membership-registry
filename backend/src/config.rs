@@ -11,8 +11,7 @@ pub struct Config {
     pub database_url: String,
 
     #[envconfig(from = "TEST_DATABASE_URL")]
-    #[validate(length(min = 1, max = 1024))]
-    pub test_database_url: String,
+    pub test_database_url: Option<String>,
 
     #[envconfig(from = "FRONTEND_URL")]
     #[validate(length(min = 1, max = 1024))]
