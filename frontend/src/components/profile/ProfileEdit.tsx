@@ -33,7 +33,9 @@ const ProfileEdit = () => {
   const formSchema = z.object({
     first_name: z.string().min(1, t("validation.first_name_required")),
     last_name: z.string().min(1, t("validation.last_name_required")),
-    home_municipality: z.enum([...FINNISH_MUNICIPALITIES, ...COUNTRIES]).optional(),
+    home_municipality: z
+      .enum([...FINNISH_MUNICIPALITIES, ...COUNTRIES])
+      .optional(),
     email_notifications: z.boolean(),
     language: z.enum(["fi", "en"]),
   });

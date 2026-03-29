@@ -169,7 +169,7 @@ const router = createBrowserRouter([
     path: "/apply/success",
     element: <Success />,
   },
-{
+  {
     path: "/auth/callback",
     element: <Callback />,
   },

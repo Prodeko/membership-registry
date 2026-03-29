@@ -60,7 +60,10 @@ const Header = () => {
             <Link to="/data">Data</Link>
           </NavigationMenuLink>
           {config?.keycloak_admin_url && (
-            <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+            <NavigationMenuLink
+              asChild
+              className={navigationMenuTriggerStyle()}
+            >
               <a
                 href={config.keycloak_admin_url}
                 target="_blank"
