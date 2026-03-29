@@ -26,6 +26,7 @@ use application::{
         auth_provider_repo_port::AuthProviderRepositoryPort,
         email_port::EmailPort,
         member_repository_port::MemberRepositoryPort,
+        role_renewal_repository_port::RoleRenewalRepositoryPort,
         role_repository_port::RoleRepositoryPort,
         rolesync_port::RoleSyncPort,
         saved_filter_repository_port::SavedFilterRepositoryPort,
@@ -37,8 +38,8 @@ use application::{
         application_service::ApplicationService, audit_log_service::AuditLogService,
         authentication_service::AuthenticationService, export_service::ExportService,
         member_service::MemberService, notification_service::NotificationService,
-        role_service::RoleService, saved_filter::SavedFilterService,
-        template_admin_service::TemplateAdminService,
+        renewal_service::RenewalService, role_service::RoleService,
+        saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
     },
 };
 use config::Config;
@@ -65,6 +66,7 @@ pub struct Services {
     pub member_service: MemberService,
     pub application_service: ApplicationService,
     pub role_service: RoleService,
+    pub renewal_service: RenewalService,
     pub authentication_service: AuthenticationService,
     pub saved_filter_service: SavedFilterService,
     pub audit_log_service: AuditLogService,
@@ -163,6 +165,16 @@ impl Services {
             audit_log_service.clone(),
             notification_service.clone(),
         );
+        let renewal_repo: Arc<dyn RoleRenewalRepositoryPort> = Arc::new(repo.role_renewal);
+        let renewal_service = RenewalService::new(
+            renewal_repo,
+            Arc::clone(&role_repo),
+            Arc::clone(&role_sync),
+            Arc::clone(&auth_provider_repo),
+            notification_service.clone(),
+            audit_log_service.clone(),
+        );
+
         let saved_filter_repo: Arc<dyn SavedFilterRepositoryPort> = Arc::new(repo.saved_filter);
         let saved_filter_service = SavedFilterService::new(saved_filter_repo);
 
@@ -173,6 +185,7 @@ impl Services {
             member_service,
             application_service,
             role_service,
+            renewal_service,
             authentication_service,
             saved_filter_service,
             audit_log_service,
@@ -235,8 +248,11 @@ async fn main() {
         signal_cancel.cancel();
     });
 
-    let scheduler_handle =
-        tokio::spawn(run_scheduler(services.role_service.clone(), cancel.clone()));
+    let scheduler_handle = tokio::spawn(run_scheduler(
+        services.role_service.clone(),
+        services.renewal_service.clone(),
+        cancel.clone(),
+    ));
 
     serve(config, services, cancel.clone()).await;
 

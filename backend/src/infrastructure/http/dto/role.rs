@@ -10,6 +10,11 @@ pub struct RoleDTO {
     pub name: String,
     pub color: Option<String>,
     pub description: Option<String>,
+    pub renewable: bool,
+    pub renewal_payment_link: Option<String>,
+    pub renewal_period_months: Option<i32>,
+    pub renewal_email_template: Option<String>,
+    pub renewal_notification_days: Vec<i32>,
 }
 
 impl From<Role> for RoleDTO {
@@ -18,8 +23,25 @@ impl From<Role> for RoleDTO {
             name: role.name.0,
             color: role.color,
             description: role.description,
+            renewable: role.renewable,
+            renewal_payment_link: role.renewal_payment_link,
+            renewal_period_months: role.renewal_period_months,
+            renewal_email_template: role.renewal_email_template,
+            renewal_notification_days: role.renewal_notification_days,
         }
     }
+}
+
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, rename = "UpdateRole")]
+pub struct UpdateRoleDTO {
+    pub color: Option<String>,
+    pub description: Option<String>,
+    pub renewable: bool,
+    pub renewal_payment_link: Option<String>,
+    pub renewal_period_months: Option<i32>,
+    pub renewal_email_template: Option<String>,
+    pub renewal_notification_days: Vec<i32>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

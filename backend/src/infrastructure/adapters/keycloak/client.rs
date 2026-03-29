@@ -603,10 +603,7 @@ impl KeycloakClient {
 
     pub async fn list_role_members(&self, role_name: &str) -> Result<Vec<String>, KeycloakError> {
         let token = self.get_service_token().await?;
-        let url = self.admin_url(&format!(
-            "roles/{}/users",
-            encode_path(role_name)
-        ));
+        let url = self.admin_url(&format!("roles/{}/users", encode_path(role_name)));
 
         let response = self
             .http

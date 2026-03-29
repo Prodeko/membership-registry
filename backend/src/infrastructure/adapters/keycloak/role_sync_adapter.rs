@@ -92,10 +92,7 @@ impl RoleSyncPort for KeycloakRoleSyncAdapter {
         Ok(roles.iter().any(|r| r == &role.0))
     }
 
-    async fn list_role_members(
-        &self,
-        role: &RoleName,
-    ) -> Result<Vec<IdpSubject>, RoleSyncError> {
+    async fn list_role_members(&self, role: &RoleName) -> Result<Vec<IdpSubject>, RoleSyncError> {
         let subjects = self
             .client
             .list_role_members(&role.0)

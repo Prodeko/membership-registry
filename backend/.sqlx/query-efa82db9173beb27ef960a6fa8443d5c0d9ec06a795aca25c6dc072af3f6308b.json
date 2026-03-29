@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE Role SET color = $2, description = $3, renewable = $4,\n                renewal_payment_link = $5, renewal_period_months = $6,\n                renewal_email_template = $7, renewal_notification_days = $8\n            WHERE name = $1\n            RETURNING name, color, description, renewable, renewal_payment_link,\n                      renewal_period_months, renewal_email_template, renewal_notification_days",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "color",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "renewable",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "renewal_payment_link",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "renewal_period_months",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "renewal_email_template",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "renewal_notification_days",
+        "type_info": "Int4Array"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Int4",
+        "Text",
+        "Int4Array"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "efa82db9173beb27ef960a6fa8443d5c0d9ec06a795aca25c6dc072af3f6308b"
+}

@@ -20,8 +20,5 @@ pub trait RoleSyncPort: Send + Sync {
 
     async fn has_role(&self, user_id: &IdpSubject, role: &RoleName) -> Result<bool, RoleSyncError>;
 
-    async fn list_role_members(
-        &self,
-        role: &RoleName,
-    ) -> Result<Vec<IdpSubject>, RoleSyncError>;
+    async fn list_role_members(&self, role: &RoleName) -> Result<Vec<IdpSubject>, RoleSyncError>;
 }

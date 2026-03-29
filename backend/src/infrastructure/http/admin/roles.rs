@@ -3,7 +3,7 @@ use axum::{
     debug_handler,
     extract::{Path, Query, State},
     http::Response,
-    routing::{get, post},
+    routing::{get, post, put},
     Extension, Json, Router,
 };
 use serde::Deserialize;
@@ -15,7 +15,7 @@ use crate::{
     infrastructure::http::{
         dto::{
             member::MemberDTO,
-            role::{RoleDTO, RoleStatsDTO},
+            role::{RoleDTO, RoleStatsDTO, UpdateRoleDTO},
         },
         errors::ApiResult,
         types::RolePath,
@@ -32,6 +32,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/export", post(export_roles))
         .route("/cleanup-expired", post(cleanup_expired_roles))
         .route("/:id", get(get_role))
+        .route("/:id", put(update_role))
         .route("/:id/members", get(get_role_members))
         .with_state(state)
 }
@@ -124,6 +125,11 @@ async fn post_role(
         name: RoleName(body.name),
         color: body.color,
         description: None,
+        renewable: false,
+        renewal_payment_link: None,
+        renewal_period_months: None,
+        renewal_email_template: None,
+        renewal_notification_days: vec![30, 7, 1],
     };
     let role = state
         .role_service
@@ -133,6 +139,34 @@ async fn post_role(
         .map(Json)?;
 
     Ok(role)
+}
+
+#[debug_handler]
+async fn update_role(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+    Path(path): Path<RolePath>,
+    Json(body): Json<UpdateRoleDTO>,
+) -> ApiResult<Json<RoleDTO>> {
+    let actor_id = user_info.map(|u| u.user_id);
+    let role = Role {
+        name: RoleName(path.id),
+        color: body.color,
+        description: body.description,
+        renewable: body.renewable,
+        renewal_payment_link: body.renewal_payment_link,
+        renewal_period_months: body.renewal_period_months,
+        renewal_email_template: body.renewal_email_template,
+        renewal_notification_days: body.renewal_notification_days,
+    };
+    let updated = state
+        .role_service
+        .update_role(&role, actor_id)
+        .await
+        .map(RoleDTO::from)
+        .map(Json)?;
+
+    Ok(updated)
 }
 
 #[derive(serde::Serialize)]

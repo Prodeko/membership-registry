@@ -11,7 +11,7 @@ use crate::domain::{EmailTemplate, EmailTemplateTranslation};
 
 use super::audit_log_service::AuditLogService;
 
-const ALLOWED_PLACEHOLDERS: &[&str] = &["name", "role_name"];
+const ALLOWED_PLACEHOLDERS: &[&str] = &["name", "role_name", "payment_link", "valid_until"];
 #[allow(clippy::expect_used)] // Regex literal, cannot fail
 static PLACEHOLDER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\{(\w+)\}").expect("valid regex"));

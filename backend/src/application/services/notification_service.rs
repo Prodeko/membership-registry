@@ -32,6 +32,19 @@ impl NotificationService {
         role_name: &str,
         locale: &str,
     ) {
+        self.send_notification_with_vars(template_name, to, recipient_name, role_name, locale, &[])
+            .await;
+    }
+
+    pub async fn send_notification_with_vars(
+        &self,
+        template_name: Option<&str>,
+        to: Option<&str>,
+        recipient_name: &str,
+        role_name: &str,
+        locale: &str,
+        extra_vars: &[(&str, &str)],
+    ) {
         let Some(template_name) = template_name else {
             return;
         };
@@ -52,9 +65,11 @@ impl NotificationService {
             }
         };
 
-        let variables = &[("name", recipient_name), ("role_name", role_name)];
-        let subject = self.renderer.render(&translation.subject, variables);
-        let body = self.renderer.render(&translation.body_html, variables);
+        let mut variables: Vec<(&str, &str)> =
+            vec![("name", recipient_name), ("role_name", role_name)];
+        variables.extend_from_slice(extra_vars);
+        let subject = self.renderer.render(&translation.subject, &variables);
+        let body = self.renderer.render(&translation.body_html, &variables);
 
         let Some(port) = &self.email_port else {
             tracing::info!("[MOCK EMAIL] To: {to}, Subject: {subject}");

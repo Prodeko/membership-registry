@@ -34,7 +34,7 @@ impl PaymentWebhookPort for StripeWebhookAdapter {
                     _ => return Err(PaymentWebhookError::UnhandledEvent),
                 };
 
-                let application_id = checkout
+                let reference_id = checkout
                     .client_reference_id
                     .and_then(|s| Uuid::from_str(s.as_str()).ok())
                     .ok_or(PaymentWebhookError::MissingApplicationId)?;
@@ -44,7 +44,7 @@ impl PaymentWebhookPort for StripeWebhookAdapter {
                     .ok_or(PaymentWebhookError::MissingPaymentIntent)?;
 
                 Ok(Some(PaymentEvent {
-                    application_id,
+                    reference_id,
                     payment_intent_id: payment_intent.id().to_string(),
                 }))
             }

@@ -23,6 +23,7 @@ import {
   RoleStats,
   SavedFilter,
   UpdateMember,
+  UpdateRole,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios, { AxiosError, AxiosResponse } from "axios";
@@ -361,6 +362,22 @@ export const useCreateRole = () => {
       await admin_axios_client.post("/roles", {
         name,
       });
+    },
+  });
+};
+
+export const useUpdateRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation<Role, Error, { roleName: string; data: UpdateRole }>({
+    mutationFn: async ({ roleName, data }) => {
+      const response = await admin_axios_client.put<Role>(
+        `/roles/${encodeURIComponent(roleName)}`,
+        data,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.ROLES] });
     },
   });
 };

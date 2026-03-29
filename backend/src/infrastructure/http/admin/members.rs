@@ -327,7 +327,12 @@ async fn get_keycloak_sync_status(
 
     let statuses = status_map
         .into_iter()
-        .map(|(user_id, status)| (user_id.to_string(), MemberKeycloakSyncStatusDTO::from(status)))
+        .map(|(user_id, status)| {
+            (
+                user_id.to_string(),
+                MemberKeycloakSyncStatusDTO::from(status),
+            )
+        })
         .collect();
 
     Ok(Json(KeycloakSyncStatusMapDTO { statuses }))

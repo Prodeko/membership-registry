@@ -25,6 +25,7 @@ export type {
   RoleStats,
   SavedFilter,
   UpdateMember,
+  UpdateRole,
 } from "./generated";
 
 // Frontend-only types (no backend equivalent)

@@ -16,6 +16,11 @@ struct RoleDAO {
     name: String,
     color: Option<String>,
     description: Option<String>,
+    renewable: bool,
+    renewal_payment_link: Option<String>,
+    renewal_period_months: Option<i32>,
+    renewal_email_template: Option<String>,
+    renewal_notification_days: Vec<i32>,
 }
 
 impl From<RoleDAO> for Role {
@@ -24,6 +29,11 @@ impl From<RoleDAO> for Role {
             name: RoleName(row.name),
             color: row.color,
             description: row.description,
+            renewable: row.renewable,
+            renewal_payment_link: row.renewal_payment_link,
+            renewal_period_months: row.renewal_period_months,
+            renewal_email_template: row.renewal_email_template,
+            renewal_notification_days: row.renewal_notification_days,
         }
     }
 }
@@ -80,9 +90,39 @@ impl RoleRepositoryPort for RoleRepo {
     async fn create(&self, role: &Role) -> Result<Role, RepositoryError> {
         let row = sqlx::query_as!(
             RoleDAO,
-            "INSERT INTO Role (name, color) VALUES ($1, $2) RETURNING name, color, description",
+            r#"INSERT INTO Role (name, color, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days"#,
             &role.name.0,
             role.color.as_deref(),
+            role.renewable,
+            role.renewal_payment_link.as_deref(),
+            role.renewal_period_months,
+            role.renewal_email_template.as_deref(),
+            &role.renewal_notification_days,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(row.into())
+    }
+
+    async fn update(&self, role: &Role) -> Result<Role, RepositoryError> {
+        let row = sqlx::query_as!(
+            RoleDAO,
+            r#"UPDATE Role SET color = $2, description = $3, renewable = $4,
+                renewal_payment_link = $5, renewal_period_months = $6,
+                renewal_email_template = $7, renewal_notification_days = $8
+            WHERE name = $1
+            RETURNING name, color, description, renewable, renewal_payment_link,
+                      renewal_period_months, renewal_email_template, renewal_notification_days"#,
+            &role.name.0,
+            role.color.as_deref(),
+            role.description.as_deref(),
+            role.renewable,
+            role.renewal_payment_link.as_deref(),
+            role.renewal_period_months,
+            role.renewal_email_template.as_deref(),
+            &role.renewal_notification_days,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -90,7 +130,7 @@ impl RoleRepositoryPort for RoleRepo {
     }
 
     async fn fetch_all(&self) -> Result<Vec<Role>, RepositoryError> {
-        let rows = sqlx::query_as!(RoleDAO, "SELECT name, color, description FROM Role")
+        let rows = sqlx::query_as!(RoleDAO, "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days FROM Role")
             .fetch_all(&self.pool)
             .await?;
         Ok(rows.into_iter().map(Into::into).collect())
@@ -99,7 +139,7 @@ impl RoleRepositoryPort for RoleRepo {
     async fn fetch_by_name(&self, role_name: &str) -> Result<Role, RepositoryError> {
         let row = sqlx::query_as!(
             RoleDAO,
-            "SELECT name, color, description FROM Role WHERE name = $1",
+            "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days FROM Role WHERE name = $1",
             role_name,
         )
         .fetch_one(&self.pool)
@@ -298,7 +338,9 @@ impl RoleRepositoryPort for RoleRepo {
             RoleStatsDAO,
             r#"-- sql
             SELECT
-                Role.*,
+                Role.name,
+                Role.color,
+                Role.description,
                 COUNT(DISTINCT RoleMember.user_id) as member_count,
                 COUNT(
                     CASE WHEN (
@@ -312,7 +354,7 @@ impl RoleRepositoryPort for RoleRepo {
             FROM Role LEFT JOIN RoleMember ON Role.name = RoleMember.role_name
             WHERE
                 $3::varchar IS NULL OR Role.name ILIKE '%' || $3 || '%'
-            GROUP BY Role.name, Role.color
+            GROUP BY Role.name, Role.color, Role.description
             ORDER BY
                 CASE WHEN $5 = 'ASC' THEN
                     CASE LOWER($4)

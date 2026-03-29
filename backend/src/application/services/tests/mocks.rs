@@ -104,6 +104,7 @@ mock! {
     #[async_trait::async_trait]
     impl RoleRepositoryPort for RoleRepositoryPort {
         async fn create(&self, role: &Role) -> Result<Role, RepositoryError>;
+        async fn update(&self, role: &Role) -> Result<Role, RepositoryError>;
         async fn fetch_all(&self) -> Result<Vec<Role>, RepositoryError>;
         async fn fetch_by_name(&self, role_name: &str) -> Result<Role, RepositoryError>;
         async fn delete(&self, role_name: &str) -> Result<(), RepositoryError>;

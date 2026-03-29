@@ -91,6 +91,33 @@ impl RoleService {
         Ok(role)
     }
 
+    pub async fn update_role(
+        &self,
+        role: &Role,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<Role> {
+        let updated = self
+            .role_repo
+            .update(role)
+            .await
+            .map_err(ServiceError::from)?;
+
+        self.audit_log
+            .log(
+                actor_user_id,
+                "role.update",
+                "role",
+                &updated.name.0,
+                Some(serde_json::json!({
+                    "role_name": &updated.name.0,
+                    "renewable": updated.renewable,
+                })),
+            )
+            .await;
+
+        Ok(updated)
+    }
+
     pub async fn get_all_roles(&self) -> ServiceResult<Vec<Role>> {
         self.role_repo.fetch_all().await.map_err(ServiceError::from)
     }

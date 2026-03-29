@@ -46,13 +46,22 @@ async fn stripe_webhook(
         ));
     };
 
-    state
-        .application_service
-        .update_payment_id(event.application_id, event.payment_intent_id)
+    // Try renewal first, then application
+    let handled_as_renewal = state
+        .renewal_service
+        .process_renewal_payment(event.reference_id, event.payment_intent_id.clone())
         .await
         .map_err(ApiError::ServiceError)?;
 
+    if !handled_as_renewal {
+        state
+            .application_service
+            .update_payment_id(event.reference_id, event.payment_intent_id)
+            .await
+            .map_err(ApiError::ServiceError)?;
+    }
+
     Ok(Json(
-        serde_json::json!({"success": true, "message": "Payment ID updated."}),
+        serde_json::json!({"success": true, "message": "Payment processed."}),
     ))
 }

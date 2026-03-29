@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days FROM Role WHERE name = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "color",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "renewable",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "renewal_payment_link",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "renewal_period_months",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "renewal_email_template",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "renewal_notification_days",
+        "type_info": "Int4Array"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "6577b35d0cccee5aa8971edb52ab426547bb92d0a29295483e3bb623d7deb4f4"
+}

@@ -41,3 +41,4 @@ export type { UnlinkProviderPath } from "./UnlinkProviderPath";
 export type { UpdateApplicationStatus } from "./UpdateApplicationStatus";
 export type { UpdateEmailTemplate } from "./UpdateEmailTemplate";
 export type { UpdateMember } from "./UpdateMember";
+export type { UpdateRole } from "./UpdateRole";

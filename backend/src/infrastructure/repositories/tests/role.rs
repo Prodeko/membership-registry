@@ -24,6 +24,11 @@ mod test_role {
             name: RoleName(name.clone()),
             color: None,
             description: None,
+            renewable: false,
+            renewal_payment_link: None,
+            renewal_period_months: None,
+            renewal_email_template: None,
+            renewal_notification_days: vec![30, 7, 1],
         };
 
         let role = repo.role.create(&role_to_add).await;
@@ -55,6 +60,11 @@ mod test_role {
                 name: RoleName("test-role".to_string()),
                 color: None,
                 description: None,
+                renewable: false,
+                renewal_payment_link: None,
+                renewal_period_months: None,
+                renewal_email_template: None,
+                renewal_notification_days: vec![30, 7, 1],
             })
             .await;
 

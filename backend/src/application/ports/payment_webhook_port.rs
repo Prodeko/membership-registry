@@ -10,7 +10,8 @@ pub enum PaymentWebhookError {
 }
 
 pub struct PaymentEvent {
-    pub application_id: Uuid,
+    /// The UUID from client_reference_id — could be an application or a renewal.
+    pub reference_id: Uuid,
     pub payment_intent_id: String,
 }
 
