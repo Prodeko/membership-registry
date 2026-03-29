@@ -1,0 +1,131 @@
+{
+  "common": {
+    "loading": "Ladataan...",
+    "cancel": "Peruuta",
+    "save": "Tallenna",
+    "yes": "Kyllä",
+    "no": "Ei"
+  },
+  "status": {
+    "approved": "Hyväksytty",
+    "rejected": "Hylätty",
+    "pending": "Käsittelyssä",
+    "unpaid": "Maksamaton",
+    "active": "Aktiivinen",
+    "expired": "Vanhentunut"
+  },
+  "validation": {
+    "first_name_required": "Etunimi on pakollinen",
+    "last_name_required": "Sukunimi on pakollinen",
+    "application_text_required": "Hakemusteksti on pakollinen",
+    "role_required": "Rooli on pakollinen",
+    "valid_until_required": "Voimassaoloaika on pakollinen",
+    "policies_required": "Sinun tulee hyväksyä käyttöehdot"
+  },
+  "errors": {
+    "profile_load_failed": "Profiilin lataaminen epäonnistui.",
+    "no_roles": "Ei haettavia rooleja."
+  },
+  "home": {
+    "welcome": "Tervetuloa, {{name}}",
+    "subtitle": "Tässä on yhteenveto jäsenyystilastasi.",
+    "apply_button": "Hae jäsenyyttä",
+    "applications": {
+      "title": "Hakemuksesi",
+      "description": "Seuraa jäsenyyshakemustesi tilaa.",
+      "empty": "Et ole vielä jättänyt hakemuksia.",
+      "valid_until": "Voimassa {{date}} asti",
+      "pay_fee": "Maksa jäsenmaksu",
+      "withdraw": "Peru"
+    },
+    "roles": {
+      "title": "Aktiiviset roolit",
+      "description": "Nykyiset jäsenyysroolisi.",
+      "empty": "Sinulla ei ole vielä aktiivisia rooleja.",
+      "no_expiry": "Ei päättymispäivää"
+    },
+    "profile": {
+      "title": "Profiili"
+    }
+  },
+  "profile": {
+    "fields": {
+      "name": "Nimi",
+      "email": "Sähköposti",
+      "municipality": "Kotikunta",
+      "email_notifications": "Sähköposti-ilmoitukset",
+      "enabled": "Käytössä",
+      "disabled": "Pois käytöstä",
+      "first_name": "Etunimi",
+      "last_name": "Sukunimi",
+      "home_municipality": "Kotikunta",
+      "language": "Kieli"
+    },
+    "edit_button": "Muokkaa",
+    "account_settings": "Tiliasetukset",
+    "edit": {
+      "title": "Muokkaa profiilia",
+      "save_button": "Tallenna muutokset",
+      "saving": "Tallennetaan..."
+    },
+    "municipality_description": "Valitse kunta, jossa asut pääasiassa. Jos asut pääasiassa Suomen ulkopuolella, valitse maasi.",
+    "notifications_description": "Vastaanota sähköposti-ilmoituksia hakemuksen tilan muutoksista."
+  },
+  "application": {
+    "form": {
+      "title": "Hakemuslomake",
+      "instructions": "Varmista, että yllä olevat tiedot ovat oikein ennen hakemuksen lähettämistä. Jos eivät, päivitä tietosi profiilisivulla.",
+      "membership_type_label": "Jäsenyystyyppi",
+      "role_placeholder": "Valitse rooli",
+      "valid_until_text": "(Voimassa {{date}} asti)",
+      "application_text_label": "Hakemusteksti",
+      "application_text_placeholder": "Lyhyt hakemusteksti",
+      "membership_tooltip": "Valitse jäsenyystyyppi, johon haluat hakea. Jos olet jo hakenut roolia, et voi hakea sitä uudelleen ennen kuin nykyinen hakemus on käsitelty.",
+      "proceed_payment": "Siirry maksamaan",
+      "submit": "Lähetä hakemus"
+    }
+  },
+  "success": {
+    "title": "Hakemus lähetetty",
+    "message": "Hakemuksesi on vastaanotettu ja se on nyt käsittelyssä. Saat sähköpostilla ilmoituksen, kun päätös on tehty.",
+    "go_home": "Siirry etusivulle",
+    "submit_another": "Lähetä toinen hakemus"
+  },
+  "signup": {
+    "form": {
+      "title": "Rekisteröitymislomake"
+    },
+    "fields": {
+      "first_name": "Etunimi",
+      "last_name": "Sukunimi",
+      "home_municipality": "Kotikunta"
+    },
+    "municipality_description": "Valitse kunta, jossa asut pääasiassa. Jos asut pääasiassa Suomen ulkopuolella, valitse maasi.",
+    "policies_checkbox": "Olen lukenut ja hyväksyn käyttöehdot",
+    "submit": "Lähetä"
+  },
+  "applications": {
+    "existing": {
+      "title": "Olemassa olevat hakemukset",
+      "tooltip": "Tässä osiossa näkyvät lähettämäsi jäsenyyshakemukset. Jos haluat poistaa hakemuksen, ota yhteyttä mediakeisari@prodeko.org.",
+      "role_validity": "{{role_name}} - Rooli voimassa: {{date}}",
+      "status_label": "Tila:",
+      "pay_fee": "Maksa jäsenmaksu"
+    }
+  },
+  "dialogs": {
+    "cancel": "Peruuta",
+    "withdraw": {
+      "title": "Peru hakemus",
+      "description": "Haluatko varmasti perua tämän hakemuksen? Tätä toimintoa ei voi peruuttaa.",
+      "confirm": "Peru hakemus"
+    }
+  },
+  "member": {
+    "accepted_policies": "Hyväksynyt käyttöehdot"
+  },
+  "language": {
+    "fi": "Suomi",
+    "en": "English"
+  }
+}

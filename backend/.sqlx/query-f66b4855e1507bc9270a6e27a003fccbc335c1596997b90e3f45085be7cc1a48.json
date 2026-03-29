@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n          SELECT user_id, role_name, valid_from, valid_until\n          FROM RoleMember\n          WHERE user_id = $1\n          ORDER BY valid_from DESC\n          ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "role_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 3,
+        "name": "valid_until",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "f66b4855e1507bc9270a6e27a003fccbc335c1596997b90e3f45085be7cc1a48"
+}

@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM ApplicationTargetableRole",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "payment_link",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "optional_roles",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 5,
+        "name": "approved_email_template",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "rejected_email_template",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "9dd4b62926c62fdc4637b30f1fee060bcd03c6a2f273dedda11e8c15f1b4ecf4"
+}

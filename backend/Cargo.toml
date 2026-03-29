@@ -19,7 +19,9 @@ envconfig = "0.10.0"
 moka = { version = "0.12", features = ["future"] }
 futures-util = "0.3.30"
 http-body-util = "0.1.2"
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 oauth2 = "4.4.2"
+percent-encoding = "2"
 postgres = "0.19.7"
 rand = "0.8.5"
 regex = "1"
@@ -45,11 +47,14 @@ tower-http = { version = "0.5.2", features = [
     "trace",
     "auth",
     "validate-request",
+    "set-header",
 ] }
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 uuid = { version = "1.8", features = ["serde", "v4"] }
 validator = { version = "0.16.1", features = ["derive"] }
+tower_governor = "0.4"
 
 [dev-dependencies]
+mockall = "0.13"
 wiremock = "0.6"

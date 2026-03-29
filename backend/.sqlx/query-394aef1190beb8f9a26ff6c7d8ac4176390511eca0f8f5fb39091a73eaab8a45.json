@@ -1,0 +1,59 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT * FROM ApplicationTargetableRole WHERE role_name = $1 AND valid_until = $2",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 2,
+        "name": "active",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 3,
+        "name": "payment_link",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "optional_roles",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 5,
+        "name": "approved_email_template",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "rejected_email_template",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "394aef1190beb8f9a26ff6c7d8ac4176390511eca0f8f5fb39091a73eaab8a45"
+}

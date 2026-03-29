@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n            SELECT\n                Member.*,\n                json_agg(RoleMember.role_name) AS role_names\n            FROM\n                Member\n            LEFT JOIN\n                RoleMember ON Member.user_id = RoleMember.user_id\n            WHERE (\n                $4::varchar IS NULL OR\n                Member.full_name ILIKE '%' || $4 || '%' OR\n                Member.email ILIKE '%' || $4 || '%'\n            ) AND (\n                $3::varchar[] is NULL OR\n                (($8::date is NULL OR RoleMember.valid_until >= $8) AND\n                 ($7::date is NULL OR RoleMember.valid_from  <= $7))\n            )\n            GROUP BY\n                Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.has_accepted_policies, Member.email_notifications, Member.language\n            HAVING\n                $3 IS NULL OR\n                EXISTS (\n                    SELECT 1\n                    FROM unnest($3::varchar[]) AS filter_role\n                    WHERE filter_role = ANY(array_agg(RoleMember.role_name))\n                )\n            ORDER BY\n                CASE WHEN $6 = 'ASC' THEN\n                    CASE $5\n                        WHEN 'last_name' THEN Member.last_name\n                        WHEN 'first_name' THEN Member.first_name\n                        WHEN 'home_municipality' THEN Member.home_municipality\n                        WHEN 'user_id' THEN Member.user_id::varchar\n                        WHEN 'role_names' THEN STRING_AGG(RoleMember.role_name, ', ')\n                        ELSE Member.full_name\n                    END\n                END ASC,\n                CASE WHEN $6 = 'DESC' THEN\n                    CASE $5\n                        WHEN 'last_name' THEN Member.last_name\n                        WHEN 'first_name' THEN Member.first_name\n                        WHEN 'home_municipality' THEN Member.home_municipality\n                        WHEN 'user_id' THEN Member.user_id::varchar\n                        WHEN 'role_names' THEN STRING_AGG(RoleMember.role_name, ', ')\n                        ELSE Member.full_name\n                    END\n                END DESC\n            LIMIT $1 OFFSET $2::Integer * $1::Integer\n          ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "home_municipality",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "has_accepted_policies",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "full_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "email_notifications",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "language",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "role_names",
+        "type_info": "Json"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "VarcharArray",
+        "Varchar",
+        "Text",
+        "Text",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false,
+      null
+    ]
+  },
+  "hash": "c3d01b6979cbdf303c8970b7fb209ddf60cf2b19e689a31ff725cd898af0db4a"
+}

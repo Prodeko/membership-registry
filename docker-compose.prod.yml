@@ -1,0 +1,102 @@
+# Local production-like stack (standalone, not an overlay).
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up --build
+#   Open http://localhost (app) and http://auth.localhost (keycloak)
+#
+# Mirrors the Azure deployment: Caddy → backend + keycloak, separate postgres DBs.
+# Uses HTTP (no TLS) for local convenience.
+
+services:
+  postgres:
+    image: postgres:14
+    environment:
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: membership
+      POSTGRES_USER: membership
+    volumes:
+      - ./docker/init-keycloak-db.sql:/docker-entrypoint-initdb.d/02-keycloak.sql:ro
+      - prod-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U membership"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  keycloak:
+    build:
+      context: ./keycloak
+      dockerfile: Dockerfile
+    command: ["start", "--optimized", "--import-realm"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: membership
+      KC_DB_PASSWORD: secret
+      KC_HOSTNAME: auth.localhost
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_PROXY_HEADERS: xforwarded
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      JAVA_OPTS_APPEND: "-Xms256m -Xmx1024m"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      PORT: 8080
+      DATABASE_URL: postgres://membership:secret@postgres:5432/membership
+      TEST_DATABASE_URL: postgres://membership:secret@postgres:5432/membership
+      FRONTEND_URL: http://localhost
+      KEYCLOAK_URL: http://auth.localhost
+      KEYCLOAK_REALM: membership-registry
+      KEYCLOAK_CLIENT_ID: membership-registry
+      KEYCLOAK_CLIENT_SECRET: dev-secret-membership-registry
+      OAUTH_REDIRECT_URL: http://localhost/auth/callback
+      KEYCLOAK_ADMIN_CLIENT_ID: membership-registry-m2m
+      KEYCLOAK_ADMIN_CLIENT_SECRET: dev-secret-membership-registry-m2m
+      STRIPE_ENDPOINT_SECRET: whsec_test
+      RUST_LOG: debug
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak:
+        condition: service_started
+
+  frontend-builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+    entrypoint: ["sh", "-c", "cp -r /frontend/dist/* /output/"]
+    volumes:
+      - frontend-dist:/output
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+    volumes:
+      - ./docker/Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - frontend-dist:/srv/www/jasenrekisteri/frontend:ro
+    depends_on:
+      frontend-builder:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
+      keycloak:
+        condition: service_started
+    networks:
+      default:
+        aliases:
+          - auth.localhost
+
+volumes:
+  prod-pgdata:
+  frontend-dist:

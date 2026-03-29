@@ -1,0 +1,100 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as \"status!: ApplicationStatusDAO\"\n            FROM Application a\n            JOIN Member m ON a.user_id = m.user_id\n            WHERE a.application_id = $1\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "application_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "full_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "language",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "role_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "valid_until",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 7,
+        "name": "timestamp",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "stripe_payment_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "optional_roles",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 10,
+        "name": "application_text",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "status!: ApplicationStatusDAO",
+        "type_info": {
+          "Custom": {
+            "name": "application_status",
+            "kind": {
+              "Enum": [
+                "unpaid",
+                "pending",
+                "approved",
+                "rejected"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "a8d5082155c0940d7b438f9ca1a8810c1fe61a54e6d58d139fcb3e5b2c82cfe6"
+}

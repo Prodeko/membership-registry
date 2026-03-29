@@ -13,10 +13,12 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import { PersonIcon } from "@radix-ui/react-icons";
+import { ExternalLinkIcon, PersonIcon } from "@radix-ui/react-icons";
 import { Logout } from "./Logout";
+import { useGetPublicConfig } from "../../lib/api";
 
 const Header = () => {
+  const { data: config } = useGetPublicConfig();
   return (
     <NavigationMenu>
       <div className="flex justify-between">
@@ -54,6 +56,20 @@ const Header = () => {
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
             <Link to="/email-templates">Templates</Link>
           </NavigationMenuLink>
+          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+            <Link to="/data">Data</Link>
+          </NavigationMenuLink>
+          {config?.keycloak_admin_url && (
+            <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+              <a
+                href={config.keycloak_admin_url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Keycloak <ExternalLinkIcon className="ml-1 inline h-3 w-3" />
+              </a>
+            </NavigationMenuLink>
+          )}
         </NavigationMenuList>
         <DropdownMenu>
           <DropdownMenuTrigger className="p-4">

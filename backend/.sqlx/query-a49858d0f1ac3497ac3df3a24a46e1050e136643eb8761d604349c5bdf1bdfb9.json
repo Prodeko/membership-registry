@@ -1,0 +1,70 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT *\n            FROM member\n            WHERE\n                array_length($1::uuid[], 1) IS NULL OR\n                array_length($1::uuid[], 1) = 0  OR\n                user_id = ANY($1)\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "first_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "last_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "home_municipality",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "has_accepted_policies",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 6,
+        "name": "full_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "email_notifications",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 8,
+        "name": "language",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "UuidArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "a49858d0f1ac3497ac3df3a24a46e1050e136643eb8761d604349c5bdf1bdfb9"
+}

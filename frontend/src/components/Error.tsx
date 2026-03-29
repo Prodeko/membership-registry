@@ -19,14 +19,14 @@ const errorDetails = new Map<number, ErrorDetails>([
       details: (
         <>
           <p>
-            You are not authorized to view this page. Please login again or sign
-            up. If the issue persists please contact mediakeisari@prodeko.org
+            You are not authorized to view this page. Please login again. If the
+            issue persists please contact mediakeisari@prodeko.org
           </p>
           <Link
             className="bg-primary text-white px-4 py-2 rounded w-fit text-xl"
             to={`${import.meta.env.VITE_API_BASE_URL}/auth/login`}
           >
-            Login or signup
+            Login
           </Link>
         </>
       ),

@@ -5,21 +5,25 @@ import {
   ApplicationTargetableRolePK,
   ApplicationWithMember,
   AuditLogEntryWithActor,
-  AuthInfo,
+  AuthenticatedUser,
   CreateApplicationRequest,
   CreateApplicationResponse,
   CreateEmailTemplate,
   EmailTemplate,
+  EmailTemplateTranslation,
+  KeycloakSyncStatusMap,
   Member,
   MemberWithRoles,
   NewMember,
   NewSavedFilter,
   PostTargetableRole,
+  PublicConfig,
   Role,
   RoleMember,
   RoleStats,
   SavedFilter,
-  UpdateEmailTemplate,
+  UpdateMember,
+  UpdateRole,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios, { AxiosError, AxiosResponse } from "axios";
@@ -40,6 +44,8 @@ export enum QueryKey {
   LOGOUT = "logout",
   AUDIT_LOGS = "audit_logs",
   EMAIL_TEMPLATES = "email_templates",
+  PUBLIC_CONFIG = "public_config",
+  KEYCLOAK_SYNC_STATUS = "keycloak_sync_status",
 }
 
 export const axios_client = axios.create({
@@ -51,12 +57,16 @@ export const axios_client = axios.create({
 });
 
 axios_client.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response;
-  },
+  (response: AxiosResponse) => response,
   (error: AxiosError) => {
-    console.error("Axios error: ", error);
-    window.location.href = `/error/${error.response?.status || "500"}`;
+    if (
+      error.response?.status === 401 &&
+      !error.config?.url?.includes("/auth/callback")
+    ) {
+      window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/login`;
+      return new Promise(() => {}); // halt chain during redirect
+    }
+    return Promise.reject(error);
   },
 );
 
@@ -69,12 +79,13 @@ export const admin_axios_client = axios.create({
 });
 
 admin_axios_client.interceptors.response.use(
-  (response: AxiosResponse) => {
-    return response;
-  },
+  (response: AxiosResponse) => response,
   (error: AxiosError) => {
-    console.error("Axios error: ", error);
-    window.location.href = `/error/${error.response?.status || "500"}`;
+    if (error.response?.status === 401) {
+      window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/login`;
+      return new Promise(() => {}); // halt chain during redirect
+    }
+    return Promise.reject(error);
   },
 );
 
@@ -112,27 +123,76 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
   });
 }
 
-export function useExportMembersWithRoles() {
+export function useGetKeycloakSyncStatus() {
+  return useQuery<KeycloakSyncStatusMap>({
+    queryKey: [QueryKey.KEYCLOAK_SYNC_STATUS],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<KeycloakSyncStatusMap>(
+        "/members/keycloak-sync-status",
+      );
+      return response.data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export function useExportAllMembers() {
   return useMutation({
-    mutationFn: async (params: PaginatedQueryParams) => {
+    mutationFn: async () => {
       const response = await admin_axios_client.post(
         "/members/roles/export",
         null,
-        {
-          params: {
-            ...params,
-            roles: params.customFilters?.roles?.join(",") || undefined,
-            valid_from:
-              getDateAsString(params.customFilters?.valid_from) || undefined,
-            valid_until:
-              getDateAsString(params.customFilters?.valid_until) || undefined,
-          },
-          responseType: "blob",
-        },
+        { responseType: "blob" },
       );
       return downloadCsv(
         response.data,
-        `prodeko_members_${new Date().toISOString()}.csv`,
+        `members_${new Date().toISOString()}.csv`,
+      );
+    },
+  });
+}
+
+export function useExportApplications() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post(
+        "/applications/export",
+        null,
+        { responseType: "blob" },
+      );
+      return downloadCsv(
+        response.data,
+        `applications_${new Date().toISOString()}.csv`,
+      );
+    },
+  });
+}
+
+export function useExportAuditLogs() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post(
+        "/audit-logs/export",
+        null,
+        { responseType: "blob" },
+      );
+      return downloadCsv(
+        response.data,
+        `audit_logs_${new Date().toISOString()}.csv`,
+      );
+    },
+  });
+}
+
+export function useExportRoles() {
+  return useMutation({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post("/roles/export", null, {
+        responseType: "blob",
+      });
+      return downloadCsv(
+        response.data,
+        `roles_${new Date().toISOString()}.csv`,
       );
     },
   });
@@ -162,7 +222,10 @@ export const useGetMember = (id: string) => {
   });
 };
 
-export const useGetMemberRoles = (id: string) => {
+export const useGetMemberRoles = (
+  id: string,
+  options?: { enabled?: boolean },
+) => {
   return useQuery<RoleMember[]>({
     queryKey: [QueryKey.MEMBER_ROLES, { id }],
     queryFn: async () => {
@@ -171,6 +234,7 @@ export const useGetMemberRoles = (id: string) => {
       );
       return response.data;
     },
+    enabled: options?.enabled,
   });
 };
 
@@ -235,6 +299,17 @@ export const useGetRolesStats = (params: PaginatedQueryParams) => {
   });
 };
 
+export const useCleanupExpiredRoles = () => {
+  return useMutation<{ synced: number }, Error>({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post<{ synced: number }>(
+        "/roles/cleanup-expired",
+      );
+      return response.data;
+    },
+  });
+};
+
 export const useDeleteMember = () => {
   return useMutation({
     mutationFn: async (id: string) => {
@@ -287,6 +362,22 @@ export const useCreateRole = () => {
       await admin_axios_client.post("/roles", {
         name,
       });
+    },
+  });
+};
+
+export const useUpdateRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation<Role, Error, { roleName: string; data: UpdateRole }>({
+    mutationFn: async ({ roleName, data }) => {
+      const response = await admin_axios_client.put<Role>(
+        `/roles/${encodeURIComponent(roleName)}`,
+        data,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.ROLES] });
     },
   });
 };
@@ -443,7 +534,7 @@ export const useGetMeMember = () => {
 };
 
 export const useGetMeUser = () => {
-  return useQuery<AuthInfo>({
+  return useQuery<AuthenticatedUser>({
     queryKey: [QueryKey.ME],
     queryFn: async () => {
       const response = await axios_client.get("/users/me");
@@ -487,7 +578,7 @@ export const useLogout = () => {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async () => {
-      const response = await axios_client.get("/auth/logout");
+      const response = await axios_client.post("/auth/logout");
       return response.data;
     },
     onSuccess: () => {
@@ -541,22 +632,6 @@ export const useCreateEmailTemplate = () => {
   });
 };
 
-export const useUpdateEmailTemplate = () => {
-  return useMutation<
-    EmailTemplate,
-    Error,
-    { name: string } & UpdateEmailTemplate
-  >({
-    mutationFn: async ({ name, ...body }) => {
-      const response = await admin_axios_client.put<EmailTemplate>(
-        `/email-templates/${encodeURIComponent(name)}`,
-        body,
-      );
-      return response.data;
-    },
-  });
-};
-
 export const useDeleteEmailTemplate = () => {
   return useMutation<void, Error, string>({
     mutationFn: async (name) => {
@@ -564,5 +639,83 @@ export const useDeleteEmailTemplate = () => {
         `/email-templates/${encodeURIComponent(name)}`,
       );
     },
+  });
+};
+
+export const useGetEmailTemplateTranslations = (name: string) => {
+  return useQuery<EmailTemplateTranslation[]>({
+    queryKey: [QueryKey.EMAIL_TEMPLATES, name, "translations"],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<EmailTemplateTranslation[]>(
+        `/email-templates/${encodeURIComponent(name)}/translations`,
+      );
+      return response.data;
+    },
+    enabled: !!name,
+  });
+};
+
+export const useUpsertEmailTemplateTranslation = () => {
+  return useMutation<
+    EmailTemplateTranslation,
+    Error,
+    { name: string; locale: string; subject: string; body_html: string }
+  >({
+    mutationFn: async ({ name, locale, ...body }) => {
+      const response = await admin_axios_client.put<EmailTemplateTranslation>(
+        `/email-templates/${encodeURIComponent(name)}/translations/${encodeURIComponent(locale)}`,
+        body,
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useDeleteEmailTemplateTranslation = () => {
+  return useMutation<void, Error, { name: string; locale: string }>({
+    mutationFn: async ({ name, locale }) => {
+      await admin_axios_client.delete(
+        `/email-templates/${encodeURIComponent(name)}/translations/${encodeURIComponent(locale)}`,
+      );
+    },
+  });
+};
+
+export const useUpdateMember = () => {
+  const queryClient = useQueryClient();
+  return useMutation<Member, Error, { userId: string; data: UpdateMember }>({
+    mutationFn: async ({ userId, data }) => {
+      const response = await axios_client.put<Member>(
+        `/members/${userId}`,
+        data,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.ME] });
+    },
+  });
+};
+
+export const useWithdrawApplication = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, AxiosError, string>({
+    mutationFn: async (applicationId: string) => {
+      await axios_client.delete(`/applications/${applicationId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.APPLICATIONS] });
+    },
+  });
+};
+
+export const useGetPublicConfig = () => {
+  return useQuery<PublicConfig>({
+    queryKey: [QueryKey.PUBLIC_CONFIG],
+    queryFn: async () => {
+      const response = await axios_client.get<PublicConfig>("/config");
+      return response.data;
+    },
+    staleTime: Infinity,
   });
 };

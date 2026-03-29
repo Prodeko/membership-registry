@@ -99,7 +99,7 @@ export function DataTable<TData, TValue>({
     getRowId,
   });
 
-  const { data: fetchedData } = useFetchData({
+  const { data: fetchedData, error } = useFetchData({
     pageSize: table.getState().pagination.pageSize,
     offset: table.getState().pagination.pageIndex,
     search: searchColumn
@@ -132,6 +132,14 @@ export function DataTable<TData, TValue>({
       setTableData(fetchedData);
     }
   }, [fetchedData]);
+
+  if (error) {
+    return (
+      <div className="rounded-md border border-destructive bg-destructive/10 p-4 text-destructive">
+        Failed to load data: {error.message}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

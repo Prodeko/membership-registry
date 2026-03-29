@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM SavedFilter WHERE name = $1 AND owner_user_id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "81c90f125f692ed9fdf3febc23850147926548777a4fc617f39c8f92eb1fb20d"
+}

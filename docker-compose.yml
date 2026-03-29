@@ -7,3 +7,15 @@ services:
       - POSTGRES_USER=membership
     ports:
       - "5433:5432" # for development
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.5.4
+    command: start-dev --import-realm
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8180:8080"
+    volumes:
+      - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
+      - ./keycloak/themes/membership:/opt/keycloak/themes/membership

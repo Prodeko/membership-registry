@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -12,13 +13,19 @@ import {
   useGetMeMember,
   useGetTargetableRoles,
   useGetUserApplications,
+  useUpdateMember,
 } from "@/lib/api";
+import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import RenderMemberData from "../members/RenderMemberData";
 import { Card } from "../ui/card";
+import { Checkbox } from "../ui/checkbox";
+import MunicipalitySelect from "../ui/MunicipalitySelect";
 import {
   Select,
   SelectContent,
@@ -33,71 +40,128 @@ import InfoTooltip from "../ui/info-tooltip";
 import { kebabCaseToTitleCase } from "@/lib/utils";
 
 const formSchema = z.object({
-  application_text: z.string({
-    required_error: "Application text is required",
-  }),
-  role_name: z.string({ required_error: "Role is required" }),
-  valid_until: z.date({ required_error: "Valid until is required" }),
+  application_text: z.string(),
+  role_name: z.string(),
+  valid_until: z.date(),
+  home_municipality: z
+    .enum([...FINNISH_MUNICIPALITIES, ...COUNTRIES])
+    .optional(),
+  has_accepted_policies: z.boolean().optional(),
 });
 
-export type ApplicationFormValues = z.infer<typeof formSchema>;
+type FormValues = z.infer<typeof formSchema>;
 
 const ApplicationForm = () => {
-  const form = useForm<z.infer<typeof formSchema>>({
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { data: currentMember, isLoading: isMeLoading } = useGetMeMember();
+
+  const needsMunicipality = !currentMember?.home_municipality;
+  const needsPolicies = !currentMember?.has_accepted_policies;
+
+  const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
+    defaultValues: {
+      application_text: "",
+    },
   });
 
-  const { data: currentMember, isLoading: isMeLoading } = useGetMeMember();
   const { data: targetableRoles, isLoading: isRolesLoading } =
     useGetTargetableRoles();
   const { data: applications } = useGetUserApplications();
-  const { mutate: createApplication } = useCreateApplication();
+  const { mutateAsync: createApplication } = useCreateApplication();
+  const { mutateAsync: updateMember } = useUpdateMember();
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
 
-  const onSubmit = (values: z.infer<typeof formSchema>) => {
+  const onSubmit = async (values: FormValues) => {
     if (!currentMember) {
       throw new Error("Current member not found");
     }
 
-    createApplication(
-      {
+    if (needsMunicipality && !values.home_municipality) {
+      form.setError("home_municipality", {
+        message: t("validation.home_municipality_required"),
+      });
+      return;
+    }
+
+    if (needsPolicies && !values.has_accepted_policies) {
+      form.setError("has_accepted_policies", {
+        message: t("validation.must_accept_policies"),
+      });
+      return;
+    }
+
+    try {
+      if (needsMunicipality || needsPolicies) {
+        await updateMember({
+          userId: currentMember.user_id,
+          data: {
+            first_name: currentMember.first_name,
+            last_name: currentMember.last_name,
+            home_municipality:
+              values.home_municipality ??
+              currentMember.home_municipality ??
+              null,
+            has_accepted_policies: values.has_accepted_policies ?? false,
+            email_notifications: currentMember.email_notifications,
+            language: currentMember.language,
+          },
+        });
+      }
+
+      const data = await createApplication({
         role_name: values.role_name,
         valid_until: values.valid_until.toISOString().split("T")[0],
         application_text: values.application_text,
         stripe_payment_id: null,
         optional_roles: null,
-      },
-      {
-        onSuccess: (data) => {
-          window.location.href = data.redirect_to;
-        },
-      },
-    );
+      });
+
+      const redirectUrl = new URL(data.redirect_to);
+      if (redirectUrl.origin === window.location.origin) {
+        navigate(redirectUrl.pathname + redirectUrl.search);
+      } else {
+        window.location.href = data.redirect_to;
+      }
+    } catch {
+      // Errors are shown via the global MutationCache onError toast
+    }
   };
 
   if (isRolesLoading || isMeLoading) {
-    return <div>Loading...</div>;
+    return (
+      <main className="flex justify-center min-h-screen w-screen px-4 py-20">
+        <p className="text-muted-foreground">{t("common.loading")}</p>
+      </main>
+    );
   }
 
   if (!targetableRoles) {
-    return <div>No roles to apply to!</div>;
+    return (
+      <main className="flex justify-center min-h-screen w-screen px-4 py-20">
+        <p className="text-muted-foreground">{t("errors.no_roles")}</p>
+      </main>
+    );
   }
 
   if (!currentMember) {
-    return <div>No member found!</div>;
+    return (
+      <main className="flex justify-center min-h-screen w-screen px-4 py-20">
+        <p className="text-muted-foreground">
+          {t("errors.profile_load_failed")}
+        </p>
+      </main>
+    );
   }
 
   return (
     <main className="flex justify-center align-middle h-screen w-screen py-20 px-4">
       <Card className="p-10 space-y-4 h-fit">
-        <h1 className="text-4xl">Application form</h1>
+        <h1 className="text-4xl">{t("application.form.title")}</h1>
         <Separator />
         <RenderMemberData member={currentMember} variant="enduser" />
-        <div>
-          Confirm that the information above is correct before submitting the
-          application. If not, please update your information in the profile
-          page.
-        </div>
+        <div>{t("application.form.instructions")}</div>
         <UserApplications />
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
@@ -107,13 +171,9 @@ const ApplicationForm = () => {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>
-                    Membership type
+                    {t("application.form.membership_type_label")}
                     <InfoTooltip>
-                      <p>Select the memnbership type you want to apply for.</p>
-                      <p>
-                        If you have already applied for a role, you can't apply
-                        for it again until the current application is processed.
-                      </p>
+                      <p>{t("application.form.membership_tooltip")}</p>
                     </InfoTooltip>
                   </FormLabel>
                   <Select
@@ -137,7 +197,9 @@ const ApplicationForm = () => {
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select role" />
+                        <SelectValue
+                          placeholder={t("application.form.role_placeholder")}
+                        />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -156,8 +218,11 @@ const ApplicationForm = () => {
                           >
                             {kebabCaseToTitleCase(role.role_name)}{" "}
                             <span>
-                              (Valid until{" "}
-                              {new Date(role.valid_until).toLocaleDateString()})
+                              {t("application.form.valid_until_text", {
+                                date: new Date(
+                                  role.valid_until,
+                                ).toLocaleDateString(),
+                              })}
                             </span>
                           </SelectItem>
                         );
@@ -173,16 +238,63 @@ const ApplicationForm = () => {
               name="application_text"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Application text</FormLabel>
+                  <FormLabel>
+                    {t("application.form.application_text_label")}
+                  </FormLabel>
                   <FormControl>
-                    <Textarea placeholder="Short application text" {...field} />
+                    <Textarea
+                      placeholder={t(
+                        "application.form.application_text_placeholder",
+                      )}
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            {needsMunicipality && (
+              <FormField
+                control={form.control}
+                name="home_municipality"
+                render={({ field }) => (
+                  <FormItem className="flex flex-col">
+                    <FormLabel>
+                      {t("profile.fields.home_municipality")}
+                    </FormLabel>
+                    <MunicipalitySelect field={field} form={form} />
+                    <FormDescription>
+                      {t("signup.municipality_description")}
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+            {needsPolicies && (
+              <FormField
+                control={form.control}
+                name="has_accepted_policies"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormLabel>{t("signup.policies_checkbox")}</FormLabel>
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value === true}
+                        onCheckedChange={(checked) =>
+                          field.onChange(checked ? true : undefined)
+                        }
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
             <Button type="submit">
-              {paymentLink ? "Proceed to payment" : "Submit application"}
+              {paymentLink
+                ? t("application.form.proceed_payment")
+                : t("application.form.submit")}
             </Button>
           </form>
         </Form>

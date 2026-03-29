@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n                INSERT INTO\n                    SavedFilter (name, filtered_model, owner_user_id, visible_for_all, search, sorting_col, sorting_desc, custom_filters)\n                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n                RETURNING *\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "filtered_model",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "owner_user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "visible_for_all",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 4,
+        "name": "search",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "sorting_col",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "sorting_desc",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 7,
+        "name": "custom_filters",
+        "type_info": "Json"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Uuid",
+        "Bool",
+        "Text",
+        "Text",
+        "Bool",
+        "Json"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "583bebd854dc23ca764c85d50b9e3405c1c7d6e57c57ccb715a25fe998f49d1c"
+}

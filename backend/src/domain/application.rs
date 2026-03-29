@@ -17,6 +17,7 @@ pub enum ApplicationAction {
     PaymentReceived,
     Approve,
     Reject,
+    Withdraw,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -90,6 +91,21 @@ impl Application {
             (from, action) => Err(TransitionError::InvalidAction { from, action }),
         }
     }
+
+    /// Validates that this application can be withdrawn (deleted by the applicant).
+    /// Only unpaid applications may be withdrawn.
+    pub fn can_withdraw(&self) -> Result<(), TransitionError> {
+        match self.status {
+            ApplicationStatus::Unpaid => Ok(()),
+            ApplicationStatus::Approved | ApplicationStatus::Rejected => {
+                Err(TransitionError::AlreadyTerminal)
+            }
+            _ => Err(TransitionError::InvalidAction {
+                from: self.status,
+                action: ApplicationAction::Withdraw,
+            }),
+        }
+    }
 }
 
 impl From<(ApplicationId, DateTime<Utc>, NewApplication)> for Application {
@@ -134,5 +150,186 @@ impl NewApplication {
 
         let creation = ApplicationCreation::Created { status };
         (application, creation)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    fn test_application(status: ApplicationStatus) -> Application {
+        let new = NewApplication {
+            user_id: Uuid::new_v4(),
+            role_name: "test-role".to_string(),
+            valid_until: NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
+            stripe_payment_id: None,
+            optional_roles: None,
+            application_text: None,
+            status,
+        };
+        Application::from((ApplicationId(Uuid::new_v4()), Utc::now(), new))
+    }
+
+    // --- State machine transitions ---
+
+    #[test]
+    fn unpaid_payment_received_transitions_to_pending() {
+        let app = test_application(ApplicationStatus::Unpaid);
+        let (status, transition) = app.apply(ApplicationAction::PaymentReceived).unwrap();
+        assert_eq!(status, ApplicationStatus::Pending);
+        assert_eq!(transition, ApplicationTransition::PaymentReceived);
+    }
+
+    #[test]
+    fn unpaid_approve_transitions_to_approved() {
+        let app = test_application(ApplicationStatus::Unpaid);
+        let (status, transition) = app.apply(ApplicationAction::Approve).unwrap();
+        assert_eq!(status, ApplicationStatus::Approved);
+        assert_eq!(transition, ApplicationTransition::Approved);
+    }
+
+    #[test]
+    fn unpaid_reject_transitions_to_rejected() {
+        let app = test_application(ApplicationStatus::Unpaid);
+        let (status, transition) = app.apply(ApplicationAction::Reject).unwrap();
+        assert_eq!(status, ApplicationStatus::Rejected);
+        assert_eq!(transition, ApplicationTransition::Rejected);
+    }
+
+    #[test]
+    fn pending_approve_transitions_to_approved() {
+        let app = test_application(ApplicationStatus::Pending);
+        let (status, transition) = app.apply(ApplicationAction::Approve).unwrap();
+        assert_eq!(status, ApplicationStatus::Approved);
+        assert_eq!(transition, ApplicationTransition::Approved);
+    }
+
+    #[test]
+    fn pending_reject_transitions_to_rejected() {
+        let app = test_application(ApplicationStatus::Pending);
+        let (status, transition) = app.apply(ApplicationAction::Reject).unwrap();
+        assert_eq!(status, ApplicationStatus::Rejected);
+        assert_eq!(transition, ApplicationTransition::Rejected);
+    }
+
+    #[test]
+    fn pending_payment_received_is_invalid() {
+        let app = test_application(ApplicationStatus::Pending);
+        let err = app.apply(ApplicationAction::PaymentReceived).unwrap_err();
+        assert_eq!(
+            err,
+            TransitionError::InvalidAction {
+                from: ApplicationStatus::Pending,
+                action: ApplicationAction::PaymentReceived,
+            }
+        );
+    }
+
+    #[test]
+    fn approved_payment_received_is_terminal() {
+        let app = test_application(ApplicationStatus::Approved);
+        assert_eq!(
+            app.apply(ApplicationAction::PaymentReceived).unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    #[test]
+    fn approved_approve_is_terminal() {
+        let app = test_application(ApplicationStatus::Approved);
+        assert_eq!(
+            app.apply(ApplicationAction::Approve).unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    #[test]
+    fn approved_reject_is_terminal() {
+        let app = test_application(ApplicationStatus::Approved);
+        assert_eq!(
+            app.apply(ApplicationAction::Reject).unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    #[test]
+    fn rejected_payment_received_is_terminal() {
+        let app = test_application(ApplicationStatus::Rejected);
+        assert_eq!(
+            app.apply(ApplicationAction::PaymentReceived).unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    #[test]
+    fn rejected_approve_is_terminal() {
+        let app = test_application(ApplicationStatus::Rejected);
+        assert_eq!(
+            app.apply(ApplicationAction::Approve).unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    #[test]
+    fn rejected_reject_is_terminal() {
+        let app = test_application(ApplicationStatus::Rejected);
+        assert_eq!(
+            app.apply(ApplicationAction::Reject).unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    // --- can_withdraw ---
+
+    #[test]
+    fn unpaid_can_withdraw() {
+        let app = test_application(ApplicationStatus::Unpaid);
+        assert!(app.can_withdraw().is_ok());
+    }
+
+    #[test]
+    fn pending_cannot_withdraw() {
+        let app = test_application(ApplicationStatus::Pending);
+        assert_eq!(
+            app.can_withdraw().unwrap_err(),
+            TransitionError::InvalidAction {
+                from: ApplicationStatus::Pending,
+                action: ApplicationAction::Withdraw,
+            }
+        );
+    }
+
+    #[test]
+    fn approved_cannot_withdraw() {
+        let app = test_application(ApplicationStatus::Approved);
+        assert_eq!(
+            app.can_withdraw().unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    #[test]
+    fn rejected_cannot_withdraw() {
+        let app = test_application(ApplicationStatus::Rejected);
+        assert_eq!(
+            app.can_withdraw().unwrap_err(),
+            TransitionError::AlreadyTerminal,
+        );
+    }
+
+    // --- ApplicationStatus::initial ---
+
+    #[test]
+    fn initial_with_payment_is_unpaid() {
+        assert_eq!(ApplicationStatus::initial(true), ApplicationStatus::Unpaid);
+    }
+
+    #[test]
+    fn initial_without_payment_is_pending() {
+        assert_eq!(
+            ApplicationStatus::initial(false),
+            ApplicationStatus::Pending
+        );
     }
 }

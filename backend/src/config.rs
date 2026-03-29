@@ -18,32 +18,33 @@ pub struct Config {
     #[validate(length(min = 1, max = 1024))]
     pub frontend_url: String,
 
-    #[envconfig(from = "AUTH0_DOMAIN")]
+    #[envconfig(from = "KEYCLOAK_URL")]
     #[validate(length(min = 1, max = 1024))]
-    pub auth0_domain: String,
+    pub keycloak_url: String,
 
-    #[envconfig(from = "AUTH0_CLIENT_ID")]
+    #[envconfig(from = "KEYCLOAK_REALM")]
     #[validate(length(min = 1, max = 1024))]
-    pub auth0_client_id: String,
+    pub keycloak_realm: String,
 
-    #[envconfig(from = "AUTH0_CLIENT_SECRET")]
+    #[envconfig(from = "KEYCLOAK_CLIENT_ID")]
     #[validate(length(min = 1, max = 1024))]
-    pub auth0_client_secret: String,
+    pub keycloak_client_id: String,
+
+    #[envconfig(from = "KEYCLOAK_CLIENT_SECRET")]
+    #[validate(length(min = 1, max = 1024))]
+    pub keycloak_client_secret: String,
 
     #[envconfig(from = "OAUTH_REDIRECT_URL")]
     #[validate(length(min = 1, max = 1024))]
     pub oauth_redirect_url: String,
 
-    #[envconfig(from = "AUTH0_AUDIENCE")]
-    pub auth0_audience: Option<String>,
-
-    #[envconfig(from = "AUTH0_MANAGEMENT_CLIENT_ID")]
+    #[envconfig(from = "KEYCLOAK_ADMIN_CLIENT_ID")]
     #[validate(length(min = 1, max = 1024))]
-    pub auth0_management_client_id: String,
+    pub keycloak_admin_client_id: String,
 
-    #[envconfig(from = "AUTH0_MANAGEMENT_CLIENT_SECRET")]
+    #[envconfig(from = "KEYCLOAK_ADMIN_CLIENT_SECRET")]
     #[validate(length(min = 1, max = 2048))]
-    pub auth0_management_client_secret: String,
+    pub keycloak_admin_client_secret: String,
 
     #[envconfig(from = "STRIPE_ENDPOINT_SECRET")]
     #[validate(length(min = 1, max = 1024))]

@@ -1,6 +1,9 @@
 **/.DS_Store
 CLAUDE.md
 venv/
+keycloak/data/
+keycloak/.env
+__pycache__
 
 # E2E tests
 e2e/.auth/

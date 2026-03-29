@@ -1,29 +1,68 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  MutationCache,
+  QueryCache,
+  QueryClient,
+  QueryClientProvider,
+} from "@tanstack/react-query";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import { AxiosError } from "axios";
+import { toast } from "sonner";
 import ApplicationForm from "./components/application-form/ApplicationForm";
 import Application from "./components/applications/Application";
 import Applications from "./components/applications/Applications";
 import TargetableRoles from "./components/applications/targetable-roles/TargetableRoles";
 import Callback from "./components/auth/Callback";
-import Error from "./components/Error";
+import ErrorPage from "./components/Error";
 import Layout from "./components/layout/Layout";
 import Member from "./components/members/Member";
 import Members from "./components/members/Members";
 import Role from "./components/roles/Role";
 import Roles from "./components/roles/Roles";
 import AuditLogs from "./components/audit-logs/AuditLogs";
+import DataManagement from "./components/data/DataManagement";
 import EmailTemplates from "./components/email-templates/EmailTemplates";
-import SignupForm from "./components/signup-form/SignupForm";
 import { ThemeProvider } from "./components/theme-provider";
 import Success from "./components/application-form/Success";
+import UserHome from "./components/home/UserHome";
+import ProfileEdit from "./components/profile/ProfileEdit";
 import { TooltipProvider } from "./components/ui/tooltip";
+import { Toaster } from "./components/ui/sonner";
 
-const queryClient = new QueryClient();
+function getErrorMessage(error: unknown): string {
+  if (error instanceof AxiosError) {
+    if (error.response?.data && typeof error.response.data === "string") {
+      return error.response.data;
+    }
+    if (error.message) return error.message;
+  }
+  if (error instanceof Error) return error.message;
+  return "An unexpected error occurred";
+}
+
+const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (error instanceof AxiosError) {
+        const status = error.response?.status;
+        if (!status || status >= 500) {
+          toast.error(getErrorMessage(error));
+        }
+      } else {
+        toast.error(getErrorMessage(error));
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error) => {
+      toast.error(getErrorMessage(error));
+    },
+  }),
+});
 
 const router = createBrowserRouter([
   {
     path: "/error/:status",
-    element: <Error />,
+    element: <ErrorPage />,
   },
   {
     path: "/",
@@ -32,7 +71,7 @@ const router = createBrowserRouter([
         <Members />
       </Layout>
     ),
-    errorElement: <Error />,
+    errorElement: <ErrorPage />,
   },
   {
     path: "/members",
@@ -107,6 +146,22 @@ const router = createBrowserRouter([
     ),
   },
   {
+    path: "/data",
+    element: (
+      <Layout>
+        <DataManagement />
+      </Layout>
+    ),
+  },
+  {
+    path: "/home",
+    element: <UserHome />,
+  },
+  {
+    path: "/profile/edit",
+    element: <ProfileEdit />,
+  },
+  {
     path: "/apply",
     element: <ApplicationForm />,
   },
@@ -114,11 +169,7 @@ const router = createBrowserRouter([
     path: "/apply/success",
     element: <Success />,
   },
-  {
-    path: "/signup",
-    element: <SignupForm />,
-  },
-  {
+{
     path: "/auth/callback",
     element: <Callback />,
   },
@@ -132,6 +183,7 @@ function App() {
           <RouterProvider router={router} />
         </TooltipProvider>
       </QueryClientProvider>
+      <Toaster />
     </ThemeProvider>
   );
 }

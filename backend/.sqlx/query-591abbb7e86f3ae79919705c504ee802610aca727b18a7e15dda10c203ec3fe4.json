@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "-- sql\n            SELECT\n                Role.name,\n                Role.color,\n                Role.description,\n                COUNT(DISTINCT RoleMember.user_id) as member_count,\n                COUNT(\n                    CASE WHEN (\n                        valid_until IS NULL OR (\n                            valid_until >= CURRENT_DATE AND\n                            valid_from <= CURRENT_DATE\n                        )\n                    ) THEN 1\n                    END\n                ) as active_member_count\n            FROM Role LEFT JOIN RoleMember ON Role.name = RoleMember.role_name\n            WHERE\n                $3::varchar IS NULL OR Role.name ILIKE '%' || $3 || '%'\n            GROUP BY Role.name, Role.color, Role.description\n            ORDER BY\n                CASE WHEN $5 = 'ASC' THEN\n                    CASE LOWER($4)\n                        WHEN 'name' THEN Role.name\n                        WHEN 'color' THEN Role.color\n                        WHEN 'description' THEN Role.description\n                        WHEN 'member_count' THEN COUNT(DISTINCT RoleMember.user_id)::text\n                        WHEN 'active_member_count' THEN\n                            COUNT(\n                                CASE WHEN (\n                                    valid_until IS NULL OR (\n                                        valid_until >= CURRENT_DATE AND\n                                        valid_from <= CURRENT_DATE\n                                    )\n                                ) THEN 1\n                                END\n                            )::text\n                        ELSE Role.name\n                    END\n                END ASC,\n                CASE WHEN $5 = 'DESC' THEN\n                    CASE LOWER($4)\n                        WHEN 'name' THEN Role.name\n                        WHEN 'color' THEN Role.color\n                        WHEN 'description' THEN Role.description\n                        WHEN 'member_count' THEN COUNT(RoleMember.user_id)::text\n                        WHEN 'active_member_count' THEN\n                            COUNT(\n                                CASE WHEN (\n                                    valid_until IS NULL OR (\n                                        valid_until >= CURRENT_DATE AND\n                                        valid_from <= CURRENT_DATE\n                                    )\n                                ) THEN 1\n                                END\n                            )::text\n                        ELSE Role.name\n                    END\n                END DESC\n            LIMIT $1 OFFSET $2::Integer * $1::Integer\n          ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "color",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "member_count",
+        "type_info": "Int8"
+      },
+      {
+        "ordinal": 4,
+        "name": "active_member_count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Int4",
+        "Varchar",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      null,
+      null
+    ]
+  },
+  "hash": "591abbb7e86f3ae79919705c504ee802610aca727b18a7e15dda10c203ec3fe4"
+}

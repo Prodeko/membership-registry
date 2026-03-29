@@ -1,5 +1,6 @@
 import { useGetTargetableRoles, useGetUserApplications } from "@/lib/api";
 import { kebabCaseToTitleCase } from "@/lib/utils";
+import { useTranslation } from "react-i18next";
 import {
   Accordion,
   AccordionContent,
@@ -11,6 +12,7 @@ import { Separator } from "../ui/separator";
 import InfoTooltip from "../ui/info-tooltip";
 
 const UserApplications = () => {
+  const { t } = useTranslation();
   const { data: userApplications } = useGetUserApplications();
   const { data: targetableRoles } = useGetTargetableRoles();
 
@@ -23,21 +25,9 @@ const UserApplications = () => {
       <AccordionItem value="item-1">
         <AccordionTrigger className="font-bold">
           <span>
-            Existing applications
+            {t("applications.existing.title")}
             <InfoTooltip>
-              <p>
-                This section shows the applications you have submitted for role
-                membeships.
-              </p>
-              <p>
-                If you want to delete an application, please contact{" "}
-                <a
-                  href="mailto:mediakeisari@prodeko.org"
-                  className="text-blue-500 hover:underline"
-                >
-                  mediakeisari@prodeko.org
-                </a>
-              </p>
+              <p>{t("applications.existing.tooltip")}</p>
             </InfoTooltip>
           </span>
         </AccordionTrigger>
@@ -57,11 +47,13 @@ const UserApplications = () => {
                 >
                   <div>
                     <h4 className="text-md font-semibold">
-                      {kebabCaseToTitleCase(app.role_name)} - Role valid until:{" "}
-                      {app.valid_until}
+                      {t("applications.existing.role_validity", {
+                        role_name: kebabCaseToTitleCase(app.role_name),
+                        date: app.valid_until,
+                      })}
                     </h4>
                     <div className="text-sm">
-                      Status:
+                      {t("applications.existing.status_label")}
                       <Badge
                         variant={
                           app.status === "approved"
@@ -72,7 +64,7 @@ const UserApplications = () => {
                         }
                         className="ml-2"
                       >
-                        {app.status}
+                        {t(`status.${app.status}`)}
                       </Badge>
                     </div>
                   </div>
@@ -87,7 +79,7 @@ const UserApplications = () => {
                         rel="noopener noreferrer"
                         className="text-blue-500 hover:underline"
                       >
-                        Pay the fee
+                        {t("applications.existing.pay_fee")}
                       </a>
                     </Badge>
                   )}

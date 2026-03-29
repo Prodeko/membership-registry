@@ -104,6 +104,30 @@ sqlx migrate add <description> -r
 cargo sqlx prepare -- --release --all-targets --all-features
 ```
 
+## Production-like local stack
+
+Mirrors the Azure deployment: Caddy reverse proxy, production Keycloak build, containerized backend.
+
+```bash
+# Start everything
+docker compose -f docker-compose.prod.yml up --build -d
+
+# Configure Keycloak realm (first time or after wiping volumes)
+cd keycloak && source venv/bin/activate
+KEYCLOAK_URL=http://auth.localhost \
+KC_AUTH_REDIRECT_URIS='["http://localhost/*"]' \
+KC_AUTH_WEB_ORIGINS='["http://localhost"]' \
+python setup.py
+```
+
+- App: http://localhost
+- Keycloak admin: http://auth.localhost (admin / admin)
+- Test accounts: cto@prodeko.org / test (admin), user@prodeko.org / test
+
+Emails are mocked — check with `docker compose -f docker-compose.prod.yml logs backend | grep "MOCK EMAIL"`. Stripe webhook secret is a dummy value. Migrations run automatically on backend startup.
+
+Reset all data: `docker compose -f docker-compose.prod.yml down -v`
+
 ## Architecture
 
 ```text

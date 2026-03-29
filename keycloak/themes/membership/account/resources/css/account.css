@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@400;600&display=swap');
+
+:root {
+  /* Prodeko brand colors */
+  --pf-v5-global--primary-color--100: #002e7d;
+  --pf-v5-global--primary-color--200: #0053a0;
+
+  /* Font */
+  --pf-v5-global--FontFamily--sans-serif: 'Raleway', sans-serif;
+}
+
+/* Links */
+a {
+  color: #002e7d;
+}
+
+a:hover {
+  color: #0053a0;
+}
+
+/* Primary buttons */
+.pf-v5-c-button.pf-m-primary {
+  background-color: #002e7d;
+  border-color: #002e7d;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+  background-color: #002851;
+  border-color: #002851;
+}
+
+.pf-v5-c-button.pf-m-primary:focus {
+  background-color: #002851;
+  border-color: #002851;
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline-color: #002e7d;
+}
+
+/* Headings */
+h1, h2, h3, h4 {
+  font-weight: 600;
+}
+
+/* Light masthead (header bar) */
+.pf-v5-c-masthead {
+  --pf-v5-c-masthead--BackgroundColor: #ffffff;
+  --pf-v5-c-masthead--m-display-inline--BackgroundColor: #ffffff;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e0e0e0;
+  color: #151515;
+}
+
+/* Masthead buttons (hamburger, user dropdown, avatar): dark on white */
+.pf-v5-c-masthead .pf-v5-c-button {
+  --pf-v5-c-button--m-plain--Color: #151515;
+  color: #151515;
+}
+
+.pf-v5-c-masthead .pf-v5-c-button:hover {
+  color: #002e7d;
+}
+
+/* Masthead dropdown toggle (user name + caret) */
+.pf-v5-c-masthead .pf-v5-c-menu-toggle {
+  color: #151515;
+}
+
+.pf-v5-c-masthead .pf-v5-c-menu-toggle:hover {
+  color: #002e7d;
+}
+
+/* Avatar icon in masthead */
+.pf-v5-c-masthead .pf-v5-c-avatar {
+  border-color: #d2d2d2;
+}
+
+/* Light sidebar */
+.pf-v5-c-page__sidebar {
+  --pf-v5-c-page__sidebar--BackgroundColor: #f5f5f5;
+  background-color: #f5f5f5;
+}
+
+/* Sidebar nav items: dark text on light background */
+.pf-v5-c-nav {
+  --pf-v5-c-nav__link--Color: #151515;
+  --pf-v5-c-nav__link--hover--Color: #002e7d;
+  --pf-v5-c-nav__link--m-current--Color: #002e7d;
+  --pf-v5-c-nav__link--BackgroundColor: transparent;
+  --pf-v5-c-nav__link--hover--BackgroundColor: #e8e8e8;
+  --pf-v5-c-nav__link--m-current--BackgroundColor: #e0e0e0;
+}
+
+.pf-v5-c-nav__link {
+  color: #151515;
+}
+
+.pf-v5-c-nav__link:hover {
+  color: #002e7d;
+  background-color: #e8e8e8;
+}
+
+.pf-v5-c-nav__link.pf-m-current {
+  color: #002e7d;
+  background-color: #e0e0e0;
+}
+
+/* Nav section titles */
+.pf-v5-c-nav__section-title {
+  color: #6a6e73;
+}

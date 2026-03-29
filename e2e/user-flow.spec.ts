@@ -4,8 +4,8 @@ import { execSync } from "child_process";
 // Full user journey: login → signup → apply for membership
 //
 // Prerequisites:
-// - Backend + frontend + postgres running
-// - Auth0 test users exist (Database Connection)
+// - Backend + frontend + postgres + keycloak running
+// - Keycloak test users exist (run keycloak/setup.py)
 // - Credentials in .env.e2e
 
 const API = process.env.API_BASE_URL!;
@@ -56,14 +56,9 @@ test.describe("User flow", () => {
 
   test("signup and submit application", async ({ page }) => {
     await page.goto(`${API}/auth/login`);
-    await page
-      .getByRole("textbox", { name: "Email address" })
-      .fill(process.env.E2E_USER_EMAIL!);
-    await page.getByRole("button", { name: "Continue", exact: true }).click();
-    await page
-      .getByRole("textbox", { name: "Password" })
-      .fill(process.env.E2E_USER_PASSWORD!);
-    await page.getByRole("button", { name: "Continue" }).click();
+    await page.locator("#username").fill(process.env.E2E_USER_EMAIL!);
+    await page.locator("#password").fill(process.env.E2E_USER_PASSWORD!);
+    await page.locator("#kc-login").click();
 
     await page.waitForURL("**/signup");
 
@@ -86,7 +81,9 @@ test.describe("User flow", () => {
     await page.getByRole("button", { name: "Submit application" }).click();
 
     await page.waitForURL("**/apply/success");
-    await expect(page.getByRole("heading")).toContainText("Success");
+    await expect(page.getByRole("heading")).toContainText(
+      "Application submitted",
+    );
 
     // Verify audit log entries were created for the user flow
     const email = process.env.E2E_USER_EMAIL!;
