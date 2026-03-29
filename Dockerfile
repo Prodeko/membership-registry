@@ -22,6 +22,7 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 COPY --from=backend /app/target/release/membership-registry /usr/local/bin/
 COPY --from=backend /app/migrations /app/migrations
+COPY --from=frontend /frontend/dist /app/frontend/dist
 WORKDIR /app
 EXPOSE 8080
 CMD ["membership-registry"]

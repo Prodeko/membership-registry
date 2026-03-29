@@ -30,7 +30,6 @@ use crate::{
 mod admin;
 pub(crate) mod dto;
 mod errors;
-mod index;
 pub(crate) mod middleware;
 mod protected;
 mod public;
@@ -137,7 +136,7 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
 }
 
 fn router(state: AppState) -> Router<AppState> {
-    index::router()
+    Router::new()
         .nest("/api/admin", admin::router(state.clone()))
         .nest("/api", protected::router(state.clone()))
         .nest("/api", public::router(state.clone()))
