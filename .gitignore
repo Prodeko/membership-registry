@@ -4,6 +4,7 @@ venv/
 keycloak/data/
 keycloak/.env
 __pycache__
+.claude
 
 # E2E tests
 e2e/.auth/
