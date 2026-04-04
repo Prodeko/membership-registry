@@ -100,7 +100,7 @@ const ProfileEdit = () => {
                 <FormItem>
                   <FormLabel>{t("profile.fields.first_name")}</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input data-testid="profile-first-name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -113,7 +113,7 @@ const ProfileEdit = () => {
                 <FormItem>
                   <FormLabel>{t("profile.fields.last_name")}</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input data-testid="profile-last-name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -144,7 +144,7 @@ const ProfileEdit = () => {
                     defaultValue={field.value}
                   >
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger data-testid="profile-language-select">
                         <SelectValue />
                       </SelectTrigger>
                     </FormControl>
@@ -173,13 +173,14 @@ const ProfileEdit = () => {
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
+                      data-testid="profile-notifications-switch"
                     />
                   </FormControl>
                 </FormItem>
               )}
             />
             <div className="flex gap-2">
-              <Button type="submit" disabled={isPending}>
+              <Button type="submit" disabled={isPending} data-testid="profile-save-button">
                 {isPending
                   ? t("profile.edit.saving")
                   : t("profile.edit.save_button")}
@@ -187,6 +188,7 @@ const ProfileEdit = () => {
               <Button
                 type="button"
                 variant="outline"
+                data-testid="profile-cancel-button"
                 onClick={() => navigate("/home")}
               >
                 {t("common.cancel")}

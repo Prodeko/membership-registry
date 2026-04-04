@@ -107,7 +107,7 @@ const UserHome = () => {
         </div>
 
         {applications && applications.length > 0 && (
-          <Card>
+          <Card data-testid="home-applications-card">
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <FileText className="h-5 w-5" />
@@ -126,10 +126,10 @@ const UserHome = () => {
                       r.valid_until === app.valid_until,
                   );
                   return (
-                    <div key={app.application_id}>
+                    <div key={app.application_id} data-testid={`application-row-${app.application_id}`}>
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium">
+                          <p className="font-medium" data-testid="application-role-name">
                             {kebabCaseToTitleCase(app.role_name)}
                           </p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
@@ -156,12 +156,13 @@ const UserHome = () => {
                             <Button
                               variant="ghost"
                               size="sm"
+                              data-testid={`withdraw-button-${app.application_id}`}
                               onClick={() => setWithdrawId(app.application_id)}
                             >
                               {t("home.applications.withdraw")}
                             </Button>
                           )}
-                          <Badge variant={statusVariant[app.status]}>
+                          <Badge variant={statusVariant[app.status]} data-testid={`application-status-${app.application_id}`}>
                             {t(`status.${app.status}`)}
                           </Badge>
                         </div>
@@ -175,7 +176,7 @@ const UserHome = () => {
           </Card>
         )}
 
-        <Card>
+        <Card data-testid="home-roles-card">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
               <Shield className="h-5 w-5" />
@@ -253,10 +254,10 @@ const UserHome = () => {
                       daysUntilExpiry !== null &&
                       daysUntilExpiry <= 30;
                     return (
-                      <div key={role.role_name}>
+                      <div key={role.role_name} data-testid={`role-row-${role.role_name}`}>
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="font-medium">
+                            <p className="font-medium" data-testid="role-name">
                               {kebabCaseToTitleCase(role.role_name)}
                             </p>
                             <p className="text-sm text-muted-foreground flex items-center gap-1">
@@ -270,6 +271,7 @@ const UserHome = () => {
                           </div>
                           <Badge
                             variant={isExpired ? "destructive" : "default"}
+                            data-testid={`role-status-${role.role_name}`}
                           >
                             {isExpired
                               ? t("status.expired")
@@ -277,7 +279,7 @@ const UserHome = () => {
                           </Badge>
                         </div>
                         {isExpiringSoon && (
-                          <div className="flex items-center justify-between mt-2 text-sm text-orange-600">
+                          <div className="flex items-center justify-between mt-2 text-sm text-orange-600" data-testid={`role-expiring-warning-${role.role_name}`}>
                             <span>
                               {t("home.roles.expiring_soon", {
                                 days: daysUntilExpiry,
@@ -290,6 +292,7 @@ const UserHome = () => {
                                   target="_blank"
                                   rel="noopener noreferrer"
                                   className="text-blue-500 hover:underline"
+                                  data-testid={`role-renewal-link-${role.role_name}`}
                                 >
                                   {t("home.roles.renew")}
                                 </a>
@@ -306,13 +309,13 @@ const UserHome = () => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card data-testid="home-profile-card">
           <CardHeader>
             <div className="flex items-center justify-between">
               <CardTitle className="text-lg">
                 {t("home.profile.title")}
               </CardTitle>
-              <Button variant="ghost" size="sm" asChild>
+              <Button variant="ghost" size="sm" asChild data-testid="edit-profile-button">
                 <Link to="/profile/edit">
                   <Pencil className="h-4 w-4 mr-1" />
                   {t("profile.edit_button")}
@@ -325,7 +328,7 @@ const UserHome = () => {
               <span className="text-muted-foreground">
                 {t("profile.fields.name")}
               </span>
-              <span>{member.full_name}</span>
+              <span data-testid="profile-name-value">{member.full_name}</span>
               <span className="text-muted-foreground">
                 {t("profile.fields.email")}
               </span>
@@ -333,11 +336,11 @@ const UserHome = () => {
               <span className="text-muted-foreground">
                 {t("profile.fields.municipality")}
               </span>
-              <span>{member.home_municipality ?? "-"}</span>
+              <span data-testid="profile-municipality-value">{member.home_municipality ?? "-"}</span>
               <span className="text-muted-foreground">
                 {t("profile.fields.email_notifications")}
               </span>
-              <span>
+              <span data-testid="profile-notifications-value">
                 {member.email_notifications
                   ? t("profile.fields.enabled")
                   : t("profile.fields.disabled")}
@@ -358,7 +361,7 @@ const UserHome = () => {
         </Card>
 
         {!hasActiveApplicationForAllRoles && (
-          <Button asChild className="w-full">
+          <Button asChild className="w-full" data-testid="apply-button">
             <Link to="/apply">{t("home.apply_button")}</Link>
           </Button>
         )}
@@ -377,10 +380,11 @@ const UserHome = () => {
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline">{t("dialogs.cancel")}</Button>
+              <Button variant="outline" data-testid="withdraw-cancel-button">{t("dialogs.cancel")}</Button>
             </DialogClose>
             <Button
               variant="destructive"
+              data-testid="withdraw-confirm-button"
               onClick={() => {
                 if (withdrawId) {
                   withdrawApplication(withdrawId, {

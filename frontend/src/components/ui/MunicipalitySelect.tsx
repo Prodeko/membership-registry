@@ -61,6 +61,7 @@ const MunicipalitySelect = ({ field, form }: { field: any; form: any }) => {
           <Button
             variant="outline"
             role="combobox"
+            data-testid="municipality-combobox-trigger"
             className={cn(
               "w-[200px] justify-between",
               !field && "text-muted-foreground",
@@ -73,7 +74,7 @@ const MunicipalitySelect = ({ field, form }: { field: any; form: any }) => {
       </PopoverTrigger>
       <PopoverContent className="w-[200px] p-0">
         <Command>
-          <CommandInput placeholder={t("municipality_select.search")} />
+          <CommandInput placeholder={t("municipality_select.search")} data-testid="municipality-search-input" />
           <CommandEmpty>{t("municipality_select.empty")}</CommandEmpty>
           <CommandList className="max-h-[300px] overflow-y-auto">
             <CommandGroup heading="—">
