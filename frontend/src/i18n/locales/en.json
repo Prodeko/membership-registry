@@ -42,7 +42,9 @@
       "title": "Active roles",
       "description": "Your current membership roles.",
       "empty": "You don't have any active roles yet.",
-      "no_expiry": "No expiry"
+      "no_expiry": "No expiry",
+      "expiring_soon": "Expires in {{days}} days",
+      "renew": "Renew"
     },
     "profile": {
       "title": "Profile"
@@ -86,10 +88,9 @@
     }
   },
   "success": {
-    "title": "Application submitted",
-    "message": "Your application has been received and is now being reviewed. You will be notified by email once a decision has been made.",
-    "go_home": "Go to home page",
-    "submit_another": "Submit another application"
+    "title": "Payment successful",
+    "message": "Your payment has been received. You will be notified by email once your request has been processed.",
+    "go_home": "Go to home page"
   },
   "signup": {
     "form": {

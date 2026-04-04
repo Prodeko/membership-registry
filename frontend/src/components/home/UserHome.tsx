@@ -55,6 +55,26 @@ const UserHome = () => {
   const { mutate: withdrawApplication } = useWithdrawApplication();
   const [withdrawId, setWithdrawId] = useState<string | null>(null);
 
+  const hasActiveApplicationForAllRoles = (() => {
+    if (!targetableRoles || targetableRoles.length === 0) return true;
+    const activeTargetableRoles = targetableRoles.filter((r) => r.active);
+    if (activeTargetableRoles.length === 0) return true;
+    return activeTargetableRoles.every((role) => {
+      const hasApplication = applications?.some(
+        (app) =>
+          app.status !== "rejected" &&
+          app.role_name === role.role_name &&
+          app.valid_until === role.valid_until,
+      );
+      const hasActiveRole = roles?.some((r) => {
+        if (r.role_name !== role.role_name) return false;
+        const validUntil = r.valid_until ? new Date(r.valid_until) : null;
+        return !validUntil || validUntil >= new Date();
+      });
+      return hasApplication || hasActiveRole;
+    });
+  })();
+
   if (isMemberLoading || isAppsLoading) {
     return (
       <main className="flex justify-center min-h-screen w-screen px-4 py-20">
@@ -86,22 +106,18 @@ const UserHome = () => {
           <LanguageSwitcher />
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              {t("home.applications.title")}
-            </CardTitle>
-            <CardDescription>
-              {t("home.applications.description")}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!applications || applications.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                {t("home.applications.empty")}
-              </p>
-            ) : (
+        {applications && applications.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                {t("home.applications.title")}
+              </CardTitle>
+              <CardDescription>
+                {t("home.applications.description")}
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
               <div className="space-y-3">
                 {applications.map((app) => {
                   const role = targetableRoles?.find(
@@ -155,9 +171,9 @@ const UserHome = () => {
                   );
                 })}
               </div>
-            )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -174,36 +190,117 @@ const UserHome = () => {
               </p>
             ) : (
               <div className="space-y-3">
-                {roles.map((role) => {
+                {(() => {
                   const now = new Date();
-                  const validUntil = role.valid_until
-                    ? new Date(role.valid_until)
-                    : null;
-                  const isExpired = validUntil && validUntil < now;
-                  return (
-                    <div key={`${role.role_name}-${role.valid_from}`}>
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">
-                            {kebabCaseToTitleCase(role.role_name)}
-                          </p>
-                          <p className="text-sm text-muted-foreground flex items-center gap-1">
-                            <Clock className="h-3 w-3" />
-                            {new Date(role.valid_from).toLocaleDateString()}
-                            {" - "}
-                            {validUntil
-                              ? validUntil.toLocaleDateString()
-                              : t("home.roles.no_expiry")}
-                          </p>
+                  const grouped = new Map<
+                    string,
+                    {
+                      role_name: string;
+                      validFrom: Date;
+                      validUntil: Date | null;
+                      renewable: boolean;
+                      renewal_payment_link: string | null;
+                      pending_renewal_id: string | null;
+                    }
+                  >();
+
+                  for (const role of roles) {
+                    const vf = new Date(role.valid_from);
+                    const vu = role.valid_until
+                      ? new Date(role.valid_until)
+                      : null;
+                    const existing = grouped.get(role.role_name);
+
+                    if (!existing) {
+                      grouped.set(role.role_name, {
+                        role_name: role.role_name,
+                        validFrom: vf,
+                        validUntil: vu,
+                        renewable: role.renewable,
+                        renewal_payment_link: role.renewal_payment_link,
+                        pending_renewal_id: role.pending_renewal_id,
+                      });
+                    } else {
+                      if (vf < existing.validFrom) existing.validFrom = vf;
+                      if (vu === null) {
+                        existing.validUntil = null;
+                      } else if (
+                        existing.validUntil !== null &&
+                        vu > existing.validUntil
+                      ) {
+                        existing.validUntil = vu;
+                      }
+                      if (role.pending_renewal_id) {
+                        existing.pending_renewal_id = role.pending_renewal_id;
+                        existing.renewal_payment_link =
+                          role.renewal_payment_link;
+                      }
+                    }
+                  }
+
+                  return [...grouped.values()].map((role) => {
+                    const isExpired =
+                      role.validUntil && role.validUntil < now;
+                    const daysUntilExpiry = role.validUntil
+                      ? Math.ceil(
+                          (role.validUntil.getTime() - now.getTime()) /
+                            (1000 * 60 * 60 * 24),
+                        )
+                      : null;
+                    const isExpiringSoon =
+                      role.renewable &&
+                      !isExpired &&
+                      daysUntilExpiry !== null &&
+                      daysUntilExpiry <= 30;
+                    return (
+                      <div key={role.role_name}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-medium">
+                              {kebabCaseToTitleCase(role.role_name)}
+                            </p>
+                            <p className="text-sm text-muted-foreground flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {role.validFrom.toLocaleDateString()}
+                              {" - "}
+                              {role.validUntil
+                                ? role.validUntil.toLocaleDateString()
+                                : t("home.roles.no_expiry")}
+                            </p>
+                          </div>
+                          <Badge
+                            variant={isExpired ? "destructive" : "default"}
+                          >
+                            {isExpired
+                              ? t("status.expired")
+                              : t("status.active")}
+                          </Badge>
                         </div>
-                        <Badge variant={isExpired ? "destructive" : "default"}>
-                          {isExpired ? t("status.expired") : t("status.active")}
-                        </Badge>
+                        {isExpiringSoon && (
+                          <div className="flex items-center justify-between mt-2 text-sm text-orange-600">
+                            <span>
+                              {t("home.roles.expiring_soon", {
+                                days: daysUntilExpiry,
+                              })}
+                            </span>
+                            {role.renewal_payment_link &&
+                              role.pending_renewal_id && (
+                                <a
+                                  href={`${role.renewal_payment_link}?client_reference_id=${role.pending_renewal_id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-500 hover:underline"
+                                >
+                                  {t("home.roles.renew")}
+                                </a>
+                              )}
+                          </div>
+                        )}
+                        <Separator className="mt-3" />
                       </div>
-                      <Separator className="mt-3" />
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             )}
           </CardContent>
@@ -260,9 +357,11 @@ const UserHome = () => {
           </CardContent>
         </Card>
 
-        <Button asChild className="w-full">
-          <Link to="/apply">{t("home.apply_button")}</Link>
-        </Button>
+        {!hasActiveApplicationForAllRoles && (
+          <Button asChild className="w-full">
+            <Link to="/apply">{t("home.apply_button")}</Link>
+          </Button>
+        )}
       </div>
 
       <Dialog

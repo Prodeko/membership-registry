@@ -26,12 +26,9 @@ const Success = () => {
         <CardContent className="pt-6 text-center space-y-2">
           <p className="text-muted-foreground">{t("success.message")}</p>
         </CardContent>
-        <CardFooter className="flex flex-col gap-2">
+        <CardFooter>
           <Button asChild className="w-full">
             <Link to="/home">{t("success.go_home")}</Link>
-          </Button>
-          <Button asChild variant="outline" className="w-full">
-            <Link to="/apply">{t("success.submit_another")}</Link>
           </Button>
         </CardFooter>
       </Card>

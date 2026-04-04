@@ -10,6 +10,9 @@ pub struct RoleMembership {
     pub role_name: RoleName,
     pub valid_from: NaiveDate,
     pub valid_until: Option<NaiveDate>,
+    pub renewable: bool,
+    pub renewal_payment_link: Option<String>,
+    pub pending_renewal_id: Option<Uuid>,
 }
 
 #[derive(Debug, Clone)]
