@@ -124,6 +124,13 @@
   "member": {
     "accepted_policies": "Hyväksynyt käyttöehdot"
   },
+  "municipality_select": {
+    "placeholder": "Valitse alue",
+    "search": "Hae aluetta...",
+    "empty": "Aluetta ei löytynyt.",
+    "municipalities": "Kunnat",
+    "countries": "Maat"
+  },
   "language": {
     "fi": "Suomi",
     "en": "English"

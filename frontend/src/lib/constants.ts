@@ -509,7 +509,20 @@ export const FINNISH_MUNICIPALITIES = [
   "Äänekoski",
 ] as const;
 
-export const REGIONS = [...COUNTRIES, ...FINNISH_MUNICIPALITIES] as const;
+export const PRIORITY_MUNICIPALITIES = ["Helsinki", "Espoo"] as const;
+
+export const OTHER_MUNICIPALITIES = FINNISH_MUNICIPALITIES.filter(
+  (m) =>
+    !PRIORITY_MUNICIPALITIES.includes(
+      m as (typeof PRIORITY_MUNICIPALITIES)[number],
+    ),
+);
+
+export const REGIONS = [
+  ...PRIORITY_MUNICIPALITIES,
+  ...OTHER_MUNICIPALITIES,
+  ...COUNTRIES,
+] as const;
 
 export const APPLICATION_STATUSES = [
   "pending",

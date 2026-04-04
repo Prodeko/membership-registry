@@ -124,6 +124,13 @@
   "member": {
     "accepted_policies": "Accepted policies"
   },
+  "municipality_select": {
+    "placeholder": "Select region",
+    "search": "Search region...",
+    "empty": "No region found.",
+    "municipalities": "Municipalities",
+    "countries": "Countries"
+  },
   "language": {
     "fi": "Suomi",
     "en": "English"
