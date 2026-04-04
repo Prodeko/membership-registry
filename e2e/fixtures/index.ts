@@ -23,6 +23,7 @@ export const test = base.extend<Fixtures>({
   adminApi: async ({}, use) => {
     const api = new AdminApiHelper();
     await use(api);
+    await api.cleanup();
   },
 
   userPage: async ({}, use) => {

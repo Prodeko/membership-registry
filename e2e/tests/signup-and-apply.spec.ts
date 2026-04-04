@@ -12,10 +12,10 @@ import {
 } from "../helpers/constants";
 
 test.describe("Signup and apply", () => {
-  test.beforeEach(async ({ db }) => {
+  test.beforeEach(async ({ db, adminApi }) => {
     await db.cleanupTestUser(TEST_USER_EMAIL);
     await db.cleanupTestRole(TEST_ROLE_NAME);
-    await db.ensureRole(TEST_ROLE_NAME);
+    await adminApi.createRole(TEST_ROLE_NAME);
     await db.ensureTargetableRole(TEST_ROLE_NAME, TEST_ROLE_VALID_UNTIL, true);
   });
 
