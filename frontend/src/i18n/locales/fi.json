@@ -88,6 +88,11 @@
     }
   },
   "success": {
+    "title": "Hakemus lähetetty",
+    "message": "Hakemuksesi on vastaanotettu ja se on nyt käsittelyssä. Saat sähköpostilla ilmoituksen, kun päätös on tehty.",
+    "go_home": "Siirry etusivulle"
+  },
+  "payment_success": {
     "title": "Maksu onnistui",
     "message": "Maksusi on vastaanotettu. Saat sähköpostilla ilmoituksen, kun pyyntösi on käsitelty.",
     "go_home": "Siirry etusivulle"

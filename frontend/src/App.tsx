@@ -23,6 +23,7 @@ import DataManagement from "./components/data/DataManagement";
 import EmailTemplates from "./components/email-templates/EmailTemplates";
 import { ThemeProvider } from "./components/theme-provider";
 import Success from "./components/application-form/Success";
+import PaymentSuccess from "./components/payment/PaymentSuccess";
 import UserHome from "./components/home/UserHome";
 import ProfileEdit from "./components/profile/ProfileEdit";
 import { TooltipProvider } from "./components/ui/tooltip";
@@ -168,6 +169,10 @@ const router = createBrowserRouter([
   {
     path: "/apply/success",
     element: <Success />,
+  },
+  {
+    path: "/payment/success",
+    element: <PaymentSuccess />,
   },
   {
     path: "/auth/callback",
