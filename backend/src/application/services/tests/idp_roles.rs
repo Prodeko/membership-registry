@@ -15,6 +15,7 @@ mod test_idp_roles {
         rolesync_port::RoleSyncPort, user_admin_port::UserAdminPort,
     };
     use crate::application::services::audit_log_service::AuditLogService;
+    use crate::application::services::marketing_sync_service::MarketingSyncService;
     use crate::application::services::member_service::MemberService;
     use crate::application::services::role_service::RoleService;
     use crate::infrastructure::adapters::keycloak::{
@@ -92,11 +93,15 @@ mod test_idp_roles {
         let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member.clone());
         let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role.clone());
 
+        let marketing_sync_service =
+            MarketingSyncService::new(Arc::clone(&member_repo), Arc::clone(&role_repo), None);
+
         let member_service = MemberService::new(
-            member_repo,
+            Arc::clone(&member_repo),
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
+            marketing_sync_service,
         );
         let role_service = RoleService::new(
             role_repo,

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE Role SET color = $2, description = $3, renewable = $4,\n                renewal_payment_link = $5, renewal_period_months = $6,\n                renewal_email_template = $7, renewal_notification_days = $8\n            WHERE name = $1\n            RETURNING name, color, description, renewable, renewal_payment_link,\n                      renewal_period_months, renewal_email_template, renewal_notification_days",
+  "query": "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, sync_to_mailchimp_tag FROM Role WHERE name = $1",
   "describe": {
     "columns": [
       {
@@ -42,18 +42,16 @@
         "ordinal": 7,
         "name": "renewal_notification_days",
         "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 8,
+        "name": "sync_to_mailchimp_tag",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
-        "Text",
-        "Bool",
-        "Text",
-        "Int4",
-        "Text",
-        "Int4Array"
+        "Text"
       ]
     },
     "nullable": [
@@ -64,8 +62,9 @@
       true,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "efa82db9173beb27ef960a6fa8443d5c0d9ec06a795aca25c6dc072af3f6308b"
+  "hash": "bd9ca39bef3cae0c42583bb1fd952dbecfdbbb3e9aeb89b6c34a634b82d5663b"
 }

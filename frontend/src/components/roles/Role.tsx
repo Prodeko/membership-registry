@@ -47,6 +47,7 @@ const Role = () => {
   const [renewalPaymentLink, setRenewalPaymentLink] = React.useState("");
   const [renewalPeriodMonths, setRenewalPeriodMonths] = React.useState("12");
   const [renewalEmailTemplate, setRenewalEmailTemplate] = React.useState("");
+  const [syncToMailchimpTag, setSyncToMailchimpTag] = React.useState(false);
   const [initialized, setInitialized] = React.useState(false);
 
   React.useEffect(() => {
@@ -55,6 +56,7 @@ const Role = () => {
       setRenewalPaymentLink(role.renewal_payment_link ?? "");
       setRenewalPeriodMonths(role.renewal_period_months?.toString() ?? "12");
       setRenewalEmailTemplate(role.renewal_email_template ?? "");
+      setSyncToMailchimpTag(role.sync_to_mailchimp_tag);
       setInitialized(true);
     }
   }, [role, initialized]);
@@ -89,6 +91,7 @@ const Role = () => {
             : null,
           renewal_email_template: renewalEmailTemplate || null,
           renewal_notification_days: role.renewal_notification_days,
+          sync_to_mailchimp_tag: syncToMailchimpTag,
         },
       },
       {
@@ -194,6 +197,27 @@ const Role = () => {
               </div>
             </div>
           )}
+
+        </div>
+
+        <div className="space-y-4 border-t pt-6">
+          <h2 className="text-xl font-semibold">Mailchimp</h2>
+          <div className="flex items-center gap-3">
+            <Switch
+              checked={syncToMailchimpTag}
+              onCheckedChange={setSyncToMailchimpTag}
+              id="sync-to-mailchimp-tag"
+            />
+            <Label htmlFor="sync-to-mailchimp-tag">
+              Sync this role as a Mailchimp tag
+            </Label>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            When enabled, members holding this role will have it applied as a
+            tag on their Mailchimp contact. Tags are reconciled by the daily
+            sync job. Disabling this removes the tag from all contacts on the
+            next sync.
+          </p>
 
           <Button onClick={handleSave} disabled={isPending}>
             {isPending ? "Saving..." : "Save"}

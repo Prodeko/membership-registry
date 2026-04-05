@@ -11,6 +11,7 @@ use uuid::Uuid;
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
+    marketing_sync_service::MarketingSyncService,
 };
 
 #[derive(Clone)]
@@ -19,6 +20,7 @@ pub struct MemberService {
     pub user_admin: Arc<dyn UserAdminPort>,
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
+    pub marketing_sync: MarketingSyncService,
 }
 
 impl MemberService {
@@ -27,12 +29,14 @@ impl MemberService {
         user_admin: Arc<dyn UserAdminPort>,
         auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
         audit_log: AuditLogService,
+        marketing_sync: MarketingSyncService,
     ) -> Self {
         Self {
             member_repo,
             user_admin,
             auth_provider_repo,
             audit_log,
+            marketing_sync,
         }
     }
 
@@ -82,6 +86,8 @@ impl MemberService {
                 });
             }
         }
+
+        self.marketing_sync.push_contact_async(person.clone());
 
         Ok(person)
     }
@@ -205,6 +211,8 @@ impl MemberService {
                 });
             }
         }
+
+        self.marketing_sync.push_contact_async(updated.clone());
 
         Ok(updated)
     }

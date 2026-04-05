@@ -17,4 +17,8 @@ pub struct Role {
     pub renewal_period_months: Option<i32>,
     pub renewal_email_template: Option<String>,
     pub renewal_notification_days: Vec<i32>,
+    /// Whether this role should appear as a tag on members in Mailchimp.
+    /// Admin-controlled; defaults to false for newly created roles. Roles
+    /// where this is false are entirely invisible to the marketing sync.
+    pub sync_to_mailchimp_tag: bool,
 }

@@ -64,6 +64,7 @@ async fn run_sync_pushes_contacts_with_correct_tags_and_pulls_unsubscribes() {
                 renewal_period_months: None,
                 renewal_email_template: None,
                 renewal_notification_days: vec![],
+                sync_to_mailchimp_tag: true,
             },
             Role {
                 name: RoleName("board".to_string()),
@@ -74,6 +75,7 @@ async fn run_sync_pushes_contacts_with_correct_tags_and_pulls_unsubscribes() {
                 renewal_period_months: None,
                 renewal_email_template: None,
                 renewal_notification_days: vec![],
+                sync_to_mailchimp_tag: true,
             },
         ])
     });
@@ -115,4 +117,113 @@ async fn run_sync_pushes_contacts_with_correct_tags_and_pulls_unsubscribes() {
     );
 
     svc.run_sync().await.expect("sync succeeds");
+}
+
+#[tokio::test]
+async fn run_sync_excludes_roles_not_flagged_as_mailchimp_tags() {
+    let mut member_repo = MockMemberRepositoryPort::new();
+    let mut role_repo = MockRoleRepositoryPort::new();
+    let mut marketing = MockMarketingListPort::new();
+
+    member_repo
+        .expect_fetch_members_with_roles()
+        .returning(|_| {
+            Ok(vec![MemberWithRoles {
+                person: person("dave@example.com", true),
+                // Dave holds both a flagged role ("member") and an unflagged
+                // one ("internal"). Only "member" should reach Mailchimp.
+                role_names: vec!["member".to_string(), "internal".to_string()],
+            }])
+        });
+
+    role_repo.expect_fetch_all().returning(|| {
+        Ok(vec![
+            Role {
+                name: RoleName("member".to_string()),
+                color: None,
+                description: None,
+                renewable: false,
+                renewal_payment_link: None,
+                renewal_period_months: None,
+                renewal_email_template: None,
+                renewal_notification_days: vec![],
+                sync_to_mailchimp_tag: true,
+            },
+            Role {
+                name: RoleName("internal".to_string()),
+                color: None,
+                description: None,
+                renewable: false,
+                renewal_payment_link: None,
+                renewal_period_months: None,
+                renewal_email_template: None,
+                renewal_notification_days: vec![],
+                sync_to_mailchimp_tag: false,
+            },
+        ])
+    });
+
+    marketing
+        .expect_sync_contacts()
+        .withf(|contacts, all_tags| {
+            contacts.len() == 1
+                && contacts[0].active_tags == vec!["member".to_string()]
+                && all_tags == &vec!["member".to_string()]
+        })
+        .returning(|_, _| {
+            Ok(SyncStats {
+                upserted: 1,
+                failed: 0,
+            })
+        });
+
+    marketing
+        .expect_fetch_unsubscribed_emails()
+        .returning(|| Ok(vec![]));
+
+    let svc = MarketingSyncService::new(
+        Arc::new(member_repo),
+        Arc::new(role_repo),
+        Some(Arc::new(marketing)),
+    );
+
+    svc.run_sync().await.expect("filtered sync succeeds");
+}
+
+#[tokio::test]
+async fn push_contact_async_calls_upsert_on_adapter() {
+    let member_repo = MockMemberRepositoryPort::new();
+    let role_repo = MockRoleRepositoryPort::new();
+    let mut marketing = MockMarketingListPort::new();
+
+    marketing
+        .expect_upsert_contact()
+        .withf(|contact| {
+            contact.email == "eve@example.com"
+                && contact.subscribed
+                && contact.active_tags.is_empty()
+        })
+        .returning(|_| Ok(()));
+
+    let svc = MarketingSyncService::new(
+        Arc::new(member_repo),
+        Arc::new(role_repo),
+        Some(Arc::new(marketing)),
+    );
+
+    svc.push_contact_async(person("eve@example.com", true));
+    // Give the spawned task a chance to run.
+    tokio::task::yield_now().await;
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+}
+
+#[test]
+fn push_contact_async_is_noop_without_adapter() {
+    let svc = MarketingSyncService::new(
+        Arc::new(MockMemberRepositoryPort::new()),
+        Arc::new(MockRoleRepositoryPort::new()),
+        None,
+    );
+    // Must not panic or attempt to spawn any task when the adapter is absent.
+    svc.push_contact_async(person("frank@example.com", false));
 }

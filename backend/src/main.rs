@@ -182,12 +182,19 @@ impl Services {
             Arc::new(repo.application.clone());
         let application_queries: Arc<dyn ApplicationQueryPort> = Arc::new(repo.application.clone());
         let targetable_roles: Arc<dyn TargetableRolePort> = Arc::new(repo.application);
+        let marketing_port = build_marketing_port(&config);
+        let marketing_sync_service = MarketingSyncService::new(
+            Arc::clone(&member_repo),
+            Arc::clone(&role_repo),
+            marketing_port,
+        );
 
         let member_service = MemberService::new(
             Arc::clone(&member_repo),
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
+            marketing_sync_service.clone(),
         );
         let role_service = RoleService::new(
             Arc::clone(&role_repo),
@@ -203,12 +210,6 @@ impl Services {
             role_service.clone(),
             audit_log_service.clone(),
             notification_service.clone(),
-        );
-        let marketing_port = build_marketing_port(&config);
-        let marketing_sync_service = MarketingSyncService::new(
-            Arc::clone(&member_repo),
-            Arc::clone(&role_repo),
-            marketing_port,
         );
 
         let renewal_repo: Arc<dyn RoleRenewalRepositoryPort> = Arc::new(repo.role_renewal);

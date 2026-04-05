@@ -1,0 +1,2 @@
+ALTER TABLE Role
+ADD COLUMN sync_to_mailchimp_tag BOOLEAN NOT NULL DEFAULT FALSE;

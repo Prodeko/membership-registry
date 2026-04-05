@@ -47,17 +47,15 @@ impl MailchimpMarketingAdapter {
         format!("{}/tags", self.member_url(email))
     }
 
-    /// PUT /lists/{id}/members/{hash} — upsert identity + subscription state.
-    /// Note: Mailchimp refuses to transition an unsubscribed contact back to
-    /// subscribed via the API (compliance). In that case the call returns a
-    /// 400, which we surface as an error and the caller logs + skips.
-    async fn upsert_member(&self, contact: &MarketingContact) -> Result<(), MarketingListError> {
-        let status = if contact.subscribed {
-            "subscribed"
-        } else {
-            "unsubscribed"
-        };
-
+    /// Execute a PUT /lists/{id}/members/{hash} with the given status value.
+    /// Returns `Ok(true)` on success, `Ok(false)` if Mailchimp rejected the
+    /// request with its compliance-state 400 (caller decides fallback),
+    /// and `Err` for any other failure.
+    async fn put_member(
+        &self,
+        contact: &MarketingContact,
+        status: &str,
+    ) -> Result<bool, MarketingListError> {
         let payload = serde_json::json!({
             "email_address": contact.email,
             "status_if_new": status,
@@ -79,11 +77,53 @@ impl MailchimpMarketingAdapter {
             .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
 
         if resp.status().is_success() {
+            return Ok(true);
+        }
+
+        let http_status = resp.status().as_u16();
+        let body = resp.text().await.unwrap_or_default();
+
+        if http_status == 400 && is_compliance_state_error(&body) {
+            return Ok(false);
+        }
+
+        Err(MarketingListError::ApiError {
+            status: http_status,
+            body,
+        })
+    }
+
+    /// PUT /lists/{id}/members/{hash} — upsert identity + subscription state.
+    /// When the contact is subscribed in the DB but Mailchimp has them in a
+    /// compliance-blocked state (typically because a previous unsubscribe came
+    /// from a campaign link), fall back to `status: pending` — this tells
+    /// Mailchimp to send its own opt-in confirmation email, which the contact
+    /// can click to re-confirm. The DB flag stays as user intent either way.
+    async fn upsert_member(&self, contact: &MarketingContact) -> Result<(), MarketingListError> {
+        let desired = if contact.subscribed {
+            "subscribed"
+        } else {
+            "unsubscribed"
+        };
+
+        if self.put_member(contact, desired).await? {
+            return Ok(());
+        }
+
+        // Compliance block hit. Only meaningful when we were trying to resubscribe;
+        // unsubscribed→unsubscribed shouldn't produce this error in practice, but
+        // in that case retrying with `pending` is still better than failing.
+        tracing::info!(
+            "Mailchimp compliance state blocked direct {desired} for {}; retrying with status=pending to trigger opt-in",
+            contact.email
+        );
+        if self.put_member(contact, "pending").await? {
             Ok(())
         } else {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            Err(MarketingListError::ApiError { status, body })
+            Err(MarketingListError::ApiError {
+                status: 400,
+                body: "compliance fallback to pending also rejected".to_string(),
+            })
         }
     }
 
@@ -134,8 +174,20 @@ impl MailchimpMarketingAdapter {
     }
 }
 
+/// Detect Mailchimp's "Member In Compliance State" error. Mailchimp returns a
+/// 400 whose JSON body contains a `title` field identifying the specific error
+/// class. We match loosely on substring to avoid being fragile to wording tweaks.
+fn is_compliance_state_error(body: &str) -> bool {
+    let lower = body.to_lowercase();
+    lower.contains("compliance state") || lower.contains("in compliance")
+}
+
 #[async_trait::async_trait]
 impl MarketingListPort for MailchimpMarketingAdapter {
+    async fn upsert_contact(&self, contact: MarketingContact) -> Result<(), MarketingListError> {
+        self.upsert_member(&contact).await
+    }
+
     async fn sync_contacts(
         &self,
         contacts: Vec<MarketingContact>,

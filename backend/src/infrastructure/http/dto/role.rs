@@ -15,6 +15,7 @@ pub struct RoleDTO {
     pub renewal_period_months: Option<i32>,
     pub renewal_email_template: Option<String>,
     pub renewal_notification_days: Vec<i32>,
+    pub sync_to_mailchimp_tag: bool,
 }
 
 impl From<Role> for RoleDTO {
@@ -28,6 +29,7 @@ impl From<Role> for RoleDTO {
             renewal_period_months: role.renewal_period_months,
             renewal_email_template: role.renewal_email_template,
             renewal_notification_days: role.renewal_notification_days,
+            sync_to_mailchimp_tag: role.sync_to_mailchimp_tag,
         }
     }
 }
@@ -42,6 +44,7 @@ pub struct UpdateRoleDTO {
     pub renewal_period_months: Option<i32>,
     pub renewal_email_template: Option<String>,
     pub renewal_notification_days: Vec<i32>,
+    pub sync_to_mailchimp_tag: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

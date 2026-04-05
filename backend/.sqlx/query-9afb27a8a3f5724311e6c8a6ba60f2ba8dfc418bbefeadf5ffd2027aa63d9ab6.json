@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days FROM Role",
+  "query": "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, sync_to_mailchimp_tag FROM Role",
   "describe": {
     "columns": [
       {
@@ -42,6 +42,11 @@
         "ordinal": 7,
         "name": "renewal_notification_days",
         "type_info": "Int4Array"
+      },
+      {
+        "ordinal": 8,
+        "name": "sync_to_mailchimp_tag",
+        "type_info": "Bool"
       }
     ],
     "parameters": {
@@ -55,8 +60,9 @@
       true,
       true,
       true,
+      false,
       false
     ]
   },
-  "hash": "ce7ec4fcfbe78f94d7c5ef5dc34bf1af88700515cad3f323d797992ee83354cb"
+  "hash": "9afb27a8a3f5724311e6c8a6ba60f2ba8dfc418bbefeadf5ffd2027aa63d9ab6"
 }
