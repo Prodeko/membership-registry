@@ -21,6 +21,7 @@ use crate::application::ports::{
     marketing_list_port::{
         ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences, TagPreference,
     },
+    marketing_tag_repository_port::MarketingTagRepositoryPort,
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     repository_error::RepositoryError,
     role_repository_port::{RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams},
@@ -31,7 +32,7 @@ use crate::application::ports::{
 };
 use crate::domain::{
     Application, ApplicationId, ApplicationStatus, EmailTemplate, EmailTemplateTranslation,
-    NewApplication, NewPerson, Person, Role, RoleName, UpdatePersonData,
+    MarketingTag, NewApplication, NewPerson, Person, Role, RoleName, UpdatePersonData,
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
@@ -189,6 +190,20 @@ mock! {
         async fn fetch_preferences(&self, email: &str, known_tags: &[String]) -> Result<MarketingPreferences, MarketingListError>;
         async fn subscribe(&self, identity: &ContactIdentity) -> Result<(), MarketingListError>;
         async fn set_tags(&self, identity: &ContactIdentity, tag_updates: &[TagPreference]) -> Result<(), MarketingListError>;
+    }
+}
+
+// --- MarketingTagRepositoryPort ---
+
+mock! {
+    pub MarketingTagRepositoryPort {}
+
+    #[async_trait::async_trait]
+    impl MarketingTagRepositoryPort for MarketingTagRepositoryPort {
+        async fn fetch_all(&self) -> Result<Vec<MarketingTag>, RepositoryError>;
+        async fn create(&self, tag: &MarketingTag) -> Result<MarketingTag, RepositoryError>;
+        async fn update(&self, tag: &MarketingTag) -> Result<MarketingTag, RepositoryError>;
+        async fn delete(&self, label: &str) -> Result<(), RepositoryError>;
     }
 }
 
