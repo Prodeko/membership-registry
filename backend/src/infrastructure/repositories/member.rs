@@ -189,6 +189,25 @@ impl MemberRepositoryPort for MemberRepo {
         Ok(())
     }
 
+    async fn set_email_notifications_by_email(
+        &self,
+        email: &str,
+        value: bool,
+    ) -> Result<u64, RepositoryError> {
+        let res = sqlx::query!(
+            r#"
+            UPDATE member
+            SET email_notifications = $1
+            WHERE email = $2 AND email_notifications <> $1
+            "#,
+            value,
+            email
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(res.rows_affected())
+    }
+
     async fn fetch_members_with_roles(
         &self,
         params: MembersWithRolesParams,

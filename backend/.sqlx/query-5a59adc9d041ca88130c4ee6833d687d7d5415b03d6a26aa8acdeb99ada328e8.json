@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE member\n            SET email_notifications = $1\n            WHERE email = $2 AND email_notifications <> $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5a59adc9d041ca88130c4ee6833d687d7d5415b03d6a26aa8acdeb99ada328e8"
+}

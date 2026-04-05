@@ -25,6 +25,7 @@ use application::{
         audit_log_repository_port::AuditLogRepositoryPort,
         auth_provider_repo_port::AuthProviderRepositoryPort,
         email_port::EmailPort,
+        marketing_list_port::MarketingListPort,
         member_repository_port::MemberRepositoryPort,
         role_renewal_repository_port::RoleRenewalRepositoryPort,
         role_repository_port::RoleRepositoryPort,
@@ -37,9 +38,10 @@ use application::{
     services::{
         application_service::ApplicationService, audit_log_service::AuditLogService,
         authentication_service::AuthenticationService, export_service::ExportService,
-        member_service::MemberService, notification_service::NotificationService,
-        renewal_service::RenewalService, role_service::RoleService,
-        saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
+        marketing_sync_service::MarketingSyncService, member_service::MemberService,
+        notification_service::NotificationService, renewal_service::RenewalService,
+        role_service::RoleService, saved_filter::SavedFilterService,
+        template_admin_service::TemplateAdminService,
     },
 };
 use config::Config;
@@ -53,6 +55,7 @@ use infrastructure::{
             KeycloakAuthAdapter, KeycloakClient, KeycloakConfig, KeycloakRoleSyncAdapter,
             KeycloakUserAdminAdapter,
         },
+        mailchimp::{MailchimpConfig, MailchimpMarketingAdapter},
         sendgrid::{SendGridConfig, SendGridEmailAdapter},
         smtp::{SmtpConfig, SmtpEmailAdapter},
         stripe::StripeWebhookAdapter,
@@ -73,6 +76,7 @@ pub struct Services {
     pub audit_log_service: AuditLogService,
     pub template_admin_service: TemplateAdminService,
     pub notification_service: NotificationService,
+    pub marketing_sync_service: MarketingSyncService,
     pub payment_webhook: StripeWebhookAdapter,
     pub export_service: ExportService,
 }
@@ -111,6 +115,19 @@ fn build_email_port(config: &Config) -> Option<Arc<dyn EmailPort>> {
         from_email: non_empty(&config.sendgrid_from_email)
             .unwrap_or_else(|| DEFAULT_FROM_EMAIL.to_string()),
     })))
+}
+
+/// Build the Mailchimp marketing list adapter if both API key and list id
+/// are configured. Returns `None` otherwise so the sync service becomes a
+/// no-op in dev/e2e environments.
+fn build_marketing_port(config: &Config) -> Option<Arc<dyn MarketingListPort>> {
+    let api_key = non_empty(&config.mailchimp_api_key)?;
+    let list_id = non_empty(&config.mailchimp_list_id)?;
+    let mc_config = MailchimpConfig::new(api_key, list_id).or_else(|| {
+        tracing::error!("MAILCHIMP_API_KEY is missing the datacenter suffix (expected '<key>-<dc>'); marketing sync disabled");
+        None
+    })?;
+    Some(Arc::new(MailchimpMarketingAdapter::new(mc_config)))
 }
 
 impl Services {
@@ -187,6 +204,13 @@ impl Services {
             audit_log_service.clone(),
             notification_service.clone(),
         );
+        let marketing_port = build_marketing_port(&config);
+        let marketing_sync_service = MarketingSyncService::new(
+            Arc::clone(&member_repo),
+            Arc::clone(&role_repo),
+            marketing_port,
+        );
+
         let renewal_repo: Arc<dyn RoleRenewalRepositoryPort> = Arc::new(repo.role_renewal);
         let renewal_service = RenewalService::new(
             renewal_repo,
@@ -213,6 +237,7 @@ impl Services {
             audit_log_service,
             template_admin_service,
             notification_service,
+            marketing_sync_service,
             payment_webhook,
             export_service,
         }
@@ -273,6 +298,7 @@ async fn main() {
     let scheduler_handle = tokio::spawn(run_scheduler(
         services.role_service.clone(),
         services.renewal_service.clone(),
+        services.marketing_sync_service.clone(),
         cancel.clone(),
     ));
 

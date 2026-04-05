@@ -66,4 +66,10 @@ pub struct Config {
 
     #[envconfig(from = "SMTP_FROM_EMAIL")]
     pub smtp_from_email: Option<String>,
+
+    #[envconfig(from = "MAILCHIMP_API_KEY")]
+    pub mailchimp_api_key: Option<String>,
+
+    #[envconfig(from = "MAILCHIMP_LIST_ID")]
+    pub mailchimp_list_id: Option<String>,
 }

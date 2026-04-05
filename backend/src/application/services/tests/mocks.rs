@@ -18,6 +18,7 @@ use crate::application::ports::{
         AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort,
     },
     email_port::{EmailError, EmailPort},
+    marketing_list_port::{MarketingContact, MarketingListError, MarketingListPort, SyncStats},
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     repository_error::RepositoryError,
     role_repository_port::{RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams},
@@ -93,6 +94,7 @@ mock! {
         async fn delete(&self, id: Uuid) -> Result<(), RepositoryError>;
         async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), RepositoryError>;
         async fn fetch_members_with_roles(&self, params: MembersWithRolesParams) -> Result<Vec<MemberWithRoles>, RepositoryError>;
+        async fn set_email_notifications_by_email(&self, email: &str, value: bool) -> Result<u64, RepositoryError>;
     }
 }
 
@@ -172,6 +174,18 @@ mock! {
     #[async_trait::async_trait]
     impl EmailPort for EmailPort {
         async fn send_email(&self, to: &str, subject: &str, html_body: &str) -> Result<(), EmailError>;
+    }
+}
+
+// --- MarketingListPort ---
+
+mock! {
+    pub MarketingListPort {}
+
+    #[async_trait::async_trait]
+    impl MarketingListPort for MarketingListPort {
+        async fn sync_contacts(&self, contacts: Vec<MarketingContact>, all_tags: Vec<String>) -> Result<SyncStats, MarketingListError>;
+        async fn fetch_unsubscribed_emails(&self) -> Result<Vec<String>, MarketingListError>;
     }
 }
 
