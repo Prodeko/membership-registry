@@ -117,17 +117,42 @@ fn build_email_port(config: &Config) -> Option<Arc<dyn EmailPort>> {
     })))
 }
 
-/// Build the Mailchimp marketing list adapter if both API key and list id
-/// are configured. Returns `None` otherwise so the sync service becomes a
-/// no-op in dev/e2e environments.
+/// Build the Mailchimp marketing list adapter. Returns `None` only when
+/// *both* env vars are absent — that's the intended dev/e2e no-op mode. Any
+/// other shape (one var set, both set but API key missing its datacenter
+/// suffix) is treated as an operator misconfiguration and aborts startup,
+/// because silently disabling the sync in that case would cause the app to
+/// look healthy while the Mailchimp integration is dark.
 fn build_marketing_port(config: &Config) -> Option<Arc<dyn MarketingListPort>> {
-    let api_key = non_empty(&config.mailchimp_api_key)?;
-    let list_id = non_empty(&config.mailchimp_list_id)?;
-    let mc_config = MailchimpConfig::new(api_key, list_id).or_else(|| {
-        tracing::error!("MAILCHIMP_API_KEY is missing the datacenter suffix (expected '<key>-<dc>'); marketing sync disabled");
-        None
-    })?;
-    Some(Arc::new(MailchimpMarketingAdapter::new(mc_config)))
+    let api_key = non_empty(&config.mailchimp_api_key);
+    let list_id = non_empty(&config.mailchimp_list_id);
+    match (api_key, list_id) {
+        (None, None) => {
+            tracing::debug!("Mailchimp marketing sync disabled: no credentials configured");
+            None
+        }
+        (Some(api_key), Some(list_id)) => {
+            let mc_config = MailchimpConfig::new(api_key, list_id).unwrap_or_else(|| {
+                tracing::error!(
+                    "MAILCHIMP_API_KEY is missing the datacenter suffix (expected '<key>-<dc>')"
+                );
+                std::process::exit(1);
+            });
+            Some(Arc::new(MailchimpMarketingAdapter::new(mc_config)))
+        }
+        (Some(_), None) => {
+            tracing::error!(
+                "MAILCHIMP_API_KEY is set but MAILCHIMP_LIST_ID is missing; refusing to start with a half-configured marketing sync"
+            );
+            std::process::exit(1);
+        }
+        (None, Some(_)) => {
+            tracing::error!(
+                "MAILCHIMP_LIST_ID is set but MAILCHIMP_API_KEY is missing; refusing to start with a half-configured marketing sync"
+            );
+            std::process::exit(1);
+        }
+    }
 }
 
 impl Services {

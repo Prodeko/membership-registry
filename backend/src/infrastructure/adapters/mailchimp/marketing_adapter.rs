@@ -238,15 +238,30 @@ impl MarketingListPort for MailchimpMarketingAdapter {
         let mut stats = SyncStats::default();
 
         for contact in &contacts {
-            // The bulk path always pushes subscription — it's the source of
-            // truth for daily reconciliation. Per-contact outcomes are
-            // discarded; compliance fallbacks still happen inside
-            // `upsert_member`, the scheduler just doesn't surface them.
-            match self
-                .upsert_member(contact, ContactPushMode::WithSubscription)
-                .await
-            {
-                Ok(_) => {}
+            // The bulk path pushes subscription as the source of truth for
+            // daily reconciliation, but deliberately SKIPS the
+            // pending-fallback that the event-driven path uses. If Mailchimp
+            // compliance-blocks a direct subscribe here, we leave the
+            // contact in whatever state they're in. Otherwise the scheduler
+            // would re-PUT `status: pending` every day for any contact
+            // stuck mid-confirmation, which Mailchimp can interpret as a
+            // reason to re-send the opt-in email — turning the daily sync
+            // into a spam loop. The event-driven resubscribe path (UI
+            // click) is the only place that's allowed to trigger a fresh
+            // opt-in email.
+            let override_status = Some(if contact.subscribed {
+                "subscribed"
+            } else {
+                "unsubscribed"
+            });
+            match self.put_member(contact, override_status).await {
+                Ok(PutOutcome::Accepted) => {}
+                Ok(PutOutcome::ComplianceBlocked) => {
+                    tracing::debug!(
+                        "Mailchimp compliance-blocked scheduled subscribe for {}; leaving contact state untouched",
+                        contact.email
+                    );
+                }
                 Err(e) => {
                     tracing::warn!(
                         "Mailchimp upsert failed for {}: {:?}; skipping tag sync for this contact",

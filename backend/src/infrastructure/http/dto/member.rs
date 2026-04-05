@@ -23,12 +23,6 @@ pub struct MemberDTO {
     pub has_accepted_policies: bool,
     pub email_notifications: bool,
     pub language: String,
-    /// Only populated on update responses when the Mailchimp push fell back
-    /// to `status: pending` because the contact was in a compliance-blocked
-    /// state. When set, the UI should tell the user that Mailchimp has sent
-    /// them a confirmation email that they need to click to actually
-    /// re-subscribe. `None` on GET responses.
-    pub mailchimp_pending_confirmation: Option<bool>,
 }
 
 impl From<Person> for MemberDTO {
@@ -43,22 +37,34 @@ impl From<Person> for MemberDTO {
             has_accepted_policies: p.has_accepted_policies,
             email_notifications: p.email_notifications,
             language: p.language,
-            mailchimp_pending_confirmation: None,
         }
     }
 }
 
-impl From<UpdateMemberResult> for MemberDTO {
+/// Response shape for member update endpoints. Wraps the updated member
+/// with a side-channel flag that the frontend uses to decide whether to
+/// show the "confirm your Mailchimp subscription" toast. Kept as a distinct
+/// type from `MemberDTO` so read endpoints never carry this field.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, rename = "UpdatedMember")]
+pub struct UpdatedMemberDTO {
+    pub member: MemberDTO,
+    /// `true` when the Mailchimp push fell back to `status: pending`
+    /// because the contact was in a compliance-blocked state, so the user
+    /// needs to click the confirmation link in the opt-in email.
+    pub mailchimp_pending_confirmation: bool,
+}
+
+impl From<UpdateMemberResult> for UpdatedMemberDTO {
     fn from(result: UpdateMemberResult) -> Self {
         let pending = matches!(
             result.marketing_outcome,
             Some(UpsertOutcome::PendingConfirmation)
         );
-        let mut dto = MemberDTO::from(result.person);
-        if pending {
-            dto.mailchimp_pending_confirmation = Some(true);
+        Self {
+            member: MemberDTO::from(result.person),
+            mailchimp_pending_confirmation: pending,
         }
-        dto
     }
 }
 
@@ -75,10 +81,6 @@ pub struct MemberWithRolesDTO {
     pub email_notifications: bool,
     pub language: String,
     pub role_names: Vec<String>,
-    /// Present so `MemberWithRoles` is structurally assignable to `Member`
-    /// on the frontend. Always `None` here — this type is only used for
-    /// list/detail queries, never for update responses.
-    pub mailchimp_pending_confirmation: Option<bool>,
 }
 
 impl From<MemberWithRoles> for MemberWithRolesDTO {
@@ -94,7 +96,6 @@ impl From<MemberWithRoles> for MemberWithRolesDTO {
             email_notifications: mwr.person.email_notifications,
             language: mwr.person.language,
             role_names: mwr.role_names,
-            mailchimp_pending_confirmation: None,
         }
     }
 }

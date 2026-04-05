@@ -23,6 +23,7 @@ import {
   RoleStats,
   SavedFilter,
   UpdateMember,
+  UpdatedMember,
   UpdateRole,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -683,9 +684,13 @@ export const useDeleteEmailTemplateTranslation = () => {
 
 export const useUpdateMember = () => {
   const queryClient = useQueryClient();
-  return useMutation<Member, Error, { userId: string; data: UpdateMember }>({
+  return useMutation<
+    UpdatedMember,
+    Error,
+    { userId: string; data: UpdateMember }
+  >({
     mutationFn: async ({ userId, data }) => {
-      const response = await axios_client.put<Member>(
+      const response = await axios_client.put<UpdatedMember>(
         `/members/${userId}`,
         data,
       );

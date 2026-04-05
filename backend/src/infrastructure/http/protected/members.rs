@@ -13,7 +13,7 @@ use crate::{
     domain::UpdatePersonData,
     infrastructure::http::{
         dto::{
-            member::{MemberDTO, NewMemberDTO, UpdateMemberDTO},
+            member::{MemberDTO, NewMemberDTO, UpdateMemberDTO, UpdatedMemberDTO},
             role::RoleMembershipDTO,
         },
         errors::{ApiError, ApiResult},
@@ -94,7 +94,7 @@ async fn update_member(
     State(state): State<AppState>,
     Path((user_id,)): Path<(Uuid,)>,
     Json(body): Json<UpdateMemberDTO>,
-) -> ApiResult<Json<MemberDTO>> {
+) -> ApiResult<Json<UpdatedMemberDTO>> {
     body.validate().map_err(|_| ApiError::BadRequest)?;
 
     let actor_id = user_info.map(|u| u.user_id);
@@ -110,7 +110,7 @@ async fn update_member(
         .member_service
         .update_member(user_id, data, actor_id)
         .await
-        .map(MemberDTO::from)
+        .map(UpdatedMemberDTO::from)
         .map(Json)?;
 
     Ok(member)

@@ -25,6 +25,7 @@ export type {
   RoleStats,
   SavedFilter,
   UpdateMember,
+  UpdatedMember,
   UpdateRole,
 } from "./generated";
 
