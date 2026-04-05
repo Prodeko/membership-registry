@@ -1,10 +1,7 @@
 name: CI
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_call:
 
 env:
   CARGO_TERM_COLOR: always
@@ -54,11 +51,45 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: clippy
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: backend
       - run: cargo install sqlx-cli --no-default-features --features postgres
       - run: sqlx migrate run
+      - run: cargo fmt -- --check
       - run: cargo clippy -- -D warnings
       - run: cargo test
+      - run: cargo sqlx prepare --check
+
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: cargo install cargo-audit
+      - run: cargo audit
+        working-directory: backend
+      - run: npm audit --audit-level=high
+        working-directory: frontend
+        if: always()
+      - run: npm audit --audit-level=high
+        working-directory: e2e
+        if: always()
+
+  docker:
+    name: Docker build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

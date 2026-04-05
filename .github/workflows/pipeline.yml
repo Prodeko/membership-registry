@@ -1,7 +1,9 @@
-name: Deploy
+name: Pipeline
 
 on:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
 
 env:
@@ -12,8 +14,16 @@ env:
   RESOURCE_GROUP: prodeko-rg
 
 jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  e2e:
+    uses: ./.github/workflows/e2e.yml
+
   deploy:
     name: Build and deploy
+    needs: [ci, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +33,7 @@ jobs:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Log in to ACR
-        run: az acr login --name $ACR_NAME
+        run: az acr login --name "$ACR_NAME"
 
       - name: Build and push
         run: |
@@ -33,4 +43,4 @@ jobs:
           docker push "$ACR_LOGIN_SERVER/$IMAGE_NAME:latest"
 
       - name: Restart App Service
-        run: az webapp restart --name $APP_NAME --resource-group $RESOURCE_GROUP
+        run: az webapp restart --name "$APP_NAME" --resource-group "$RESOURCE_GROUP"

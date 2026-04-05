@@ -1,0 +1,210 @@
+name: E2E Tests
+
+on:
+  workflow_call:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  e2e:
+    name: End-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: membership
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: membership
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Start Keycloak via docker run (service containers don't support custom commands) ---
+      - name: Start Keycloak
+        run: |
+          docker run -d --name keycloak \
+            -e KEYCLOAK_ADMIN=admin \
+            -e KEYCLOAK_ADMIN_PASSWORD=admin \
+            -p 8180:8080 \
+            quay.io/keycloak/keycloak:26.5.4 start-dev
+
+      # --- Start Mailpit for email capture in e2e tests ---
+      - name: Start Mailpit
+        run: |
+          docker run -d --name mailpit \
+            -p 1025:1025 \
+            -p 8025:8025 \
+            axllent/mailpit:latest
+
+      # --- Tool setup ---
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: backend
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            e2e/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # --- Install dependencies ---
+      - name: Install Python deps for Keycloak setup
+        run: pip install requests python-dotenv
+
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Install e2e dependencies
+        run: npm ci
+        working-directory: e2e
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: e2e
+
+      # --- Configure Keycloak realm ---
+      - name: Import Keycloak realm
+        run: |
+          # Wait for Keycloak to be fully ready
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8180/realms/master > /dev/null 2>&1; then
+              echo "Keycloak is ready"
+              break
+            fi
+            echo "Waiting for Keycloak... ($i)"
+            sleep 2
+          done
+
+          # Create the realm via Admin REST API
+          ADMIN_TOKEN=$(curl -sf -X POST "http://localhost:8180/realms/master/protocol/openid-connect/token" \
+            -d "client_id=admin-cli" \
+            -d "username=admin" \
+            -d "password=admin" \
+            -d "grant_type=password" | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+          # Import realm from export file
+          curl -sf -X POST "http://localhost:8180/admin/realms" \
+            -H "Authorization: Bearer $ADMIN_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d @keycloak/realm-export.json
+
+      - name: Run Keycloak setup script
+        run: python setup.py
+        working-directory: keycloak
+        env:
+          KEYCLOAK_URL: http://localhost:8180
+          DISABLE_BRUTE_FORCE_PROTECTION: "true"
+
+      # --- Build and start backend ---
+      - name: Build backend
+        run: cargo build --release
+        working-directory: backend
+        env:
+          SQLX_OFFLINE: "true"
+
+      - name: Start backend
+        run: ./target/release/membership-registry &
+        working-directory: backend
+        env:
+          RUST_LOG: info
+          PORT: 8081
+          DATABASE_URL: postgres://membership:secret@localhost:5433/membership?sslmode=disable
+          FRONTEND_URL: http://127.0.0.1:5173
+          KEYCLOAK_URL: http://localhost:8180
+          KEYCLOAK_REALM: membership-registry
+          KEYCLOAK_CLIENT_ID: membership-registry
+          KEYCLOAK_CLIENT_SECRET: dev-secret-membership-registry
+          OAUTH_REDIRECT_URL: http://127.0.0.1:5173/auth/callback
+          KEYCLOAK_ADMIN_CLIENT_ID: membership-registry-m2m
+          KEYCLOAK_ADMIN_CLIENT_SECRET: dev-secret-membership-registry-m2m
+          STRIPE_ENDPOINT_SECRET: whsec_test
+          SMTP_HOST: 127.0.0.1
+          SMTP_PORT: "1025"
+          SMTP_FROM_EMAIL: test@example.com
+          AUTH_RATE_LIMIT_PER_SECOND: "100"
+          AUTH_RATE_LIMIT_BURST_SIZE: "200"
+
+      # --- Start frontend dev server ---
+      - name: Start frontend
+        run: npm run dev &
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: http://127.0.0.1:8081/api
+
+      # --- Wait for services ---
+      - name: Wait for backend and frontend
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8081/api/health > /dev/null 2>&1; then
+              echo "Backend is ready"
+              break
+            fi
+            if [ "$i" -eq 30 ]; then echo "Backend failed to start" && exit 1; fi
+            echo "Waiting for backend... ($i)"
+            sleep 2
+          done
+
+          for i in $(seq 1 15); do
+            if curl -sf http://127.0.0.1:5173 > /dev/null 2>&1; then
+              echo "Frontend is ready"
+              break
+            fi
+            if [ "$i" -eq 15 ]; then echo "Frontend failed to start" && exit 1; fi
+            echo "Waiting for frontend... ($i)"
+            sleep 2
+          done
+
+      # --- Run E2E tests ---
+      - name: Run Playwright tests
+        run: npx playwright test
+        working-directory: e2e
+        env:
+          CI: "true"
+          E2E_ADMIN_EMAIL: cto@prodeko.org
+          E2E_ADMIN_PASSWORD: kananugetti
+          # One Keycloak user per parallel worker. Keep count in sync
+          # with keycloak/config/users.py (configure_test_users).
+          E2E_WORKERS: "4"
+          E2E_USER_EMAIL_0: user-0@prodeko.org
+          E2E_USER_PASSWORD_0: sateenkaari
+          E2E_USER_EMAIL_1: user-1@prodeko.org
+          E2E_USER_PASSWORD_1: sateenkaari
+          E2E_USER_EMAIL_2: user-2@prodeko.org
+          E2E_USER_PASSWORD_2: sateenkaari
+          E2E_USER_EMAIL_3: user-3@prodeko.org
+          E2E_USER_PASSWORD_3: sateenkaari
+          API_BASE_URL: http://127.0.0.1:8081/api
+          APP_BASE_URL: http://127.0.0.1:5173
+          DATABASE_URL: postgresql://membership:secret@127.0.0.1:5433/membership
+          KEYCLOAK_URL: http://localhost:8180
+          KEYCLOAK_REALM: membership-registry
+          KEYCLOAK_ADMIN_CLIENT_ID: membership-registry-m2m
+          KEYCLOAK_ADMIN_CLIENT_SECRET: dev-secret-membership-registry-m2m
+
+      # --- Upload artifacts on failure ---
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 14

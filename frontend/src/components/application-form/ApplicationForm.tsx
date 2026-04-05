@@ -196,7 +196,7 @@ const ApplicationForm = () => {
                     }}
                   >
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger data-testid="role-select">
                         <SelectValue
                           placeholder={t("application.form.role_placeholder")}
                         />
@@ -246,6 +246,7 @@ const ApplicationForm = () => {
                       placeholder={t(
                         "application.form.application_text_placeholder",
                       )}
+                      data-testid="application-text"
                       {...field}
                     />
                   </FormControl>
@@ -284,6 +285,7 @@ const ApplicationForm = () => {
                         onCheckedChange={(checked) =>
                           field.onChange(checked ? true : undefined)
                         }
+                        data-testid="policies-checkbox"
                       />
                     </FormControl>
                     <FormMessage />
@@ -291,7 +293,7 @@ const ApplicationForm = () => {
                 )}
               />
             )}
-            <Button type="submit">
+            <Button type="submit" data-testid="submit-application-button">
               {paymentLink
                 ? t("application.form.proceed_payment")
                 : t("application.form.submit")}

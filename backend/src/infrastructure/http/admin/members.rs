@@ -4,7 +4,7 @@ use axum::{
     extract::{Path, Query, State},
     http::{Response, StatusCode},
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Extension, Json, Router,
 };
 use serde::Deserialize;
@@ -51,6 +51,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/roles/export", post(export_members_with_roles))
         .route("/keycloak-sync-status", get(get_keycloak_sync_status))
         .route("/:user_id", delete(delete_member))
+        .route("/:user_id", put(update_member))
         .route("/:user_id/roles", post(add_role))
         .with_state(state)
 }

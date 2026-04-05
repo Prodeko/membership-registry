@@ -88,6 +88,11 @@
     }
   },
   "success": {
+    "title": "Application submitted",
+    "message": "Your application has been received and is now being reviewed. You will be notified by email once a decision has been made.",
+    "go_home": "Go to home page"
+  },
+  "payment_success": {
     "title": "Payment successful",
     "message": "Your payment has been received. You will be notified by email once your request has been processed.",
     "go_home": "Go to home page"

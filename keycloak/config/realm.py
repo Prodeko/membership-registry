@@ -26,7 +26,7 @@ def configure_realm(kc: KeycloakAdmin) -> None:
         "registrationEmailAsUsername": True,
         "duplicateEmailsAllowed": False,
         "editUsernameAllowed": False,
-        "bruteForceProtected": True,
+        "bruteForceProtected": os.environ.get("DISABLE_BRUTE_FORCE_PROTECTION") != "true",
         "accessTokenLifespan": 1800,
         "ssoSessionIdleTimeout": 1800,
         "ssoSessionMaxLifespan": 36000,

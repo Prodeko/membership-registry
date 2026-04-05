@@ -12,7 +12,7 @@ mod infrastructure;
 
 use std::sync::Arc;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use envconfig::Envconfig;
 use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;
@@ -54,6 +54,7 @@ use infrastructure::{
             KeycloakUserAdminAdapter,
         },
         sendgrid::{SendGridConfig, SendGridEmailAdapter},
+        smtp::{SmtpConfig, SmtpEmailAdapter},
         stripe::StripeWebhookAdapter,
         template::renderer::SimpleTemplateRenderer,
     },
@@ -74,6 +75,42 @@ pub struct Services {
     pub notification_service: NotificationService,
     pub payment_webhook: StripeWebhookAdapter,
     pub export_service: ExportService,
+}
+
+const DEFAULT_FROM_EMAIL: &str = "noreply@prodeko.org";
+
+fn non_empty(value: &Option<String>) -> Option<String> {
+    value.as_ref().filter(|v| !v.is_empty()).cloned()
+}
+
+/// Select the email adapter based on config.
+/// SMTP takes precedence (intended for dev/e2e via Mailpit); SendGrid is used in prod.
+/// Returns `None` when neither is configured — callers log instead of sending.
+fn build_email_port(config: &Config) -> Option<Arc<dyn EmailPort>> {
+    if let Some(host) = non_empty(&config.smtp_host) {
+        let adapter = SmtpEmailAdapter::new(SmtpConfig {
+            host,
+            port: config.smtp_port.unwrap_or(1025),
+            from_email: non_empty(&config.smtp_from_email)
+                .unwrap_or_else(|| DEFAULT_FROM_EMAIL.to_string()),
+        })
+        .unwrap_or_else(|e| {
+            // Fail loudly at startup: refusing to use SMTP with a non-local
+            // host is a deliberate guard against accidental production use.
+            tracing::error!("{e}");
+            std::process::exit(1);
+        });
+        return Some(Arc::new(adapter));
+    }
+
+    let api_key = non_empty(&config.sendgrid_api_key)?;
+    Some(Arc::new(SendGridEmailAdapter::new(SendGridConfig {
+        api_key,
+        base_url: non_empty(&config.sendgrid_api_url)
+            .unwrap_or_else(|| "https://api.sendgrid.com".to_string()),
+        from_email: non_empty(&config.sendgrid_from_email)
+            .unwrap_or_else(|| DEFAULT_FROM_EMAIL.to_string()),
+    })))
 }
 
 impl Services {
@@ -109,22 +146,7 @@ impl Services {
             RoleName(keycloak_cfg.admin_role_name),
             audit_log_service.clone(),
         );
-        let email_port: Option<Arc<dyn EmailPort>> = config
-            .sendgrid_api_key
-            .filter(|k| !k.is_empty())
-            .map(|api_key| {
-                Arc::new(SendGridEmailAdapter::new(SendGridConfig {
-                    api_key,
-                    base_url: config
-                        .sendgrid_api_url
-                        .filter(|u| !u.is_empty())
-                        .unwrap_or_else(|| "https://api.sendgrid.com".to_string()),
-                    from_email: config
-                        .sendgrid_from_email
-                        .filter(|e| !e.is_empty())
-                        .unwrap_or_else(|| "noreply@prodeko.org".to_string()),
-                })) as Arc<dyn EmailPort>
-            });
+        let email_port = build_email_port(&config);
 
         let template_repo: Arc<dyn TemplateRepositoryPort> = Arc::new(repo.email_template);
         let renderer: Arc<dyn TemplateRendererPort> = Arc::new(SimpleTemplateRenderer);
