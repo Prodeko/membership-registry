@@ -12,6 +12,8 @@ import {
   EmailTemplate,
   EmailTemplateTranslation,
   KeycloakSyncStatusMap,
+  MarketingPreferences,
+  MarketingPreferencesUpdate,
   Member,
   MemberWithRoles,
   NewMember,
@@ -23,7 +25,6 @@ import {
   RoleStats,
   SavedFilter,
   UpdateMember,
-  UpdatedMember,
   UpdateRole,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -47,6 +48,7 @@ export enum QueryKey {
   EMAIL_TEMPLATES = "email_templates",
   PUBLIC_CONFIG = "public_config",
   KEYCLOAK_SYNC_STATUS = "keycloak_sync_status",
+  MARKETING_PREFERENCES = "marketing_preferences",
 }
 
 export const axios_client = axios.create({
@@ -684,13 +686,9 @@ export const useDeleteEmailTemplateTranslation = () => {
 
 export const useUpdateMember = () => {
   const queryClient = useQueryClient();
-  return useMutation<
-    UpdatedMember,
-    Error,
-    { userId: string; data: UpdateMember }
-  >({
+  return useMutation<Member, Error, { userId: string; data: UpdateMember }>({
     mutationFn: async ({ userId, data }) => {
-      const response = await axios_client.put<UpdatedMember>(
+      const response = await axios_client.put<Member>(
         `/members/${userId}`,
         data,
       );
@@ -698,6 +696,34 @@ export const useUpdateMember = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [QueryKey.ME] });
+    },
+  });
+};
+
+export const useGetMarketingPreferences = () => {
+  return useQuery<MarketingPreferences>({
+    queryKey: [QueryKey.MARKETING_PREFERENCES],
+    queryFn: async () => {
+      const response = await axios_client.get<MarketingPreferences>(
+        "/members/me/marketing-preferences",
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useUpdateMarketingPreferences = () => {
+  const queryClient = useQueryClient();
+  return useMutation<MarketingPreferences, Error, MarketingPreferencesUpdate>({
+    mutationFn: async (body) => {
+      const response = await axios_client.post<MarketingPreferences>(
+        "/members/me/marketing-preferences",
+        body,
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData([QueryKey.MARKETING_PREFERENCES], data);
     },
   });
 };

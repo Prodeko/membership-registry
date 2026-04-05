@@ -74,7 +74,6 @@ fn build_role_service() -> RoleService {
         Arc::new(user_admin),
         Arc::new(auth_provider_repo),
         noop_audit_log(),
-        noop_marketing_sync(),
     );
 
     RoleService::new(
@@ -351,7 +350,6 @@ async fn update_status_approve_calls_role_assignment() {
         Arc::new(user_admin),
         Arc::new(MockAuthProviderRepo::new()),
         noop_audit_log(),
-        noop_marketing_sync(),
     );
 
     let role_service = RoleService::new(
@@ -442,7 +440,6 @@ async fn update_status_approve_succeeds_when_idp_sync_fails() {
         Arc::new(user_admin),
         Arc::new(MockAuthProviderRepo::new()),
         noop_audit_log(),
-        noop_marketing_sync(),
     );
 
     let role_service = RoleService::new(
@@ -511,7 +508,6 @@ async fn update_status_reject_does_not_assign_role() {
         Arc::new(user_admin),
         Arc::new(MockAuthProviderRepo::new()),
         noop_audit_log(),
-        noop_marketing_sync(),
     );
 
     let role_service = RoleService::new(

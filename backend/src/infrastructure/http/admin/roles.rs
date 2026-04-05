@@ -130,7 +130,6 @@ async fn post_role(
         renewal_period_months: None,
         renewal_email_template: None,
         renewal_notification_days: vec![30, 7, 1],
-        sync_to_mailchimp_tag: false,
     };
     let role = state
         .role_service
@@ -159,7 +158,6 @@ async fn update_role(
         renewal_period_months: body.renewal_period_months,
         renewal_email_template: body.renewal_email_template,
         renewal_notification_days: body.renewal_notification_days,
-        sync_to_mailchimp_tag: body.sync_to_mailchimp_tag,
     };
     let updated = state
         .role_service

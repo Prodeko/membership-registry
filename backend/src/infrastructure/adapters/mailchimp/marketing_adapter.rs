@@ -1,18 +1,9 @@
 use md5::{Digest, Md5};
 
 use crate::application::ports::marketing_list_port::{
-    ContactPushMode, MarketingContact, MarketingListError, MarketingListPort, SyncStats,
-    UpsertOutcome,
+    ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences,
+    SubscriptionAction, SubscriptionState, TagPreference,
 };
-
-/// Internal outcome of a single `PUT /lists/{id}/members/{hash}` call.
-/// `ComplianceBlocked` is a 400 with a body matching Mailchimp's
-/// "Member In Compliance State" error; only meaningful when the caller
-/// was trying to set `status: subscribed`.
-enum PutOutcome {
-    Accepted,
-    ComplianceBlocked,
-}
 
 use super::config::MailchimpConfig;
 
@@ -56,51 +47,117 @@ impl MailchimpMarketingAdapter {
     fn tags_url(&self, email: &str) -> String {
         format!("{}/tags", self.member_url(email))
     }
+}
 
-    /// Build the PUT /lists/{id}/members/{hash} payload. When `override_status`
-    /// is `Some`, it's placed in the `status` field, requesting a transition.
-    /// When `None`, the `status` field is omitted entirely so Mailchimp
-    /// leaves the contact's current state untouched. `status_if_new` always
-    /// matches the DB's intent (`contact.subscribed`) so brand-new contacts
-    /// get created in the right initial state regardless of mode.
-    fn build_put_payload(
-        contact: &MarketingContact,
-        override_status: Option<&str>,
-    ) -> serde_json::Value {
-        let initial = if contact.subscribed {
-            "subscribed"
-        } else {
-            "unsubscribed"
-        };
-        let mut payload = serde_json::json!({
-            "email_address": contact.email,
-            "status_if_new": initial,
-            "language": contact.language,
-            "merge_fields": {
-                "FNAME": contact.first_name,
-                "LNAME": contact.last_name,
-            },
-        });
-        if let Some(s) = override_status {
-            payload["status"] = serde_json::Value::String(s.to_string());
+/// Parse the `{status, tags}` JSON payload returned by Mailchimp into a
+/// `MarketingPreferences`. Extracted as a pure function so it's directly
+/// unit-testable without HTTP mocking.
+fn parse_preferences(body: &serde_json::Value, known_tags: &[String]) -> MarketingPreferences {
+    let state = match body.get("status").and_then(|s| s.as_str()) {
+        Some("subscribed") => SubscriptionState::Subscribed,
+        Some("pending") => SubscriptionState::Pending,
+        Some("unsubscribed") | Some("cleaned") | Some("transactional") => {
+            SubscriptionState::Unsubscribed
         }
-        payload
-    }
+        _ => SubscriptionState::Unsubscribed,
+    };
 
-    /// Execute a PUT /lists/{id}/members/{hash}. Returns `Accepted` on 2xx,
-    /// `ComplianceBlocked` if Mailchimp rejected the status transition with
-    /// its compliance-state 400 (only possible when `override_status` was
-    /// `Some`), and `Err` for any other failure.
-    async fn put_member(
+    let contact_tag_names: std::collections::HashSet<String> = body
+        .get("tags")
+        .and_then(|t| t.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|t| t.get("name").and_then(|n| n.as_str()).map(String::from))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let tags = known_tags
+        .iter()
+        .map(|name| TagPreference {
+            name: name.clone(),
+            active: contact_tag_names.contains(name),
+        })
+        .collect();
+
+    MarketingPreferences { state, tags }
+}
+
+fn not_a_contact_preferences(known_tags: &[String]) -> MarketingPreferences {
+    MarketingPreferences {
+        state: SubscriptionState::NotAContact,
+        tags: known_tags
+            .iter()
+            .map(|name| TagPreference {
+                name: name.clone(),
+                active: false,
+            })
+            .collect(),
+    }
+}
+
+#[async_trait::async_trait]
+impl MarketingListPort for MailchimpMarketingAdapter {
+    async fn fetch_preferences(
         &self,
-        contact: &MarketingContact,
-        override_status: Option<&str>,
-    ) -> Result<PutOutcome, MarketingListError> {
-        let payload = Self::build_put_payload(contact, override_status);
+        email: &str,
+        known_tags: &[String],
+    ) -> Result<MarketingPreferences, MarketingListError> {
+        let url = format!("{}?fields=status,tags", self.member_url(email));
 
         let resp = self
             .http
-            .put(self.member_url(&contact.email))
+            .get(&url)
+            .bearer_auth(&self.config.api_key)
+            .send()
+            .await
+            .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
+
+        if resp.status().as_u16() == 404 {
+            return Ok(not_a_contact_preferences(known_tags));
+        }
+
+        if !resp.status().is_success() {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(MarketingListError::ApiError { status, body });
+        }
+
+        let body: serde_json::Value = resp
+            .json()
+            .await
+            .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
+
+        Ok(parse_preferences(&body, known_tags))
+    }
+
+    async fn set_subscription(
+        &self,
+        identity: &ContactIdentity,
+        action: SubscriptionAction,
+    ) -> Result<(), MarketingListError> {
+        // Subscribe always goes through `pending`: it avoids the compliance
+        // block entirely and makes Mailchimp send the opt-in email that the
+        // user then confirms from their inbox.
+        let status = match action {
+            SubscriptionAction::Subscribe => "pending",
+            SubscriptionAction::Unsubscribe => "unsubscribed",
+        };
+
+        let payload = serde_json::json!({
+            "email_address": identity.email,
+            "status": status,
+            "status_if_new": status,
+            "language": identity.language,
+            "merge_fields": {
+                "FNAME": identity.first_name,
+                "LNAME": identity.last_name,
+            },
+        });
+
+        let resp = self
+            .http
+            .put(self.member_url(&identity.email))
             .bearer_auth(&self.config.api_key)
             .json(&payload)
             .send()
@@ -108,94 +165,41 @@ impl MailchimpMarketingAdapter {
             .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
 
         if resp.status().is_success() {
-            return Ok(PutOutcome::Accepted);
-        }
-
-        let http_status = resp.status().as_u16();
-        let body = resp.text().await.unwrap_or_default();
-
-        // Compliance state only triggers when we were requesting a status
-        // change. Identity-only calls shouldn't produce it.
-        if http_status == 400 && override_status.is_some() && is_compliance_state_error(&body) {
-            return Ok(PutOutcome::ComplianceBlocked);
-        }
-
-        Err(MarketingListError::ApiError {
-            status: http_status,
-            body,
-        })
-    }
-
-    /// PUT /lists/{id}/members/{hash} — upsert identity and (optionally)
-    /// subscription state. When `mode` is `WithSubscription` and Mailchimp
-    /// blocks the transition for compliance, fall back to `status: pending`
-    /// which tells Mailchimp to send its own opt-in confirmation email.
-    /// The DB flag stays as user intent either way.
-    async fn upsert_member(
-        &self,
-        contact: &MarketingContact,
-        mode: ContactPushMode,
-    ) -> Result<UpsertOutcome, MarketingListError> {
-        let override_status = match mode {
-            ContactPushMode::IdentityOnly => None,
-            ContactPushMode::WithSubscription => Some(if contact.subscribed {
-                "subscribed"
-            } else {
-                "unsubscribed"
-            }),
-        };
-
-        match self.put_member(contact, override_status).await? {
-            PutOutcome::Accepted => return Ok(UpsertOutcome::Accepted),
-            PutOutcome::ComplianceBlocked => {}
-        }
-
-        // Reaching here implies `override_status` was Some — identity-only
-        // calls don't produce ComplianceBlocked. Retry with `pending`.
-        tracing::info!(
-            "Mailchimp compliance state blocked direct subscribe for {}; retrying with status=pending to trigger opt-in",
-            contact.email
-        );
-        match self.put_member(contact, Some("pending")).await? {
-            PutOutcome::Accepted => Ok(UpsertOutcome::PendingConfirmation),
-            PutOutcome::ComplianceBlocked => Err(MarketingListError::ApiError {
-                status: 400,
-                body: "compliance fallback to pending also rejected".to_string(),
-            }),
+            Ok(())
+        } else {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            Err(MarketingListError::ApiError { status, body })
         }
     }
 
-    /// POST /lists/{id}/members/{hash}/tags — set each known tag explicitly
-    /// to `active` or `inactive` so removed roles are cleared, not left dangling.
-    /// `is_syncing: true` suppresses activity-feed noise.
-    async fn reconcile_tags(
+    async fn set_tags(
         &self,
-        contact: &MarketingContact,
-        all_tags: &[String],
+        identity: &ContactIdentity,
+        tag_updates: &[TagPreference],
     ) -> Result<(), MarketingListError> {
-        if all_tags.is_empty() {
+        if tag_updates.is_empty() {
             return Ok(());
         }
 
-        let tag_objects: Vec<serde_json::Value> = all_tags
+        let tag_objects: Vec<serde_json::Value> = tag_updates
             .iter()
-            .map(|tag| {
-                let active = contact.active_tags.iter().any(|t| t == tag);
+            .map(|t| {
                 serde_json::json!({
-                    "name": tag,
-                    "status": if active { "active" } else { "inactive" },
+                    "name": t.name,
+                    "status": if t.active { "active" } else { "inactive" },
                 })
             })
             .collect();
 
         let payload = serde_json::json!({
             "tags": tag_objects,
-            "is_syncing": true,
+            "is_syncing": false,
         });
 
         let resp = self
             .http
-            .post(self.tags_url(&contact.email))
+            .post(self.tags_url(&identity.email))
             .bearer_auth(&self.config.api_key)
             .json(&payload)
             .send()
@@ -212,159 +216,12 @@ impl MailchimpMarketingAdapter {
     }
 }
 
-/// Detect Mailchimp's "Member In Compliance State" error. Mailchimp returns a
-/// 400 whose JSON body contains a `title` field identifying the specific error
-/// class. We match loosely on substring to avoid being fragile to wording tweaks.
-fn is_compliance_state_error(body: &str) -> bool {
-    let lower = body.to_lowercase();
-    lower.contains("compliance state") || lower.contains("in compliance")
-}
-
-#[async_trait::async_trait]
-impl MarketingListPort for MailchimpMarketingAdapter {
-    async fn upsert_contact(
-        &self,
-        contact: MarketingContact,
-        mode: ContactPushMode,
-    ) -> Result<UpsertOutcome, MarketingListError> {
-        self.upsert_member(&contact, mode).await
-    }
-
-    async fn sync_contacts(
-        &self,
-        contacts: Vec<MarketingContact>,
-        all_tags: Vec<String>,
-    ) -> Result<SyncStats, MarketingListError> {
-        let mut stats = SyncStats::default();
-
-        for contact in &contacts {
-            // The bulk path pushes subscription as the source of truth for
-            // daily reconciliation, but deliberately SKIPS the
-            // pending-fallback that the event-driven path uses. If Mailchimp
-            // compliance-blocks a direct subscribe here, we leave the
-            // contact in whatever state they're in. Otherwise the scheduler
-            // would re-PUT `status: pending` every day for any contact
-            // stuck mid-confirmation, which Mailchimp can interpret as a
-            // reason to re-send the opt-in email — turning the daily sync
-            // into a spam loop. The event-driven resubscribe path (UI
-            // click) is the only place that's allowed to trigger a fresh
-            // opt-in email.
-            let override_status = Some(if contact.subscribed {
-                "subscribed"
-            } else {
-                "unsubscribed"
-            });
-            match self.put_member(contact, override_status).await {
-                Ok(PutOutcome::Accepted) => {}
-                Ok(PutOutcome::ComplianceBlocked) => {
-                    tracing::debug!(
-                        "Mailchimp compliance-blocked scheduled subscribe for {}; leaving contact state untouched",
-                        contact.email
-                    );
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        "Mailchimp upsert failed for {}: {:?}; skipping tag sync for this contact",
-                        contact.email,
-                        e
-                    );
-                    stats.failed += 1;
-                    continue;
-                }
-            }
-
-            if let Err(e) = self.reconcile_tags(contact, &all_tags).await {
-                tracing::warn!(
-                    "Mailchimp tag reconciliation failed for {}: {:?}",
-                    contact.email,
-                    e
-                );
-                // Tag failure alone shouldn't mark the whole contact failed —
-                // identity/subscription state already made it through.
-            }
-
-            stats.upserted += 1;
-        }
-
-        Ok(stats)
-    }
-
-    async fn fetch_unsubscribed_emails(&self) -> Result<Vec<String>, MarketingListError> {
-        let mut result = Vec::new();
-        let mut offset: usize = 0;
-        let count: usize = 1000;
-
-        loop {
-            let url = format!(
-                "{}/lists/{}/members?status=unsubscribed&fields=members.email_address&count={}&offset={}",
-                self.config.base_url(),
-                self.config.list_id,
-                count,
-                offset,
-            );
-
-            let resp = self
-                .http
-                .get(&url)
-                .bearer_auth(&self.config.api_key)
-                .send()
-                .await
-                .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
-
-            if !resp.status().is_success() {
-                let status = resp.status().as_u16();
-                let body = resp.text().await.unwrap_or_default();
-                return Err(MarketingListError::ApiError { status, body });
-            }
-
-            let body: serde_json::Value = resp
-                .json()
-                .await
-                .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
-
-            let members = body
-                .get("members")
-                .and_then(|m| m.as_array())
-                .cloned()
-                .unwrap_or_default();
-
-            let page_len = members.len();
-            for m in members {
-                if let Some(email) = m.get("email_address").and_then(|e| e.as_str()) {
-                    result.push(email.to_string());
-                }
-            }
-
-            if page_len < count {
-                break;
-            }
-            offset += count;
-        }
-
-        Ok(result)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn test_contact(subscribed: bool) -> MarketingContact {
-        MarketingContact {
-            email: "foo@example.com".to_string(),
-            first_name: "Foo".to_string(),
-            last_name: "Bar".to_string(),
-            language: "fi".to_string(),
-            subscribed,
-            active_tags: vec![],
-        }
-    }
-
     #[test]
     fn subscriber_hash_is_md5_of_lowercased_email() {
-        // Reference value from the Mailchimp docs example: "urist.mcvankab@freddiesjokes.co"
-        // md5("urist.mcvankab@freddiesjokes.co") = "62eeb292278cc15f5817cb78f7790b08"
-        // We verify the lowercasing behavior with a mixed-case input.
         let lower = MailchimpMarketingAdapter::subscriber_hash("foo@bar.com");
         let upper = MailchimpMarketingAdapter::subscriber_hash("FOO@BAR.com");
         assert_eq!(lower, upper);
@@ -372,44 +229,66 @@ mod tests {
         assert!(lower.chars().all(|c| c.is_ascii_hexdigit()));
     }
 
-    #[test]
-    fn payload_with_override_status_includes_status_field() {
-        let contact = test_contact(true);
-        let payload = MailchimpMarketingAdapter::build_put_payload(&contact, Some("subscribed"));
-        assert_eq!(payload["status"], "subscribed");
-        assert_eq!(payload["status_if_new"], "subscribed");
-        assert_eq!(payload["email_address"], "foo@example.com");
-        assert_eq!(payload["language"], "fi");
-        assert_eq!(payload["merge_fields"]["FNAME"], "Foo");
-        assert_eq!(payload["merge_fields"]["LNAME"], "Bar");
+    fn known_tags() -> Vec<String> {
+        vec![
+            "weekly_newsletter".to_string(),
+            "event_advertisements".to_string(),
+        ]
     }
 
     #[test]
-    fn payload_identity_only_omits_status_field() {
-        // The critical assertion for the identity-only path: Mailchimp must
-        // not see a `status` field at all, so an existing contact in
-        // `pending` or `unsubscribed` state keeps that state rather than
-        // being force-transitioned (and re-triggering opt-in email flows).
-        let contact = test_contact(true);
-        let payload = MailchimpMarketingAdapter::build_put_payload(&contact, None);
-        assert!(
-            payload.get("status").is_none(),
-            "identity-only payload must omit `status`, got: {payload}",
-        );
-        // status_if_new still present — needed by Mailchimp only when creating
-        // a new contact, ignored when the contact already exists.
-        assert_eq!(payload["status_if_new"], "subscribed");
-        assert_eq!(payload["merge_fields"]["FNAME"], "Foo");
+    fn parse_preferences_subscribed_with_some_tags() {
+        let body = serde_json::json!({
+            "status": "subscribed",
+            "tags": [{"id": 1, "name": "weekly_newsletter"}],
+        });
+        let prefs = parse_preferences(&body, &known_tags());
+        assert_eq!(prefs.state, SubscriptionState::Subscribed);
+        assert_eq!(prefs.tags.len(), 2);
+        assert!(prefs
+            .tags
+            .iter()
+            .any(|t| t.name == "weekly_newsletter" && t.active));
+        assert!(prefs
+            .tags
+            .iter()
+            .any(|t| t.name == "event_advertisements" && !t.active));
     }
 
     #[test]
-    fn payload_status_if_new_reflects_db_intent_for_unsubscribed_contact() {
-        // If the contact doesn't yet exist in Mailchimp and the DB says
-        // they're unsubscribed, `status_if_new` must carry that intent —
-        // otherwise a first-time sync would create them as subscribed.
-        let contact = test_contact(false);
-        let payload = MailchimpMarketingAdapter::build_put_payload(&contact, None);
-        assert_eq!(payload["status_if_new"], "unsubscribed");
-        assert!(payload.get("status").is_none());
+    fn parse_preferences_pending() {
+        let body = serde_json::json!({ "status": "pending", "tags": [] });
+        let prefs = parse_preferences(&body, &known_tags());
+        assert_eq!(prefs.state, SubscriptionState::Pending);
+        assert!(prefs.tags.iter().all(|t| !t.active));
+    }
+
+    #[test]
+    fn parse_preferences_unsubscribed() {
+        let body = serde_json::json!({ "status": "unsubscribed", "tags": [] });
+        let prefs = parse_preferences(&body, &known_tags());
+        assert_eq!(prefs.state, SubscriptionState::Unsubscribed);
+    }
+
+    #[test]
+    fn parse_preferences_ignores_unknown_tags() {
+        let body = serde_json::json!({
+            "status": "subscribed",
+            "tags": [
+                {"id": 1, "name": "legacy_role_tag"},
+                {"id": 2, "name": "weekly_newsletter"},
+            ],
+        });
+        let prefs = parse_preferences(&body, &known_tags());
+        assert_eq!(prefs.tags.len(), 2);
+        assert!(prefs.tags.iter().all(|t| t.name != "legacy_role_tag"));
+    }
+
+    #[test]
+    fn not_a_contact_has_all_tags_inactive() {
+        let prefs = not_a_contact_preferences(&known_tags());
+        assert_eq!(prefs.state, SubscriptionState::NotAContact);
+        assert_eq!(prefs.tags.len(), 2);
+        assert!(prefs.tags.iter().all(|t| !t.active));
     }
 }

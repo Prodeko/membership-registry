@@ -38,10 +38,9 @@ use application::{
     services::{
         application_service::ApplicationService, audit_log_service::AuditLogService,
         authentication_service::AuthenticationService, export_service::ExportService,
-        marketing_sync_service::MarketingSyncService, member_service::MemberService,
-        notification_service::NotificationService, renewal_service::RenewalService,
-        role_service::RoleService, saved_filter::SavedFilterService,
-        template_admin_service::TemplateAdminService,
+        member_service::MemberService, notification_service::NotificationService,
+        renewal_service::RenewalService, role_service::RoleService,
+        saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
     },
 };
 use config::Config;
@@ -76,7 +75,7 @@ pub struct Services {
     pub audit_log_service: AuditLogService,
     pub template_admin_service: TemplateAdminService,
     pub notification_service: NotificationService,
-    pub marketing_sync_service: MarketingSyncService,
+    pub marketing_port: Option<Arc<dyn MarketingListPort>>,
     pub payment_webhook: StripeWebhookAdapter,
     pub export_service: ExportService,
 }
@@ -208,18 +207,12 @@ impl Services {
         let application_queries: Arc<dyn ApplicationQueryPort> = Arc::new(repo.application.clone());
         let targetable_roles: Arc<dyn TargetableRolePort> = Arc::new(repo.application);
         let marketing_port = build_marketing_port(&config);
-        let marketing_sync_service = MarketingSyncService::new(
-            Arc::clone(&member_repo),
-            Arc::clone(&role_repo),
-            marketing_port,
-        );
 
         let member_service = MemberService::new(
             Arc::clone(&member_repo),
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
-            marketing_sync_service.clone(),
         );
         let role_service = RoleService::new(
             Arc::clone(&role_repo),
@@ -263,7 +256,7 @@ impl Services {
             audit_log_service,
             template_admin_service,
             notification_service,
-            marketing_sync_service,
+            marketing_port,
             payment_webhook,
             export_service,
         }
@@ -324,7 +317,6 @@ async fn main() {
     let scheduler_handle = tokio::spawn(run_scheduler(
         services.role_service.clone(),
         services.renewal_service.clone(),
-        services.marketing_sync_service.clone(),
         cancel.clone(),
     ));
 

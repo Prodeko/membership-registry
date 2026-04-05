@@ -19,8 +19,8 @@ use crate::application::ports::{
     },
     email_port::{EmailError, EmailPort},
     marketing_list_port::{
-        ContactPushMode, MarketingContact, MarketingListError, MarketingListPort, SyncStats,
-        UpsertOutcome,
+        ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences,
+        SubscriptionAction, TagPreference,
     },
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     repository_error::RepositoryError,
@@ -36,7 +36,6 @@ use crate::domain::{
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
-use crate::application::services::marketing_sync_service::MarketingSyncService;
 
 // --- ApplicationCommandPort ---
 
@@ -188,9 +187,9 @@ mock! {
 
     #[async_trait::async_trait]
     impl MarketingListPort for MarketingListPort {
-        async fn sync_contacts(&self, contacts: Vec<MarketingContact>, all_tags: Vec<String>) -> Result<SyncStats, MarketingListError>;
-        async fn upsert_contact(&self, contact: MarketingContact, mode: ContactPushMode) -> Result<UpsertOutcome, MarketingListError>;
-        async fn fetch_unsubscribed_emails(&self) -> Result<Vec<String>, MarketingListError>;
+        async fn fetch_preferences(&self, email: &str, known_tags: &[String]) -> Result<MarketingPreferences, MarketingListError>;
+        async fn set_subscription(&self, identity: &ContactIdentity, action: SubscriptionAction) -> Result<(), MarketingListError>;
+        async fn set_tags(&self, identity: &ContactIdentity, tag_updates: &[TagPreference]) -> Result<(), MarketingListError>;
     }
 }
 
@@ -259,15 +258,4 @@ pub fn noop_audit_log() -> AuditLogService {
     let mut mock = MockAuditLogRepositoryPort::new();
     mock.expect_create().returning(|_| Ok(()));
     AuditLogService::new(Arc::new(mock))
-}
-
-/// Marketing sync wired with `None` for the marketing port. Every method
-/// on the service becomes a no-op, so tests that don't care about the
-/// marketing side can ignore it entirely.
-pub fn noop_marketing_sync() -> MarketingSyncService {
-    MarketingSyncService::new(
-        Arc::new(MockMemberRepositoryPort::new()),
-        Arc::new(MockRoleRepositoryPort::new()),
-        None,
-    )
 }

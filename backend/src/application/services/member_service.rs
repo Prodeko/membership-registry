@@ -2,27 +2,15 @@ use std::sync::Arc;
 
 use crate::application::ports::{
     auth_provider_repo_port::AuthProviderRepositoryPort,
-    marketing_list_port::UpsertOutcome,
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     user_admin_port::UserAdminPort,
 };
 use crate::domain::{Email, NewPerson, Person, UpdatePersonData};
 use uuid::Uuid;
 
-/// Result of `MemberService::update_member`. Carries the updated person plus
-/// the outcome of the synchronous Mailchimp push (if any). `marketing_outcome`
-/// is `Some(PendingConfirmation)` when Mailchimp required a fallback to
-/// `status: pending` — the HTTP layer surfaces this to the UI so the user
-/// knows to confirm the opt-in email.
-pub struct UpdateMemberResult {
-    pub person: Person,
-    pub marketing_outcome: Option<UpsertOutcome>,
-}
-
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
-    marketing_sync_service::MarketingSyncService,
 };
 
 #[derive(Clone)]
@@ -31,7 +19,6 @@ pub struct MemberService {
     pub user_admin: Arc<dyn UserAdminPort>,
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
-    pub marketing_sync: MarketingSyncService,
 }
 
 impl MemberService {
@@ -40,14 +27,12 @@ impl MemberService {
         user_admin: Arc<dyn UserAdminPort>,
         auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
         audit_log: AuditLogService,
-        marketing_sync: MarketingSyncService,
     ) -> Self {
         Self {
             member_repo,
             user_admin,
             auth_provider_repo,
             audit_log,
-            marketing_sync,
         }
     }
 
@@ -97,8 +82,6 @@ impl MemberService {
                 });
             }
         }
-
-        self.marketing_sync.push_contact_async(person.clone());
 
         Ok(person)
     }
@@ -181,19 +164,7 @@ impl MemberService {
         user_id: Uuid,
         data: UpdatePersonData,
         actor_user_id: Option<Uuid>,
-    ) -> ServiceResult<UpdateMemberResult> {
-        // Fetch the previous state so we can detect a resubscribe transition
-        // (false -> true on email_notifications). That's the only path where
-        // Mailchimp might fall back to `pending` and we need to tell the UI.
-        // On any other kind of edit we spawn the marketing push to keep the
-        // request fast — request latency shouldn't be coupled to Mailchimp.
-        let previous = self
-            .member_repo
-            .fetch_one(user_id)
-            .await
-            .map_err(ServiceError::from)?;
-        let resubscribing = !previous.email_notifications && data.email_notifications;
-
+    ) -> ServiceResult<Person> {
         let language = data.language.clone();
         let updated = self
             .member_repo
@@ -235,33 +206,7 @@ impl MemberService {
             }
         }
 
-        // Three paths into Mailchimp depending on whether email_notifications
-        // actually changed:
-        //  * resubscribing (false → true): await the push so we can tell the
-        //    UI if Mailchimp fell back to `pending`.
-        //  * unsubscribing (true → false): fire-and-forget push WITH status,
-        //    since we need Mailchimp to flip the state.
-        //  * unchanged: fire-and-forget IDENTITY-ONLY push. Crucially, this
-        //    omits the `status` field from the payload — otherwise a profile
-        //    edit on a contact currently in `pending` or `unsubscribed` would
-        //    re-trigger opt-in emails on every save.
-        let en_changed = previous.email_notifications != data.email_notifications;
-        let marketing_outcome = if resubscribing {
-            self.marketing_sync
-                .push_contact_awaited(updated.clone())
-                .await
-        } else if en_changed {
-            self.marketing_sync.push_contact_async(updated.clone());
-            None
-        } else {
-            self.marketing_sync.push_identity_async(updated.clone());
-            None
-        };
-
-        Ok(UpdateMemberResult {
-            person: updated,
-            marketing_outcome,
-        })
+        Ok(updated)
     }
 
     pub async fn delete_member(&self, id: Uuid, actor_user_id: Option<Uuid>) -> ServiceResult<()> {

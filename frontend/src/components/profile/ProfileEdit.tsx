@@ -14,8 +14,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import { z } from "zod";
+import MarketingPreferences from "./MarketingPreferences";
 import { Card } from "../ui/card";
 import { Input } from "../ui/input";
 import { Switch } from "../ui/switch";
@@ -81,16 +81,7 @@ const ProfileEdit = () => {
         },
       },
       {
-        onSuccess: (updated) => {
-          // When the backend tried to re-subscribe this member in Mailchimp
-          // but was blocked by compliance state, it falls back to `pending`
-          // — Mailchimp then sends an opt-in email. Tell the user to click
-          // it before the change takes effect on their subscription.
-          if (updated.mailchimp_pending_confirmation) {
-            toast.info(t("profile.mailchimp_confirmation_required"), {
-              duration: 10000,
-            });
-          }
+        onSuccess: () => {
           navigate("/home");
         },
       },
@@ -98,7 +89,7 @@ const ProfileEdit = () => {
   };
 
   return (
-    <main className="flex justify-center min-h-screen w-screen px-4 py-20">
+    <main className="flex flex-col items-center min-h-screen w-screen px-4 py-20 gap-4">
       <Card className="p-10 space-y-4 h-fit max-w-lg w-full">
         <h1 className="text-2xl font-bold">{t("profile.edit.title")}</h1>
         <Form {...form}>
@@ -211,6 +202,9 @@ const ProfileEdit = () => {
           </form>
         </Form>
       </Card>
+      <div className="max-w-lg w-full">
+        <MarketingPreferences />
+      </div>
     </main>
   );
 };

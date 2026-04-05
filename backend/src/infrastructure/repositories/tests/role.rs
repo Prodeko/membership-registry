@@ -29,7 +29,6 @@ mod test_role {
             renewal_period_months: None,
             renewal_email_template: None,
             renewal_notification_days: vec![30, 7, 1],
-            sync_to_mailchimp_tag: false,
         };
 
         let role = repo.role.create(&role_to_add).await;
@@ -66,7 +65,6 @@ mod test_role {
                 renewal_period_months: None,
                 renewal_email_template: None,
                 renewal_notification_days: vec![30, 7, 1],
-                sync_to_mailchimp_tag: false,
             })
             .await;
 

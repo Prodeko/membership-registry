@@ -14,6 +14,7 @@ pub enum ApiError {
     Forbidden,
     BadRequest,
     InternalServerError,
+    ServiceUnavailable,
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
@@ -28,6 +29,9 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest => (StatusCode::BAD_REQUEST, "Bad request").into_response(),
             ApiError::InternalServerError => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
+            }
+            ApiError::ServiceUnavailable => {
+                (StatusCode::SERVICE_UNAVAILABLE, "Service unavailable").into_response()
             }
         }
     }

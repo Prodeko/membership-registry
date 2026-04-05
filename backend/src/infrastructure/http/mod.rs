@@ -14,7 +14,7 @@ use tower_http::{
 
 use crate::{
     application::{
-        ports::payment_webhook_port::PaymentWebhookPort,
+        ports::{marketing_list_port::MarketingListPort, payment_webhook_port::PaymentWebhookPort},
         services::{
             application_service::ApplicationService, audit_log_service::AuditLogService,
             authentication_service::AuthenticationService, export_service::ExportService,
@@ -48,6 +48,7 @@ pub struct AppState {
     pub audit_log_service: Arc<AuditLogService>,
     pub template_admin_service: Arc<TemplateAdminService>,
     pub notification_service: Arc<NotificationService>,
+    pub marketing_port: Option<Arc<dyn MarketingListPort>>,
     pub payment_webhook: Arc<dyn PaymentWebhookPort>,
     pub export_service: Arc<ExportService>,
     pub oauth2_client: BasicClient,
@@ -89,6 +90,7 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
         audit_log_service: Arc::new(services.audit_log_service),
         template_admin_service: Arc::new(services.template_admin_service),
         notification_service: Arc::new(services.notification_service),
+        marketing_port: services.marketing_port,
         payment_webhook: Arc::new(services.payment_webhook),
         export_service: Arc::new(services.export_service),
         oauth2_client,

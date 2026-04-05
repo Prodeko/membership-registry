@@ -5,9 +5,7 @@ use validator::Validate;
 
 use std::collections::HashMap;
 
-use crate::application::ports::marketing_list_port::UpsertOutcome;
 use crate::application::ports::member_repository_port::MemberWithRoles;
-use crate::application::services::member_service::UpdateMemberResult;
 use crate::application::services::role_service::MemberKeycloakSyncStatus;
 use crate::domain::{Email, NewPerson, Person, PersonId};
 
@@ -37,33 +35,6 @@ impl From<Person> for MemberDTO {
             has_accepted_policies: p.has_accepted_policies,
             email_notifications: p.email_notifications,
             language: p.language,
-        }
-    }
-}
-
-/// Response shape for member update endpoints. Wraps the updated member
-/// with a side-channel flag that the frontend uses to decide whether to
-/// show the "confirm your Mailchimp subscription" toast. Kept as a distinct
-/// type from `MemberDTO` so read endpoints never carry this field.
-#[derive(Debug, Serialize, TS)]
-#[ts(export, rename = "UpdatedMember")]
-pub struct UpdatedMemberDTO {
-    pub member: MemberDTO,
-    /// `true` when the Mailchimp push fell back to `status: pending`
-    /// because the contact was in a compliance-blocked state, so the user
-    /// needs to click the confirmation link in the opt-in email.
-    pub mailchimp_pending_confirmation: bool,
-}
-
-impl From<UpdateMemberResult> for UpdatedMemberDTO {
-    fn from(result: UpdateMemberResult) -> Self {
-        let pending = matches!(
-            result.marketing_outcome,
-            Some(UpsertOutcome::PendingConfirmation)
-        );
-        Self {
-            member: MemberDTO::from(result.person),
-            mailchimp_pending_confirmation: pending,
         }
     }
 }
