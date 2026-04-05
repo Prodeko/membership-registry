@@ -57,4 +57,13 @@ pub struct Config {
 
     #[envconfig(from = "SENDGRID_FROM_EMAIL")]
     pub sendgrid_from_email: Option<String>,
+
+    #[envconfig(from = "SMTP_HOST")]
+    pub smtp_host: Option<String>,
+
+    #[envconfig(from = "SMTP_PORT")]
+    pub smtp_port: Option<u16>,
+
+    #[envconfig(from = "SMTP_FROM_EMAIL")]
+    pub smtp_from_email: Option<String>,
 }

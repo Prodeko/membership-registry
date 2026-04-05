@@ -2,6 +2,8 @@ import { test, expect } from "../fixtures";
 import { HomePage } from "../pages/home.page";
 import { ApplicationFormPage } from "../pages/application-form.page";
 import { loginViaKeycloak } from "../helpers/auth";
+import { findKeycloakUserByEmail, getUserRealmRoles } from "../helpers/keycloak-api";
+import { clearCapturedEmails, getCapturedEmailsForRecipient } from "../helpers/email-api";
 import {
   TEST_USER_EMAIL,
   TEST_USER_PASSWORD,
@@ -10,22 +12,37 @@ import {
 } from "../helpers/constants";
 
 const TEST_PAYMENT_LINK = "https://buy.stripe.com/test_e2e_fake";
+const TEST_EMAIL_TEMPLATE = "e2e-approval-template";
 
 test.describe("Application with payment", () => {
   test.beforeEach(async ({ db, adminApi }) => {
     await db.cleanupTestUser(TEST_USER_EMAIL);
     await db.cleanupTestRole(TEST_ROLE_NAME);
+    await clearCapturedEmails();
+
     await adminApi.createRole(TEST_ROLE_NAME);
+
+    // Set up email template for approval notifications
+    await adminApi.createEmailTemplate(TEST_EMAIL_TEMPLATE);
+    await adminApi.upsertEmailTranslation(
+      TEST_EMAIL_TEMPLATE,
+      "en",
+      "Your application has been approved",
+      "<p>Congratulations, your application for {{role_name}} has been approved.</p>",
+    );
+
     await adminApi.createTargetableRole(
       TEST_ROLE_NAME,
       TEST_ROLE_VALID_UNTIL,
       TEST_PAYMENT_LINK,
+      { approved_email_template: TEST_EMAIL_TEMPLATE },
     );
   });
 
-  test.afterEach(async ({ db }) => {
+  test.afterEach(async ({ db, adminApi }) => {
     await db.cleanupTestUser(TEST_USER_EMAIL);
     await db.cleanupTestRole(TEST_ROLE_NAME);
+    await adminApi.deleteEmailTemplate(TEST_EMAIL_TEMPLATE);
   });
 
   // Fresh login needed — beforeEach cleans up the test user
@@ -76,7 +93,7 @@ test.describe("Application with payment", () => {
     expect(dbApp!.application_id).toBe(clientRefId);
   });
 
-  test("admin can approve unpaid application after payment", async ({
+  test("approval assigns keycloak role and sends notification email", async ({
     page,
     db,
     adminApi,
@@ -105,21 +122,34 @@ test.describe("Application with payment", () => {
     await appForm.fillApplicationText("E2E payment flow test");
     await appForm.submit();
 
-    // Wait for Stripe redirect, then simulate payment + approval
+    // Wait for Stripe redirect, then approve
     await page.waitForURL(`${TEST_PAYMENT_LINK}**`, { timeout: 10_000 });
 
     const dbApp = await db.getApplicationByUserEmail(TEST_USER_EMAIL);
     expect(dbApp).not.toBeNull();
     await adminApi.approveApplication(dbApp!.application_id as string);
 
-    // Go home and verify the application shows as approved
+    // Verify application status
+    const updatedApp = await db.getApplicationByUserEmail(TEST_USER_EMAIL);
+    expect(updatedApp!.status).toBe("approved");
+
+    // Verify Keycloak role was assigned
+    const kcUserId = await findKeycloakUserByEmail(TEST_USER_EMAIL);
+    expect(kcUserId).not.toBeNull();
+    const kcRoles = await getUserRealmRoles(kcUserId!);
+    expect(kcRoles).toContain(TEST_ROLE_NAME);
+
+    // Verify approval email was sent (email send is async, allow a short wait)
+    await page.waitForTimeout(2_000);
+    const emails = await getCapturedEmailsForRecipient(TEST_USER_EMAIL);
+    expect(emails.length).toBe(1);
+    expect(emails[0].subject).toContain("approved");
+
+    // Verify UI reflects the approved state
     await page.goto("/home");
     await home.waitForLoaded();
 
     const apps = await home.getApplications();
     expect(apps.length).toBe(1);
-
-    const updatedApp = await db.getApplicationByUserEmail(TEST_USER_EMAIL);
-    expect(updatedApp!.status).toBe("approved");
   });
 });

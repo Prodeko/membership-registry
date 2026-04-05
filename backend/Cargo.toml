@@ -20,6 +20,7 @@ moka = { version = "0.12", features = ["future"] }
 futures-util = "0.3.30"
 http-body-util = "0.1.2"
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "builder"] }
 oauth2 = "4.4.2"
 percent-encoding = "2"
 postgres = "0.19.7"

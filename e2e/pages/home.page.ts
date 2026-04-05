@@ -14,9 +14,14 @@ export class HomePage {
   // --- Applications ---
 
   async getApplications(): Promise<{ roleName: string; status: string }[]> {
+    // The applications card is only rendered when the user has applications,
+    // so we wait for it with a short timeout and return [] if it never appears.
     const card = this.page.getByTestId("home-applications-card");
-    const isVisible = await card.isVisible();
-    if (!isVisible) return [];
+    try {
+      await card.waitFor({ timeout: 5_000 });
+    } catch {
+      return [];
+    }
 
     const rows = card.locator("[data-testid^='application-row-']");
     const count = await rows.count();
