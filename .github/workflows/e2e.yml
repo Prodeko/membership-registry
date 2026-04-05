@@ -181,8 +181,17 @@ jobs:
           CI: "true"
           E2E_ADMIN_EMAIL: cto@prodeko.org
           E2E_ADMIN_PASSWORD: kananugetti
-          E2E_USER_EMAIL: user@prodeko.org
-          E2E_USER_PASSWORD: sateenkaari
+          # One Keycloak user per parallel worker. Keep count in sync
+          # with keycloak/config/users.py (configure_test_users).
+          E2E_WORKERS: "4"
+          E2E_USER_EMAIL_0: user-0@prodeko.org
+          E2E_USER_PASSWORD_0: sateenkaari
+          E2E_USER_EMAIL_1: user-1@prodeko.org
+          E2E_USER_PASSWORD_1: sateenkaari
+          E2E_USER_EMAIL_2: user-2@prodeko.org
+          E2E_USER_PASSWORD_2: sateenkaari
+          E2E_USER_EMAIL_3: user-3@prodeko.org
+          E2E_USER_PASSWORD_3: sateenkaari
           API_BASE_URL: http://127.0.0.1:8081/api
           APP_BASE_URL: http://127.0.0.1:5173
           DATABASE_URL: postgresql://membership:secret@127.0.0.1:5433/membership

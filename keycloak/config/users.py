@@ -108,8 +108,13 @@ def configure_test_users(kc: KeycloakAdmin) -> None:
         email="cto@prodeko.org",
         roles=["realm-admin"],
     )
-    _ensure_user(
-        kc,
-        email="user@prodeko.org",
-        password="sateenkaari",
-    )
+    # E2e test users, one per parallel Playwright worker. Each worker
+    # needs its own Keycloak user because tests clean up member rows in
+    # beforeEach — sharing would race. Keep this count in sync with
+    # E2E_WORKERS in .github/workflows/e2e.yml.
+    for i in range(4):
+        _ensure_user(
+            kc,
+            email=f"user-{i}@prodeko.org",
+            password="sateenkaari",
+        )

@@ -61,3 +61,23 @@ export async function clearCapturedEmails(): Promise<void> {
     throw new Error(`Mailpit delete failed: ${resp.status} ${await resp.text()}`);
   }
 }
+
+/**
+ * Deletes only the messages addressed to a specific recipient. Safe for
+ * parallel test workers — each worker clears its own user's mailbox
+ * without touching messages destined for sibling workers.
+ */
+export async function clearCapturedEmailsForRecipient(
+  email: string,
+): Promise<void> {
+  const messages = await getCapturedEmailsForRecipient(email);
+  if (messages.length === 0) return;
+  const resp = await fetch(`${MAILPIT_URL}/api/v1/messages`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ IDs: messages.map((m) => m.id) }),
+  });
+  if (!resp.ok) {
+    throw new Error(`Mailpit delete failed: ${resp.status} ${await resp.text()}`);
+  }
+}

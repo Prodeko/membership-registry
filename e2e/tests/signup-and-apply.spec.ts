@@ -4,34 +4,32 @@ import { ApplicationFormPage } from "../pages/application-form.page";
 import { ApplicationSuccessPage } from "../pages/application-success.page";
 import { loginViaKeycloak } from "../helpers/auth";
 import { completeMemberProfile } from "../helpers/profile";
-import {
-  TEST_USER_EMAIL,
-  TEST_USER_PASSWORD,
-  TEST_ROLE_NAME,
-  TEST_ROLE_VALID_UNTIL,
-} from "../helpers/constants";
+import { TEST_ROLE_VALID_UNTIL } from "../helpers/constants";
 
 test.describe("Signup and apply", () => {
-  test.beforeEach(async ({ db, adminApi }) => {
-    await db.cleanupTestUser(TEST_USER_EMAIL);
-    await db.cleanupTestRole(TEST_ROLE_NAME);
-    await adminApi.createRole(TEST_ROLE_NAME);
-    await adminApi.createTargetableRole(TEST_ROLE_NAME, TEST_ROLE_VALID_UNTIL);
+  test.beforeEach(async ({ db, adminApi, testUser, testRole }) => {
+    await db.cleanupTestUser(testUser.email);
+    await db.cleanupTestRole(testRole.name);
+    await adminApi.createRole(testRole.name);
+    await adminApi.createTargetableRole(testRole.name, TEST_ROLE_VALID_UNTIL);
   });
 
-  test.afterEach(async ({ db }) => {
-    await db.cleanupTestUser(TEST_USER_EMAIL);
-    await db.cleanupTestRole(TEST_ROLE_NAME);
+  test.afterEach(async ({ db, testUser, testRole }) => {
+    await db.cleanupTestUser(testUser.email);
+    await db.cleanupTestRole(testRole.name);
   });
 
-  // This test needs a fresh login (no storageState) because it tests the new-user signup flow.
+  // These tests need a fresh login (no storageState) because they exercise
+  // new-user / first-login flows.
   test.use({ storageState: { cookies: [], origins: [] } });
 
   test("new user can log in and submit an application", async ({
     page,
     db,
+    testUser,
+    testRole,
   }) => {
-    await loginViaKeycloak(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
+    await loginViaKeycloak(page, testUser.email, testUser.password);
 
     const home = new HomePage(page);
     await home.waitForLoaded();
@@ -50,7 +48,7 @@ test.describe("Signup and apply", () => {
 
     await appForm.selectMunicipality("Helsinki");
     await appForm.acceptPolicies();
-    await appForm.selectRole("E2e Test Role");
+    await appForm.selectRole(testRole.displayName);
     await appForm.fillApplicationText("E2E test application");
     await appForm.submit();
 
@@ -68,26 +66,26 @@ test.describe("Signup and apply", () => {
     expect(apps.length).toBe(1);
 
     // Verify application status in DB (UI text is locale-dependent)
-    const dbApp = await db.getApplicationByUserEmail(TEST_USER_EMAIL);
+    const dbApp = await db.getApplicationByUserEmail(testUser.email);
     expect(dbApp).not.toBeNull();
     expect(dbApp!.status).toBe("pending");
 
     // Verify audit log entries
     const loginRows = await db.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM audit_log WHERE action = $1 AND actor_user_id IN (SELECT user_id FROM member WHERE email = $2)`,
-      ["auth.login", TEST_USER_EMAIL],
+      ["auth.login", testUser.email],
     );
     expect(parseInt(loginRows[0].count, 10)).toBeGreaterThanOrEqual(1);
 
     const memberCreateRows = await db.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM audit_log WHERE action = $1 AND actor_user_id IN (SELECT user_id FROM member WHERE email = $2)`,
-      ["member.create", TEST_USER_EMAIL],
+      ["member.create", testUser.email],
     );
     expect(parseInt(memberCreateRows[0].count, 10)).toBe(1);
 
     const appCreateRows = await db.query<{ count: string }>(
       `SELECT COUNT(*) as count FROM audit_log WHERE action = $1 AND actor_user_id IN (SELECT user_id FROM member WHERE email = $2)`,
-      ["application.create", TEST_USER_EMAIL],
+      ["application.create", testUser.email],
     );
     expect(parseInt(appCreateRows[0].count, 10)).toBe(1);
   });
@@ -96,12 +94,13 @@ test.describe("Signup and apply", () => {
     page,
     db,
     adminApi,
+    testUser,
   }) => {
     // Need fresh login to create the member first
-    await loginViaKeycloak(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
+    await loginViaKeycloak(page, testUser.email, testUser.password);
 
     // Complete profile via admin API
-    await completeMemberProfile(db, adminApi, TEST_USER_EMAIL);
+    await completeMemberProfile(db, adminApi, testUser.email);
 
     // Navigate to apply page
     await page.goto("/apply");
