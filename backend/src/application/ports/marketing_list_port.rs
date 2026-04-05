@@ -4,6 +4,17 @@ pub enum MarketingListError {
     ApiError { status: u16, body: String },
 }
 
+/// Result of a single-contact upsert. The adapter returns `PendingConfirmation`
+/// when it could not directly set `status: subscribed` because Mailchimp had
+/// the contact in a compliance-blocked state and the adapter fell back to
+/// `status: pending`. Callers may surface this to the user so they know to
+/// confirm via the Mailchimp opt-in email.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpsertOutcome {
+    Accepted,
+    PendingConfirmation,
+}
+
 /// Flattened view of a member for marketing-list sync.
 /// Lives in the port layer so the adapter never touches domain types.
 #[derive(Debug, Clone)]
@@ -37,8 +48,12 @@ pub trait MarketingListPort: Send + Sync {
     /// concern to keep this path fast and free of role lookups). If the
     /// contact is blocked by Mailchimp's compliance state on re-subscribe,
     /// the adapter falls back to `status: pending` to trigger Mailchimp's
-    /// own opt-in confirmation flow.
-    async fn upsert_contact(&self, contact: MarketingContact) -> Result<(), MarketingListError>;
+    /// own opt-in confirmation flow and returns `PendingConfirmation` so
+    /// callers can surface the situation to the user.
+    async fn upsert_contact(
+        &self,
+        contact: MarketingContact,
+    ) -> Result<UpsertOutcome, MarketingListError>;
 
     /// Emails currently in `status=unsubscribed` on the remote list.
     async fn fetch_unsubscribed_emails(&self) -> Result<Vec<String>, MarketingListError>;

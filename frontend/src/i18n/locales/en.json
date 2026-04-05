@@ -71,7 +71,8 @@
       "saving": "Saving..."
     },
     "municipality_description": "Select the municipality where you mainly live. If you mainly live outside of Finland, select your country.",
-    "notifications_description": "Receive email notifications about application status changes."
+    "notifications_description": "Receive email notifications about application status changes.",
+    "mailchimp_confirmation_required": "Mailchimp requires you to confirm your subscription. Check your inbox for a confirmation email and click the link to finish re-subscribing."
   },
   "application": {
     "form": {

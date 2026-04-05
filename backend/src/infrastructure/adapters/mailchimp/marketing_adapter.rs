@@ -1,7 +1,7 @@
 use md5::{Digest, Md5};
 
 use crate::application::ports::marketing_list_port::{
-    MarketingContact, MarketingListError, MarketingListPort, SyncStats,
+    MarketingContact, MarketingListError, MarketingListPort, SyncStats, UpsertOutcome,
 };
 
 use super::config::MailchimpConfig;
@@ -99,7 +99,12 @@ impl MailchimpMarketingAdapter {
     /// from a campaign link), fall back to `status: pending` — this tells
     /// Mailchimp to send its own opt-in confirmation email, which the contact
     /// can click to re-confirm. The DB flag stays as user intent either way.
-    async fn upsert_member(&self, contact: &MarketingContact) -> Result<(), MarketingListError> {
+    /// Returns `PendingConfirmation` in the fallback case so callers can
+    /// surface it to the user.
+    async fn upsert_member(
+        &self,
+        contact: &MarketingContact,
+    ) -> Result<UpsertOutcome, MarketingListError> {
         let desired = if contact.subscribed {
             "subscribed"
         } else {
@@ -107,7 +112,7 @@ impl MailchimpMarketingAdapter {
         };
 
         if self.put_member(contact, desired).await? {
-            return Ok(());
+            return Ok(UpsertOutcome::Accepted);
         }
 
         // Compliance block hit. Only meaningful when we were trying to resubscribe;
@@ -118,7 +123,7 @@ impl MailchimpMarketingAdapter {
             contact.email
         );
         if self.put_member(contact, "pending").await? {
-            Ok(())
+            Ok(UpsertOutcome::PendingConfirmation)
         } else {
             Err(MarketingListError::ApiError {
                 status: 400,
@@ -184,7 +189,10 @@ fn is_compliance_state_error(body: &str) -> bool {
 
 #[async_trait::async_trait]
 impl MarketingListPort for MailchimpMarketingAdapter {
-    async fn upsert_contact(&self, contact: MarketingContact) -> Result<(), MarketingListError> {
+    async fn upsert_contact(
+        &self,
+        contact: MarketingContact,
+    ) -> Result<UpsertOutcome, MarketingListError> {
         self.upsert_member(&contact).await
     }
 
@@ -196,8 +204,11 @@ impl MarketingListPort for MailchimpMarketingAdapter {
         let mut stats = SyncStats::default();
 
         for contact in &contacts {
+            // The bulk path doesn't surface per-contact outcomes; compliance
+            // fallbacks still happen inside `upsert_member`, the scheduler
+            // just doesn't need to tell anyone.
             match self.upsert_member(contact).await {
-                Ok(()) => {}
+                Ok(_) => {}
                 Err(e) => {
                     tracing::warn!(
                         "Mailchimp upsert failed for {}: {:?}; skipping tag sync for this contact",

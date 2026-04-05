@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::application::ports::{
-    marketing_list_port::{MarketingContact, MarketingListPort},
+    marketing_list_port::{MarketingContact, MarketingListPort, UpsertOutcome},
     member_repository_port::{MemberRepositoryPort, MembersWithRolesParams},
     role_repository_port::RoleRepositoryPort,
 };
@@ -85,14 +85,21 @@ impl MarketingSyncService {
             .fetch_all()
             .await
             .map_err(ServiceError::from)?;
-        // Only roles explicitly marked for Mailchimp become tags. Roles with
-        // `sync_to_mailchimp_tag = false` are invisible to Mailchimp entirely.
+        // `all_tags` is the full set of role names (flagged or not). We treat
+        // every role name as a tag we own in Mailchimp's namespace — even
+        // roles that *were* flagged but are now unflagged. This way, flipping
+        // a role's `sync_to_mailchimp_tag` from true to false causes the next
+        // sync to mark the tag `inactive` on every member, removing it from
+        // Mailchimp. If `all_tags` were filtered, the disabled tag would just
+        // go un-mentioned and linger on members forever.
+        let all_tags: Vec<String> = all_roles.iter().map(|r| r.name.0.clone()).collect();
+        // `taggable` is the currently-flagged subset. Only these count as
+        // "active" for any member — disabled roles are always inactive.
         let taggable: std::collections::HashSet<String> = all_roles
             .into_iter()
             .filter(|r| r.sync_to_mailchimp_tag)
             .map(|r| r.name.0)
             .collect();
-        let all_tags: Vec<String> = taggable.iter().cloned().collect();
 
         let contacts: Vec<MarketingContact> = members
             .into_iter()
@@ -126,30 +133,46 @@ impl MarketingSyncService {
         Ok(())
     }
 
-    /// Fire-and-forget event-driven push of a single member. Called from
-    /// `MemberService` whenever a member is created or updated so identity,
-    /// language and subscription state land in Mailchimp within seconds
-    /// instead of waiting for the daily scheduler. Tag state is not touched
-    /// here — that remains a scheduler-only concern. No-op when the marketing
-    /// port is unconfigured (dev/e2e).
-    pub fn push_contact_async(&self, person: Person) {
-        let Some(marketing) = self.marketing.clone() else {
-            return;
-        };
+    /// Event-driven push of a single member, awaited. Returns the adapter's
+    /// outcome so callers can tell the user when Mailchimp fell back to
+    /// `pending` (compliance state). `None` means no adapter is configured,
+    /// or the call failed — in neither case is there anything actionable to
+    /// show the user. Tag state is not reconciled here.
+    pub async fn push_contact_awaited(&self, person: Person) -> Option<UpsertOutcome> {
+        let marketing = self.marketing.as_ref()?;
+        let contact = Self::contact_from_person(person);
+        let email = contact.email.clone();
+        match marketing.upsert_contact(contact).await {
+            Ok(outcome) => Some(outcome),
+            Err(e) => {
+                tracing::warn!("Mailchimp event-driven upsert failed for {email}: {e:?}");
+                None
+            }
+        }
+    }
 
-        let contact = MarketingContact {
+    /// Fire-and-forget variant of `push_contact_awaited`. Use this on paths
+    /// where the caller doesn't need the outcome (create, or updates that
+    /// don't touch `email_notifications`) and doesn't want to couple request
+    /// latency to Mailchimp's response time. No-op when unconfigured.
+    pub fn push_contact_async(&self, person: Person) {
+        if self.marketing.is_none() {
+            return;
+        }
+        let svc = self.clone();
+        tokio::spawn(async move {
+            svc.push_contact_awaited(person).await;
+        });
+    }
+
+    fn contact_from_person(person: Person) -> MarketingContact {
+        MarketingContact {
             email: person.email.as_str().to_string(),
             first_name: person.first_name,
             last_name: person.last_name,
             language: person.language,
             subscribed: person.email_notifications,
             active_tags: Vec::new(),
-        };
-        let email = contact.email.clone();
-        tokio::spawn(async move {
-            if let Err(e) = marketing.upsert_contact(contact).await {
-                tracing::warn!("Mailchimp event-driven upsert failed for {email}: {e:?}");
-            }
-        });
+        }
     }
 }

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::application::ports::marketing_list_port::SyncStats;
+use crate::application::ports::marketing_list_port::{SyncStats, UpsertOutcome};
 use crate::application::ports::member_repository_port::MemberWithRoles;
 use crate::application::services::marketing_sync_service::MarketingSyncService;
 use crate::domain::{Email, Person, PersonId, Role, RoleName};
@@ -166,9 +166,15 @@ async fn run_sync_excludes_roles_not_flagged_as_mailchimp_tags() {
     marketing
         .expect_sync_contacts()
         .withf(|contacts, all_tags| {
+            // Exactly one contact, with only the flagged role in `active_tags`.
+            // Both role names appear in `all_tags` so that the disabled
+            // "internal" tag gets explicitly marked inactive on every sync —
+            // this is what ensures flipping the flag off cleans up old tags.
             contacts.len() == 1
                 && contacts[0].active_tags == vec!["member".to_string()]
-                && all_tags == &vec!["member".to_string()]
+                && all_tags.len() == 2
+                && all_tags.contains(&"member".to_string())
+                && all_tags.contains(&"internal".to_string())
         })
         .returning(|_, _| {
             Ok(SyncStats {
@@ -203,7 +209,7 @@ async fn push_contact_async_calls_upsert_on_adapter() {
                 && contact.subscribed
                 && contact.active_tags.is_empty()
         })
-        .returning(|_| Ok(()));
+        .returning(|_| Ok(UpsertOutcome::Accepted));
 
     let svc = MarketingSyncService::new(
         Arc::new(member_repo),

@@ -2,11 +2,22 @@ use std::sync::Arc;
 
 use crate::application::ports::{
     auth_provider_repo_port::AuthProviderRepositoryPort,
+    marketing_list_port::UpsertOutcome,
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     user_admin_port::UserAdminPort,
 };
 use crate::domain::{Email, NewPerson, Person, UpdatePersonData};
 use uuid::Uuid;
+
+/// Result of `MemberService::update_member`. Carries the updated person plus
+/// the outcome of the synchronous Mailchimp push (if any). `marketing_outcome`
+/// is `Some(PendingConfirmation)` when Mailchimp required a fallback to
+/// `status: pending` — the HTTP layer surfaces this to the UI so the user
+/// knows to confirm the opt-in email.
+pub struct UpdateMemberResult {
+    pub person: Person,
+    pub marketing_outcome: Option<UpsertOutcome>,
+}
 
 use super::{
     audit_log_service::AuditLogService,
@@ -170,7 +181,19 @@ impl MemberService {
         user_id: Uuid,
         data: UpdatePersonData,
         actor_user_id: Option<Uuid>,
-    ) -> ServiceResult<Person> {
+    ) -> ServiceResult<UpdateMemberResult> {
+        // Fetch the previous state so we can detect a resubscribe transition
+        // (false -> true on email_notifications). That's the only path where
+        // Mailchimp might fall back to `pending` and we need to tell the UI.
+        // On any other kind of edit we spawn the marketing push to keep the
+        // request fast — request latency shouldn't be coupled to Mailchimp.
+        let previous = self
+            .member_repo
+            .fetch_one(user_id)
+            .await
+            .map_err(ServiceError::from)?;
+        let resubscribing = !previous.email_notifications && data.email_notifications;
+
         let language = data.language.clone();
         let updated = self
             .member_repo
@@ -212,9 +235,19 @@ impl MemberService {
             }
         }
 
-        self.marketing_sync.push_contact_async(updated.clone());
+        let marketing_outcome = if resubscribing {
+            self.marketing_sync
+                .push_contact_awaited(updated.clone())
+                .await
+        } else {
+            self.marketing_sync.push_contact_async(updated.clone());
+            None
+        };
 
-        Ok(updated)
+        Ok(UpdateMemberResult {
+            person: updated,
+            marketing_outcome,
+        })
     }
 
     pub async fn delete_member(&self, id: Uuid, actor_user_id: Option<Uuid>) -> ServiceResult<()> {

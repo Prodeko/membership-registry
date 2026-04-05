@@ -71,7 +71,8 @@
       "saving": "Tallennetaan..."
     },
     "municipality_description": "Valitse kunta, jossa asut pääasiassa. Jos asut pääasiassa Suomen ulkopuolella, valitse maasi.",
-    "notifications_description": "Vastaanota sähköposti-ilmoituksia hakemuksen tilan muutoksista."
+    "notifications_description": "Vastaanota sähköposti-ilmoituksia hakemuksen tilan muutoksista.",
+    "mailchimp_confirmation_required": "Mailchimp vaatii tilauksen vahvistamisen. Tarkista sähköpostisi ja klikkaa vahvistuslinkkiä viimeistelläksesi tilauksen uudelleenaktivoinnin."
   },
   "application": {
     "form": {

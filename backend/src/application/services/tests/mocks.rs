@@ -18,7 +18,9 @@ use crate::application::ports::{
         AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort,
     },
     email_port::{EmailError, EmailPort},
-    marketing_list_port::{MarketingContact, MarketingListError, MarketingListPort, SyncStats},
+    marketing_list_port::{
+        MarketingContact, MarketingListError, MarketingListPort, SyncStats, UpsertOutcome,
+    },
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     repository_error::RepositoryError,
     role_repository_port::{RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams},
@@ -186,7 +188,7 @@ mock! {
     #[async_trait::async_trait]
     impl MarketingListPort for MarketingListPort {
         async fn sync_contacts(&self, contacts: Vec<MarketingContact>, all_tags: Vec<String>) -> Result<SyncStats, MarketingListError>;
-        async fn upsert_contact(&self, contact: MarketingContact) -> Result<(), MarketingListError>;
+        async fn upsert_contact(&self, contact: MarketingContact) -> Result<UpsertOutcome, MarketingListError>;
         async fn fetch_unsubscribed_emails(&self) -> Result<Vec<String>, MarketingListError>;
     }
 }
