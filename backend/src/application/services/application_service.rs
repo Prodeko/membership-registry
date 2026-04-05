@@ -204,8 +204,13 @@ impl ApplicationService {
                     .await;
             }
             ApplicationTransition::Approved => {
+                // IdP role sync is best-effort here: if the role does not yet
+                // exist in the IdP realm (or the IdP is unreachable), we still
+                // want the approval to succeed. The membership is recorded in
+                // the DB and the admin keycloak-sync view will surface any
+                // drift for later reconciliation.
                 self.role_service
-                    .add_role_member(
+                    .add_role_member_best_effort(
                         application.user_id,
                         &application.role_name,
                         chrono::Utc::now().date_naive(),

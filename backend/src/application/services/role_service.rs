@@ -199,6 +199,76 @@ impl RoleService {
         Ok(())
     }
 
+    /// Assigns a role to a member, writing the DB row first and then attempting
+    /// to sync to the IdP on a best-effort basis. Unlike `add_role_member`,
+    /// this does not fail the operation if the IdP sync fails — the failure is
+    /// logged and the admin UI's keycloak sync status surfaces the drift so it
+    /// can be reconciled later.
+    ///
+    /// Use this on flows where it is more important to record the domain
+    /// decision (e.g. application approval) than to guarantee immediate IdP
+    /// consistency.
+    pub async fn add_role_member_best_effort(
+        &self,
+        user_id: Uuid,
+        role_name: &str,
+        valid_from: chrono::NaiveDate,
+        valid_until: Option<chrono::NaiveDate>,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<()> {
+        self.role_repo
+            .create_role_member(&user_id, role_name, valid_from, valid_until)
+            .await
+            .map_err(ServiceError::from)?;
+
+        match self.auth_provider_repo.find_by_user_id(&user_id).await {
+            Ok(providers) => {
+                for provider in providers {
+                    if let Err(e) = self
+                        .role_sync
+                        .assign_role(
+                            &IdpSubject(provider.provider_user_id.clone()),
+                            &RoleName(role_name.to_string()),
+                        )
+                        .await
+                    {
+                        tracing::warn!(
+                            user_id = %user_id,
+                            provider = %provider.provider_user_id,
+                            role = %role_name,
+                            "Best-effort IdP role sync failed; role will need to be reconciled later: {e:?}"
+                        );
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::warn!(
+                    user_id = %user_id,
+                    role = %role_name,
+                    "Failed to fetch auth providers for best-effort role sync: {e:?}"
+                );
+            }
+        }
+
+        self.audit_log
+            .log(
+                actor_user_id,
+                "role_member.assign",
+                "role_member",
+                &format!("{}:{}", user_id, role_name),
+                Some(serde_json::json!({
+                    "user_id": user_id,
+                    "role_name": role_name,
+                    "valid_from": valid_from.to_string(),
+                    "valid_until": valid_until.map(|d| d.to_string()),
+                })),
+            )
+            .await;
+
+        self.invalidate_sync_cache();
+        Ok(())
+    }
+
     pub async fn get_role(&self, role_name: &str) -> ServiceResult<Role> {
         self.role_repo
             .fetch_by_name(role_name)

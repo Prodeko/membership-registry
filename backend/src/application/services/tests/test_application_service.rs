@@ -377,6 +377,99 @@ async fn update_status_approve_calls_role_assignment() {
 }
 
 #[tokio::test]
+async fn update_status_approve_succeeds_when_idp_sync_fails() {
+    use crate::application::ports::auth_provider_repo_port::AuthProviderMapping;
+    use crate::application::ports::rolesync_port::RoleSyncError;
+
+    let mut commands = MockApplicationCommandPort::new();
+    let mut queries = MockApplicationQueryPort::new();
+    let mut targetable = MockTargetableRolePort::new();
+
+    let app = test_application(ApplicationStatus::Pending);
+    let app_id = app.application_id.0;
+    let user_id = app.user_id;
+
+    queries
+        .expect_fetch_one()
+        .returning(move |_| Ok(test_application(ApplicationStatus::Pending)));
+
+    commands
+        .expect_update_status()
+        .withf(|_, status| *status == ApplicationStatus::Approved)
+        .returning(|_, _| Ok(()));
+
+    targetable
+        .expect_fetch_targetable_role()
+        .returning(|_, _| Ok(active_targetable_role(None)));
+    queries
+        .expect_fetch_with_member_one()
+        .returning(|_| Err(RepositoryError::NotFound));
+
+    // DB role membership must still be written even though IdP will fail.
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo
+        .expect_create_role_member()
+        .times(1)
+        .returning(|_, _, _, _| Ok(()));
+
+    // Auth provider exists, so we will attempt IdP sync.
+    let mut auth_provider_repo = MockAuthProviderRepo::new();
+    auth_provider_repo
+        .expect_find_by_user_id()
+        .returning(move |_| {
+            Ok(vec![AuthProviderMapping {
+                user_id,
+                provider_name: "keycloak".to_string(),
+                provider_user_id: "kc-subject-123".to_string(),
+                linked_at: Utc::now(),
+            }])
+        });
+
+    // IdP role sync fails — approval must still succeed.
+    let mut role_sync = MockRoleSyncPort::new();
+    role_sync
+        .expect_assign_role()
+        .times(1)
+        .returning(|_, _| Err(RoleSyncError::IdpError));
+
+    let member_repo = MockMemberRepositoryPort::new();
+    let user_admin = MockUserAdminPort::new();
+
+    let member_service = MemberService::new(
+        Arc::new(member_repo),
+        Arc::new(user_admin),
+        Arc::new(MockAuthProviderRepo::new()),
+        noop_audit_log(),
+    );
+
+    let role_service = RoleService::new(
+        Arc::new(role_repo),
+        member_service,
+        Arc::new(role_sync),
+        Arc::new(auth_provider_repo),
+        noop_audit_log(),
+    );
+
+    let svc = ApplicationService::new(
+        Arc::new(commands),
+        Arc::new(queries),
+        Arc::new(targetable),
+        role_service,
+        noop_audit_log(),
+        build_notification_service(),
+    );
+
+    let result = svc
+        .update_application_status(app_id, ApplicationAction::Approve, None)
+        .await;
+
+    assert!(
+        result.is_ok(),
+        "Approval should succeed even when IdP role sync fails: {result:?}"
+    );
+}
+
+#[tokio::test]
 async fn update_status_reject_does_not_assign_role() {
     let mut commands = MockApplicationCommandPort::new();
     let mut queries = MockApplicationQueryPort::new();
