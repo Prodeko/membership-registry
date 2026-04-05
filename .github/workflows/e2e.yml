@@ -147,10 +147,11 @@ jobs:
       - name: Wait for backend and frontend
         run: |
           for i in $(seq 1 30); do
-            if curl -so /dev/null -w '%{http_code}' http://127.0.0.1:8081/api/auth/login 2>/dev/null | grep -qE '(200|302)'; then
+            if curl -sf http://127.0.0.1:8081/api/health > /dev/null 2>&1; then
               echo "Backend is ready"
               break
             fi
+            if [ "$i" -eq 30 ]; then echo "Backend failed to start" && exit 1; fi
             echo "Waiting for backend... ($i)"
             sleep 2
           done
@@ -160,6 +161,7 @@ jobs:
               echo "Frontend is ready"
               break
             fi
+            if [ "$i" -eq 15 ]; then echo "Frontend failed to start" && exit 1; fi
             echo "Waiting for frontend... ($i)"
             sleep 2
           done

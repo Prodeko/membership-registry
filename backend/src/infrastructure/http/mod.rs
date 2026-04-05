@@ -137,6 +137,7 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
 
 fn router(state: AppState) -> Router<AppState> {
     Router::new()
+        .route("/api/health", axum::routing::get(|| async { "ok" }))
         .nest("/api/admin", admin::router(state.clone()))
         .nest("/api", protected::router(state.clone()))
         .nest("/api", public::router(state.clone()))
