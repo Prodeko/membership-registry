@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config({ path: ".env.e2e" });
+dotenv.config({ path: ".env.e2e", quiet: true });
 
 const REQUIRED_ENV_VARS = [
   "API_BASE_URL",
@@ -13,7 +13,9 @@ const REQUIRED_ENV_VARS = [
 
 const missing = REQUIRED_ENV_VARS.filter((v) => !process.env[v]);
 if (missing.length > 0) {
-  throw new Error(`Missing required env vars in .env.e2e: ${missing.join(", ")}`);
+  throw new Error(
+    `Missing required env vars in .env.e2e: ${missing.join(", ")}`,
+  );
 }
 
 export const API_BASE_URL = process.env.API_BASE_URL!;
