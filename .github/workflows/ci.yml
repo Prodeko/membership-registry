@@ -76,8 +76,10 @@ jobs:
         working-directory: backend
       - run: npm audit --audit-level=high
         working-directory: frontend
+        if: always()
       - run: npm audit --audit-level=high
         working-directory: e2e
+        if: always()
 
   docker:
     name: Docker build
