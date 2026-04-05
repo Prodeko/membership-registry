@@ -235,12 +235,26 @@ impl MemberService {
             }
         }
 
+        // Three paths into Mailchimp depending on whether email_notifications
+        // actually changed:
+        //  * resubscribing (false → true): await the push so we can tell the
+        //    UI if Mailchimp fell back to `pending`.
+        //  * unsubscribing (true → false): fire-and-forget push WITH status,
+        //    since we need Mailchimp to flip the state.
+        //  * unchanged: fire-and-forget IDENTITY-ONLY push. Crucially, this
+        //    omits the `status` field from the payload — otherwise a profile
+        //    edit on a contact currently in `pending` or `unsubscribed` would
+        //    re-trigger opt-in emails on every save.
+        let en_changed = previous.email_notifications != data.email_notifications;
         let marketing_outcome = if resubscribing {
             self.marketing_sync
                 .push_contact_awaited(updated.clone())
                 .await
-        } else {
+        } else if en_changed {
             self.marketing_sync.push_contact_async(updated.clone());
+            None
+        } else {
+            self.marketing_sync.push_identity_async(updated.clone());
             None
         };
 

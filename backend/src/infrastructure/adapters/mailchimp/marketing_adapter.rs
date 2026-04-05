@@ -1,8 +1,18 @@
 use md5::{Digest, Md5};
 
 use crate::application::ports::marketing_list_port::{
-    MarketingContact, MarketingListError, MarketingListPort, SyncStats, UpsertOutcome,
+    ContactPushMode, MarketingContact, MarketingListError, MarketingListPort, SyncStats,
+    UpsertOutcome,
 };
+
+/// Internal outcome of a single `PUT /lists/{id}/members/{hash}` call.
+/// `ComplianceBlocked` is a 400 with a body matching Mailchimp's
+/// "Member In Compliance State" error; only meaningful when the caller
+/// was trying to set `status: subscribed`.
+enum PutOutcome {
+    Accepted,
+    ComplianceBlocked,
+}
 
 use super::config::MailchimpConfig;
 
@@ -47,25 +57,46 @@ impl MailchimpMarketingAdapter {
         format!("{}/tags", self.member_url(email))
     }
 
-    /// Execute a PUT /lists/{id}/members/{hash} with the given status value.
-    /// Returns `Ok(true)` on success, `Ok(false)` if Mailchimp rejected the
-    /// request with its compliance-state 400 (caller decides fallback),
-    /// and `Err` for any other failure.
-    async fn put_member(
-        &self,
+    /// Build the PUT /lists/{id}/members/{hash} payload. When `override_status`
+    /// is `Some`, it's placed in the `status` field, requesting a transition.
+    /// When `None`, the `status` field is omitted entirely so Mailchimp
+    /// leaves the contact's current state untouched. `status_if_new` always
+    /// matches the DB's intent (`contact.subscribed`) so brand-new contacts
+    /// get created in the right initial state regardless of mode.
+    fn build_put_payload(
         contact: &MarketingContact,
-        status: &str,
-    ) -> Result<bool, MarketingListError> {
-        let payload = serde_json::json!({
+        override_status: Option<&str>,
+    ) -> serde_json::Value {
+        let initial = if contact.subscribed {
+            "subscribed"
+        } else {
+            "unsubscribed"
+        };
+        let mut payload = serde_json::json!({
             "email_address": contact.email,
-            "status_if_new": status,
-            "status": status,
+            "status_if_new": initial,
             "language": contact.language,
             "merge_fields": {
                 "FNAME": contact.first_name,
                 "LNAME": contact.last_name,
             },
         });
+        if let Some(s) = override_status {
+            payload["status"] = serde_json::Value::String(s.to_string());
+        }
+        payload
+    }
+
+    /// Execute a PUT /lists/{id}/members/{hash}. Returns `Accepted` on 2xx,
+    /// `ComplianceBlocked` if Mailchimp rejected the status transition with
+    /// its compliance-state 400 (only possible when `override_status` was
+    /// `Some`), and `Err` for any other failure.
+    async fn put_member(
+        &self,
+        contact: &MarketingContact,
+        override_status: Option<&str>,
+    ) -> Result<PutOutcome, MarketingListError> {
+        let payload = Self::build_put_payload(contact, override_status);
 
         let resp = self
             .http
@@ -77,14 +108,16 @@ impl MailchimpMarketingAdapter {
             .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
 
         if resp.status().is_success() {
-            return Ok(true);
+            return Ok(PutOutcome::Accepted);
         }
 
         let http_status = resp.status().as_u16();
         let body = resp.text().await.unwrap_or_default();
 
-        if http_status == 400 && is_compliance_state_error(&body) {
-            return Ok(false);
+        // Compliance state only triggers when we were requesting a status
+        // change. Identity-only calls shouldn't produce it.
+        if http_status == 400 && override_status.is_some() && is_compliance_state_error(&body) {
+            return Ok(PutOutcome::ComplianceBlocked);
         }
 
         Err(MarketingListError::ApiError {
@@ -93,42 +126,42 @@ impl MailchimpMarketingAdapter {
         })
     }
 
-    /// PUT /lists/{id}/members/{hash} — upsert identity + subscription state.
-    /// When the contact is subscribed in the DB but Mailchimp has them in a
-    /// compliance-blocked state (typically because a previous unsubscribe came
-    /// from a campaign link), fall back to `status: pending` — this tells
-    /// Mailchimp to send its own opt-in confirmation email, which the contact
-    /// can click to re-confirm. The DB flag stays as user intent either way.
-    /// Returns `PendingConfirmation` in the fallback case so callers can
-    /// surface it to the user.
+    /// PUT /lists/{id}/members/{hash} — upsert identity and (optionally)
+    /// subscription state. When `mode` is `WithSubscription` and Mailchimp
+    /// blocks the transition for compliance, fall back to `status: pending`
+    /// which tells Mailchimp to send its own opt-in confirmation email.
+    /// The DB flag stays as user intent either way.
     async fn upsert_member(
         &self,
         contact: &MarketingContact,
+        mode: ContactPushMode,
     ) -> Result<UpsertOutcome, MarketingListError> {
-        let desired = if contact.subscribed {
-            "subscribed"
-        } else {
-            "unsubscribed"
+        let override_status = match mode {
+            ContactPushMode::IdentityOnly => None,
+            ContactPushMode::WithSubscription => Some(if contact.subscribed {
+                "subscribed"
+            } else {
+                "unsubscribed"
+            }),
         };
 
-        if self.put_member(contact, desired).await? {
-            return Ok(UpsertOutcome::Accepted);
+        match self.put_member(contact, override_status).await? {
+            PutOutcome::Accepted => return Ok(UpsertOutcome::Accepted),
+            PutOutcome::ComplianceBlocked => {}
         }
 
-        // Compliance block hit. Only meaningful when we were trying to resubscribe;
-        // unsubscribed→unsubscribed shouldn't produce this error in practice, but
-        // in that case retrying with `pending` is still better than failing.
+        // Reaching here implies `override_status` was Some — identity-only
+        // calls don't produce ComplianceBlocked. Retry with `pending`.
         tracing::info!(
-            "Mailchimp compliance state blocked direct {desired} for {}; retrying with status=pending to trigger opt-in",
+            "Mailchimp compliance state blocked direct subscribe for {}; retrying with status=pending to trigger opt-in",
             contact.email
         );
-        if self.put_member(contact, "pending").await? {
-            Ok(UpsertOutcome::PendingConfirmation)
-        } else {
-            Err(MarketingListError::ApiError {
+        match self.put_member(contact, Some("pending")).await? {
+            PutOutcome::Accepted => Ok(UpsertOutcome::PendingConfirmation),
+            PutOutcome::ComplianceBlocked => Err(MarketingListError::ApiError {
                 status: 400,
                 body: "compliance fallback to pending also rejected".to_string(),
-            })
+            }),
         }
     }
 
@@ -192,8 +225,9 @@ impl MarketingListPort for MailchimpMarketingAdapter {
     async fn upsert_contact(
         &self,
         contact: MarketingContact,
+        mode: ContactPushMode,
     ) -> Result<UpsertOutcome, MarketingListError> {
-        self.upsert_member(&contact).await
+        self.upsert_member(&contact, mode).await
     }
 
     async fn sync_contacts(
@@ -204,10 +238,14 @@ impl MarketingListPort for MailchimpMarketingAdapter {
         let mut stats = SyncStats::default();
 
         for contact in &contacts {
-            // The bulk path doesn't surface per-contact outcomes; compliance
-            // fallbacks still happen inside `upsert_member`, the scheduler
-            // just doesn't need to tell anyone.
-            match self.upsert_member(contact).await {
+            // The bulk path always pushes subscription — it's the source of
+            // truth for daily reconciliation. Per-contact outcomes are
+            // discarded; compliance fallbacks still happen inside
+            // `upsert_member`, the scheduler just doesn't surface them.
+            match self
+                .upsert_member(contact, ContactPushMode::WithSubscription)
+                .await
+            {
                 Ok(_) => {}
                 Err(e) => {
                     tracing::warn!(
@@ -296,6 +334,17 @@ impl MarketingListPort for MailchimpMarketingAdapter {
 mod tests {
     use super::*;
 
+    fn test_contact(subscribed: bool) -> MarketingContact {
+        MarketingContact {
+            email: "foo@example.com".to_string(),
+            first_name: "Foo".to_string(),
+            last_name: "Bar".to_string(),
+            language: "fi".to_string(),
+            subscribed,
+            active_tags: vec![],
+        }
+    }
+
     #[test]
     fn subscriber_hash_is_md5_of_lowercased_email() {
         // Reference value from the Mailchimp docs example: "urist.mcvankab@freddiesjokes.co"
@@ -306,5 +355,46 @@ mod tests {
         assert_eq!(lower, upper);
         assert_eq!(lower.len(), 32);
         assert!(lower.chars().all(|c| c.is_ascii_hexdigit()));
+    }
+
+    #[test]
+    fn payload_with_override_status_includes_status_field() {
+        let contact = test_contact(true);
+        let payload = MailchimpMarketingAdapter::build_put_payload(&contact, Some("subscribed"));
+        assert_eq!(payload["status"], "subscribed");
+        assert_eq!(payload["status_if_new"], "subscribed");
+        assert_eq!(payload["email_address"], "foo@example.com");
+        assert_eq!(payload["language"], "fi");
+        assert_eq!(payload["merge_fields"]["FNAME"], "Foo");
+        assert_eq!(payload["merge_fields"]["LNAME"], "Bar");
+    }
+
+    #[test]
+    fn payload_identity_only_omits_status_field() {
+        // The critical assertion for the identity-only path: Mailchimp must
+        // not see a `status` field at all, so an existing contact in
+        // `pending` or `unsubscribed` state keeps that state rather than
+        // being force-transitioned (and re-triggering opt-in email flows).
+        let contact = test_contact(true);
+        let payload = MailchimpMarketingAdapter::build_put_payload(&contact, None);
+        assert!(
+            payload.get("status").is_none(),
+            "identity-only payload must omit `status`, got: {payload}",
+        );
+        // status_if_new still present — needed by Mailchimp only when creating
+        // a new contact, ignored when the contact already exists.
+        assert_eq!(payload["status_if_new"], "subscribed");
+        assert_eq!(payload["merge_fields"]["FNAME"], "Foo");
+    }
+
+    #[test]
+    fn payload_status_if_new_reflects_db_intent_for_unsubscribed_contact() {
+        // If the contact doesn't yet exist in Mailchimp and the DB says
+        // they're unsubscribed, `status_if_new` must carry that intent —
+        // otherwise a first-time sync would create them as subscribed.
+        let contact = test_contact(false);
+        let payload = MailchimpMarketingAdapter::build_put_payload(&contact, None);
+        assert_eq!(payload["status_if_new"], "unsubscribed");
+        assert!(payload.get("status").is_none());
     }
 }

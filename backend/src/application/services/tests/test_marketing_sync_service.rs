@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::application::ports::marketing_list_port::{SyncStats, UpsertOutcome};
+use crate::application::ports::marketing_list_port::{ContactPushMode, SyncStats, UpsertOutcome};
 use crate::application::ports::member_repository_port::MemberWithRoles;
 use crate::application::services::marketing_sync_service::MarketingSyncService;
 use crate::domain::{Email, Person, PersonId, Role, RoleName};
@@ -204,12 +204,13 @@ async fn push_contact_async_calls_upsert_on_adapter() {
 
     marketing
         .expect_upsert_contact()
-        .withf(|contact| {
+        .withf(|contact, mode| {
             contact.email == "eve@example.com"
                 && contact.subscribed
                 && contact.active_tags.is_empty()
+                && *mode == ContactPushMode::WithSubscription
         })
-        .returning(|_| Ok(UpsertOutcome::Accepted));
+        .returning(|_, _| Ok(UpsertOutcome::Accepted));
 
     let svc = MarketingSyncService::new(
         Arc::new(member_repo),
@@ -232,4 +233,43 @@ fn push_contact_async_is_noop_without_adapter() {
     );
     // Must not panic or attempt to spawn any task when the adapter is absent.
     svc.push_contact_async(person("frank@example.com", false));
+}
+
+#[tokio::test]
+async fn push_identity_async_uses_identity_only_mode() {
+    // Regression: profile edits that don't touch email_notifications must
+    // call the adapter with IdentityOnly so that contacts in pending or
+    // unsubscribed state aren't force-transitioned and re-spammed with
+    // opt-in emails on every save.
+    let member_repo = MockMemberRepositoryPort::new();
+    let role_repo = MockRoleRepositoryPort::new();
+    let mut marketing = MockMarketingListPort::new();
+
+    marketing
+        .expect_upsert_contact()
+        .withf(|contact, mode| {
+            contact.email == "grace@example.com" && *mode == ContactPushMode::IdentityOnly
+        })
+        .returning(|_, _| Ok(UpsertOutcome::Accepted));
+
+    let svc = MarketingSyncService::new(
+        Arc::new(member_repo),
+        Arc::new(role_repo),
+        Some(Arc::new(marketing)),
+    );
+
+    svc.push_identity_async(person("grace@example.com", true));
+    // Let the spawned task run before the test ends.
+    tokio::task::yield_now().await;
+    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+}
+
+#[test]
+fn push_identity_async_is_noop_without_adapter() {
+    let svc = MarketingSyncService::new(
+        Arc::new(MockMemberRepositoryPort::new()),
+        Arc::new(MockRoleRepositoryPort::new()),
+        None,
+    );
+    svc.push_identity_async(person("henry@example.com", true));
 }

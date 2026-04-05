@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use crate::application::ports::{
-    marketing_list_port::{MarketingContact, MarketingListPort, UpsertOutcome},
+    marketing_list_port::{ContactPushMode, MarketingContact, MarketingListPort, UpsertOutcome},
     member_repository_port::{MemberRepositoryPort, MembersWithRolesParams},
     role_repository_port::RoleRepositoryPort,
 };
@@ -133,36 +133,52 @@ impl MarketingSyncService {
         Ok(())
     }
 
-    /// Event-driven push of a single member, awaited. Returns the adapter's
-    /// outcome so callers can tell the user when Mailchimp fell back to
-    /// `pending` (compliance state). `None` means no adapter is configured,
-    /// or the call failed — in neither case is there anything actionable to
-    /// show the user. Tag state is not reconciled here.
+    /// Event-driven push of a single member, awaited. Always uses
+    /// `WithSubscription` — this path is specifically for resubscribe flows
+    /// where the caller wants to know if Mailchimp fell back to `pending`.
+    /// `None` means no adapter is configured or the call failed.
     pub async fn push_contact_awaited(&self, person: Person) -> Option<UpsertOutcome> {
+        self.dispatch(person, ContactPushMode::WithSubscription)
+            .await
+    }
+
+    /// Fire-and-forget push that includes subscription status. Use on paths
+    /// where `email_notifications` changed or the contact is brand new
+    /// (create). The caller doesn't block on Mailchimp.
+    pub fn push_contact_async(&self, person: Person) {
+        self.spawn_push(person, ContactPushMode::WithSubscription);
+    }
+
+    /// Fire-and-forget push that updates identity fields only (name,
+    /// language, merge fields) without touching Mailchimp's subscription
+    /// status. Use on profile edits that don't change `email_notifications`,
+    /// so a contact sitting in `pending` or `unsubscribed` doesn't get
+    /// force-transitioned and re-triggered on every unrelated save.
+    pub fn push_identity_async(&self, person: Person) {
+        self.spawn_push(person, ContactPushMode::IdentityOnly);
+    }
+
+    fn spawn_push(&self, person: Person, mode: ContactPushMode) {
+        if self.marketing.is_none() {
+            return;
+        }
+        let svc = self.clone();
+        tokio::spawn(async move {
+            svc.dispatch(person, mode).await;
+        });
+    }
+
+    async fn dispatch(&self, person: Person, mode: ContactPushMode) -> Option<UpsertOutcome> {
         let marketing = self.marketing.as_ref()?;
         let contact = Self::contact_from_person(person);
         let email = contact.email.clone();
-        match marketing.upsert_contact(contact).await {
+        match marketing.upsert_contact(contact, mode).await {
             Ok(outcome) => Some(outcome),
             Err(e) => {
                 tracing::warn!("Mailchimp event-driven upsert failed for {email}: {e:?}");
                 None
             }
         }
-    }
-
-    /// Fire-and-forget variant of `push_contact_awaited`. Use this on paths
-    /// where the caller doesn't need the outcome (create, or updates that
-    /// don't touch `email_notifications`) and doesn't want to couple request
-    /// latency to Mailchimp's response time. No-op when unconfigured.
-    pub fn push_contact_async(&self, person: Person) {
-        if self.marketing.is_none() {
-            return;
-        }
-        let svc = self.clone();
-        tokio::spawn(async move {
-            svc.push_contact_awaited(person).await;
-        });
     }
 
     fn contact_from_person(person: Person) -> MarketingContact {

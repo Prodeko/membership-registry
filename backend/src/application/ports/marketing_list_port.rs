@@ -15,6 +15,23 @@ pub enum UpsertOutcome {
     PendingConfirmation,
 }
 
+/// Selects whether an upsert should touch the Mailchimp subscription status
+/// field. `IdentityOnly` is used by routine profile edits (name, language)
+/// so that contacts in pending/unsubscribed state don't have their status
+/// repeatedly overwritten — which would spam opt-in emails at contacts
+/// who are already mid-confirmation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContactPushMode {
+    /// Include `status` in the PUT payload. The adapter may fall back to
+    /// `status: pending` if Mailchimp blocks a direct subscribe for
+    /// compliance reasons.
+    WithSubscription,
+    /// Omit `status` from the PUT payload entirely. Existing Mailchimp
+    /// subscription state is preserved. For new contacts, `status_if_new`
+    /// still provides the initial state from `MarketingContact.subscribed`.
+    IdentityOnly,
+}
+
 /// Flattened view of a member for marketing-list sync.
 /// Lives in the port layer so the adapter never touches domain types.
 #[derive(Debug, Clone)]
@@ -43,16 +60,25 @@ pub trait MarketingListPort: Send + Sync {
         all_tags: Vec<String>,
     ) -> Result<SyncStats, MarketingListError>;
 
-    /// Event-driven single-contact upsert. Updates identity + subscription
-    /// state only; does NOT reconcile tags (tag state is a scheduler-only
-    /// concern to keep this path fast and free of role lookups). If the
-    /// contact is blocked by Mailchimp's compliance state on re-subscribe,
-    /// the adapter falls back to `status: pending` to trigger Mailchimp's
-    /// own opt-in confirmation flow and returns `PendingConfirmation` so
-    /// callers can surface the situation to the user.
+    /// Event-driven single-contact upsert. Does NOT reconcile tags (tag
+    /// state is a scheduler-only concern to keep this path fast and free
+    /// of role lookups).
+    ///
+    /// When `mode` is `WithSubscription`, the adapter also sets the
+    /// Mailchimp subscription status from `contact.subscribed`. If that is
+    /// blocked by Mailchimp's compliance state on re-subscribe, the adapter
+    /// falls back to `status: pending` and returns `PendingConfirmation`.
+    ///
+    /// When `mode` is `IdentityOnly`, the adapter omits the `status` field
+    /// entirely so that existing Mailchimp state (subscribed, unsubscribed,
+    /// pending, cleaned) is preserved. Always returns `Accepted` on success;
+    /// no compliance block is possible because no state transition is
+    /// requested. Use this for profile edits that don't touch
+    /// `email_notifications`.
     async fn upsert_contact(
         &self,
         contact: MarketingContact,
+        mode: ContactPushMode,
     ) -> Result<UpsertOutcome, MarketingListError>;
 
     /// Emails currently in `status=unsubscribed` on the remote list.
