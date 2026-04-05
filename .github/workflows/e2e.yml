@@ -53,13 +53,16 @@ jobs:
         with:
           workspaces: backend
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: pnpm
           cache-dependency-path: |
-            frontend/package-lock.json
-            e2e/package-lock.json
+            frontend/pnpm-lock.yaml
+            e2e/pnpm-lock.yaml
 
       - uses: actions/setup-python@v5
         with:
@@ -70,15 +73,15 @@ jobs:
         run: pip install requests python-dotenv
 
       - name: Install frontend dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: frontend
 
       - name: Install e2e dependencies
-        run: npm ci
+        run: pnpm install --frozen-lockfile
         working-directory: e2e
 
       - name: Install Playwright browsers
-        run: npx playwright install --with-deps chromium
+        run: pnpm exec playwright install --with-deps chromium
         working-directory: e2e
 
       # --- Configure Keycloak realm ---
@@ -145,7 +148,7 @@ jobs:
 
       # --- Start frontend dev server ---
       - name: Start frontend
-        run: npm run dev &
+        run: pnpm run dev &
         working-directory: frontend
         env:
           VITE_API_BASE_URL: http://127.0.0.1:8081/api
@@ -175,7 +178,7 @@ jobs:
 
       # --- Run E2E tests ---
       - name: Run Playwright tests
-        run: npx playwright test
+        run: pnpm exec playwright test
         working-directory: e2e
         env:
           CI: "true"
