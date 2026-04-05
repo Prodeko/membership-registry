@@ -95,6 +95,9 @@ impl IntoResponse for ServiceError {
             ServiceError::ExportFailed => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Export failed").into_response()
             }
+            ServiceError::MarketingSyncFailed(_) => {
+                (StatusCode::BAD_GATEWAY, "Marketing list sync failed").into_response()
+            }
         }
     }
 }
@@ -123,6 +126,9 @@ impl From<ServiceError> for ApiError {
             ServiceError::CannotUnlinkLastProvider => ApiError::BadRequest,
             ServiceError::InvalidTemplate => ApiError::BadRequest,
             ServiceError::ExportFailed => ApiError::InternalServerError,
+            ServiceError::MarketingSyncFailed(msg) => {
+                ApiError::ServiceError(ServiceError::MarketingSyncFailed(msg))
+            }
         }
     }
 }

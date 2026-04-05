@@ -39,13 +39,6 @@ pub struct ContactIdentity {
     pub language: String,
 }
 
-/// Subscription transition the caller wants to apply.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SubscriptionAction {
-    Subscribe,
-    Unsubscribe,
-}
-
 #[async_trait::async_trait]
 pub trait MarketingListPort: Send + Sync {
     /// Fetch a contact's current subscription state and tag assignments.
@@ -56,15 +49,14 @@ pub trait MarketingListPort: Send + Sync {
         known_tags: &[String],
     ) -> Result<MarketingPreferences, MarketingListError>;
 
-    /// Subscribe or unsubscribe. Subscribe always PUTs `status: pending`
-    /// (sidesteps compliance-block entirely) and triggers Mailchimp's opt-in
-    /// email immediately. Unsubscribe PUTs `status: unsubscribed`. Both
-    /// carry current identity fields so Mailchimp gets a fresh name/language.
-    async fn set_subscription(
-        &self,
-        identity: &ContactIdentity,
-        action: SubscriptionAction,
-    ) -> Result<(), MarketingListError>;
+    /// Subscribe a contact. Always PUTs `status: pending` — that sidesteps
+    /// the Mailchimp compliance block entirely and triggers Mailchimp's
+    /// opt-in email, which the user confirms from their inbox. Identity
+    /// fields ride along so Mailchimp gets a fresh name/language.
+    ///
+    /// There is deliberately no unsubscribe counterpart: unsubscribing is
+    /// done by the user through the email footer, not through the app.
+    async fn subscribe(&self, identity: &ContactIdentity) -> Result<(), MarketingListError>;
 
     /// Update tag active/inactive states. Identity fields ride along in the
     /// implicit contact upsert so Mailchimp stays fresh without a separate

@@ -26,7 +26,6 @@ export type {
   RoleMember,
   RoleStats,
   SavedFilter,
-  SubscriptionAction,
   SubscriptionState,
   TagPreference,
   UpdateMember,

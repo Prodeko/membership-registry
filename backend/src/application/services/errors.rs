@@ -2,6 +2,7 @@ use serde::Serialize;
 use serde_with::serde_as;
 
 use crate::application::ports::data_export_port::DataExportError;
+use crate::application::ports::marketing_list_port::MarketingListError;
 use crate::application::ports::repository_error::RepositoryError;
 
 #[serde_as]
@@ -26,6 +27,13 @@ pub enum ServiceError {
     CannotUnlinkLastProvider,
     InvalidTemplate,
     ExportFailed,
+    MarketingSyncFailed(String),
+}
+
+impl From<MarketingListError> for ServiceError {
+    fn from(e: MarketingListError) -> Self {
+        Self::MarketingSyncFailed(format!("{e:?}"))
+    }
 }
 
 impl From<DataExportError> for ServiceError {

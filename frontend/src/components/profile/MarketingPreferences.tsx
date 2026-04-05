@@ -50,7 +50,7 @@ const MarketingPreferences = () => {
 
   const handleSubscribe = () => {
     updatePrefs(
-      { type: "set_subscription", action: "subscribe" },
+      { type: "subscribe" },
       {
         onSuccess: () => {
           toast.info(t("profile.marketing.pending_hint"), { duration: 10000 });
@@ -60,14 +60,9 @@ const MarketingPreferences = () => {
     );
   };
 
-  const handleUnsubscribe = () => {
-    updatePrefs(
-      { type: "set_subscription", action: "unsubscribe" },
-      {
-        onError: () => toast.error(t("profile.marketing.save_error")),
-      },
-    );
-  };
+  // No unsubscribe-all button: users unsubscribe from everything via the
+  // Mailchimp email footer. Individual tag toggles below are the only
+  // opt-out affordance in-app.
 
   const handleToggleTag = (tagName: string, active: boolean) => {
     const updatedTags: TagPreference[] = prefs.tags.map((t) =>
@@ -98,15 +93,6 @@ const MarketingPreferences = () => {
         {isUnsubscribedOrMissing && (
           <Button onClick={handleSubscribe} disabled={isPending}>
             {t("profile.marketing.action_subscribe")}
-          </Button>
-        )}
-        {isSubscribed && (
-          <Button
-            variant="outline"
-            onClick={handleUnsubscribe}
-            disabled={isPending}
-          >
-            {t("profile.marketing.action_unsubscribe")}
           </Button>
         )}
         {prefs.state === "pending" && (

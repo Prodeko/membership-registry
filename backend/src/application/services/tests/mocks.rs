@@ -19,8 +19,7 @@ use crate::application::ports::{
     },
     email_port::{EmailError, EmailPort},
     marketing_list_port::{
-        ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences,
-        SubscriptionAction, TagPreference,
+        ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences, TagPreference,
     },
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     repository_error::RepositoryError,
@@ -188,7 +187,7 @@ mock! {
     #[async_trait::async_trait]
     impl MarketingListPort for MarketingListPort {
         async fn fetch_preferences(&self, email: &str, known_tags: &[String]) -> Result<MarketingPreferences, MarketingListError>;
-        async fn set_subscription(&self, identity: &ContactIdentity, action: SubscriptionAction) -> Result<(), MarketingListError>;
+        async fn subscribe(&self, identity: &ContactIdentity) -> Result<(), MarketingListError>;
         async fn set_tags(&self, identity: &ContactIdentity, tag_updates: &[TagPreference]) -> Result<(), MarketingListError>;
     }
 }

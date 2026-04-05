@@ -22,7 +22,6 @@ export type { KeycloakSyncStatusMap } from "./KeycloakSyncStatusMap";
 export type { LinkedProvider } from "./LinkedProvider";
 export type { MarketingPreferences } from "./MarketingPreferences";
 export type { MarketingPreferencesUpdate } from "./MarketingPreferencesUpdate";
-export type { SubscriptionAction } from "./SubscriptionAction";
 export type { SubscriptionState } from "./SubscriptionState";
 export type { TagPreference } from "./TagPreference";
 export type { MemberKeycloakSyncStatus } from "./MemberKeycloakSyncStatus";

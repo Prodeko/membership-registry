@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::application::ports::marketing_list_port::{
-    MarketingPreferences, SubscriptionAction, SubscriptionState, TagPreference,
+    MarketingPreferences, SubscriptionState, TagPreference,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, TS)]
@@ -67,27 +67,14 @@ impl From<MarketingPreferences> for MarketingPreferencesDTO {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Copy, TS)]
-#[ts(export, rename = "SubscriptionAction")]
-#[serde(rename_all = "snake_case")]
-pub enum SubscriptionActionDTO {
-    Subscribe,
-    Unsubscribe,
-}
-
-impl From<SubscriptionActionDTO> for SubscriptionAction {
-    fn from(a: SubscriptionActionDTO) -> Self {
-        match a {
-            SubscriptionActionDTO::Subscribe => Self::Subscribe,
-            SubscriptionActionDTO::Unsubscribe => Self::Unsubscribe,
-        }
-    }
-}
-
+/// Either resubscribe (which also re-enables every tag) or update the
+/// active/inactive state of individual tags. There is no unsubscribe
+/// variant: users opt out entirely via the Mailchimp email footer, not the
+/// app.
 #[derive(Debug, Deserialize, Clone, TS)]
 #[ts(export, rename = "MarketingPreferencesUpdate")]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum MarketingPreferencesUpdateDTO {
-    SetSubscription { action: SubscriptionActionDTO },
+    Subscribe,
     SetTags { tags: Vec<TagPreferenceDTO> },
 }

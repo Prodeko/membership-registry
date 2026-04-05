@@ -10,15 +10,13 @@ use validator::Validate;
 
 use crate::{
     application::{
-        ports::marketing_list_port::{ContactIdentity, SubscriptionAction, TagPreference},
-        services::{authentication_service::AuthenticatedUser, marketing_tags::MARKETING_TAGS},
+        ports::marketing_list_port::TagPreference,
+        services::authentication_service::AuthenticatedUser,
     },
     domain::UpdatePersonData,
     infrastructure::http::{
         dto::{
-            marketing::{
-                MarketingPreferencesDTO, MarketingPreferencesUpdateDTO, SubscriptionActionDTO,
-            },
+            marketing::{MarketingPreferencesDTO, MarketingPreferencesUpdateDTO},
             member::{MemberDTO, NewMemberDTO, UpdateMemberDTO},
             role::RoleMembershipDTO,
         },
@@ -146,28 +144,20 @@ async fn post_member(
     let new_person = new_member
         .into_new_person()
         .map_err(|_| ApiError::BadRequest)?;
-    let member = state
+    let person = state
         .member_service
         .create_member(new_person, Some(user_info.user_id))
-        .await
-        .map(MemberDTO::from)
-        .map(Json)?;
+        .await?;
 
-    Ok(member)
-}
+    // Best-effort auto-subscribe to the marketing list with every tag
+    // enabled. Mailchimp will send its own double-opt-in email so the user
+    // still has to confirm. Errors are swallowed inside the service — a
+    // Mailchimp outage must not fail user signup.
+    if let Some(marketing) = state.marketing_service.as_ref() {
+        marketing.subscribe_on_registration(&person).await;
+    }
 
-fn known_tags() -> Vec<String> {
-    MARKETING_TAGS.iter().map(|t| (*t).to_string()).collect()
-}
-
-async fn identity_for_user(state: &AppState, user_id: Uuid) -> ApiResult<ContactIdentity> {
-    let person = state.member_service.get_member(user_id).await?;
-    Ok(ContactIdentity {
-        email: person.email.into_inner(),
-        first_name: person.first_name,
-        last_name: person.last_name,
-        language: person.language,
-    })
+    Ok(Json(MemberDTO::from(person)))
 }
 
 #[debug_handler]
@@ -177,20 +167,11 @@ async fn get_marketing_preferences(
 ) -> ApiResult<Json<MarketingPreferencesDTO>> {
     let user = user_info.ok_or(ApiError::Unauthorized)?;
     let marketing = state
-        .marketing_port
+        .marketing_service
         .as_ref()
         .ok_or(ApiError::ServiceUnavailable)?;
 
-    let identity = identity_for_user(&state, user.user_id).await?;
-    let tags = known_tags();
-    let prefs = marketing
-        .fetch_preferences(&identity.email, &tags)
-        .await
-        .map_err(|e| {
-            tracing::error!("Mailchimp fetch_preferences failed: {e:?}");
-            ApiError::InternalServerError
-        })?;
-
+    let prefs = marketing.get_preferences(user.user_id).await?;
     Ok(Json(prefs.into()))
 }
 
@@ -202,67 +183,18 @@ async fn update_marketing_preferences(
 ) -> ApiResult<Json<MarketingPreferencesDTO>> {
     let user = user_info.ok_or(ApiError::Unauthorized)?;
     let marketing = state
-        .marketing_port
+        .marketing_service
         .as_ref()
         .ok_or(ApiError::ServiceUnavailable)?;
 
-    let identity = identity_for_user(&state, user.user_id).await?;
-    let tags = known_tags();
-
-    match body {
-        MarketingPreferencesUpdateDTO::SetSubscription { action } => {
-            let action: SubscriptionAction = action.into();
-            marketing
-                .set_subscription(&identity, action)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Mailchimp set_subscription failed: {e:?}");
-                    ApiError::InternalServerError
-                })?;
-        }
+    let prefs = match body {
+        MarketingPreferencesUpdateDTO::Subscribe => marketing.subscribe(user.user_id).await?,
         MarketingPreferencesUpdateDTO::SetTags { tags: incoming } => {
-            // Validate every incoming tag is in the known catalog.
-            for t in &incoming {
-                if !tags.iter().any(|k| k == &t.name) {
-                    return Err(ApiError::BadRequest);
-                }
-            }
-
-            // Reject tag updates when the contact hasn't been created yet.
-            let current = marketing
-                .fetch_preferences(&identity.email, &tags)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Mailchimp fetch_preferences failed: {e:?}");
-                    ApiError::InternalServerError
-                })?;
-
-            if matches!(
-                current.state,
-                crate::application::ports::marketing_list_port::SubscriptionState::NotAContact
-            ) {
-                return Err(ApiError::BadRequest);
-            }
-
             let tag_updates: Vec<TagPreference> =
                 incoming.into_iter().map(TagPreference::from).collect();
-            marketing
-                .set_tags(&identity, &tag_updates)
-                .await
-                .map_err(|e| {
-                    tracing::error!("Mailchimp set_tags failed: {e:?}");
-                    ApiError::InternalServerError
-                })?;
+            marketing.set_tags(user.user_id, tag_updates).await?
         }
-    }
-
-    let prefs = marketing
-        .fetch_preferences(&identity.email, &tags)
-        .await
-        .map_err(|e| {
-            tracing::error!("Mailchimp fetch_preferences failed: {e:?}");
-            ApiError::InternalServerError
-        })?;
+    };
 
     Ok(Json(prefs.into()))
 }

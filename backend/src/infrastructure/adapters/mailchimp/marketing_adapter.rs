@@ -2,7 +2,7 @@ use md5::{Digest, Md5};
 
 use crate::application::ports::marketing_list_port::{
     ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences,
-    SubscriptionAction, SubscriptionState, TagPreference,
+    SubscriptionState, TagPreference,
 };
 
 use super::config::MailchimpConfig;
@@ -131,23 +131,14 @@ impl MarketingListPort for MailchimpMarketingAdapter {
         Ok(parse_preferences(&body, known_tags))
     }
 
-    async fn set_subscription(
-        &self,
-        identity: &ContactIdentity,
-        action: SubscriptionAction,
-    ) -> Result<(), MarketingListError> {
-        // Subscribe always goes through `pending`: it avoids the compliance
-        // block entirely and makes Mailchimp send the opt-in email that the
-        // user then confirms from their inbox.
-        let status = match action {
-            SubscriptionAction::Subscribe => "pending",
-            SubscriptionAction::Unsubscribe => "unsubscribed",
-        };
-
+    async fn subscribe(&self, identity: &ContactIdentity) -> Result<(), MarketingListError> {
+        // Always `pending`: avoids the Mailchimp compliance block and
+        // triggers the double-opt-in email that the user confirms from
+        // their inbox.
         let payload = serde_json::json!({
             "email_address": identity.email,
-            "status": status,
-            "status_if_new": status,
+            "status": "pending",
+            "status_if_new": "pending",
             "language": identity.language,
             "merge_fields": {
                 "FNAME": identity.first_name,

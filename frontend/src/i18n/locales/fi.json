@@ -80,7 +80,6 @@
       "state_unsubscribed": "Peruttu",
       "state_not_a_contact": "Ei vielä listalla",
       "action_subscribe": "Tilaa",
-      "action_unsubscribe": "Peru tilaus",
       "pending_hint": "Tarkista sähköpostistasi vahvistusviesti.",
       "save_error": "Markkinointiasetusten tallennus epäonnistui.",
       "load_error": "Markkinointiasetusten lataaminen epäonnistui.",
