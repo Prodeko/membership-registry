@@ -2,6 +2,7 @@ import { test, expect } from "../fixtures";
 import { HomePage } from "../pages/home.page";
 import { ApplicationFormPage } from "../pages/application-form.page";
 import { loginViaKeycloak } from "../helpers/auth";
+import { completeMemberProfile } from "../helpers/profile";
 import { findKeycloakUserByEmail, getUserRealmRoles } from "../helpers/keycloak-api";
 import { clearCapturedEmails, getCapturedEmailsForRecipient } from "../helpers/email-api";
 import {
@@ -56,16 +57,7 @@ test.describe("Application with payment", () => {
     await loginViaKeycloak(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
 
     // Complete profile via admin API so we skip signup fields
-    const member = await db.getMemberByEmail(TEST_USER_EMAIL);
-    expect(member).not.toBeNull();
-    await adminApi.updateMember(member!.user_id as string, {
-      first_name: member!.first_name as string,
-      last_name: member!.last_name as string,
-      home_municipality: "Helsinki",
-      has_accepted_policies: true,
-      email_notifications: false,
-      language: "en",
-    });
+    await completeMemberProfile(db, adminApi, TEST_USER_EMAIL);
 
     // Navigate to apply
     const home = new HomePage(page);
@@ -100,16 +92,7 @@ test.describe("Application with payment", () => {
   }) => {
     await loginViaKeycloak(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
 
-    const member = await db.getMemberByEmail(TEST_USER_EMAIL);
-    expect(member).not.toBeNull();
-    await adminApi.updateMember(member!.user_id as string, {
-      first_name: member!.first_name as string,
-      last_name: member!.last_name as string,
-      home_municipality: "Helsinki",
-      has_accepted_policies: true,
-      email_notifications: false,
-      language: "en",
-    });
+    await completeMemberProfile(db, adminApi, TEST_USER_EMAIL);
 
     // Create application via UI
     const home = new HomePage(page);
@@ -139,8 +122,14 @@ test.describe("Application with payment", () => {
     const kcRoles = await getUserRealmRoles(kcUserId!);
     expect(kcRoles).toContain(TEST_ROLE_NAME);
 
-    // Verify approval email was sent (email send is async, allow a short wait)
-    await page.waitForTimeout(2_000);
+    // Verify approval email was sent (email send is async, poll until it arrives)
+    await expect
+      .poll(
+        async () =>
+          (await getCapturedEmailsForRecipient(TEST_USER_EMAIL)).length,
+        { timeout: 10_000 },
+      )
+      .toBeGreaterThan(0);
     const emails = await getCapturedEmailsForRecipient(TEST_USER_EMAIL);
     expect(emails.length).toBe(1);
     expect(emails[0].subject).toContain("approved");

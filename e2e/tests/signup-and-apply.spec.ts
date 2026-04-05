@@ -3,6 +3,7 @@ import { HomePage } from "../pages/home.page";
 import { ApplicationFormPage } from "../pages/application-form.page";
 import { ApplicationSuccessPage } from "../pages/application-success.page";
 import { loginViaKeycloak } from "../helpers/auth";
+import { completeMemberProfile } from "../helpers/profile";
 import {
   TEST_USER_EMAIL,
   TEST_USER_PASSWORD,
@@ -100,16 +101,7 @@ test.describe("Signup and apply", () => {
     await loginViaKeycloak(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
 
     // Complete profile via admin API
-    const member = await db.getMemberByEmail(TEST_USER_EMAIL);
-    expect(member).not.toBeNull();
-    await adminApi.updateMember(member!.user_id as string, {
-      first_name: member!.first_name as string,
-      last_name: member!.last_name as string,
-      home_municipality: "Helsinki",
-      has_accepted_policies: true,
-      email_notifications: false,
-      language: "en",
-    });
+    await completeMemberProfile(db, adminApi, TEST_USER_EMAIL);
 
     // Navigate to apply page
     await page.goto("/apply");
