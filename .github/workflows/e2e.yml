@@ -133,7 +133,8 @@ jobs:
           KEYCLOAK_ADMIN_CLIENT_SECRET: dev-secret-membership-registry-m2m
           STRIPE_ENDPOINT_SECRET: whsec_test
           SENDGRID_API_KEY: ""
-          AUTH_RATE_LIMIT_ENABLED: "false"
+          AUTH_RATE_LIMIT_PER_SECOND: "100"
+          AUTH_RATE_LIMIT_BURST_SIZE: "200"
 
       # --- Start frontend dev server ---
       - name: Start frontend

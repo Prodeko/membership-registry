@@ -15,11 +15,8 @@ export class HomePage {
 
   async getApplications(): Promise<{ roleName: string; status: string }[]> {
     const card = this.page.getByTestId("home-applications-card");
-    try {
-      await card.waitFor({ timeout: 5_000 });
-    } catch {
-      return [];
-    }
+    const isVisible = await card.isVisible();
+    if (!isVisible) return [];
 
     const rows = card.locator("[data-testid^='application-row-']");
     const count = await rows.count();

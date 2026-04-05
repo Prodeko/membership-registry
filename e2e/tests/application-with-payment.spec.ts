@@ -1,9 +1,8 @@
 import { test, expect } from "../fixtures";
 import { HomePage } from "../pages/home.page";
 import { ApplicationFormPage } from "../pages/application-form.page";
-import { KeycloakLoginPage } from "../pages/keycloak-login.page";
+import { loginViaKeycloak } from "../helpers/auth";
 import {
-  API_BASE_URL,
   TEST_USER_EMAIL,
   TEST_USER_PASSWORD,
   TEST_ROLE_NAME,
@@ -17,10 +16,9 @@ test.describe("Application with payment", () => {
     await db.cleanupTestUser(TEST_USER_EMAIL);
     await db.cleanupTestRole(TEST_ROLE_NAME);
     await adminApi.createRole(TEST_ROLE_NAME);
-    await db.ensureTargetableRole(
+    await adminApi.createTargetableRole(
       TEST_ROLE_NAME,
       TEST_ROLE_VALID_UNTIL,
-      true,
       TEST_PAYMENT_LINK,
     );
   });
@@ -30,21 +28,27 @@ test.describe("Application with payment", () => {
     await db.cleanupTestRole(TEST_ROLE_NAME);
   });
 
+  // Fresh login needed — beforeEach cleans up the test user
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test("application redirects to stripe with correct client_reference_id", async ({
     page,
     db,
+    adminApi,
   }) => {
-    // Login and set up profile
-    await page.goto(`${API_BASE_URL}/auth/login`);
-    const keycloak = new KeycloakLoginPage(page);
-    await keycloak.login(TEST_USER_EMAIL, TEST_USER_PASSWORD);
-    await page.waitForURL("**/home", { timeout: 30_000 });
+    await loginViaKeycloak(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
 
-    // Complete profile via DB so we skip signup fields
-    await db.query(
-      `UPDATE member SET home_municipality = 'Helsinki', has_accepted_policies = true WHERE email = $1`,
-      [TEST_USER_EMAIL],
-    );
+    // Complete profile via admin API so we skip signup fields
+    const member = await db.getMemberByEmail(TEST_USER_EMAIL);
+    expect(member).not.toBeNull();
+    await adminApi.updateMember(member!.user_id as string, {
+      first_name: member!.first_name as string,
+      last_name: member!.last_name as string,
+      home_municipality: "Helsinki",
+      has_accepted_policies: true,
+      email_notifications: false,
+      language: "en",
+    });
 
     // Navigate to apply
     const home = new HomePage(page);
@@ -77,16 +81,18 @@ test.describe("Application with payment", () => {
     db,
     adminApi,
   }) => {
-    // Login and complete profile
-    await page.goto(`${API_BASE_URL}/auth/login`);
-    const keycloak = new KeycloakLoginPage(page);
-    await keycloak.login(TEST_USER_EMAIL, TEST_USER_PASSWORD);
-    await page.waitForURL("**/home", { timeout: 30_000 });
+    await loginViaKeycloak(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
 
-    await db.query(
-      `UPDATE member SET home_municipality = 'Helsinki', has_accepted_policies = true WHERE email = $1`,
-      [TEST_USER_EMAIL],
-    );
+    const member = await db.getMemberByEmail(TEST_USER_EMAIL);
+    expect(member).not.toBeNull();
+    await adminApi.updateMember(member!.user_id as string, {
+      first_name: member!.first_name as string,
+      last_name: member!.last_name as string,
+      home_municipality: "Helsinki",
+      has_accepted_policies: true,
+      email_notifications: false,
+      language: "en",
+    });
 
     // Create application via UI
     const home = new HomePage(page);

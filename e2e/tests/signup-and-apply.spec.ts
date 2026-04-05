@@ -2,9 +2,8 @@ import { test, expect } from "../fixtures";
 import { HomePage } from "../pages/home.page";
 import { ApplicationFormPage } from "../pages/application-form.page";
 import { ApplicationSuccessPage } from "../pages/application-success.page";
-import { KeycloakLoginPage } from "../pages/keycloak-login.page";
+import { loginViaKeycloak } from "../helpers/auth";
 import {
-  API_BASE_URL,
   TEST_USER_EMAIL,
   TEST_USER_PASSWORD,
   TEST_ROLE_NAME,
@@ -16,7 +15,7 @@ test.describe("Signup and apply", () => {
     await db.cleanupTestUser(TEST_USER_EMAIL);
     await db.cleanupTestRole(TEST_ROLE_NAME);
     await adminApi.createRole(TEST_ROLE_NAME);
-    await db.ensureTargetableRole(TEST_ROLE_NAME, TEST_ROLE_VALID_UNTIL, true);
+    await adminApi.createTargetableRole(TEST_ROLE_NAME, TEST_ROLE_VALID_UNTIL);
   });
 
   test.afterEach(async ({ db }) => {
@@ -24,17 +23,15 @@ test.describe("Signup and apply", () => {
     await db.cleanupTestRole(TEST_ROLE_NAME);
   });
 
+  // This test needs a fresh login (no storageState) because it tests the new-user signup flow.
+  test.use({ storageState: { cookies: [], origins: [] } });
+
   test("new user can log in and submit an application", async ({
     page,
     db,
   }) => {
-    // Login via Keycloak
-    await page.goto(`${API_BASE_URL}/auth/login`);
-    const keycloak = new KeycloakLoginPage(page);
-    await keycloak.login(TEST_USER_EMAIL, TEST_USER_PASSWORD);
+    await loginViaKeycloak(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
 
-    // OAuth callback redirects to /home — backend auto-creates member
-    await page.waitForURL("**/home", { timeout: 30_000 });
     const home = new HomePage(page);
     await home.waitForLoaded();
 
@@ -75,43 +72,44 @@ test.describe("Signup and apply", () => {
     expect(dbApp!.status).toBe("pending");
 
     // Verify audit log entries
-    const loginCount = await db.count(
-      "audit_log",
-      "action = $1 AND actor_user_id IN (SELECT user_id FROM member WHERE email = $2)",
+    const loginRows = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM audit_log WHERE action = $1 AND actor_user_id IN (SELECT user_id FROM member WHERE email = $2)`,
       ["auth.login", TEST_USER_EMAIL],
     );
-    expect(loginCount).toBeGreaterThanOrEqual(1);
+    expect(parseInt(loginRows[0].count, 10)).toBeGreaterThanOrEqual(1);
 
-    const memberCreateCount = await db.count(
-      "audit_log",
-      "action = $1 AND actor_user_id IN (SELECT user_id FROM member WHERE email = $2)",
+    const memberCreateRows = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM audit_log WHERE action = $1 AND actor_user_id IN (SELECT user_id FROM member WHERE email = $2)`,
       ["member.create", TEST_USER_EMAIL],
     );
-    expect(memberCreateCount).toBe(1);
+    expect(parseInt(memberCreateRows[0].count, 10)).toBe(1);
 
-    const appCreateCount = await db.count(
-      "audit_log",
-      "action = $1 AND actor_user_id IN (SELECT user_id FROM member WHERE email = $2)",
+    const appCreateRows = await db.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM audit_log WHERE action = $1 AND actor_user_id IN (SELECT user_id FROM member WHERE email = $2)`,
       ["application.create", TEST_USER_EMAIL],
     );
-    expect(appCreateCount).toBe(1);
+    expect(parseInt(appCreateRows[0].count, 10)).toBe(1);
   });
 
   test("returning user does not see policies and municipality fields in application flow", async ({
     page,
     db,
+    adminApi,
   }) => {
-    // Seed: create member with complete profile by logging in first, then updating
-    await page.goto(`${API_BASE_URL}/auth/login`);
-    const keycloak = new KeycloakLoginPage(page);
-    await keycloak.login(TEST_USER_EMAIL, TEST_USER_PASSWORD);
-    await page.waitForURL("**/home", { timeout: 30_000 });
+    // Need fresh login to create the member first
+    await loginViaKeycloak(page, TEST_USER_EMAIL, TEST_USER_PASSWORD);
 
-    // Set municipality and policies via DB
-    await db.query(
-      `UPDATE member SET home_municipality = 'Helsinki', has_accepted_policies = true WHERE email = $1`,
-      [TEST_USER_EMAIL],
-    );
+    // Complete profile via admin API
+    const member = await db.getMemberByEmail(TEST_USER_EMAIL);
+    expect(member).not.toBeNull();
+    await adminApi.updateMember(member!.user_id as string, {
+      first_name: member!.first_name as string,
+      last_name: member!.last_name as string,
+      home_municipality: "Helsinki",
+      has_accepted_policies: true,
+      email_notifications: false,
+      language: "en",
+    });
 
     // Navigate to apply page
     await page.goto("/apply");

@@ -18,9 +18,21 @@ export default defineConfig({
   expect: {
     timeout: 10_000,
   },
-  use: {
-    ...devices["Desktop Chrome"],
-    baseURL: "http://127.0.0.1:5173",
-    trace: "on-first-retry",
-  },
+  projects: [
+    {
+      name: "setup",
+      testDir: ".",
+      testMatch: "auth.setup.ts",
+    },
+    {
+      name: "tests",
+      dependencies: ["setup"],
+      use: {
+        ...devices["Desktop Chrome"],
+        baseURL: "http://127.0.0.1:5173",
+        storageState: ".auth/user.json",
+        trace: "on-first-retry",
+      },
+    },
+  ],
 });
