@@ -20,7 +20,9 @@ const Success = () => {
           <div className="flex justify-center mb-4">
             <img src="/prodeko.svg" alt="Prodeko" className="h-20" />
           </div>
-          <CardTitle className="text-2xl" data-testid="success-title">{t("success.title")}</CardTitle>
+          <CardTitle className="text-2xl" data-testid="success-title">
+            {t("success.title")}
+          </CardTitle>
         </CardHeader>
         <Separator className="mx-6" />
         <CardContent className="pt-6 text-center space-y-2">

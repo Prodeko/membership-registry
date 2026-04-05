@@ -180,7 +180,11 @@ const ProfileEdit = () => {
               )}
             />
             <div className="flex gap-2">
-              <Button type="submit" disabled={isPending} data-testid="profile-save-button">
+              <Button
+                type="submit"
+                disabled={isPending}
+                data-testid="profile-save-button"
+              >
                 {isPending
                   ? t("profile.edit.saving")
                   : t("profile.edit.save_button")}

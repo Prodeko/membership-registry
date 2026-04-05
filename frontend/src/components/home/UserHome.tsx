@@ -126,10 +126,16 @@ const UserHome = () => {
                       r.valid_until === app.valid_until,
                   );
                   return (
-                    <div key={app.application_id} data-testid={`application-row-${app.application_id}`}>
+                    <div
+                      key={app.application_id}
+                      data-testid={`application-row-${app.application_id}`}
+                    >
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="font-medium" data-testid="application-role-name">
+                          <p
+                            className="font-medium"
+                            data-testid="application-role-name"
+                          >
                             {kebabCaseToTitleCase(app.role_name)}
                           </p>
                           <p className="text-sm text-muted-foreground flex items-center gap-1">
@@ -162,7 +168,10 @@ const UserHome = () => {
                               {t("home.applications.withdraw")}
                             </Button>
                           )}
-                          <Badge variant={statusVariant[app.status]} data-testid={`application-status-${app.application_id}`}>
+                          <Badge
+                            variant={statusVariant[app.status]}
+                            data-testid={`application-status-${app.application_id}`}
+                          >
                             {t(`status.${app.status}`)}
                           </Badge>
                         </div>
@@ -240,8 +249,7 @@ const UserHome = () => {
                   }
 
                   return [...grouped.values()].map((role) => {
-                    const isExpired =
-                      role.validUntil && role.validUntil < now;
+                    const isExpired = role.validUntil && role.validUntil < now;
                     const daysUntilExpiry = role.validUntil
                       ? Math.ceil(
                           (role.validUntil.getTime() - now.getTime()) /
@@ -254,7 +262,10 @@ const UserHome = () => {
                       daysUntilExpiry !== null &&
                       daysUntilExpiry <= 30;
                     return (
-                      <div key={role.role_name} data-testid={`role-row-${role.role_name}`}>
+                      <div
+                        key={role.role_name}
+                        data-testid={`role-row-${role.role_name}`}
+                      >
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="font-medium" data-testid="role-name">
@@ -279,7 +290,10 @@ const UserHome = () => {
                           </Badge>
                         </div>
                         {isExpiringSoon && (
-                          <div className="flex items-center justify-between mt-2 text-sm text-orange-600" data-testid={`role-expiring-warning-${role.role_name}`}>
+                          <div
+                            className="flex items-center justify-between mt-2 text-sm text-orange-600"
+                            data-testid={`role-expiring-warning-${role.role_name}`}
+                          >
                             <span>
                               {t("home.roles.expiring_soon", {
                                 days: daysUntilExpiry,
@@ -315,7 +329,12 @@ const UserHome = () => {
               <CardTitle className="text-lg">
                 {t("home.profile.title")}
               </CardTitle>
-              <Button variant="ghost" size="sm" asChild data-testid="edit-profile-button">
+              <Button
+                variant="ghost"
+                size="sm"
+                asChild
+                data-testid="edit-profile-button"
+              >
                 <Link to="/profile/edit">
                   <Pencil className="h-4 w-4 mr-1" />
                   {t("profile.edit_button")}
@@ -336,7 +355,9 @@ const UserHome = () => {
               <span className="text-muted-foreground">
                 {t("profile.fields.municipality")}
               </span>
-              <span data-testid="profile-municipality-value">{member.home_municipality ?? "-"}</span>
+              <span data-testid="profile-municipality-value">
+                {member.home_municipality ?? "-"}
+              </span>
               <span className="text-muted-foreground">
                 {t("profile.fields.email_notifications")}
               </span>
@@ -380,7 +401,9 @@ const UserHome = () => {
           </DialogHeader>
           <DialogFooter>
             <DialogClose asChild>
-              <Button variant="outline" data-testid="withdraw-cancel-button">{t("dialogs.cancel")}</Button>
+              <Button variant="outline" data-testid="withdraw-cancel-button">
+                {t("dialogs.cancel")}
+              </Button>
             </DialogClose>
             <Button
               variant="destructive"
