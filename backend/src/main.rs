@@ -12,7 +12,7 @@ mod infrastructure;
 
 use std::sync::Arc;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use envconfig::Envconfig;
 use tokio_util::sync::CancellationToken;
 use tracing_subscriber::EnvFilter;

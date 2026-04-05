@@ -2,7 +2,7 @@ mod audit_log;
 mod member;
 mod role;
 
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use sqlx::{migrate::MigrateDatabase, PgPool, Postgres};
 
 use super::PostgresRepo;

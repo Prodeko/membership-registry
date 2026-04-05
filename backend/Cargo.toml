@@ -6,7 +6,13 @@ edition = "2021"
 
 [dependencies]
 ammonia = "4"
-async-stripe = { version = "0.38.1", features = ["runtime-tokio-hyper"] }
+async-stripe = { version = "0.38.1", default-features = false, features = [
+    "runtime-tokio-hyper-rustls-webpki",
+    "full",
+    "webhook-events",
+    "uuid",
+    "stream",
+] }
 async-trait = "0.1.80"
 axum = { version = "0.7.2", features = ["tokio", "macros"] }
 axum-extra = { version = "0.9.3", features = ["cookie"] }
@@ -14,23 +20,23 @@ bytes = "1.6.1"
 chrono = { version = "0.4.38", features = ["serde"] }
 cookie = "0.18.1"
 csv = "1.3.0"
-dotenv = "0.15.0"
+dotenvy = "0.15"
 envconfig = "0.10.0"
 moka = { version = "0.12", features = ["future"] }
 futures-util = "0.3.30"
 http-body-util = "0.1.2"
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "builder"] }
 oauth2 = "4.4.2"
 percent-encoding = "2"
 postgres = "0.19.7"
 rand = "0.8.5"
 regex = "1"
-reqwest = { version = "0.11.27", features = ["json"] }
+reqwest = { version = "0.11.27", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1.0.193", features = ["derive"] }
 serde_json = "1.0.117"
 serde_with = "3.4.0"
-sqlx = { version = "0.7.3", features = [
+sqlx = { version = "0.8", features = [
     "postgres",
     "runtime-tokio",
     "macros",
@@ -51,9 +57,9 @@ tower-http = { version = "0.5.2", features = [
     "set-header",
 ] }
 tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 uuid = { version = "1.8", features = ["serde", "v4"] }
-validator = { version = "0.16.1", features = ["derive"] }
+validator = { version = "0.19", features = ["derive"] }
 tower_governor = "0.4"
 
 [dev-dependencies]
