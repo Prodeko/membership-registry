@@ -75,11 +75,7 @@ impl MarketingTagAdminService {
         Ok(updated)
     }
 
-    pub async fn delete_tag(
-        &self,
-        label: &str,
-        actor_user_id: Option<Uuid>,
-    ) -> ServiceResult<()> {
+    pub async fn delete_tag(&self, label: &str, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
         self.repo.delete(label).await.map_err(ServiceError::from)?;
 
         self.audit_log

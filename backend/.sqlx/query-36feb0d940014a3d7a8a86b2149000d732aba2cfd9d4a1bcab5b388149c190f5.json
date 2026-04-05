@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM MarketingTag WHERE label = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "36feb0d940014a3d7a8a86b2149000d732aba2cfd9d4a1bcab5b388149c190f5"
+}

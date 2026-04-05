@@ -26,6 +26,7 @@ use application::{
         auth_provider_repo_port::AuthProviderRepositoryPort,
         email_port::EmailPort,
         marketing_list_port::MarketingListPort,
+        marketing_tag_repository_port::MarketingTagRepositoryPort,
         member_repository_port::MemberRepositoryPort,
         role_renewal_repository_port::RoleRenewalRepositoryPort,
         role_repository_port::RoleRepositoryPort,
@@ -38,10 +39,10 @@ use application::{
     services::{
         application_service::ApplicationService, audit_log_service::AuditLogService,
         authentication_service::AuthenticationService, export_service::ExportService,
-        marketing_service::MarketingService, member_service::MemberService,
-        notification_service::NotificationService, renewal_service::RenewalService,
-        role_service::RoleService, saved_filter::SavedFilterService,
-        template_admin_service::TemplateAdminService,
+        marketing_service::MarketingService, marketing_tag_admin_service::MarketingTagAdminService,
+        member_service::MemberService, notification_service::NotificationService,
+        renewal_service::RenewalService, role_service::RoleService,
+        saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
     },
 };
 use config::Config;
@@ -76,6 +77,7 @@ pub struct Services {
     pub audit_log_service: AuditLogService,
     pub template_admin_service: TemplateAdminService,
     pub notification_service: NotificationService,
+    pub marketing_tag_admin_service: MarketingTagAdminService,
     pub marketing_service: Option<MarketingService>,
     pub payment_webhook: StripeWebhookAdapter,
     pub export_service: ExportService,
@@ -207,10 +209,20 @@ impl Services {
             Arc::new(repo.application.clone());
         let application_queries: Arc<dyn ApplicationQueryPort> = Arc::new(repo.application.clone());
         let targetable_roles: Arc<dyn TargetableRolePort> = Arc::new(repo.application);
+        let marketing_tag_repo: Arc<dyn MarketingTagRepositoryPort> = Arc::new(repo.marketing_tag);
+        let marketing_tag_admin_service = MarketingTagAdminService::new(
+            Arc::clone(&marketing_tag_repo),
+            audit_log_service.clone(),
+        );
+
         let marketing_port = build_marketing_port(&config);
-        let marketing_service = marketing_port
-            .as_ref()
-            .map(|port| MarketingService::new(Arc::clone(port), Arc::clone(&member_repo)));
+        let marketing_service = marketing_port.as_ref().map(|port| {
+            MarketingService::new(
+                Arc::clone(port),
+                Arc::clone(&member_repo),
+                Arc::clone(&marketing_tag_repo),
+            )
+        });
 
         let member_service = MemberService::new(
             Arc::clone(&member_repo),
@@ -260,6 +272,7 @@ impl Services {
             audit_log_service,
             template_admin_service,
             notification_service,
+            marketing_tag_admin_service,
             marketing_service,
             payment_webhook,
             export_service,

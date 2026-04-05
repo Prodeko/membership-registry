@@ -2,7 +2,7 @@ import {
   useGetMarketingPreferences,
   useUpdateMarketingPreferences,
 } from "@/lib/api";
-import { SubscriptionState, TagPreference } from "@/common/types";
+import { SubscriptionState, TagPreferenceUpdate } from "@/common/types";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import { Switch } from "../ui/switch";
@@ -11,9 +11,11 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 const MarketingPreferences = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { data: prefs, isLoading, error } = useGetMarketingPreferences();
   const { mutate: updatePrefs, isPending } = useUpdateMarketingPreferences();
+
+  const isFinnish = i18n.language?.startsWith("fi");
 
   if (isLoading) {
     return (
@@ -64,10 +66,11 @@ const MarketingPreferences = () => {
   // Mailchimp email footer. Individual tag toggles below are the only
   // opt-out affordance in-app.
 
-  const handleToggleTag = (tagName: string, active: boolean) => {
-    const updatedTags: TagPreference[] = prefs.tags.map((t) =>
-      t.name === tagName ? { ...t, active } : t,
-    );
+  const handleToggleTag = (label: string, active: boolean) => {
+    const updatedTags: TagPreferenceUpdate[] = prefs.tags.map((tag) => ({
+      label: tag.label,
+      active: tag.label === label ? active : tag.active,
+    }));
     updatePrefs(
       { type: "set_tags", tags: updatedTags },
       { onError: () => toast.error(t("profile.marketing.save_error")) },
@@ -103,22 +106,32 @@ const MarketingPreferences = () => {
       </div>
 
       {isSubscribed && (
-        <div className="space-y-3 border-t pt-4">
-          {prefs.tags.map((tag) => (
-            <div key={tag.name} className="flex items-center justify-between">
-              <Label htmlFor={`tag-${tag.name}`}>
-                {t(`profile.marketing.tags.${tag.name}`)}
-              </Label>
-              <Switch
-                id={`tag-${tag.name}`}
-                checked={tag.active}
-                disabled={isPending}
-                onCheckedChange={(checked) =>
-                  handleToggleTag(tag.name, checked)
-                }
-              />
-            </div>
-          ))}
+        <div className="space-y-4 border-t pt-4">
+          {prefs.tags.map((tag) => {
+            const name = isFinnish ? tag.name_fi : tag.name_en;
+            const desc = isFinnish ? tag.desc_fi : tag.desc_en;
+            return (
+              <div
+                key={tag.label}
+                className="flex items-start justify-between gap-4"
+              >
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor={`tag-${tag.label}`}>{name}</Label>
+                  {desc && (
+                    <p className="text-xs text-muted-foreground">{desc}</p>
+                  )}
+                </div>
+                <Switch
+                  id={`tag-${tag.label}`}
+                  checked={tag.active}
+                  disabled={isPending}
+                  onCheckedChange={(checked) =>
+                    handleToggleTag(tag.label, checked)
+                  }
+                />
+              </div>
+            );
+          })}
         </div>
       )}
     </Card>

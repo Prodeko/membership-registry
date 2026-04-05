@@ -57,6 +57,9 @@ const Header = () => {
             <Link to="/email-templates">Templates</Link>
           </NavigationMenuLink>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+            <Link to="/marketing-tags">Marketing tags</Link>
+          </NavigationMenuLink>
+          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
             <Link to="/data">Data</Link>
           </NavigationMenuLink>
           {config?.keycloak_admin_url && (

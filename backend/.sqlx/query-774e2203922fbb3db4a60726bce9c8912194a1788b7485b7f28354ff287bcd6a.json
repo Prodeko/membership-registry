@@ -1,0 +1,56 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT label, name_en, name_fi, desc_en, desc_fi, display_order, auto_apply\n            FROM MarketingTag\n            ORDER BY display_order ASC, label ASC\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "name_en",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "name_fi",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "desc_en",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "desc_fi",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "display_order",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "auto_apply",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "774e2203922fbb3db4a60726bce9c8912194a1788b7485b7f28354ff287bcd6a"
+}

@@ -9,11 +9,14 @@ import {
   CreateApplicationRequest,
   CreateApplicationResponse,
   CreateEmailTemplate,
+  CreateMarketingTag,
   EmailTemplate,
   EmailTemplateTranslation,
   KeycloakSyncStatusMap,
   MarketingPreferences,
   MarketingPreferencesUpdate,
+  MarketingTag,
+  UpdateMarketingTag,
   Member,
   MemberWithRoles,
   NewMember,
@@ -49,6 +52,7 @@ export enum QueryKey {
   PUBLIC_CONFIG = "public_config",
   KEYCLOAK_SYNC_STATUS = "keycloak_sync_status",
   MARKETING_PREFERENCES = "marketing_preferences",
+  MARKETING_TAGS = "marketing_tags",
 }
 
 export const axios_client = axios.create({
@@ -724,6 +728,67 @@ export const useUpdateMarketingPreferences = () => {
     },
     onSuccess: (data) => {
       queryClient.setQueryData([QueryKey.MARKETING_PREFERENCES], data);
+    },
+  });
+};
+
+export const useGetMarketingTags = () => {
+  return useQuery<MarketingTag[]>({
+    queryKey: [QueryKey.MARKETING_TAGS],
+    queryFn: async () => {
+      const response =
+        await admin_axios_client.get<MarketingTag[]>("/marketing-tags");
+      return response.data;
+    },
+  });
+};
+
+export const useCreateMarketingTag = () => {
+  const queryClient = useQueryClient();
+  return useMutation<MarketingTag, Error, CreateMarketingTag>({
+    mutationFn: async (tag) => {
+      const response = await admin_axios_client.post<MarketingTag>(
+        "/marketing-tags",
+        tag,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.MARKETING_TAGS] });
+    },
+  });
+};
+
+export const useUpdateMarketingTag = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    MarketingTag,
+    Error,
+    { label: string; data: UpdateMarketingTag }
+  >({
+    mutationFn: async ({ label, data }) => {
+      const response = await admin_axios_client.put<MarketingTag>(
+        `/marketing-tags/${encodeURIComponent(label)}`,
+        data,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.MARKETING_TAGS] });
+    },
+  });
+};
+
+export const useDeleteMarketingTag = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (label) => {
+      await admin_axios_client.delete(
+        `/marketing-tags/${encodeURIComponent(label)}`,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.MARKETING_TAGS] });
     },
   });
 };

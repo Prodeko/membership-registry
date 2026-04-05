@@ -82,11 +82,7 @@
       "action_subscribe": "Subscribe",
       "pending_hint": "Check your inbox for the confirmation email.",
       "save_error": "Failed to save marketing preferences.",
-      "load_error": "Failed to load marketing preferences.",
-      "tags": {
-        "weekly_newsletter": "Weekly newsletter",
-        "event_advertisements": "Event advertisements"
-      }
+      "load_error": "Failed to load marketing preferences."
     }
   },
   "application": {
