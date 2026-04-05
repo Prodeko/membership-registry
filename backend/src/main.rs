@@ -78,7 +78,7 @@ pub struct Services {
     pub template_admin_service: TemplateAdminService,
     pub notification_service: NotificationService,
     pub marketing_tag_admin_service: MarketingTagAdminService,
-    pub marketing_service: Option<MarketingService>,
+    pub marketing_service: Option<Arc<MarketingService>>,
     pub payment_webhook: StripeWebhookAdapter,
     pub export_service: ExportService,
 }
@@ -216,19 +216,21 @@ impl Services {
         );
 
         let marketing_port = build_marketing_port(&config);
-        let marketing_service = marketing_port.as_ref().map(|port| {
-            MarketingService::new(
-                Arc::clone(port),
-                Arc::clone(&member_repo),
-                Arc::clone(&marketing_tag_repo),
-            )
-        });
+        let marketing_service: Option<Arc<MarketingService>> =
+            marketing_port.as_ref().map(|port| {
+                Arc::new(MarketingService::new(
+                    Arc::clone(port),
+                    Arc::clone(&member_repo),
+                    Arc::clone(&marketing_tag_repo),
+                ))
+            });
 
         let member_service = MemberService::new(
             Arc::clone(&member_repo),
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
+            marketing_service.clone(),
         );
         let role_service = RoleService::new(
             Arc::clone(&role_repo),

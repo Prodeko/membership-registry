@@ -11,6 +11,7 @@ use uuid::Uuid;
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
+    marketing_service::MarketingService,
 };
 
 #[derive(Clone)]
@@ -19,6 +20,12 @@ pub struct MemberService {
     pub user_admin: Arc<dyn UserAdminPort>,
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
+    /// `None` in environments where Mailchimp is not configured (dev/e2e).
+    /// When set, every successful `create_member` auto-subscribes the new
+    /// member to the marketing list. Centralising this here ensures every
+    /// registration path — explicit `POST /members`, OAuth first-login —
+    /// goes through the same side effect.
+    pub marketing_service: Option<Arc<MarketingService>>,
 }
 
 impl MemberService {
@@ -27,12 +34,14 @@ impl MemberService {
         user_admin: Arc<dyn UserAdminPort>,
         auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
         audit_log: AuditLogService,
+        marketing_service: Option<Arc<MarketingService>>,
     ) -> Self {
         Self {
             member_repo,
             user_admin,
             auth_provider_repo,
             audit_log,
+            marketing_service,
         }
     }
 
@@ -81,6 +90,13 @@ impl MemberService {
                     }
                 });
             }
+        }
+
+        // Best-effort auto-subscribe to the marketing list. Errors are
+        // swallowed inside `subscribe_on_registration` — a Mailchimp outage
+        // must not fail user signup.
+        if let Some(marketing) = self.marketing_service.as_ref() {
+            marketing.subscribe_on_registration(&person).await;
         }
 
         Ok(person)

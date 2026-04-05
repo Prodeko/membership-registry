@@ -132,13 +132,19 @@ impl MarketingListPort for MailchimpMarketingAdapter {
     }
 
     async fn subscribe(&self, identity: &ContactIdentity) -> Result<(), MarketingListError> {
-        // Always `pending`: avoids the Mailchimp compliance block and
-        // triggers the double-opt-in email that the user confirms from
-        // their inbox.
+        // New contacts are created as `subscribed` directly — at signup time
+        // the user has accepted our policies, which is the consent we need,
+        // so there's no double-opt-in step.
+        //
+        // For *existing* contacts (e.g. the "resubscribe" button pressed by
+        // someone who had previously unsubscribed) we still use `pending`:
+        // Mailchimp's compliance block refuses to flip an unsubscribed
+        // contact back to `subscribed` via API, so `pending` is the only
+        // way through and it triggers Mailchimp's confirmation email.
         let payload = serde_json::json!({
             "email_address": identity.email,
             "status": "pending",
-            "status_if_new": "pending",
+            "status_if_new": "subscribed",
             "language": identity.language,
             "merge_fields": {
                 "FNAME": identity.first_name,

@@ -94,7 +94,7 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
         template_admin_service: Arc::new(services.template_admin_service),
         notification_service: Arc::new(services.notification_service),
         marketing_tag_admin_service: Arc::new(services.marketing_tag_admin_service),
-        marketing_service: services.marketing_service.map(Arc::new),
+        marketing_service: services.marketing_service,
         payment_webhook: Arc::new(services.payment_webhook),
         export_service: Arc::new(services.export_service),
         oauth2_client,

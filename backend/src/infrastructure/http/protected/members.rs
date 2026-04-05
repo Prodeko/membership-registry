@@ -149,14 +149,6 @@ async fn post_member(
         .create_member(new_person, Some(user_info.user_id))
         .await?;
 
-    // Best-effort auto-subscribe to the marketing list with every tag
-    // enabled. Mailchimp will send its own double-opt-in email so the user
-    // still has to confirm. Errors are swallowed inside the service — a
-    // Mailchimp outage must not fail user signup.
-    if let Some(marketing) = state.marketing_service.as_ref() {
-        marketing.subscribe_on_registration(&person).await;
-    }
-
     Ok(Json(MemberDTO::from(person)))
 }
 

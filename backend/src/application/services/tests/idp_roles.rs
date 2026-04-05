@@ -97,6 +97,7 @@ mod test_idp_roles {
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
+            None,
         );
         let role_service = RoleService::new(
             role_repo,
