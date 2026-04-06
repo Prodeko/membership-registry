@@ -21,6 +21,7 @@ import Roles from "./components/roles/Roles";
 import AuditLogs from "./components/audit-logs/AuditLogs";
 import DataManagement from "./components/data/DataManagement";
 import EmailTemplates from "./components/email-templates/EmailTemplates";
+import MarketingTags from "./components/marketing-tags/MarketingTags";
 import { ThemeProvider } from "./components/theme-provider";
 import Success from "./components/application-form/Success";
 import PaymentSuccess from "./components/payment/PaymentSuccess";
@@ -143,6 +144,14 @@ const router = createBrowserRouter([
     element: (
       <Layout>
         <EmailTemplates />
+      </Layout>
+    ),
+  },
+  {
+    path: "/marketing-tags",
+    element: (
+      <Layout>
+        <MarketingTags />
       </Layout>
     ),
   },

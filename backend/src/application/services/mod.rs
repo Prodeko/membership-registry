@@ -3,6 +3,8 @@ pub mod audit_log_service;
 pub mod authentication_service;
 pub mod errors;
 pub mod export_service;
+pub mod marketing_service;
+pub mod marketing_tag_admin_service;
 pub mod member_service;
 pub mod notification_service;
 pub mod renewal_service;

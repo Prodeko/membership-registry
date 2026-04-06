@@ -7,6 +7,8 @@ pub mod ports {
     pub mod data_export_port;
     pub mod email_port;
     pub mod html_sanitizer_port;
+    pub mod marketing_list_port;
+    pub mod marketing_tag_repository_port;
     pub mod member_repository_port;
     pub mod payment_webhook_port;
     pub mod repository_error;

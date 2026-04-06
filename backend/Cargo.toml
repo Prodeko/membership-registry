@@ -27,6 +27,7 @@ futures-util = "0.3.30"
 http-body-util = "0.1.2"
 jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
 lettre = { version = "0.11", default-features = false, features = ["smtp-transport", "tokio1-rustls-tls", "builder"] }
+md-5 = "0.10"
 oauth2 = "4.4.2"
 percent-encoding = "2"
 postgres = "0.19.7"

@@ -18,6 +18,10 @@ use crate::application::ports::{
         AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort,
     },
     email_port::{EmailError, EmailPort},
+    marketing_list_port::{
+        ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences, TagPreference,
+    },
+    marketing_tag_repository_port::MarketingTagRepositoryPort,
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     repository_error::RepositoryError,
     role_repository_port::{RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams},
@@ -28,7 +32,7 @@ use crate::application::ports::{
 };
 use crate::domain::{
     Application, ApplicationId, ApplicationStatus, EmailTemplate, EmailTemplateTranslation,
-    NewApplication, NewPerson, Person, Role, RoleName, UpdatePersonData,
+    MarketingTag, NewApplication, NewPerson, Person, Role, RoleName, UpdatePersonData,
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
@@ -93,6 +97,7 @@ mock! {
         async fn delete(&self, id: Uuid) -> Result<(), RepositoryError>;
         async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), RepositoryError>;
         async fn fetch_members_with_roles(&self, params: MembersWithRolesParams) -> Result<Vec<MemberWithRoles>, RepositoryError>;
+        async fn set_email_notifications_by_email(&self, email: &str, value: bool) -> Result<u64, RepositoryError>;
     }
 }
 
@@ -172,6 +177,33 @@ mock! {
     #[async_trait::async_trait]
     impl EmailPort for EmailPort {
         async fn send_email(&self, to: &str, subject: &str, html_body: &str) -> Result<(), EmailError>;
+    }
+}
+
+// --- MarketingListPort ---
+
+mock! {
+    pub MarketingListPort {}
+
+    #[async_trait::async_trait]
+    impl MarketingListPort for MarketingListPort {
+        async fn fetch_preferences(&self, email: &str, known_tags: &[String]) -> Result<MarketingPreferences, MarketingListError>;
+        async fn subscribe(&self, identity: &ContactIdentity) -> Result<(), MarketingListError>;
+        async fn set_tags(&self, identity: &ContactIdentity, tag_updates: &[TagPreference]) -> Result<(), MarketingListError>;
+    }
+}
+
+// --- MarketingTagRepositoryPort ---
+
+mock! {
+    pub MarketingTagRepositoryPort {}
+
+    #[async_trait::async_trait]
+    impl MarketingTagRepositoryPort for MarketingTagRepositoryPort {
+        async fn fetch_all(&self) -> Result<Vec<MarketingTag>, RepositoryError>;
+        async fn create(&self, tag: &MarketingTag) -> Result<MarketingTag, RepositoryError>;
+        async fn update(&self, tag: &MarketingTag) -> Result<MarketingTag, RepositoryError>;
+        async fn delete(&self, label: &str) -> Result<(), RepositoryError>;
     }
 }
 

@@ -71,7 +71,19 @@
       "saving": "Saving..."
     },
     "municipality_description": "Select the municipality where you mainly live. If you mainly live outside of Finland, select your country.",
-    "notifications_description": "Receive email notifications about application status changes."
+    "notifications_description": "Receive emails about your applications, renewal reminders, and other account notifications.",
+    "marketing": {
+      "title": "Marketing emails",
+      "description": "Manage your subscription to Prodeko's marketing mailings. These are separate from account notifications.",
+      "state_subscribed": "Subscribed",
+      "state_pending": "Awaiting confirmation",
+      "state_unsubscribed": "Unsubscribed",
+      "state_not_a_contact": "Not yet on list",
+      "action_subscribe": "Subscribe",
+      "pending_hint": "Check your inbox for the confirmation email.",
+      "save_error": "Failed to save marketing preferences.",
+      "load_error": "Failed to load marketing preferences."
+    }
   },
   "application": {
     "form": {

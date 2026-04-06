@@ -45,4 +45,13 @@ pub trait MemberRepositoryPort: Send + Sync {
         &self,
         params: MembersWithRolesParams,
     ) -> Result<Vec<MemberWithRoles>, RepositoryError>;
+
+    /// Narrow update used by marketing list sync when a contact unsubscribes
+    /// remotely. Returns the number of rows updated (0 if no member with
+    /// that email, or the flag was already at `value`).
+    async fn set_email_notifications_by_email(
+        &self,
+        email: &str,
+        value: bool,
+    ) -> Result<u64, RepositoryError>;
 }

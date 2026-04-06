@@ -215,14 +215,12 @@ async fn update_member(
         email_notifications: body.email_notifications,
         language: body.language,
     };
-    let result = state
+    let person = state
         .member_service
         .update_member(user_id, data, actor_id)
-        .await
-        .map(MemberDTO::from)
-        .map(Json)?;
+        .await?;
 
-    Ok(result)
+    Ok(Json(MemberDTO::from(person)))
 }
 
 #[debug_handler]

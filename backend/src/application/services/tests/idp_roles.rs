@@ -93,10 +93,11 @@ mod test_idp_roles {
         let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role.clone());
 
         let member_service = MemberService::new(
-            member_repo,
+            Arc::clone(&member_repo),
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
+            None,
         );
         let role_service = RoleService::new(
             role_repo,

@@ -13,6 +13,10 @@ export type {
   EmailTemplate,
   EmailTemplateTranslation,
   KeycloakSyncStatusMap,
+  CreateMarketingTag,
+  MarketingPreferences,
+  MarketingPreferencesUpdate,
+  MarketingTag,
   Member,
   MemberKeycloakSyncStatus,
   MemberWithRoles,
@@ -24,8 +28,12 @@ export type {
   RoleMember,
   RoleStats,
   SavedFilter,
+  SubscriptionState,
+  TagPreferenceUpdate,
+  UpdateMarketingTag,
   UpdateMember,
   UpdateRole,
+  UserMarketingTag,
 } from "./generated";
 
 // Frontend-only types (no backend equivalent)

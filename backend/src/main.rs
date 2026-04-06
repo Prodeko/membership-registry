@@ -25,6 +25,8 @@ use application::{
         audit_log_repository_port::AuditLogRepositoryPort,
         auth_provider_repo_port::AuthProviderRepositoryPort,
         email_port::EmailPort,
+        marketing_list_port::MarketingListPort,
+        marketing_tag_repository_port::MarketingTagRepositoryPort,
         member_repository_port::MemberRepositoryPort,
         role_renewal_repository_port::RoleRenewalRepositoryPort,
         role_repository_port::RoleRepositoryPort,
@@ -37,6 +39,7 @@ use application::{
     services::{
         application_service::ApplicationService, audit_log_service::AuditLogService,
         authentication_service::AuthenticationService, export_service::ExportService,
+        marketing_service::MarketingService, marketing_tag_admin_service::MarketingTagAdminService,
         member_service::MemberService, notification_service::NotificationService,
         renewal_service::RenewalService, role_service::RoleService,
         saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
@@ -53,6 +56,7 @@ use infrastructure::{
             KeycloakAuthAdapter, KeycloakClient, KeycloakConfig, KeycloakRoleSyncAdapter,
             KeycloakUserAdminAdapter,
         },
+        mailchimp::{MailchimpConfig, MailchimpMarketingAdapter},
         sendgrid::{SendGridConfig, SendGridEmailAdapter},
         smtp::{SmtpConfig, SmtpEmailAdapter},
         stripe::StripeWebhookAdapter,
@@ -73,6 +77,8 @@ pub struct Services {
     pub audit_log_service: AuditLogService,
     pub template_admin_service: TemplateAdminService,
     pub notification_service: NotificationService,
+    pub marketing_tag_admin_service: MarketingTagAdminService,
+    pub marketing_service: Option<Arc<MarketingService>>,
     pub payment_webhook: StripeWebhookAdapter,
     pub export_service: ExportService,
 }
@@ -111,6 +117,44 @@ fn build_email_port(config: &Config) -> Option<Arc<dyn EmailPort>> {
         from_email: non_empty(&config.sendgrid_from_email)
             .unwrap_or_else(|| DEFAULT_FROM_EMAIL.to_string()),
     })))
+}
+
+/// Build the Mailchimp marketing list adapter. Returns `None` only when
+/// *both* env vars are absent — that's the intended dev/e2e no-op mode. Any
+/// other shape (one var set, both set but API key missing its datacenter
+/// suffix) is treated as an operator misconfiguration and aborts startup,
+/// because silently disabling the sync in that case would cause the app to
+/// look healthy while the Mailchimp integration is dark.
+fn build_marketing_port(config: &Config) -> Option<Arc<dyn MarketingListPort>> {
+    let api_key = non_empty(&config.mailchimp_api_key);
+    let list_id = non_empty(&config.mailchimp_list_id);
+    match (api_key, list_id) {
+        (None, None) => {
+            tracing::debug!("Mailchimp marketing sync disabled: no credentials configured");
+            None
+        }
+        (Some(api_key), Some(list_id)) => {
+            let mc_config = MailchimpConfig::new(api_key, list_id).unwrap_or_else(|| {
+                tracing::error!(
+                    "MAILCHIMP_API_KEY is missing the datacenter suffix (expected '<key>-<dc>')"
+                );
+                std::process::exit(1);
+            });
+            Some(Arc::new(MailchimpMarketingAdapter::new(mc_config)))
+        }
+        (Some(_), None) => {
+            tracing::error!(
+                "MAILCHIMP_API_KEY is set but MAILCHIMP_LIST_ID is missing; refusing to start with a half-configured marketing sync"
+            );
+            std::process::exit(1);
+        }
+        (None, Some(_)) => {
+            tracing::error!(
+                "MAILCHIMP_LIST_ID is set but MAILCHIMP_API_KEY is missing; refusing to start with a half-configured marketing sync"
+            );
+            std::process::exit(1);
+        }
+    }
 }
 
 impl Services {
@@ -165,12 +209,28 @@ impl Services {
             Arc::new(repo.application.clone());
         let application_queries: Arc<dyn ApplicationQueryPort> = Arc::new(repo.application.clone());
         let targetable_roles: Arc<dyn TargetableRolePort> = Arc::new(repo.application);
+        let marketing_tag_repo: Arc<dyn MarketingTagRepositoryPort> = Arc::new(repo.marketing_tag);
+        let marketing_tag_admin_service = MarketingTagAdminService::new(
+            Arc::clone(&marketing_tag_repo),
+            audit_log_service.clone(),
+        );
+
+        let marketing_port = build_marketing_port(&config);
+        let marketing_service: Option<Arc<MarketingService>> =
+            marketing_port.as_ref().map(|port| {
+                Arc::new(MarketingService::new(
+                    Arc::clone(port),
+                    Arc::clone(&member_repo),
+                    Arc::clone(&marketing_tag_repo),
+                ))
+            });
 
         let member_service = MemberService::new(
             Arc::clone(&member_repo),
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
+            marketing_service.clone(),
         );
         let role_service = RoleService::new(
             Arc::clone(&role_repo),
@@ -187,6 +247,7 @@ impl Services {
             audit_log_service.clone(),
             notification_service.clone(),
         );
+
         let renewal_repo: Arc<dyn RoleRenewalRepositoryPort> = Arc::new(repo.role_renewal);
         let renewal_service = RenewalService::new(
             renewal_repo,
@@ -213,6 +274,8 @@ impl Services {
             audit_log_service,
             template_admin_service,
             notification_service,
+            marketing_tag_admin_service,
+            marketing_service,
             payment_webhook,
             export_service,
         }

@@ -14,6 +14,7 @@ pub enum ApiError {
     Forbidden,
     BadRequest,
     InternalServerError,
+    ServiceUnavailable,
 }
 
 pub type ApiResult<T> = Result<T, ApiError>;
@@ -28,6 +29,9 @@ impl IntoResponse for ApiError {
             ApiError::BadRequest => (StatusCode::BAD_REQUEST, "Bad request").into_response(),
             ApiError::InternalServerError => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error").into_response()
+            }
+            ApiError::ServiceUnavailable => {
+                (StatusCode::SERVICE_UNAVAILABLE, "Service unavailable").into_response()
             }
         }
     }
@@ -91,6 +95,9 @@ impl IntoResponse for ServiceError {
             ServiceError::ExportFailed => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Export failed").into_response()
             }
+            ServiceError::MarketingSyncFailed(_) => {
+                (StatusCode::BAD_GATEWAY, "Marketing list sync failed").into_response()
+            }
         }
     }
 }
@@ -119,6 +126,9 @@ impl From<ServiceError> for ApiError {
             ServiceError::CannotUnlinkLastProvider => ApiError::BadRequest,
             ServiceError::InvalidTemplate => ApiError::BadRequest,
             ServiceError::ExportFailed => ApiError::InternalServerError,
+            ServiceError::MarketingSyncFailed(msg) => {
+                ApiError::ServiceError(ServiceError::MarketingSyncFailed(msg))
+            }
         }
     }
 }

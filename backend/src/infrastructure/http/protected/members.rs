@@ -9,10 +9,14 @@ use uuid::Uuid;
 use validator::Validate;
 
 use crate::{
-    application::services::authentication_service::AuthenticatedUser,
+    application::{
+        ports::marketing_list_port::TagPreference,
+        services::authentication_service::AuthenticatedUser,
+    },
     domain::UpdatePersonData,
     infrastructure::http::{
         dto::{
+            marketing::{MarketingPreferencesDTO, MarketingPreferencesUpdateDTO},
             member::{MemberDTO, NewMemberDTO, UpdateMemberDTO},
             role::RoleMembershipDTO,
         },
@@ -34,6 +38,10 @@ pub fn router(state: AppState) -> Router<AppState> {
         ))
         .route("/", post(post_member))
         .route("/me", get(get_me))
+        .route(
+            "/me/marketing-preferences",
+            get(get_marketing_preferences).post(update_marketing_preferences),
+        )
 }
 
 #[debug_handler]
@@ -136,12 +144,49 @@ async fn post_member(
     let new_person = new_member
         .into_new_person()
         .map_err(|_| ApiError::BadRequest)?;
-    let member = state
+    let person = state
         .member_service
         .create_member(new_person, Some(user_info.user_id))
-        .await
-        .map(MemberDTO::from)
-        .map(Json)?;
+        .await?;
 
-    Ok(member)
+    Ok(Json(MemberDTO::from(person)))
+}
+
+#[debug_handler]
+async fn get_marketing_preferences(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+) -> ApiResult<Json<MarketingPreferencesDTO>> {
+    let user = user_info.ok_or(ApiError::Unauthorized)?;
+    let marketing = state
+        .marketing_service
+        .as_ref()
+        .ok_or(ApiError::ServiceUnavailable)?;
+
+    let prefs = marketing.get_preferences(user.user_id).await?;
+    Ok(Json(prefs.into()))
+}
+
+#[debug_handler]
+async fn update_marketing_preferences(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+    Json(body): Json<MarketingPreferencesUpdateDTO>,
+) -> ApiResult<Json<MarketingPreferencesDTO>> {
+    let user = user_info.ok_or(ApiError::Unauthorized)?;
+    let marketing = state
+        .marketing_service
+        .as_ref()
+        .ok_or(ApiError::ServiceUnavailable)?;
+
+    let prefs = match body {
+        MarketingPreferencesUpdateDTO::Subscribe => marketing.subscribe(user.user_id).await?,
+        MarketingPreferencesUpdateDTO::SetTags { tags: incoming } => {
+            let tag_updates: Vec<TagPreference> =
+                incoming.into_iter().map(TagPreference::from).collect();
+            marketing.set_tags(user.user_id, tag_updates).await?
+        }
+    };
+
+    Ok(Json(prefs.into()))
 }

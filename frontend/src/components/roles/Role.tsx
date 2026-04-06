@@ -194,7 +194,9 @@ const Role = () => {
               </div>
             </div>
           )}
+        </div>
 
+        <div className="border-t pt-6">
           <Button onClick={handleSave} disabled={isPending}>
             {isPending ? "Saving..." : "Save"}
           </Button>

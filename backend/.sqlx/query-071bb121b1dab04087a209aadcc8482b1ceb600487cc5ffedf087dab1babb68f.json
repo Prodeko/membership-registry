@@ -1,0 +1,64 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE MarketingTag\n            SET name_en = $2,\n                name_fi = $3,\n                desc_en = $4,\n                desc_fi = $5,\n                display_order = $6,\n                auto_apply = $7\n            WHERE label = $1\n            RETURNING label, name_en, name_fi, desc_en, desc_fi, display_order, auto_apply\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "label",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "name_en",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "name_fi",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "desc_en",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "desc_fi",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "display_order",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 6,
+        "name": "auto_apply",
+        "type_info": "Bool"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Int4",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "071bb121b1dab04087a209aadcc8482b1ceb600487cc5ffedf087dab1babb68f"
+}

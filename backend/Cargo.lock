@@ -1752,6 +1752,7 @@ dependencies = [
  "http-body-util",
  "jsonwebtoken",
  "lettre",
+ "md-5",
  "mockall",
  "moka",
  "oauth2",
