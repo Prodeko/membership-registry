@@ -29,9 +29,12 @@ export class HomePage {
 
     for (let i = 0; i < count; i++) {
       const row = rows.nth(i);
-      const roleName = await row.locator("[data-testid='application-role-name']").textContent() ?? "";
+      const roleName =
+        (await row
+          .locator("[data-testid='application-role-name']")
+          .textContent()) ?? "";
       const statusBadge = row.locator("[data-testid^='application-status-']");
-      const status = await statusBadge.textContent() ?? "";
+      const status = (await statusBadge.textContent()) ?? "";
       results.push({ roleName: roleName.trim(), status: status.trim() });
     }
 
@@ -60,9 +63,10 @@ export class HomePage {
 
     for (let i = 0; i < count; i++) {
       const row = rows.nth(i);
-      const roleName = await row.locator("[data-testid='role-name']").textContent() ?? "";
+      const roleName =
+        (await row.locator("[data-testid='role-name']").textContent()) ?? "";
       const statusBadge = row.locator("[data-testid^='role-status-']");
-      const status = await statusBadge.textContent() ?? "";
+      const status = (await statusBadge.textContent()) ?? "";
       results.push({ roleName: roleName.trim(), status: status.trim() });
     }
 
@@ -70,7 +74,9 @@ export class HomePage {
   }
 
   async isExpiringWarningVisible(roleName: string): Promise<boolean> {
-    return this.page.getByTestId(`role-expiring-warning-${roleName}`).isVisible();
+    return this.page
+      .getByTestId(`role-expiring-warning-${roleName}`)
+      .isVisible();
   }
 
   async getRenewalLinkHref(roleName: string): Promise<string | null> {
@@ -82,11 +88,17 @@ export class HomePage {
   // --- Profile ---
 
   async getProfileName(): Promise<string> {
-    return (await this.page.getByTestId("profile-name-value").textContent()) ?? "";
+    return (
+      (await this.page.getByTestId("profile-name-value").textContent()) ?? ""
+    );
   }
 
   async getProfileMunicipality(): Promise<string> {
-    return (await this.page.getByTestId("profile-municipality-value").textContent()) ?? "";
+    return (
+      (await this.page
+        .getByTestId("profile-municipality-value")
+        .textContent()) ?? ""
+    );
   }
 
   async clickEditProfile(): Promise<void> {

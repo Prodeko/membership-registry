@@ -1,7 +1,10 @@
 const KEYCLOAK_URL = process.env.KEYCLOAK_URL ?? "http://127.0.0.1:8180";
 const KEYCLOAK_REALM = process.env.KEYCLOAK_REALM ?? "membership-registry";
-const CLIENT_ID = process.env.KEYCLOAK_ADMIN_CLIENT_ID ?? "membership-registry-m2m";
-const CLIENT_SECRET = process.env.KEYCLOAK_ADMIN_CLIENT_SECRET ?? "dev-secret-membership-registry-m2m";
+const CLIENT_ID =
+  process.env.KEYCLOAK_ADMIN_CLIENT_ID ?? "membership-registry-m2m";
+const CLIENT_SECRET =
+  process.env.KEYCLOAK_ADMIN_CLIENT_SECRET ??
+  "dev-secret-membership-registry-m2m";
 
 let cachedToken: { token: string; expiresAt: number } | null = null;
 
@@ -24,10 +27,15 @@ async function getServiceToken(): Promise<string> {
   );
 
   if (!resp.ok) {
-    throw new Error(`Keycloak token request failed: ${resp.status} ${await resp.text()}`);
+    throw new Error(
+      `Keycloak token request failed: ${resp.status} ${await resp.text()}`,
+    );
   }
 
-  const data = await resp.json() as { access_token: string; expires_in: number };
+  const data = (await resp.json()) as {
+    access_token: string;
+    expires_in: number;
+  };
   cachedToken = {
     token: data.access_token,
     expiresAt: Date.now() + data.expires_in * 1000,
@@ -47,10 +55,12 @@ export async function getUserRealmRoles(
   );
 
   if (!resp.ok) {
-    throw new Error(`Failed to get user roles: ${resp.status} ${await resp.text()}`);
+    throw new Error(
+      `Failed to get user roles: ${resp.status} ${await resp.text()}`,
+    );
   }
 
-  const roles = await resp.json() as { name: string }[];
+  const roles = (await resp.json()) as { name: string }[];
   return roles.map((r) => r.name);
 }
 
@@ -66,9 +76,11 @@ export async function findKeycloakUserByEmail(
   );
 
   if (!resp.ok) {
-    throw new Error(`Failed to find KC user: ${resp.status} ${await resp.text()}`);
+    throw new Error(
+      `Failed to find KC user: ${resp.status} ${await resp.text()}`,
+    );
   }
 
-  const users = await resp.json() as { id: string }[];
+  const users = (await resp.json()) as { id: string }[];
   return users[0]?.id ?? null;
 }

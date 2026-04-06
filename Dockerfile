@@ -1,11 +1,12 @@
 # Stage 1: Frontend build
 FROM node:20-bookworm-slim AS frontend
+RUN corepack enable
 WORKDIR /frontend
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+COPY frontend/package.json frontend/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
 COPY frontend/ .
 ARG VITE_API_BASE_URL=/api
-RUN npm run build
+RUN pnpm run build
 
 # Stage 2: Backend build
 FROM rust:1.92-bookworm AS backend

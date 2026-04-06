@@ -14,7 +14,9 @@ export class ApplicationFormPage {
   async selectRole(roleName: string): Promise<void> {
     await this.page.getByTestId("role-select").click();
     // Select items are rendered in a portal — use role-based locator
-    await this.page.getByRole("option", { name: new RegExp(roleName, "i") }).click();
+    await this.page
+      .getByRole("option", { name: new RegExp(roleName, "i") })
+      .click();
   }
 
   async fillApplicationText(text: string): Promise<void> {

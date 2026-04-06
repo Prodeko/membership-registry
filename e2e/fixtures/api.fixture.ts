@@ -37,7 +37,9 @@ export class AdminApiHelper {
   async createRole(name: string): Promise<void> {
     const resp = await this.request("POST", "/admin/roles", { name });
     if (!resp.ok && resp.status !== 409) {
-      throw new Error(`Create role failed: ${resp.status} ${await resp.text()}`);
+      throw new Error(
+        `Create role failed: ${resp.status} ${await resp.text()}`,
+      );
     }
   }
 
@@ -50,13 +52,20 @@ export class AdminApiHelper {
       renewal_notification_days?: number[];
     },
   ): Promise<void> {
-    const resp = await this.request("PUT", `/admin/roles/${encodeURIComponent(roleName)}`, {
-      renewable: data.renewable,
-      renewal_payment_link: data.renewal_payment_link ?? null,
-      renewal_period_months: data.renewal_period_months ?? null,
-      renewal_notification_days: data.renewal_notification_days ?? [30, 7, 1],
-    });
-    if (!resp.ok) throw new Error(`Update role failed: ${resp.status} ${await resp.text()}`);
+    const resp = await this.request(
+      "PUT",
+      `/admin/roles/${encodeURIComponent(roleName)}`,
+      {
+        renewable: data.renewable,
+        renewal_payment_link: data.renewal_payment_link ?? null,
+        renewal_period_months: data.renewal_period_months ?? null,
+        renewal_notification_days: data.renewal_notification_days ?? [30, 7, 1],
+      },
+    );
+    if (!resp.ok)
+      throw new Error(
+        `Update role failed: ${resp.status} ${await resp.text()}`,
+      );
   }
 
   async updateMember(
@@ -71,7 +80,10 @@ export class AdminApiHelper {
     },
   ): Promise<void> {
     const resp = await this.request("PUT", `/admin/members/${userId}`, data);
-    if (!resp.ok) throw new Error(`Update member failed: ${resp.status} ${await resp.text()}`);
+    if (!resp.ok)
+      throw new Error(
+        `Update member failed: ${resp.status} ${await resp.text()}`,
+      );
   }
 
   async assignRole(
@@ -85,7 +97,10 @@ export class AdminApiHelper {
       valid_from: validFrom,
       valid_until: validUntil ?? null,
     });
-    if (!resp.ok) throw new Error(`Assign role failed: ${resp.status} ${await resp.text()}`);
+    if (!resp.ok)
+      throw new Error(
+        `Assign role failed: ${resp.status} ${await resp.text()}`,
+      );
   }
 
   async approveApplication(applicationId: string): Promise<void> {
@@ -94,7 +109,8 @@ export class AdminApiHelper {
       `/admin/applications/${applicationId}/status`,
       { action: "approve" },
     );
-    if (!resp.ok) throw new Error(`Approve failed: ${resp.status} ${await resp.text()}`);
+    if (!resp.ok)
+      throw new Error(`Approve failed: ${resp.status} ${await resp.text()}`);
   }
 
   async rejectApplication(applicationId: string): Promise<void> {
@@ -103,7 +119,8 @@ export class AdminApiHelper {
       `/admin/applications/${applicationId}/status`,
       { action: "reject" },
     );
-    if (!resp.ok) throw new Error(`Reject failed: ${resp.status} ${await resp.text()}`);
+    if (!resp.ok)
+      throw new Error(`Reject failed: ${resp.status} ${await resp.text()}`);
   }
 
   async createTargetableRole(
@@ -126,13 +143,18 @@ export class AdminApiHelper {
         rejected_email_template: opts?.rejected_email_template ?? null,
       },
     );
-    if (!resp.ok) throw new Error(`Create targetable role failed: ${resp.status} ${await resp.text()}`);
+    if (!resp.ok)
+      throw new Error(
+        `Create targetable role failed: ${resp.status} ${await resp.text()}`,
+      );
   }
 
   async createEmailTemplate(name: string): Promise<void> {
     const resp = await this.request("POST", "/admin/email-templates", { name });
     if (!resp.ok && resp.status !== 409) {
-      throw new Error(`Create email template failed: ${resp.status} ${await resp.text()}`);
+      throw new Error(
+        `Create email template failed: ${resp.status} ${await resp.text()}`,
+      );
     }
   }
 
@@ -147,7 +169,10 @@ export class AdminApiHelper {
       `/admin/email-templates/${encodeURIComponent(templateName)}/translations/${locale}`,
       { subject, body_html: bodyHtml },
     );
-    if (!resp.ok) throw new Error(`Upsert translation failed: ${resp.status} ${await resp.text()}`);
+    if (!resp.ok)
+      throw new Error(
+        `Upsert translation failed: ${resp.status} ${await resp.text()}`,
+      );
   }
 
   async deleteEmailTemplate(name: string): Promise<void> {
@@ -156,7 +181,9 @@ export class AdminApiHelper {
       `/admin/email-templates/${encodeURIComponent(name)}`,
     );
     if (!resp.ok && resp.status !== 404) {
-      throw new Error(`Delete email template failed: ${resp.status} ${await resp.text()}`);
+      throw new Error(
+        `Delete email template failed: ${resp.status} ${await resp.text()}`,
+      );
     }
   }
 
@@ -169,7 +196,9 @@ export class AdminApiHelper {
       `/admin/applications/targetable-roles?role_name=${encodeURIComponent(roleName)}&valid_until=${encodeURIComponent(validUntil)}`,
     );
     if (!resp.ok && resp.status !== 404) {
-      throw new Error(`Delete targetable role failed: ${resp.status} ${await resp.text()}`);
+      throw new Error(
+        `Delete targetable role failed: ${resp.status} ${await resp.text()}`,
+      );
     }
   }
 }

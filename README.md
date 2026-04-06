@@ -5,6 +5,7 @@
 - [Docker](https://docs.docker.com/get-docker/)
 - [Rust](https://www.rust-lang.org/tools/install)
 - [Node.js](https://nodejs.org/)
+- [pnpm](https://pnpm.io/installation)
 - [sqlx-cli](https://crates.io/crates/sqlx-cli): `cargo install sqlx-cli`
 - [Stripe CLI](https://docs.stripe.com/stripe-cli): `brew install stripe/stripe-cli/stripe` (or see docs for other OS)
 
@@ -19,14 +20,14 @@ cp backend/.env.template backend/.env
 cp frontend/.env.template frontend/.env
 
 # Install frontend dependencies and run migrations
-cd frontend && npm install
+cd frontend && pnpm install
 cd backend && sqlx migrate run
 
 # Start backend
 cd backend && cargo run
 
 # Start frontend in another terminal
-cd frontend && npm run dev
+cd frontend && pnpm run dev
 ```
 
 ## Auth0 configuration
@@ -158,14 +159,14 @@ cargo clippy
 ```bash
 cd frontend
 
-npx tsc --noEmit
-npm run lint
-npx prettier --check .
+pnpm exec tsc --noEmit
+pnpm run lint
+pnpm exec prettier --check .
 ```
 
 ### End-to-end tests
 
 ```bash
 cp e2e/.env.e2e.template e2e/.env.e2e
-cd e2e && npx playwright test
+cd e2e && pnpm exec playwright test
 ```
