@@ -3,7 +3,10 @@ import { HomePage } from "../pages/home.page";
 import { ApplicationFormPage } from "../pages/application-form.page";
 import { loginViaKeycloak } from "../helpers/auth";
 import { completeMemberProfile } from "../helpers/profile";
-import { findKeycloakUserByEmail, getUserRealmRoles } from "../helpers/keycloak-api";
+import {
+  findKeycloakUserByEmail,
+  getUserRealmRoles,
+} from "../helpers/keycloak-api";
 import {
   clearCapturedEmailsForRecipient,
   getCapturedEmailsForRecipient,
@@ -47,7 +50,9 @@ test.describe("Application with payment", () => {
   test.afterEach(async ({ db, adminApi, testUser, testRole }, testInfo) => {
     await db.cleanupTestUser(testUser.email);
     await db.cleanupTestRole(testRole.name);
-    await adminApi.deleteEmailTemplate(emailTemplateName(testInfo.parallelIndex));
+    await adminApi.deleteEmailTemplate(
+      emailTemplateName(testInfo.parallelIndex),
+    );
   });
 
   // Fresh login needed — beforeEach cleans up the test user

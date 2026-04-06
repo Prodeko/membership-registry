@@ -30,6 +30,25 @@ jobs:
       - run: pnpm run lint
       - run: pnpm exec prettier --check .
 
+  e2e:
+    name: E2E checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: e2e
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+          cache-dependency-path: e2e/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prettier --check .
+
   backend:
     name: Backend checks
     runs-on: ubuntu-latest

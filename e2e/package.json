@@ -4,13 +4,16 @@
   "type": "module",
   "scripts": {
     "test": "playwright test",
-    "test:ui": "playwright test --ui"
+    "test:ui": "playwright test --ui",
+    "prettier": "npx prettier --check .",
+    "prettier:fix": "npx prettier --write ."
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
     "@types/node": "^25.2.3",
     "@types/pg": "^8.11.0",
     "dotenv": "^17.3.1",
-    "pg": "^8.13.0"
+    "pg": "^8.13.0",
+    "prettier": "^3.8.1"
   }
 }

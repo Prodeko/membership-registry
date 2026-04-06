@@ -34,7 +34,7 @@ export async function getCapturedEmails(): Promise<CapturedEmail[]> {
   if (!resp.ok) {
     throw new Error(`Mailpit list failed: ${resp.status} ${await resp.text()}`);
   }
-  const data = await resp.json() as { messages: MailpitMessageSummary[] };
+  const data = (await resp.json()) as { messages: MailpitMessageSummary[] };
   return (data.messages ?? []).map(toCaptured);
 }
 
@@ -45,9 +45,11 @@ export async function getCapturedEmailsForRecipient(
     `${MAILPIT_URL}/api/v1/search?query=${encodeURIComponent(`to:${email}`)}`,
   );
   if (!resp.ok) {
-    throw new Error(`Mailpit search failed: ${resp.status} ${await resp.text()}`);
+    throw new Error(
+      `Mailpit search failed: ${resp.status} ${await resp.text()}`,
+    );
   }
-  const data = await resp.json() as { messages: MailpitMessageSummary[] };
+  const data = (await resp.json()) as { messages: MailpitMessageSummary[] };
   return (data.messages ?? []).map(toCaptured);
 }
 
@@ -58,7 +60,9 @@ export async function clearCapturedEmails(): Promise<void> {
     body: JSON.stringify({ IDs: [] }),
   });
   if (!resp.ok) {
-    throw new Error(`Mailpit delete failed: ${resp.status} ${await resp.text()}`);
+    throw new Error(
+      `Mailpit delete failed: ${resp.status} ${await resp.text()}`,
+    );
   }
 }
 
@@ -78,6 +82,8 @@ export async function clearCapturedEmailsForRecipient(
     body: JSON.stringify({ IDs: messages.map((m) => m.id) }),
   });
   if (!resp.ok) {
-    throw new Error(`Mailpit delete failed: ${resp.status} ${await resp.text()}`);
+    throw new Error(
+      `Mailpit delete failed: ${resp.status} ${await resp.text()}`,
+    );
   }
 }

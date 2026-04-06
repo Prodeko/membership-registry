@@ -37,10 +37,9 @@ export class DatabaseHelper {
       `DELETE FROM applicationtargetablerole WHERE role_name = $1`,
       [roleName],
     );
-    await this.query(
-      `DELETE FROM rolerenewal WHERE role_name = $1`,
-      [roleName],
-    );
+    await this.query(`DELETE FROM rolerenewal WHERE role_name = $1`, [
+      roleName,
+    ]);
     await this.query(`DELETE FROM application WHERE role_name = $1`, [
       roleName,
     ]);
@@ -61,10 +60,9 @@ export class DatabaseHelper {
   async getMemberByEmail(
     email: string,
   ): Promise<Record<string, unknown> | null> {
-    const rows = await this.query(
-      `SELECT * FROM member WHERE email = $1`,
-      [email],
-    );
+    const rows = await this.query(`SELECT * FROM member WHERE email = $1`, [
+      email,
+    ]);
     return rows[0] ?? null;
   }
 }

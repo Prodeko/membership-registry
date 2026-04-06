@@ -60,7 +60,14 @@ test.describe("Membership renewal", () => {
       `INSERT INTO rolerenewal (user_id, role_name, old_valid_from, old_valid_until, new_valid_from, new_valid_until, status)
        VALUES ($1, $2, $3, $4, $5, $6, 'pending')
        RETURNING renewal_id`,
-      [userId, testRole.name, validFrom, validUntil, newValidFrom, newValidUntil],
+      [
+        userId,
+        testRole.name,
+        validFrom,
+        validUntil,
+        newValidFrom,
+        newValidUntil,
+      ],
     );
     const renewalId = renewalRows[0].renewal_id;
 
@@ -80,7 +87,12 @@ test.describe("Membership renewal", () => {
       `UPDATE rolerenewal SET status = 'paid', stripe_payment_id = 'pi_e2e_test' WHERE renewal_id = $1`,
       [renewalId],
     );
-    await adminApi.assignRole(userId, testRole.name, newValidFrom, newValidUntil);
+    await adminApi.assignRole(
+      userId,
+      testRole.name,
+      newValidFrom,
+      newValidUntil,
+    );
 
     // Go back to home and verify the renewal warning is gone (merged period extends far out)
     await page.goto("/home");
@@ -109,7 +121,12 @@ test.describe("Membership renewal", () => {
     const userId = member!.user_id as string;
 
     // Role is NOT renewable (default)
-    await adminApi.assignRole(userId, testRole.name, startOfYear(), daysFromNow(15));
+    await adminApi.assignRole(
+      userId,
+      testRole.name,
+      startOfYear(),
+      daysFromNow(15),
+    );
 
     await page.goto("/home");
     const home = new HomePage(page);
@@ -137,7 +154,12 @@ test.describe("Membership renewal", () => {
       renewal_period_months: 12,
     });
 
-    await adminApi.assignRole(userId, testRole.name, startOfYear(), daysFromNow(60));
+    await adminApi.assignRole(
+      userId,
+      testRole.name,
+      startOfYear(),
+      daysFromNow(60),
+    );
 
     await page.goto("/home");
     const home = new HomePage(page);
@@ -171,8 +193,18 @@ test.describe("Membership renewal", () => {
     const newValidUntil = daysFromNow(11 + 365);
 
     // Insert both membership periods (simulates a completed renewal)
-    await adminApi.assignRole(userId, testRole.name, oldValidFrom, oldValidUntil);
-    await adminApi.assignRole(userId, testRole.name, newValidFrom, newValidUntil);
+    await adminApi.assignRole(
+      userId,
+      testRole.name,
+      oldValidFrom,
+      oldValidUntil,
+    );
+    await adminApi.assignRole(
+      userId,
+      testRole.name,
+      newValidFrom,
+      newValidUntil,
+    );
 
     await page.goto("/home");
     const home = new HomePage(page);
