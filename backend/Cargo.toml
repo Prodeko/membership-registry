@@ -64,5 +64,5 @@ validator = { version = "0.19", features = ["derive"] }
 tower_governor = "0.4"
 
 [dev-dependencies]
-mockall = "0.13"
+mockall = "0.14"
 wiremock = "0.6"
