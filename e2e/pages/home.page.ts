@@ -73,10 +73,8 @@ export class HomePage {
     return results;
   }
 
-  async isExpiringWarningVisible(roleName: string): Promise<boolean> {
-    return this.page
-      .getByTestId(`role-expiring-warning-${roleName}`)
-      .isVisible();
+  expiringWarning(roleName: string) {
+    return this.page.getByTestId(`role-expiring-warning-${roleName}`);
   }
 
   async getRenewalLinkHref(roleName: string): Promise<string | null> {

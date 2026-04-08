@@ -77,7 +77,7 @@ test.describe("Membership renewal", () => {
     await home.waitForLoaded();
 
     // Verify expiring warning and renewal link are visible
-    expect(await home.isExpiringWarningVisible(testRole.name)).toBe(true);
+    await expect(home.expiringWarning(testRole.name)).toBeVisible();
     const href = await home.getRenewalLinkHref(testRole.name);
     expect(href).toContain(RENEWAL_PAYMENT_LINK);
     expect(href).toContain(`client_reference_id=${renewalId}`);
@@ -98,7 +98,7 @@ test.describe("Membership renewal", () => {
     await page.goto("/home");
     await home.waitForLoaded();
 
-    expect(await home.isExpiringWarningVisible(testRole.name)).toBe(false);
+    await expect(home.expiringWarning(testRole.name)).toBeHidden();
 
     // Verify new membership exists in DB
     const roleMemberRows = await db.query<{ count: string }>(
@@ -133,7 +133,7 @@ test.describe("Membership renewal", () => {
     await home.waitForLoaded();
 
     // Non-renewable role should NOT show expiring warning
-    expect(await home.isExpiringWarningVisible(testRole.name)).toBe(false);
+    await expect(home.expiringWarning(testRole.name)).toBeHidden();
   });
 
   test("role expiring in more than 30 days does not show warning", async ({
@@ -165,7 +165,7 @@ test.describe("Membership renewal", () => {
     const home = new HomePage(page);
     await home.waitForLoaded();
 
-    expect(await home.isExpiringWarningVisible(testRole.name)).toBe(false);
+    await expect(home.expiringWarning(testRole.name)).toBeHidden();
   });
 
   test("renewed role merges periods and hides warning", async ({
@@ -217,6 +217,6 @@ test.describe("Membership renewal", () => {
     expect(matched!.status).not.toContain("Expired");
 
     // No warning because merged valid_until is > 30 days out
-    expect(await home.isExpiringWarningVisible(testRole.name)).toBe(false);
+    await expect(home.expiringWarning(testRole.name)).toBeHidden();
   });
 });
