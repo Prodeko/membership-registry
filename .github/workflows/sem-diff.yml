@@ -1,0 +1,52 @@
+name: Semantic Diff
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  sem-diff:
+    name: Semantic diff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install sem
+        run: brew install sem-cli
+
+      - name: Run sem diff
+        id: diff
+        run: |
+          OUTPUT=$(sem diff "origin/${{ github.base_ref }}...HEAD" --format markdown)
+          if [ -z "$OUTPUT" ]; then
+            OUTPUT="No semantic changes detected."
+          fi
+          {
+            echo 'diff<<EOF'
+            echo "$OUTPUT"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: peter-evans/find-comment@v3
+        id: existing
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: github-actions[bot]
+          body-includes: <!-- sem-diff-comment -->
+
+      - uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-id: ${{ steps.existing.outputs.comment-id }}
+          edit-mode: replace
+          body: |
+            <!-- sem-diff-comment -->
+            ## Semantic Diff
+
+            ${{ steps.diff.outputs.diff }}
