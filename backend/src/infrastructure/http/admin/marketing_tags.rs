@@ -17,8 +17,8 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(list_tags))
         .route("/", post(create_tag))
-        .route("/:label", put(update_tag))
-        .route("/:label", delete(delete_tag))
+        .route("/{label}", put(update_tag))
+        .route("/{label}", delete(delete_tag))
         .with_state(state)
 }
 

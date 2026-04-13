@@ -19,7 +19,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(get_saved_filters))
         .route("/", post(post_saved_filter))
-        .route("/:name", delete(delete_saved_filter))
+        .route("/{name}", delete(delete_saved_filter))
         .with_state(state)
 }
 

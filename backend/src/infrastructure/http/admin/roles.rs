@@ -31,9 +31,9 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/stats", get(get_roles_stats))
         .route("/export", post(export_roles))
         .route("/cleanup-expired", post(cleanup_expired_roles))
-        .route("/:id", get(get_role))
-        .route("/:id", put(update_role))
-        .route("/:id/members", get(get_role_members))
+        .route("/{id}", get(get_role))
+        .route("/{id}", put(update_role))
+        .route("/{id}/members", get(get_role_members))
         .with_state(state)
 }
 

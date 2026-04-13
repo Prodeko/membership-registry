@@ -4,7 +4,10 @@ use axum::{
     http::{HeaderName, HeaderValue, Method},
     Router,
 };
-use oauth2::{basic::BasicClient, AuthUrl, ClientId, ClientSecret, RedirectUrl, TokenUrl};
+use oauth2::{
+    basic::BasicClient, AuthUrl, ClientId, ClientSecret, EndpointNotSet, EndpointSet, RedirectUrl,
+    TokenUrl,
+};
 use tokio_util::sync::CancellationToken;
 use tower_http::{
     cors::{AllowHeaders, CorsLayer},
@@ -54,7 +57,9 @@ pub struct AppState {
     pub marketing_service: Option<Arc<MarketingService>>,
     pub payment_webhook: Arc<dyn PaymentWebhookPort>,
     pub export_service: Arc<ExportService>,
-    pub oauth2_client: BasicClient,
+    pub oauth2_client:
+        BasicClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNotSet, EndpointSet>,
+    pub oauth2_http_client: reqwest::Client,
 }
 
 #[allow(clippy::unwrap_used, clippy::expect_used)]
@@ -64,23 +69,28 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
     let realm = config.keycloak_realm.clone();
     let base_url = config.keycloak_url.clone();
 
-    let oauth2_client = BasicClient::new(
-        ClientId::new(config.keycloak_client_id.clone()),
-        Some(ClientSecret::new(config.keycloak_client_secret.clone())),
-        AuthUrl::new(format!(
-            "{}/realms/{}/protocol/openid-connect/auth",
-            base_url, realm
-        ))
-        .unwrap(),
-        Some(
+    let oauth2_client = BasicClient::new(ClientId::new(config.keycloak_client_id.clone()))
+        .set_client_secret(ClientSecret::new(config.keycloak_client_secret.clone()))
+        .set_auth_uri(
+            AuthUrl::new(format!(
+                "{}/realms/{}/protocol/openid-connect/auth",
+                base_url, realm
+            ))
+            .unwrap(),
+        )
+        .set_token_uri(
             TokenUrl::new(format!(
                 "{}/realms/{}/protocol/openid-connect/token",
                 base_url, realm
             ))
             .unwrap(),
-        ),
-    )
-    .set_redirect_uri(RedirectUrl::new(config.oauth_redirect_url.clone()).unwrap());
+        )
+        .set_redirect_uri(RedirectUrl::new(config.oauth_redirect_url.clone()).unwrap());
+
+    let oauth2_http_client = reqwest::ClientBuilder::new()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("reqwest client for oauth2 should build");
 
     let state = AppState {
         config: Arc::new(config),
@@ -98,6 +108,7 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
         payment_webhook: Arc::new(services.payment_webhook),
         export_service: Arc::new(services.export_service),
         oauth2_client,
+        oauth2_http_client,
     };
 
     let frontend_origin: HeaderValue = state

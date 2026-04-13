@@ -18,10 +18,10 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/", get(list_templates))
         .route("/", post(create_template))
-        .route("/:name", delete(delete_template))
-        .route("/:name/translations", get(list_translations))
-        .route("/:name/translations/:locale", put(upsert_translation))
-        .route("/:name/translations/:locale", delete(delete_translation))
+        .route("/{name}", delete(delete_template))
+        .route("/{name}/translations", get(list_translations))
+        .route("/{name}/translations/{locale}", put(upsert_translation))
+        .route("/{name}/translations/{locale}", delete(delete_translation))
         .with_state(state)
 }
 

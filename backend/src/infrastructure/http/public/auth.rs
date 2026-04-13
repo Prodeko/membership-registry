@@ -74,7 +74,7 @@ async fn callback(
     let token = state
         .oauth2_client
         .exchange_code(AuthorizationCode::new(code))
-        .request_async(oauth2::reqwest::async_http_client)
+        .request_async(&state.oauth2_http_client)
         .await
         .map_err(|err| {
             tracing::error!("Failed to exchange code: {:?}", err);
