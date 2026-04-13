@@ -14,7 +14,7 @@ async-stripe = { version = "0.38.1", default-features = false, features = [
     "stream",
 ] }
 async-trait = "0.1.80"
-axum = { version = "0.7.2", features = ["tokio", "macros"] }
+axum = { version = "0.8.8", features = ["tokio", "macros"] }
 axum-extra = { version = "0.9.3", features = ["cookie"] }
 bytes = "1.6.1"
 chrono = { version = "0.4.38", features = ["serde"] }
