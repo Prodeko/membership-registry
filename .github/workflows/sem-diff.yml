@@ -24,8 +24,11 @@ jobs:
 
       - name: Run sem diff
         id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          OUTPUT=$(sem diff "origin/${{ github.base_ref }}...HEAD" --format markdown)
+          OUTPUT=$(sem diff --from "$BASE_SHA" --to "$HEAD_SHA" --format markdown)
           if [ -z "$OUTPUT" ]; then
             OUTPUT="No semantic changes detected."
           fi
