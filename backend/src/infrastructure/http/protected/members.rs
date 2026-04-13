@@ -110,7 +110,6 @@ async fn update_member(
         first_name: body.first_name,
         last_name: body.last_name,
         home_municipality: body.home_municipality,
-        has_accepted_policies: body.has_accepted_policies,
         email_notifications: body.email_notifications,
         language: body.language,
     };

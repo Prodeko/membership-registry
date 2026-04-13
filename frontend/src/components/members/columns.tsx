@@ -181,12 +181,6 @@ export const getColumns = (
     ),
   },
   {
-    accessorKey: "has_accepted_policies",
-    header: ({ column }) => (
-      <DataTableColumnHeader column={column} title="Has Accepted Policies" />
-    ),
-  },
-  {
     id: "actions",
     cell: ({ row }) => {
       const member = row.original;

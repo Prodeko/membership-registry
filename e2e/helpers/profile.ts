@@ -3,9 +3,9 @@ import type { DatabaseHelper } from "../fixtures/db.fixture";
 import type { AdminApiHelper } from "../fixtures/api.fixture";
 
 /**
- * Fetches the member created on first login and marks their profile as
- * complete (municipality set, policies accepted) via the admin API, so
- * subsequent flows skip the signup fields. Returns the member's user_id.
+ * Fetches the member created on first login and sets their home municipality
+ * via the admin API, so subsequent flows skip the onboarding gate. Returns
+ * the member's user_id.
  */
 export async function completeMemberProfile(
   db: DatabaseHelper,
@@ -19,7 +19,6 @@ export async function completeMemberProfile(
     first_name: member!.first_name as string,
     last_name: member!.last_name as string,
     home_municipality: "Helsinki",
-    has_accepted_policies: true,
     email_notifications: false,
     language: "en",
   });

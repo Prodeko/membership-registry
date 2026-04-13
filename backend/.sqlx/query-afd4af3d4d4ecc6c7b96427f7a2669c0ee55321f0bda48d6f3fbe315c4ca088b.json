@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n          SELECT Member.user_id, email, first_name, last_name, full_name, home_municipality, has_accepted_policies, email_notifications, language\n          FROM RoleMember JOIN Member ON RoleMember.user_id = Member.user_id\n          WHERE role_name = $1\n          ",
+  "query": "\n          SELECT Member.user_id, email, first_name, last_name, full_name, home_municipality, email_notifications, language\n          FROM RoleMember JOIN Member ON RoleMember.user_id = Member.user_id\n          WHERE role_name = $1\n          ",
   "describe": {
     "columns": [
       {
@@ -35,16 +35,11 @@
       },
       {
         "ordinal": 6,
-        "name": "has_accepted_policies",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 7,
         "name": "email_notifications",
         "type_info": "Bool"
       },
       {
-        "ordinal": 8,
+        "ordinal": 7,
         "name": "language",
         "type_info": "Text"
       }
@@ -62,9 +57,8 @@
       true,
       true,
       false,
-      false,
       false
     ]
   },
-  "hash": "f8495e301d9895120ff2772bdccf40f49085f749568114c4078207de6db775f2"
+  "hash": "afd4af3d4d4ecc6c7b96427f7a2669c0ee55321f0bda48d6f3fbe315c4ca088b"
 }

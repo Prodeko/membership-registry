@@ -20,7 +20,6 @@
     "application_text_required": "Hakemusteksti on pakollinen",
     "role_required": "Rooli on pakollinen",
     "valid_until_required": "Voimassaoloaika on pakollinen",
-    "policies_required": "Sinun tulee hyväksyä käyttöehdot",
     "home_municipality_required": "Kotikunta on pakollinen"
   },
   "errors": {
@@ -120,7 +119,6 @@
       "home_municipality": "Kotikunta"
     },
     "municipality_description": "Valitse kunta, jossa asut pääasiassa. Jos asut pääasiassa Suomen ulkopuolella, valitse maasi.",
-    "policies_checkbox": "Olen lukenut ja hyväksyn käyttöehdot",
     "submit": "Lähetä"
   },
   "applications": {
@@ -139,9 +137,6 @@
       "description": "Haluatko varmasti perua tämän hakemuksen? Tätä toimintoa ei voi peruuttaa.",
       "confirm": "Peru hakemus"
     }
-  },
-  "member": {
-    "accepted_policies": "Hyväksynyt käyttöehdot"
   },
   "onboarding": {
     "title": "Tervetuloa! Yksi pikainen vaihe",

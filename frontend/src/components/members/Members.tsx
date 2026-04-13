@@ -73,7 +73,6 @@ const Members: React.FC = () => {
         searchColumn="first_name"
         initialColumnVisibility={{
           user_id: false,
-          has_accepted_policies: false,
           home_municipality: false,
         }}
         filterVisible={filterVisible}

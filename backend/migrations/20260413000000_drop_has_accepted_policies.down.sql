@@ -1,0 +1,1 @@
+ALTER TABLE Member ADD COLUMN has_accepted_policies BOOLEAN NOT NULL DEFAULT FALSE;

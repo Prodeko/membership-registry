@@ -36,7 +36,6 @@ pub struct Person {
     pub last_name: String,
     pub full_name: Option<String>,
     pub home_municipality: Option<String>,
-    pub has_accepted_policies: bool,
     pub email_notifications: bool,
     pub language: String,
 }
@@ -48,7 +47,6 @@ pub struct NewPerson {
     pub first_name: String,
     pub last_name: String,
     pub home_municipality: Option<String>,
-    pub has_accepted_policies: bool,
     pub email_notifications: bool,
     pub language: String,
 }
@@ -58,7 +56,6 @@ pub struct UpdatePersonData {
     pub first_name: String,
     pub last_name: String,
     pub home_municipality: Option<String>,
-    pub has_accepted_policies: bool,
     pub email_notifications: bool,
     pub language: String,
 }

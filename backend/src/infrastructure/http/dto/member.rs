@@ -18,7 +18,6 @@ pub struct MemberDTO {
     pub last_name: String,
     pub full_name: Option<String>,
     pub home_municipality: Option<String>,
-    pub has_accepted_policies: bool,
     pub email_notifications: bool,
     pub language: String,
 }
@@ -32,7 +31,6 @@ impl From<Person> for MemberDTO {
             last_name: p.last_name,
             full_name: p.full_name,
             home_municipality: p.home_municipality,
-            has_accepted_policies: p.has_accepted_policies,
             email_notifications: p.email_notifications,
             language: p.language,
         }
@@ -48,7 +46,6 @@ pub struct MemberWithRolesDTO {
     pub last_name: String,
     pub full_name: Option<String>,
     pub home_municipality: Option<String>,
-    pub has_accepted_policies: bool,
     pub email_notifications: bool,
     pub language: String,
     pub role_names: Vec<String>,
@@ -63,7 +60,6 @@ impl From<MemberWithRoles> for MemberWithRolesDTO {
             last_name: mwr.person.last_name,
             full_name: mwr.person.full_name,
             home_municipality: mwr.person.home_municipality,
-            has_accepted_policies: mwr.person.has_accepted_policies,
             email_notifications: mwr.person.email_notifications,
             language: mwr.person.language,
             role_names: mwr.role_names,
@@ -83,7 +79,6 @@ pub struct NewMemberDTO {
     pub last_name: String,
     #[validate(length(max = 200))]
     pub home_municipality: Option<String>,
-    pub has_accepted_policies: bool,
     #[serde(default = "default_true")]
     pub email_notifications: bool,
     #[serde(default = "default_language")]
@@ -107,7 +102,6 @@ impl NewMemberDTO {
             first_name: self.first_name,
             last_name: self.last_name,
             home_municipality: self.home_municipality,
-            has_accepted_policies: self.has_accepted_policies,
             email_notifications: self.email_notifications,
             language: self.language,
         })
@@ -148,7 +142,6 @@ pub struct UpdateMemberDTO {
     pub last_name: String,
     #[validate(length(max = 200))]
     pub home_municipality: Option<String>,
-    pub has_accepted_policies: bool,
     pub email_notifications: bool,
     #[validate(length(min = 2, max = 10))]
     pub language: String,

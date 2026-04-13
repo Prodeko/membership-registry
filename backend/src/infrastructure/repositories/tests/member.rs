@@ -16,7 +16,6 @@ mod test_member {
             last_name: "Käyttäjä".to_string(),
             home_municipality: Some("Helsinki".to_string()),
             email: Email::new("john@example.com".to_string()).unwrap(),
-            has_accepted_policies: true,
             email_notifications: true,
             language: "fi".to_string(),
         }
@@ -240,7 +239,6 @@ mod test_member {
                     first_name: "Uusi".to_string(),
                     last_name: member_to_update.last_name,
                     home_municipality: member_to_update.home_municipality,
-                    has_accepted_policies: member_to_update.has_accepted_policies,
                     email_notifications: member_to_update.email_notifications,
                     language: member_to_update.language,
                 },

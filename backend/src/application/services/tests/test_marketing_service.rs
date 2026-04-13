@@ -33,7 +33,6 @@ fn test_person(user_id: Uuid) -> Person {
         last_name: "User".to_string(),
         full_name: None,
         home_municipality: None,
-        has_accepted_policies: true,
         email_notifications: true,
         language: "en".to_string(),
     }

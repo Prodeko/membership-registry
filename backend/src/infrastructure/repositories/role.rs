@@ -292,7 +292,7 @@ impl RoleRepositoryPort for RoleRepo {
         let rows = sqlx::query_as!(
             MemberDAO,
             r#"
-          SELECT Member.user_id, email, first_name, last_name, full_name, home_municipality, has_accepted_policies, email_notifications, language
+          SELECT Member.user_id, email, first_name, last_name, full_name, home_municipality, email_notifications, language
           FROM RoleMember JOIN Member ON RoleMember.user_id = Member.user_id
           WHERE role_name = $1
           "#,

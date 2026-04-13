@@ -4,7 +4,6 @@ import { ApplicationFormPage } from "../pages/application-form.page";
 import { ApplicationSuccessPage } from "../pages/application-success.page";
 import { OnboardingPage } from "../pages/onboarding.page";
 import { loginViaKeycloak } from "../helpers/auth";
-import { completeMemberProfile } from "../helpers/profile";
 import { TEST_ROLE_VALID_UNTIL } from "../helpers/constants";
 
 test.describe("Signup and apply", () => {
@@ -69,17 +68,11 @@ test.describe("Signup and apply", () => {
     await expect(page.getByTestId("apply-button")).toBeVisible();
     await home.clickApply();
 
-    // Fill the application form (municipality already set via onboarding).
+    // Fill the application form (municipality already set via onboarding,
+    // policies handled by Keycloak — app form only collects role + text now).
     const appForm = new ApplicationFormPage(page);
     await appForm.waitForLoaded();
 
-    // Municipality is handled in onboarding, so the app form must not re-ask.
-    expect(await appForm.isMunicipalityFieldVisible()).toBe(false);
-    // Policies are still collected on the application form until Keycloak
-    // integration lands for that field.
-    expect(await appForm.isPoliciesFieldVisible()).toBe(true);
-
-    await appForm.acceptPolicies();
     await appForm.selectRole(testRole.displayName);
     await appForm.fillApplicationText("E2E test application");
     await appForm.submit();
@@ -120,27 +113,5 @@ test.describe("Signup and apply", () => {
       ["application.create", testUser.email],
     );
     expect(parseInt(appCreateRows[0].count, 10)).toBe(1);
-  });
-
-  test("returning user does not see policies and municipality fields in application flow", async ({
-    page,
-    db,
-    adminApi,
-    testUser,
-  }) => {
-    // Need fresh login to create the member first
-    await loginViaKeycloak(page, testUser.email, testUser.password);
-
-    // Complete profile via admin API
-    await completeMemberProfile(db, adminApi, testUser.email);
-
-    // Navigate to apply page
-    await page.goto("/apply");
-    const appForm = new ApplicationFormPage(page);
-    await appForm.waitForLoaded();
-
-    // Returning user with complete profile should NOT see these fields
-    expect(await appForm.isMunicipalityFieldVisible()).toBe(false);
-    expect(await appForm.isPoliciesFieldVisible()).toBe(false);
   });
 });

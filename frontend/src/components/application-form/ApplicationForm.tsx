@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -13,9 +12,7 @@ import {
   useGetMeMember,
   useGetTargetableRoles,
   useGetUserApplications,
-  useUpdateMember,
 } from "@/lib/api";
-import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -24,8 +21,6 @@ import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import RenderMemberData from "../members/RenderMemberData";
 import { Card } from "../ui/card";
-import { Checkbox } from "../ui/checkbox";
-import MunicipalitySelect from "../ui/MunicipalitySelect";
 import {
   Select,
   SelectContent,
@@ -43,10 +38,6 @@ const formSchema = z.object({
   application_text: z.string(),
   role_name: z.string(),
   valid_until: z.date(),
-  home_municipality: z
-    .enum([...FINNISH_MUNICIPALITIES, ...COUNTRIES])
-    .optional(),
-  has_accepted_policies: z.boolean().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -55,9 +46,6 @@ const ApplicationForm = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: currentMember, isLoading: isMeLoading } = useGetMeMember();
-
-  const needsMunicipality = !currentMember?.home_municipality;
-  const needsPolicies = !currentMember?.has_accepted_policies;
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -70,7 +58,6 @@ const ApplicationForm = () => {
     useGetTargetableRoles();
   const { data: applications } = useGetUserApplications();
   const { mutateAsync: createApplication } = useCreateApplication();
-  const { mutateAsync: updateMember } = useUpdateMember();
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
 
   const onSubmit = async (values: FormValues) => {
@@ -78,38 +65,7 @@ const ApplicationForm = () => {
       throw new Error("Current member not found");
     }
 
-    if (needsMunicipality && !values.home_municipality) {
-      form.setError("home_municipality", {
-        message: t("validation.home_municipality_required"),
-      });
-      return;
-    }
-
-    if (needsPolicies && !values.has_accepted_policies) {
-      form.setError("has_accepted_policies", {
-        message: t("validation.must_accept_policies"),
-      });
-      return;
-    }
-
     try {
-      if (needsMunicipality || needsPolicies) {
-        await updateMember({
-          userId: currentMember.user_id,
-          data: {
-            first_name: currentMember.first_name,
-            last_name: currentMember.last_name,
-            home_municipality:
-              values.home_municipality ??
-              currentMember.home_municipality ??
-              null,
-            has_accepted_policies: values.has_accepted_policies ?? false,
-            email_notifications: currentMember.email_notifications,
-            language: currentMember.language,
-          },
-        });
-      }
-
       const data = await createApplication({
         role_name: values.role_name,
         valid_until: values.valid_until.toISOString().split("T")[0],
@@ -254,45 +210,6 @@ const ApplicationForm = () => {
                 </FormItem>
               )}
             />
-            {needsMunicipality && (
-              <FormField
-                control={form.control}
-                name="home_municipality"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>
-                      {t("profile.fields.home_municipality")}
-                    </FormLabel>
-                    <MunicipalitySelect field={field} form={form} />
-                    <FormDescription>
-                      {t("signup.municipality_description")}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
-            {needsPolicies && (
-              <FormField
-                control={form.control}
-                name="has_accepted_policies"
-                render={({ field }) => (
-                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
-                    <FormLabel>{t("signup.policies_checkbox")}</FormLabel>
-                    <FormControl>
-                      <Checkbox
-                        checked={field.value === true}
-                        onCheckedChange={(checked) =>
-                          field.onChange(checked ? true : undefined)
-                        }
-                        data-testid="policies-checkbox"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            )}
             <Button type="submit" data-testid="submit-application-button">
               {paymentLink
                 ? t("application.form.proceed_payment")

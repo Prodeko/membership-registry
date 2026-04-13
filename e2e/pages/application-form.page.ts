@@ -23,26 +23,7 @@ export class ApplicationFormPage {
     await this.page.getByTestId("application-text").fill(text);
   }
 
-  async selectMunicipality(name: string): Promise<void> {
-    await this.page.getByTestId("municipality-combobox-trigger").click();
-    await this.page.getByTestId("municipality-search-input").fill(name);
-    // Click the matching option in the command list
-    await this.page.getByRole("option", { name }).click();
-  }
-
-  async acceptPolicies(): Promise<void> {
-    await this.page.getByTestId("policies-checkbox").click();
-  }
-
   async submit(): Promise<void> {
     await this.page.getByTestId("submit-application-button").click();
-  }
-
-  async isMunicipalityFieldVisible(): Promise<boolean> {
-    return this.page.getByTestId("municipality-combobox-trigger").isVisible();
-  }
-
-  async isPoliciesFieldVisible(): Promise<boolean> {
-    return this.page.getByTestId("policies-checkbox").isVisible();
   }
 }

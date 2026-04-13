@@ -15,7 +15,6 @@ fn new_person(user_id: Uuid) -> NewPerson {
         first_name: "New".to_string(),
         last_name: "User".to_string(),
         home_municipality: None,
-        has_accepted_policies: true,
         email_notifications: true,
         language: "en".to_string(),
     }
@@ -29,7 +28,6 @@ fn fake_created_person(user_id: Uuid) -> Person {
         last_name: "User".to_string(),
         full_name: None,
         home_municipality: None,
-        has_accepted_policies: true,
         email_notifications: true,
         language: "en".to_string(),
     }

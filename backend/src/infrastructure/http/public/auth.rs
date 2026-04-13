@@ -129,7 +129,6 @@ async fn callback(
                 first_name: user_info.first_name.clone(),
                 last_name: user_info.last_name.clone(),
                 home_municipality: None,
-                has_accepted_policies: false,
                 email_notifications: true,
                 language: "fi".to_string(),
             };

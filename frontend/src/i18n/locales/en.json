@@ -20,7 +20,6 @@
     "application_text_required": "Application text is required",
     "role_required": "Role is required",
     "valid_until_required": "Valid until is required",
-    "policies_required": "You must accept the policies",
     "home_municipality_required": "Home municipality is required"
   },
   "errors": {
@@ -120,7 +119,6 @@
       "home_municipality": "Home municipality"
     },
     "municipality_description": "Select the municipality where you mainly live. If you mainly live outside of Finland, select your country.",
-    "policies_checkbox": "I have read and accept the policies",
     "submit": "Submit"
   },
   "applications": {
@@ -139,9 +137,6 @@
       "description": "Are you sure you want to withdraw this application? This action cannot be undone.",
       "confirm": "Withdraw"
     }
-  },
-  "member": {
-    "accepted_policies": "Accepted policies"
   },
   "onboarding": {
     "title": "Welcome! One quick step",

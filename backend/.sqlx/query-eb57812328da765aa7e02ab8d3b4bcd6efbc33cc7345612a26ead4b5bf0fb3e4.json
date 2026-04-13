@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            INSERT INTO member (user_id, email, first_name, last_name, home_municipality, has_accepted_policies, email_notifications, language)\n            VALUES (CAST($1 AS UUID), $2, $3, $4, $5, $6, $7, $8)\n            RETURNING *\n        ",
+  "query": "--sql\n            UPDATE member\n            SET\n                first_name = $1,\n                last_name = $2,\n                home_municipality = $3,\n                email_notifications = $4,\n                language = $5\n            WHERE user_id = $6\n            RETURNING *",
   "describe": {
     "columns": [
       {
@@ -30,35 +30,28 @@
       },
       {
         "ordinal": 5,
-        "name": "has_accepted_policies",
-        "type_info": "Bool"
-      },
-      {
-        "ordinal": 6,
         "name": "full_name",
         "type_info": "Text"
       },
       {
-        "ordinal": 7,
+        "ordinal": 6,
         "name": "email_notifications",
         "type_info": "Bool"
       },
       {
-        "ordinal": 8,
+        "ordinal": 7,
         "name": "language",
         "type_info": "Text"
       }
     ],
     "parameters": {
       "Left": [
-        "Uuid",
-        "Text",
         "Text",
         "Text",
         "Text",
         "Bool",
-        "Bool",
-        "Text"
+        "Text",
+        "Uuid"
       ]
     },
     "nullable": [
@@ -67,11 +60,10 @@
       false,
       false,
       true,
-      false,
       true,
       false,
       false
     ]
   },
-  "hash": "58f3ae6ba93a613456b5f108fdad461f2d7f9f5b9991446f85333cc75f912f44"
+  "hash": "eb57812328da765aa7e02ab8d3b4bcd6efbc33cc7345612a26ead4b5bf0fb3e4"
 }

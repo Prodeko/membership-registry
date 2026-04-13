@@ -57,7 +57,6 @@ const Onboarding = () => {
           first_name: member.first_name,
           last_name: member.last_name,
           home_municipality: values.home_municipality,
-          has_accepted_policies: member.has_accepted_policies,
           email_notifications: member.email_notifications,
           language: member.language,
         },

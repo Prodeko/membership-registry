@@ -77,7 +77,6 @@ const ProfileEdit = () => {
         data: {
           ...values,
           home_municipality: values.home_municipality ?? null,
-          has_accepted_policies: member.has_accepted_policies,
         },
       },
       {

@@ -74,7 +74,6 @@ export class AdminApiHelper {
       first_name: string;
       last_name: string;
       home_municipality?: string | null;
-      has_accepted_policies: boolean;
       email_notifications: boolean;
       language: string;
     },
