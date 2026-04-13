@@ -4,50 +4,61 @@
 
 - [Docker](https://docs.docker.com/get-docker/)
 - [Rust](https://www.rust-lang.org/tools/install)
-- [Node.js](https://nodejs.org/)
-- [pnpm](https://pnpm.io/installation)
+- [Node.js](https://nodejs.org/) and [pnpm](https://pnpm.io/installation)
+- Python 3.12+ (for the Keycloak setup script)
 - [sqlx-cli](https://crates.io/crates/sqlx-cli): `cargo install sqlx-cli`
 - [Stripe CLI](https://docs.stripe.com/stripe-cli): `brew install stripe/stripe-cli/stripe` (or see docs for other OS)
 
 ## Quick start
 
 ```bash
-# Start the database
+# 1. Start infrastructure (Postgres on :5433, Keycloak on :8180, Mailpit on :8025)
 docker compose up -d
 
-# Set up environment files (see sections below)
+# 2. Copy env templates
 cp backend/.env.template backend/.env
 cp frontend/.env.template frontend/.env
+cp keycloak/.env.template keycloak/.env
 
-# Install frontend dependencies and run migrations
-cd frontend && pnpm install
-cd backend && sqlx migrate run
+# 3. Configure the Keycloak realm (idempotent — safe to re-run)
+cd keycloak
+python -m venv venv && source venv/bin/activate
+pip install -e .
+python setup.py
+cd ..
 
-# Start backend
+# 4. Install frontend deps, run DB migrations
+cd frontend && pnpm install && cd ..
+cd backend && sqlx migrate run && cd ..
+
+# 5. Start backend (terminal 1)
 cd backend && cargo run
 
-# Start frontend in another terminal
+# 6. Start frontend (terminal 2)
 cd frontend && pnpm run dev
 ```
 
-## Auth0 configuration
+App: http://127.0.0.1:5173 · Mailpit UI: http://localhost:8025 · Keycloak admin: http://localhost:8180 (admin / admin)
 
-We use a shared Auth0 dev tenant. Ask a team member for the credentials.
+See [keycloak/README.md](keycloak/README.md) for more detail on the realm setup.
 
-The backend needs two sets of Auth0 credentials in `backend/.env`:
+## Authentication (Keycloak)
 
-1. **Regular application** (for login/OAuth flow):
-   - `AUTH0_DOMAIN` - the tenant domain (e.g. `your-tenant.eu.auth0.com`)
-   - `AUTH0_CLIENT_ID` - from the Auth0 application
-   - `AUTH0_CLIENT_SECRET` - from the Auth0 application
-   - `AUTH0_AUDIENCE` - API identifier (optional)
-   - `OAUTH_REDIRECT_URL` - set to `http://127.0.0.1:5173/auth/callback`
+Auth is handled by a local Keycloak instance configured by `keycloak/setup.py`. The script creates the `membership-registry` realm, two clients (a public auth client and an admin M2M client), and test users.
 
-2. **Machine-to-Machine (M2M) application** (for managing roles via the Management API):
-   - `AUTH0_MANAGEMENT_CLIENT_ID`
-   - `AUTH0_MANAGEMENT_CLIENT_SECRET`
+The backend needs these Keycloak variables in `backend/.env` (defaults in the template match what `setup.py` creates):
 
-Roles created locally in the database should also be created in Auth0 (Dashboard > User Management > Roles). At minimum, an **admin** role must exist in Auth0.
+- `KEYCLOAK_URL`, `KEYCLOAK_REALM`
+- `KEYCLOAK_CLIENT_ID` / `KEYCLOAK_CLIENT_SECRET` — OAuth2 client for login
+- `KEYCLOAK_ADMIN_CLIENT_ID` / `KEYCLOAK_ADMIN_CLIENT_SECRET` — M2M client for user/role CRUD
+- `OAUTH_REDIRECT_URL` — frontend callback (`http://127.0.0.1:5173/auth/callback`)
+
+Test users created by `setup.py` (passwords in `keycloak/config/users.py`):
+
+- `cto@prodeko.org` — admin role
+- `user@prodeko.org` — regular user
+
+Roles created in the database should also exist in Keycloak as realm roles. At minimum, an `admin` role must exist (created by `setup.py`).
 
 ## Stripe configuration
 
@@ -73,21 +84,29 @@ Each developer uses their own [Stripe sandbox account](https://dashboard.stripe.
 
 After starting the app, log in through the UI. The first login automatically creates a `UserAuthProvider` record and redirects you to the signup form. Fill it out to create your `Member` record.
 
-To access the admin panel, you need the **admin** role assigned to your user in Auth0. You can do this from the Auth0 Dashboard (User Management > Users > your user > Roles > Assign Roles > admin).
+To access the admin panel, your user needs the `admin` realm role in Keycloak. The `cto@prodeko.org` test user already has it. To grant it to another user: Keycloak admin console (http://localhost:8180) → realm `membership-registry` → Users → select user → Role mapping → Assign `admin`.
 
-To seed additional test data (roles, members, etc.), connect to the database directly:
+## Email configuration
 
-```bash
-docker compose exec membership-postgresd psql -U membership -d membership
-```
+Two adapters implement `EmailPort`, selected by env vars in `backend/.env`:
 
-Example SQL for creating a test role:
+- **SMTP (dev default)** — `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM_EMAIL`. Points at Mailpit (`localhost:1025`) by default. View captured mail at http://localhost:8025.
+- **SendGrid (prod)** — `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, optionally `SENDGRID_API_URL` (defaults to `https://api.sendgrid.com`). Leave `SMTP_HOST` empty to activate.
 
-```sql
-INSERT INTO Role (name, description, color) VALUES ('test-role', 'A test role', '#aabbcc');
-```
+If both are unset the backend refuses to start. Keycloak itself also sends mail (password reset, verification) — that's configured separately via `SENDGRID_API_KEY` in `keycloak/.env`.
 
-### Migrations
+## Mailchimp configuration
+
+`MarketingListPort` syncs members tagged for marketing to a Mailchimp audience. Both variables must be set together, or both empty — a half-configuration makes the backend refuse to start.
+
+In `backend/.env`:
+
+- `MAILCHIMP_API_KEY` — must include the datacenter suffix (e.g. `abc123...-us21`)
+- `MAILCHIMP_LIST_ID` — the audience/list ID
+
+Leave both blank in dev to skip marketing sync entirely.
+
+## Migrations
 
 ```bash
 cd backend
@@ -123,7 +142,7 @@ python setup.py
 
 - App: http://localhost
 - Keycloak admin: http://auth.localhost (admin / admin)
-- Test accounts: cto@prodeko.org / test (admin), user@prodeko.org / test
+- Test accounts: `cto@prodeko.org` / test (admin), `user@prodeko.org` / test
 
 Emails are mocked — check with `docker compose -f docker-compose.prod.yml logs backend | grep "MOCK EMAIL"`. Stripe webhook secret is a dummy value. Migrations run automatically on backend startup.
 
@@ -132,41 +151,43 @@ Reset all data: `docker compose -f docker-compose.prod.yml down -v`
 ## Architecture
 
 ```text
-backend/   - Rust (Axum) API server
+backend/   - Rust (Axum) API server — DDD + Ports & Adapters
 frontend/  - React + TypeScript + Vite
 e2e/       - Playwright end-to-end tests
+keycloak/  - Realm config + setup script (Python)
+docs/      - Architecture notes
 ```
 
-Backend source is organized into three layers:
+Backend source is organized into three layers under `src/`:
 
-- **http** - route handlers (calls services only)
-- **services** - business logic (calls repositories or other services)
-- **repositories** - database queries
+- `domain/` — pure business types, state machines, newtypes (no IO)
+- `application/` — ports (traits) and services (use-case orchestration)
+- `infrastructure/` — adapters (Keycloak, SendGrid, Stripe, …), repositories (sqlx), HTTP (Axum)
+
+See [docs/architecture.md](docs/architecture.md) for the full breakdown.
 
 ## Running checks
 
-### Backend
+The top-level `Makefile` mirrors CI. Postgres must be running (`make db-up`).
 
 ```bash
-cd backend
-
-cargo test
-cargo clippy
+make -j ci      # all checks in parallel (backend + frontend + e2e-lint + audit)
+make backend    # sqlx migrate, fmt, clippy, test, sqlx prepare --check
+make frontend   # install, tsc, lint, prettier, build
+make e2e-lint   # prettier check on e2e
+make audit      # cargo audit + pnpm audit
 ```
 
-### Frontend
+Individual commands if you prefer:
 
 ```bash
-cd frontend
+# Backend
+cd backend && cargo test && cargo clippy -- -D warnings
 
-pnpm exec tsc --noEmit
-pnpm run lint
-pnpm exec prettier --check .
-```
+# Frontend
+cd frontend && pnpm exec tsc --noEmit && pnpm run lint && pnpm exec prettier --check .
 
-### End-to-end tests
-
-```bash
-cp e2e/.env.e2e.template e2e/.env.e2e
+# E2E (requires backend + frontend running)
+cp e2e/.env.e2e.template e2e/.env.e2e   # fill in test user passwords
 cd e2e && pnpm exec playwright test
 ```

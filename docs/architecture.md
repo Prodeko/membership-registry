@@ -45,14 +45,26 @@ Domain errors are semantic. `TransitionError::AlreadyTerminal` and `TransitionEr
 
 Ports are traits that define what the application needs from the outside world. The application layer owns these traits; infrastructure implements them.
 
+Identity / external services:
+
 - `AuthPort` — verify tokens, refresh sessions
 - `RoleSyncPort` — CRUD roles in the identity provider
+- `UserAdminPort` — manage users in the identity provider
 - `EmailPort` — send emails
-- `MemberRepositoryPort`, `ApplicationCommandPort`, `ApplicationQueryPort`, `RoleRepositoryPort` — persistence
-- `TemplateRepositoryPort`, `TemplateRendererPort` — email templating
+- `MarketingListPort` — sync members to a marketing list provider (Mailchimp)
+- `PaymentWebhookPort` — verify payment provider webhooks (Stripe)
+- `HtmlSanitizerPort` — sanitize untrusted HTML (email templates)
+- `DataExportPort` — serialize member data to CSV
+- `TemplateRendererPort` — render email templates
+
+Persistence:
+
+- `MemberRepositoryPort`, `ApplicationCommandPort`, `ApplicationQueryPort`, `RoleRepositoryPort`
+- `AuthProviderRepositoryPort`, `RoleRenewalRepositoryPort`, `MarketingTagRepositoryPort`, `SavedFilterRepositoryPort`
+- `TemplateRepositoryPort` — email template storage
 - `AuditLogRepositoryPort` — audit trail
 
-Each port defines its own error type. `AuthError` has variants like `TokenExpired` and `Unauthorized`. `RepositoryError` has `NotFound`, `AlreadyExists`, `Constraint`, and `Unexpected`. Infrastructure adapters map their internal errors into these port error types.
+Each port defines its own error type. `AuthError` has variants like `TokenExpired`, `Unauthorized`, `Unavailable`, and `Unexpected`. `RepositoryError` has `NotFound`, `AlreadyExists`, `Constraint`, and `Unexpected`. Infrastructure adapters map their internal errors into these port error types.
 
 ### Services — `application/services/`
 
@@ -86,7 +98,12 @@ Adapters implement port traits using real external services.
 
 - `KeycloakAuthAdapter` implements `AuthPort` — JWT validation via JWKS, token refresh
 - `KeycloakRoleSyncAdapter` implements `RoleSyncPort` — role CRUD via Keycloak admin API
-- `SendGridEmailAdapter` implements `EmailPort` — email delivery via SendGrid v3 API
+- `KeycloakUserAdminAdapter` implements `UserAdminPort` — user CRUD via Keycloak admin API
+- `SendGridEmailAdapter` / `SmtpEmailAdapter` implement `EmailPort` — SendGrid for prod, SMTP (Mailpit) for dev
+- `MailchimpAdapter` implements `MarketingListPort` — marketing list sync
+- `StripeWebhookAdapter` implements `PaymentWebhookPort` — Stripe webhook signature verification
+- `AmmoniaSanitizer` implements `HtmlSanitizerPort` — HTML sanitization via the ammonia crate
+- `CsvAdapter` implements `DataExportPort` — CSV export
 - `SimpleTemplateRenderer` implements `TemplateRendererPort` — string replacement with HTML sanitization
 
 Each adapter maps its internal errors to port error types. `KeycloakError::Expired` becomes `AuthError::TokenExpired`. `KeycloakError::Unauthorized` becomes `AuthError::Unauthorized`. The mapping happens in `From` impls on the adapter.
