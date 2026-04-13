@@ -463,7 +463,7 @@ export const useGetApplication = (
 
 export const useGetApplications = (params: PaginatedQueryParams) => {
   return useQuery<ApplicationWithMember[]>({
-    queryKey: [QueryKey.APPLICATIONS],
+    queryKey: [QueryKey.APPLICATIONS, params],
     queryFn: async () => {
       const response = await admin_axios_client.get<ApplicationWithMember[]>(
         "/applications/filter",
@@ -517,7 +517,7 @@ interface CallbackResponse {
 }
 export const useOauthCallback = (params: OauthCallbackParams) => {
   return useQuery<CallbackResponse>({
-    queryKey: [QueryKey.OAUTH],
+    queryKey: [QueryKey.OAUTH, params],
     queryFn: async () => {
       const response = await axios_client.get<CallbackResponse>(
         "/auth/callback",
@@ -552,7 +552,7 @@ export const useGetMeUser = () => {
 
 export const useGetSavedFilters = (model: string) => {
   return useQuery<SavedFilter[]>({
-    queryKey: [QueryKey.SAVED_FILTERS],
+    queryKey: [QueryKey.SAVED_FILTERS, model],
     queryFn: async () => {
       const response = await admin_axios_client.get("/saved-filters", {
         params: {

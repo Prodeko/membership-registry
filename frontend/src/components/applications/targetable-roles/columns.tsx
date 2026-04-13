@@ -1,10 +1,10 @@
 import { ColumnDef } from "@tanstack/react-table";
 import {
-  CopyIcon,
-  DollarSignIcon,
-  FileIcon,
+  Copy as CopyIcon,
+  DollarSign as DollarSignIcon,
+  File as FileIcon,
   MoreHorizontal,
-  TrashIcon,
+  Trash as TrashIcon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../../ui/button";

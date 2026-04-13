@@ -18,7 +18,7 @@ use super::AppState;
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/providers", get(get_linked_providers))
-        .route("/providers/:provider_name", delete(unlink_provider))
+        .route("/providers/{provider_name}", delete(unlink_provider))
         .with_state(state)
 }
 

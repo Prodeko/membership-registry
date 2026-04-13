@@ -1,5 +1,9 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { CopyIcon, FileIcon, MoreHorizontal } from "lucide-react";
+import {
+  Copy as CopyIcon,
+  File as FileIcon,
+  MoreHorizontal,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";

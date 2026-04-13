@@ -4,7 +4,11 @@ import { QueryKey, useDeleteMember } from "@/lib/api";
 import { CopyIcon } from "@radix-ui/react-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, TrashIcon, UserIcon } from "lucide-react";
+import {
+  MoreHorizontal,
+  Trash as TrashIcon,
+  User as UserIcon,
+} from "lucide-react";
 import { Link } from "react-router-dom";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";

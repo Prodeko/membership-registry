@@ -29,9 +29,9 @@ use super::AppState;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
-        .route("/:user_id", get(get_member))
-        .route("/:user_id", put(update_member))
-        .route("/:user_id/roles", get(get_member_roles))
+        .route("/{user_id}", get(get_member))
+        .route("/{user_id}", put(update_member))
+        .route("/{user_id}/roles", get(get_member_roles))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             check_member_access,

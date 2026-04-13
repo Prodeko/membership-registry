@@ -50,9 +50,9 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/roles", post(add_many_roles))
         .route("/roles/export", post(export_members_with_roles))
         .route("/keycloak-sync-status", get(get_keycloak_sync_status))
-        .route("/:user_id", delete(delete_member))
-        .route("/:user_id", put(update_member))
-        .route("/:user_id/roles", post(add_role))
+        .route("/{user_id}", delete(delete_member))
+        .route("/{user_id}", put(update_member))
+        .route("/{user_id}/roles", post(add_role))
         .with_state(state)
 }
 

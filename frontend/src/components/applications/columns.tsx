@@ -18,13 +18,13 @@ import {
 } from "../ui/dropdown-menu";
 import {
   MoreHorizontal,
-  CopyIcon,
-  UserIcon,
-  TrashIcon,
-  FileIcon,
-  CheckIcon,
-  BanIcon,
-  DollarSignIcon,
+  Copy as CopyIcon,
+  User as UserIcon,
+  Trash as TrashIcon,
+  File as FileIcon,
+  Check as CheckIcon,
+  Ban as BanIcon,
+  DollarSign as DollarSignIcon,
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { Link } from "react-router-dom";
