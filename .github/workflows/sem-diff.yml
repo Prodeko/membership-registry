@@ -17,6 +17,8 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: Homebrew/actions/setup-homebrew@master
+
       - name: Install sem
         run: brew install sem-cli
 
