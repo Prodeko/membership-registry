@@ -1,5 +1,9 @@
 import { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal, TrashIcon, PencilIcon } from "lucide-react";
+import {
+  MoreHorizontal,
+  Trash as TrashIcon,
+  Pencil as PencilIcon,
+} from "lucide-react";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { DataTableColumnHeader } from "../ui/column-header";
