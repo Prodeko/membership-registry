@@ -45,7 +45,7 @@ sqlx = { version = "0.8", features = [
     "uuid",
     "tls-rustls",
 ] }
-ts-rs = { version = "10", features = ["chrono-impl", "uuid-impl"] }
+ts-rs = { version = "12", features = ["chrono-impl", "uuid-impl"] }
 tokio = { version = "1.35.0", features = ["full"] }
 tokio-util = { version = "0.7.11", features = ["io"] }
 tower = "0.4.13"
