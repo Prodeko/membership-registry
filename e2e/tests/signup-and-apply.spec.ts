@@ -2,6 +2,7 @@ import { test, expect } from "../fixtures";
 import { HomePage } from "../pages/home.page";
 import { ApplicationFormPage } from "../pages/application-form.page";
 import { ApplicationSuccessPage } from "../pages/application-success.page";
+import { OnboardingPage } from "../pages/onboarding.page";
 import { loginViaKeycloak } from "../helpers/auth";
 import { completeMemberProfile } from "../helpers/profile";
 import { TEST_ROLE_VALID_UNTIL } from "../helpers/constants";
@@ -23,12 +24,42 @@ test.describe("Signup and apply", () => {
   // new-user / first-login flows.
   test.use({ storageState: { cookies: [], origins: [] } });
 
+  test("new user is forced through onboarding before reaching the app", async ({
+    page,
+    testUser,
+  }) => {
+    // Opt out of auto-onboarding so we can observe the gate.
+    await loginViaKeycloak(page, testUser.email, testUser.password, {
+      completeOnboarding: false,
+    });
+
+    // Fresh user lands on onboarding, not home.
+    await expect(page).toHaveURL(/\/onboarding(\?|$|#)/);
+
+    // Trying to bypass the gate by going to /home should redirect back.
+    await page.goto("/home");
+    await page.waitForURL(/\/onboarding(\?|$|#)/);
+
+    const onboarding = new OnboardingPage(page);
+    await onboarding.waitForLoaded();
+    await onboarding.selectMunicipality("Helsinki");
+    await onboarding.submit();
+
+    await page.waitForURL("**/home");
+    const home = new HomePage(page);
+    await home.waitForLoaded();
+
+    // Municipality is now persisted — verify in the profile card.
+    expect(await home.getProfileMunicipality()).toBe("Helsinki");
+  });
+
   test("new user can log in and submit an application", async ({
     page,
     db,
     testUser,
     testRole,
   }) => {
+    // Auto-completes onboarding (defaults to Helsinki).
     await loginViaKeycloak(page, testUser.email, testUser.password);
 
     const home = new HomePage(page);
@@ -38,15 +69,16 @@ test.describe("Signup and apply", () => {
     await expect(page.getByTestId("apply-button")).toBeVisible();
     await home.clickApply();
 
-    // Fill the application form (includes signup fields for new user)
+    // Fill the application form (municipality already set via onboarding).
     const appForm = new ApplicationFormPage(page);
     await appForm.waitForLoaded();
 
-    // New user should see municipality and policies fields
-    expect(await appForm.isMunicipalityFieldVisible()).toBe(true);
+    // Municipality is handled in onboarding, so the app form must not re-ask.
+    expect(await appForm.isMunicipalityFieldVisible()).toBe(false);
+    // Policies are still collected on the application form until Keycloak
+    // integration lands for that field.
     expect(await appForm.isPoliciesFieldVisible()).toBe(true);
 
-    await appForm.selectMunicipality("Helsinki");
     await appForm.acceptPolicies();
     await appForm.selectRole(testRole.displayName);
     await appForm.fillApplicationText("E2E test application");

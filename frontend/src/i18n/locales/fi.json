@@ -20,7 +20,8 @@
     "application_text_required": "Hakemusteksti on pakollinen",
     "role_required": "Rooli on pakollinen",
     "valid_until_required": "Voimassaoloaika on pakollinen",
-    "policies_required": "Sinun tulee hyväksyä käyttöehdot"
+    "policies_required": "Sinun tulee hyväksyä käyttöehdot",
+    "home_municipality_required": "Kotikunta on pakollinen"
   },
   "errors": {
     "profile_load_failed": "Profiilin lataaminen epäonnistui.",
@@ -141,6 +142,12 @@
   },
   "member": {
     "accepted_policies": "Hyväksynyt käyttöehdot"
+  },
+  "onboarding": {
+    "title": "Tervetuloa! Yksi pikainen vaihe",
+    "intro": "Ennen kuin jatkat, kerro meille kotikuntasi.",
+    "municipality_description": "Valitse kunta, jossa asut pääasiassa. Jos asut pääasiassa Suomen ulkopuolella, valitse maasi.",
+    "submit": "Jatka"
   },
   "municipality_select": {
     "placeholder": "Valitse alue",

@@ -1,6 +1,6 @@
 import { test as setup } from "@playwright/test";
-import { KeycloakLoginPage } from "./pages/keycloak-login.page";
-import { API_BASE_URL, ADMIN_EMAIL, ADMIN_PASSWORD } from "./helpers/constants";
+import { loginViaKeycloak } from "./helpers/auth";
+import { ADMIN_EMAIL, ADMIN_PASSWORD } from "./helpers/constants";
 
 const ADMIN_AUTH_FILE = ".auth/admin.json";
 
@@ -12,9 +12,8 @@ const ADMIN_AUTH_FILE = ".auth/admin.json";
 // Transient Keycloak flakes (slow realm import, cold container) are handled
 // by `retries: 2` on the setup project in playwright.config.ts.
 setup("authenticate as admin", async ({ page }) => {
-  await page.goto(`${API_BASE_URL}/auth/login`);
-  const keycloak = new KeycloakLoginPage(page);
-  await keycloak.login(ADMIN_EMAIL, ADMIN_PASSWORD);
-  await page.waitForURL("**/home", { timeout: 30_000 });
+  // Admins are gated by the same onboarding requirement as regular users.
+  // loginViaKeycloak auto-completes onboarding so the admin lands on /home.
+  await loginViaKeycloak(page, ADMIN_EMAIL, ADMIN_PASSWORD);
   await page.context().storageState({ path: ADMIN_AUTH_FILE });
 });

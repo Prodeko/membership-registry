@@ -114,7 +114,13 @@ async fn callback(
     };
 
     let redirect_to = match state.member_service.get_member(user_info.user_id).await {
-        Ok(_) => "/home".to_string(),
+        Ok(member) => {
+            if member.home_municipality.is_none() {
+                "/onboarding".to_string()
+            } else {
+                "/home".to_string()
+            }
+        }
         Err(_) => {
             let new_person = NewPerson {
                 id: PersonId(user_info.user_id),
@@ -134,7 +140,7 @@ async fn callback(
             {
                 tracing::error!("Failed to auto-create member: {e:?}");
             }
-            "/home".to_string()
+            "/onboarding".to_string()
         }
     };
 

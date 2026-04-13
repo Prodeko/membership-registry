@@ -21,6 +21,7 @@ import {
 } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { CommandList } from "cmdk";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FormControl } from "../ui/form";
 
@@ -28,10 +29,12 @@ const RegionItem = ({
   region,
   field,
   form,
+  onSelected,
 }: {
   region: string;
   field: any;
   form: any;
+  onSelected: () => void;
 }) => (
   <CommandItem
     asChild={false}
@@ -39,6 +42,7 @@ const RegionItem = ({
     key={region}
     onSelect={() => {
       form.setValue("home_municipality", region);
+      onSelected();
     }}
   >
     <Check
@@ -53,9 +57,11 @@ const RegionItem = ({
 
 const MunicipalitySelect = ({ field, form }: { field: any; form: any }) => {
   const { t } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const close = () => setOpen(false);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <FormControl>
           <Button
@@ -84,6 +90,7 @@ const MunicipalitySelect = ({ field, form }: { field: any; form: any }) => {
                   region={region}
                   field={field}
                   form={form}
+                  onSelected={close}
                 />
               ))}
             </CommandGroup>
@@ -94,6 +101,7 @@ const MunicipalitySelect = ({ field, form }: { field: any; form: any }) => {
                   region={region}
                   field={field}
                   form={form}
+                  onSelected={close}
                 />
               ))}
             </CommandGroup>
@@ -104,6 +112,7 @@ const MunicipalitySelect = ({ field, form }: { field: any; form: any }) => {
                   region={region}
                   field={field}
                   form={form}
+                  onSelected={close}
                 />
               ))}
             </CommandGroup>

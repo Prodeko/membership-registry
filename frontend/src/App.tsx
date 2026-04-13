@@ -12,7 +12,9 @@ import Application from "./components/applications/Application";
 import Applications from "./components/applications/Applications";
 import TargetableRoles from "./components/applications/targetable-roles/TargetableRoles";
 import Callback from "./components/auth/Callback";
+import RequireOnboarded from "./components/auth/RequireOnboarded";
 import ErrorPage from "./components/Error";
+import Onboarding from "./components/onboarding/Onboarding";
 import Layout from "./components/layout/Layout";
 import Member from "./components/members/Member";
 import Members from "./components/members/Members";
@@ -69,119 +71,167 @@ const router = createBrowserRouter([
   {
     path: "/",
     element: (
-      <Layout>
-        <Members />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <Members />
+        </Layout>
+      </RequireOnboarded>
     ),
     errorElement: <ErrorPage />,
   },
   {
     path: "/members",
     element: (
-      <Layout>
-        <Members />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <Members />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/members/:id",
     element: (
-      <Layout>
-        <Member />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <Member />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/roles",
     element: (
-      <Layout>
-        <Roles />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <Roles />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/roles/:id",
     element: (
-      <Layout>
-        <Role />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <Role />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/applications",
     element: (
-      <Layout>
-        <Applications />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <Applications />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/applications/:id",
     element: (
-      <Layout>
-        <Application />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <Application />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/applications/targetable-roles",
     element: (
-      <Layout>
-        <TargetableRoles />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <TargetableRoles />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/logs",
     element: (
-      <Layout>
-        <AuditLogs />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <AuditLogs />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/email-templates",
     element: (
-      <Layout>
-        <EmailTemplates />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <EmailTemplates />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/marketing-tags",
     element: (
-      <Layout>
-        <MarketingTags />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <MarketingTags />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/data",
     element: (
-      <Layout>
-        <DataManagement />
-      </Layout>
+      <RequireOnboarded>
+        <Layout>
+          <DataManagement />
+        </Layout>
+      </RequireOnboarded>
     ),
   },
   {
     path: "/home",
-    element: <UserHome />,
+    element: (
+      <RequireOnboarded>
+        <UserHome />
+      </RequireOnboarded>
+    ),
   },
   {
     path: "/profile/edit",
-    element: <ProfileEdit />,
+    element: (
+      <RequireOnboarded>
+        <ProfileEdit />
+      </RequireOnboarded>
+    ),
   },
   {
     path: "/apply",
-    element: <ApplicationForm />,
+    element: (
+      <RequireOnboarded>
+        <ApplicationForm />
+      </RequireOnboarded>
+    ),
   },
   {
     path: "/apply/success",
-    element: <Success />,
+    element: (
+      <RequireOnboarded>
+        <Success />
+      </RequireOnboarded>
+    ),
   },
   {
     path: "/payment/success",
-    element: <PaymentSuccess />,
+    element: (
+      <RequireOnboarded>
+        <PaymentSuccess />
+      </RequireOnboarded>
+    ),
+  },
+  {
+    path: "/onboarding",
+    element: <Onboarding />,
   },
   {
     path: "/auth/callback",
