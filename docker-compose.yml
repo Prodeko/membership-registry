@@ -19,6 +19,7 @@ services:
     volumes:
       - ./keycloak/realm-export.json:/opt/keycloak/data/import/realm-export.json
       - ./keycloak/themes/membership:/opt/keycloak/themes/membership
+      - ./keycloak/providers:/opt/keycloak/providers
 
   mailpit:
     image: axllent/mailpit:latest
