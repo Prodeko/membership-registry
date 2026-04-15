@@ -1,0 +1,95 @@
+@import url('https://fonts.googleapis.com/css2?family=Raleway:wght@400;600&display=swap');
+
+:root {
+  /* Prodeko brand colors */
+  --pf-v5-global--primary-color--100: #002e7d;
+  --pf-v5-global--primary-color--200: #0053a0;
+
+  /* Font */
+  --pf-v5-global--FontFamily--sans-serif: 'Raleway', sans-serif;
+
+  /* Override Keycloak theme vars */
+  --keycloak-bg-logo-url: none;
+  --keycloak-card-top-color: #002e7d;
+  --keycloak-logo-height: 72px;
+  --keycloak-logo-width: 72px;
+}
+
+/* Remove Keycloak background image */
+.login-pf body {
+  background: #f0f0f0;
+}
+
+/* Logo: replace realm name text with logo */
+#kc-header-wrapper {
+  font-size: 0 !important;
+  line-height: 0 !important;
+  color: transparent !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  display: block;
+  min-height: 72px;
+  width: 100%;
+}
+
+#kc-header-wrapper::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 72px;
+  background-color: #002e7d;
+  -webkit-mask: url('../img/logo.svg') no-repeat center;
+  -webkit-mask-size: contain;
+  mask: url('../img/logo.svg') no-repeat center;
+  mask-size: contain;
+}
+
+/* Center the login form on large screens */
+@media (min-width: 992px) {
+  .pf-v5-c-login {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .pf-v5-c-login__container {
+    max-width: 450px;
+    width: 100%;
+  }
+}
+
+/* Links */
+a {
+  color: #002e7d;
+}
+
+a:hover {
+  color: #0053a0;
+}
+
+/* Primary buttons */
+.pf-v5-c-button.pf-m-primary {
+  background-color: #002e7d;
+  border-color: #002e7d;
+}
+
+.pf-v5-c-button.pf-m-primary:hover {
+  background-color: #002851;
+  border-color: #002851;
+}
+
+.pf-v5-c-button.pf-m-primary:focus {
+  background-color: #002851;
+  border-color: #002851;
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline-color: #002e7d;
+}
+
+/* Headings */
+h1, h2, h3, h4 {
+  font-weight: 600;
+}
