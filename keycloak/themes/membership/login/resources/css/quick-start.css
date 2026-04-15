@@ -1,0 +1,47 @@
+:root {
+  --quickstart-primary-color-light: #002e7d;
+  --quickstart-primary-color-dark: #002e7d;
+  --quickstart-primary-color: var(--quickstart-primary-color-light);
+  --quickstart-secondary-color-light: #0070bb;
+  --quickstart-secondary-color-dark: #0070bb;
+  --quickstart-secondary-color: var(--quickstart-secondary-color-light);
+  --quickstart-font-family: 'Raleway', sans-serif;
+  --quickstart-heading-font-family: inherit;
+  --quickstart-logo-url: none;
+  --quickstart-bg-logo-url: none;
+  --quickstart-logo-height: 63px;
+  --quickstart-logo-width: 300px;
+  --quickstart-text-primary-light: #1a1a2e;
+  --quickstart-text-primary-dark: #e8eaed;
+  --quickstart-text-secondary-light: #374151;
+  --quickstart-text-secondary-dark: #cbd5e1;
+  --quickstart-bg-color-light: #f3f3f3;
+  --quickstart-bg-color-dark: #f3f3f3;
+  --quickstart-bg-color: var(--quickstart-bg-color-light);
+  --quickstart-bg-image: none;
+  --quickstart-border-radius: 8px;
+  --quickstart-card-shadow: none;
+}
+
+html.pf-v5-theme-dark,
+html.kcDarkModeClass {
+  --quickstart-primary-color: var(--quickstart-primary-color-dark);
+  --quickstart-secondary-color: var(--quickstart-secondary-color-dark);
+  --quickstart-bg-color: var(--quickstart-bg-color-dark);
+}
+
+body,
+body#keycloak-bg {
+  margin: 0;
+  background-color: var(--quickstart-bg-color);
+}
+
+.kcLogin,
+.kcLoginClass {
+  box-sizing: border-box;
+  background-image: var(--quickstart-bg-image);
+  background-color: var(--quickstart-bg-color);
+  background-repeat: no-repeat;
+  background-position: center center;
+  background-size: cover;
+}
