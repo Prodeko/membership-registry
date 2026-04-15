@@ -141,6 +141,15 @@ html.pf-v5-theme-dark #kc-recovery-codes-list li span {
   width: 100% !important;
 }
 
+/* keycloak.v2 may render action buttons with PatternFly classes; keep them rounded */
+#kc-form-buttons :is(button, input[type="submit"], input[type="button"], a, .pf-v5-c-button, .pf-c-button),
+.form-actions :is(button, input[type="submit"], input[type="button"], a, .pf-v5-c-button, .pf-c-button),
+#kc-webauthn-settings-form :is(button, input[type="submit"], input[type="button"], a, .pf-v5-c-button, .pf-c-button),
+#kc-totp-settings-form :is(button, input[type="submit"], input[type="button"], a, .pf-v5-c-button, .pf-c-button),
+#kc-recovery-codes-settings-form :is(button, input[type="submit"], input[type="button"], a, .pf-v5-c-button, .pf-c-button) {
+  border-radius: var(--quickstart-border-radius) !important;
+}
+
 .kcSelectAuthListItemClass {
   display: flex;
   flex-direction: column;
