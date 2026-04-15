@@ -15,7 +15,7 @@ az role assignment create --assignee "$PRINCIPAL_ID" --role AcrPull --scope "$AC
 
 echo "Building Keycloak image..."
 az acr login --name "$ACR_NAME"
-docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
+docker build --no-cache --platform linux/amd64 -t "$IMAGE:$TAG" -t "$IMAGE:latest" .
 docker push "$IMAGE:$TAG"
 docker push "$IMAGE:latest"
 
