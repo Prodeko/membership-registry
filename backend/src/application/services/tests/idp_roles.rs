@@ -394,6 +394,144 @@ mod test_idp_roles {
         cleanup_test_db(pool, &db_url).await;
     }
 
+    // ---- sync_missing_roles_to_keycloak tests ----
+
+    #[tokio::test]
+    async fn sync_missing_roles_assigns_missing_roles_and_audits() {
+        let mock_server = MockServer::start().await;
+        let (_, _, _, role_service, pool, db_url) = setup(&mock_server).await;
+
+        // USER_ID has registry roles `prodeko-external-member` and `root-users`
+        // (across multiple rows in test_data.sql). KC reports no role members
+        // for any role — so both roles should be added.
+
+        // Mock: GET role members returns empty list for any role (KC has
+        // nobody assigned to any role).
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"/admin/realms/membership-registry/roles/[^/]+/users$",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+            .mount(&mock_server)
+            .await;
+
+        // Mock: GET role by name — needed by assign_role's get_realm_role_id.
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"/admin/realms/membership-registry/roles/[^/]+$",
+            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(mock_role_response("any-role", "rol_test")),
+            )
+            .mount(&mock_server)
+            .await;
+
+        // Mock: POST role-mappings/realm — the actual assignment.
+        Mock::given(method("POST"))
+            .and(path_regex(
+                format!(
+                    "/admin/realms/membership-registry/users/{}/role-mappings/realm",
+                    KEYCLOAK_USER_ID
+                )
+                .as_str(),
+            ))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(2)
+            .mount(&mock_server)
+            .await;
+
+        let summary = role_service
+            .sync_missing_roles_to_keycloak(None)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.added, 2, "Expected 2 role assignments for USER_ID");
+        assert_eq!(
+            summary.failed, 0,
+            "No KC errors → no failures. Users without auth providers are skipped, not failed"
+        );
+        assert!(
+            summary.users_processed >= 1,
+            "At least USER_ID should be in the drift set"
+        );
+
+        // Audit log: one entry per successful assignment.
+        let logs = role_service
+            .audit_log
+            .get_logs(AuditLogQueryParams {
+                action: Some("role_member.kc_sync_add".to_string()),
+                ..default_query_params()
+            })
+            .await
+            .unwrap();
+        assert_eq!(logs.len(), 2, "Expected 2 audit entries for kc_sync_add");
+        assert!(logs.iter().all(|l| l.entity_type == "role_member"));
+
+        cleanup_test_db(pool, &db_url).await;
+    }
+
+    #[tokio::test]
+    async fn sync_missing_roles_counts_failures_when_idp_errors() {
+        let mock_server = MockServer::start().await;
+        let (_, _, _, role_service, pool, db_url) = setup(&mock_server).await;
+
+        // KC has no role members for any role (drift exists).
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"/admin/realms/membership-registry/roles/[^/]+/users$",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([])))
+            .mount(&mock_server)
+            .await;
+
+        // GET role by name returns 200 (role exists) so assign_role gets past
+        // get_realm_role_id...
+        Mock::given(method("GET"))
+            .and(path_regex(
+                r"/admin/realms/membership-registry/roles/[^/]+$",
+            ))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(mock_role_response("any-role", "rol_test")),
+            )
+            .mount(&mock_server)
+            .await;
+
+        // ...but the POST assignment fails with 500.
+        Mock::given(method("POST"))
+            .and(path_regex(
+                r"/admin/realms/membership-registry/users/[^/]+/role-mappings/realm",
+            ))
+            .respond_with(ResponseTemplate::new(500))
+            .mount(&mock_server)
+            .await;
+
+        let summary = role_service
+            .sync_missing_roles_to_keycloak(None)
+            .await
+            .unwrap();
+
+        assert_eq!(summary.added, 0, "No successful assignments");
+        assert_eq!(summary.failed, 2, "Both roles should count as failed");
+
+        // No audit log entries when assignment fails.
+        let logs = role_service
+            .audit_log
+            .get_logs(AuditLogQueryParams {
+                action: Some("role_member.kc_sync_add".to_string()),
+                ..default_query_params()
+            })
+            .await
+            .unwrap();
+        assert!(
+            logs.is_empty(),
+            "No audit entries should be written for failed syncs"
+        );
+
+        cleanup_test_db(pool, &db_url).await;
+    }
+
     // ---- delete_role_membership tests ----
 
     #[tokio::test]
