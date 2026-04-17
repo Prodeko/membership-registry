@@ -26,6 +26,13 @@ pub struct MemberKeycloakSyncStatus {
     pub missing_in_keycloak: Vec<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SyncMissingRolesSummary {
+    pub added: u32,
+    pub failed: u32,
+    pub users_processed: u32,
+}
+
 #[derive(Clone)]
 pub struct RoleService {
     pub role_repo: Arc<dyn RoleRepositoryPort>,
@@ -534,6 +541,109 @@ impl RoleService {
         }
 
         Ok(synced)
+    }
+
+    /// Adds every registry role membership that is missing in Keycloak to the
+    /// corresponding Keycloak user. Registry is the source of truth; extras in
+    /// Keycloak (roles KC has but registry doesn't) are NOT touched here.
+    ///
+    /// Best-effort: a failure on one assign_role call is logged and counted,
+    /// but does not abort the run. Returns totals so the UI can surface them.
+    pub async fn sync_missing_roles_to_keycloak(
+        &self,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<SyncMissingRolesSummary> {
+        // Bypass cache — we want a fresh diff at the moment of sync.
+        let status = self.compute_keycloak_sync_status().await?;
+
+        let users_processed = status.len() as u32;
+        let mut added: u32 = 0;
+        let mut failed: u32 = 0;
+
+        for (user_id, drift) in status {
+            if drift.missing_in_keycloak.is_empty() {
+                continue;
+            }
+
+            let providers = match self.auth_provider_repo.find_by_user_id(&user_id).await {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!(
+                        user_id = %user_id,
+                        "Failed to fetch auth providers for role sync: {e:?}"
+                    );
+                    failed += drift.missing_in_keycloak.len() as u32;
+                    continue;
+                }
+            };
+
+            if providers.is_empty() {
+                // User has registry roles but no Keycloak account; there is
+                // nothing we can do in KC. Skip silently — not a failure.
+                tracing::debug!(
+                    user_id = %user_id,
+                    "No auth providers; skipping {} missing role(s)",
+                    drift.missing_in_keycloak.len()
+                );
+                continue;
+            }
+
+            for role_name_str in drift.missing_in_keycloak {
+                let role = RoleName(role_name_str.clone());
+                let mut any_success = false;
+
+                for provider in &providers {
+                    match self
+                        .role_sync
+                        .assign_role(&IdpSubject(provider.provider_user_id.clone()), &role)
+                        .await
+                    {
+                        Ok(()) => any_success = true,
+                        Err(e) => tracing::error!(
+                            user_id = %user_id,
+                            role = %role_name_str,
+                            provider = %provider.provider_user_id,
+                            "assign_role failed: {e:?}"
+                        ),
+                    }
+                }
+
+                if any_success {
+                    added += 1;
+                    self.audit_log
+                        .log(
+                            actor_user_id,
+                            "role_member.kc_sync_add",
+                            "role_member",
+                            &format!("{}:{}", user_id, role_name_str),
+                            Some(serde_json::json!({
+                                "user_id": user_id,
+                                "role_name": role_name_str,
+                            })),
+                        )
+                        .await;
+                } else {
+                    failed += 1;
+                }
+            }
+        }
+
+        tracing::info!(
+            users_processed,
+            added,
+            failed,
+            "Keycloak role sync (add-only) complete"
+        );
+
+        if added > 0 {
+            self.invalidate_sync_cache();
+        }
+
+        Ok(SyncMissingRolesSummary {
+            added,
+            failed,
+            users_processed,
+        })
     }
 
     pub async fn get_role_stats(

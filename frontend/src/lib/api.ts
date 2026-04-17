@@ -216,6 +216,7 @@ export function useGetMembersWithIds(ids: string[]) {
       });
       return response.data;
     },
+    enabled: ids.length > 0,
   });
 }
 
@@ -313,6 +314,29 @@ export const useCleanupExpiredRoles = () => {
         "/roles/cleanup-expired",
       );
       return response.data;
+    },
+  });
+};
+
+export interface KeycloakSyncResponse {
+  added: number;
+  failed: number;
+  users_processed: number;
+}
+
+export const useSyncMissingKeycloakRoles = () => {
+  const queryClient = useQueryClient();
+  return useMutation<KeycloakSyncResponse, Error>({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post<KeycloakSyncResponse>(
+        "/members/keycloak-sync",
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.KEYCLOAK_SYNC_STATUS],
+      });
     },
   });
 };

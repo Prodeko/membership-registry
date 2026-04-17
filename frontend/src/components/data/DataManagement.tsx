@@ -14,8 +14,9 @@ import {
   CardHeader,
   CardTitle,
 } from "../ui/card";
+import SyncRolesCard from "./SyncRolesCard";
 
-type Tab = "export" | "import";
+type Tab = "export" | "import" | "sync";
 
 interface ExportConfig {
   title: string;
@@ -83,6 +84,12 @@ const DataManagement = () => {
         >
           Import
         </Button>
+        <Button
+          variant={activeTab === "sync" ? "default" : "outline"}
+          onClick={() => setActiveTab("sync")}
+        >
+          Sync
+        </Button>
       </div>
       {activeTab === "export" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -96,6 +103,7 @@ const DataManagement = () => {
           Import functionality coming soon.
         </p>
       )}
+      {activeTab === "sync" && <SyncRolesCard />}
     </div>
   );
 };

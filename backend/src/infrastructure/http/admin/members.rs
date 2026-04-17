@@ -50,6 +50,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/roles", post(add_many_roles))
         .route("/roles/export", post(export_members_with_roles))
         .route("/keycloak-sync-status", get(get_keycloak_sync_status))
+        .route("/keycloak-sync", post(post_keycloak_sync))
         .route("/{user_id}", delete(delete_member))
         .route("/{user_id}", put(update_member))
         .route("/{user_id}/roles", post(add_role))
@@ -334,4 +335,29 @@ async fn get_keycloak_sync_status(
         .collect();
 
     Ok(Json(KeycloakSyncStatusMapDTO { statuses }))
+}
+
+#[derive(serde::Serialize)]
+struct KeycloakSyncResponseDTO {
+    added: u32,
+    failed: u32,
+    users_processed: u32,
+}
+
+#[debug_handler]
+async fn post_keycloak_sync(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+) -> ApiResult<Json<KeycloakSyncResponseDTO>> {
+    let actor_id = user_info.map(|u| u.user_id);
+    let summary = state
+        .role_service
+        .sync_missing_roles_to_keycloak(actor_id)
+        .await?;
+
+    Ok(Json(KeycloakSyncResponseDTO {
+        added: summary.added,
+        failed: summary.failed,
+        users_processed: summary.users_processed,
+    }))
 }
