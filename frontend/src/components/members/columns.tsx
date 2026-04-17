@@ -154,16 +154,22 @@ export const getColumns = (
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
               <div className="space-y-1 text-xs">
-                {status.extra_in_keycloak.length > 0 && (
-                  <div>
-                    <span className="font-medium">Extra in KC:</span>{" "}
-                    {status.extra_in_keycloak.join(", ")}
-                  </div>
-                )}
                 {status.missing_in_keycloak.length > 0 && (
                   <div>
                     <span className="font-medium">Missing in KC:</span>{" "}
                     {status.missing_in_keycloak.join(", ")}
+                  </div>
+                )}
+                {status.expired_in_keycloak.length > 0 && (
+                  <div>
+                    <span className="font-medium">Expired in KC:</span>{" "}
+                    {status.expired_in_keycloak.join(", ")}
+                  </div>
+                )}
+                {status.unmanaged_in_keycloak.length > 0 && (
+                  <div>
+                    <span className="font-medium">Unmanaged in KC:</span>{" "}
+                    {status.unmanaged_in_keycloak.join(", ")}
                   </div>
                 )}
               </div>

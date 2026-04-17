@@ -321,15 +321,18 @@ export const useCleanupExpiredRoles = () => {
 export interface KeycloakSyncResponse {
   added: number;
   failed: number;
+  removed: number;
+  remove_failed: number;
   users_processed: number;
 }
 
 export const useSyncMissingKeycloakRoles = () => {
   const queryClient = useQueryClient();
-  return useMutation<KeycloakSyncResponse, Error>({
-    mutationFn: async () => {
+  return useMutation<KeycloakSyncResponse, Error, { removeExpired: boolean }>({
+    mutationFn: async ({ removeExpired }) => {
       const response = await admin_axios_client.post<KeycloakSyncResponse>(
         "/members/keycloak-sync",
+        { remove_expired: removeExpired },
       );
       return response.data;
     },
