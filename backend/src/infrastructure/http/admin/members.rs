@@ -337,10 +337,18 @@ async fn get_keycloak_sync_status(
     Ok(Json(KeycloakSyncStatusMapDTO { statuses }))
 }
 
+#[derive(serde::Deserialize, Default)]
+struct KeycloakSyncRequestDTO {
+    #[serde(default)]
+    remove_expired: bool,
+}
+
 #[derive(serde::Serialize)]
 struct KeycloakSyncResponseDTO {
     added: u32,
     failed: u32,
+    removed: u32,
+    remove_failed: u32,
     users_processed: u32,
 }
 
@@ -348,16 +356,20 @@ struct KeycloakSyncResponseDTO {
 async fn post_keycloak_sync(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
+    body: Option<Json<KeycloakSyncRequestDTO>>,
 ) -> ApiResult<Json<KeycloakSyncResponseDTO>> {
     let actor_id = user_info.map(|u| u.user_id);
+    let remove_expired = body.map(|b| b.remove_expired).unwrap_or(false);
     let summary = state
         .role_service
-        .sync_missing_roles_to_keycloak(actor_id)
+        .sync_missing_roles_to_keycloak(actor_id, remove_expired)
         .await?;
 
     Ok(Json(KeycloakSyncResponseDTO {
         added: summary.added,
         failed: summary.failed,
+        removed: summary.removed,
+        remove_failed: summary.remove_failed,
         users_processed: summary.users_processed,
     }))
 }
