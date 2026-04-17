@@ -22,7 +22,10 @@ use super::{
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemberKeycloakSyncStatus {
     pub in_sync: bool,
-    pub extra_in_keycloak: Vec<String>,
+    /// Roles in Keycloak that have an expired registry record — removable when opted in.
+    pub expired_in_keycloak: Vec<String>,
+    /// Roles in Keycloak with no registry record — never touched by sync.
+    pub unmanaged_in_keycloak: Vec<String>,
     pub missing_in_keycloak: Vec<String>,
 }
 
@@ -30,6 +33,8 @@ pub struct MemberKeycloakSyncStatus {
 pub struct SyncMissingRolesSummary {
     pub added: u32,
     pub failed: u32,
+    pub removed: u32,
+    pub remove_failed: u32,
     pub users_processed: u32,
 }
 
@@ -549,9 +554,11 @@ impl RoleService {
     ///
     /// Best-effort: a failure on one assign_role call is logged and counted,
     /// but does not abort the run. Returns totals so the UI can surface them.
+    /// When `remove_expired` is true, also removes registry-expired roles from KC.
     pub async fn sync_missing_roles_to_keycloak(
         &self,
         actor_user_id: Option<Uuid>,
+        remove_expired: bool,
     ) -> ServiceResult<SyncMissingRolesSummary> {
         // Bypass cache — we want a fresh diff at the moment of sync.
         let status = self.compute_keycloak_sync_status().await?;
@@ -559,13 +566,28 @@ impl RoleService {
         let users_processed = status.len() as u32;
         let mut added: u32 = 0;
         let mut failed: u32 = 0;
+        let mut removed: u32 = 0;
+        let mut remove_failed: u32 = 0;
 
-        for (user_id, drift) in status {
-            if drift.missing_in_keycloak.is_empty() {
+        // Pre-fetch expired unsynced rows once so we can look up valid_from when marking.
+        let expired_unsynced = if remove_expired {
+            self.role_repo
+                .fetch_expired_unsynced()
+                .await
+                .map_err(ServiceError::from)?
+        } else {
+            vec![]
+        };
+
+        for (user_id, drift) in &status {
+            let needs_add = !drift.missing_in_keycloak.is_empty();
+            let needs_remove = remove_expired && !drift.expired_in_keycloak.is_empty();
+
+            if !needs_add && !needs_remove {
                 continue;
             }
 
-            let providers = match self.auth_provider_repo.find_by_user_id(&user_id).await {
+            let providers = match self.auth_provider_repo.find_by_user_id(user_id).await {
                 Ok(p) => p,
                 Err(e) => {
                     tracing::error!(
@@ -573,13 +595,15 @@ impl RoleService {
                         "Failed to fetch auth providers for role sync: {e:?}"
                     );
                     failed += drift.missing_in_keycloak.len() as u32;
+                    if remove_expired {
+                        remove_failed += drift.expired_in_keycloak.len() as u32;
+                    }
                     continue;
                 }
             };
 
             if providers.is_empty() {
-                // User has registry roles but no Keycloak account; there is
-                // nothing we can do in KC. Skip silently — not a failure.
+                // User has no Keycloak account — nothing to do in KC.
                 tracing::debug!(
                     user_id = %user_id,
                     "No auth providers; skipping {} missing role(s)",
@@ -588,7 +612,8 @@ impl RoleService {
                 continue;
             }
 
-            for role_name_str in drift.missing_in_keycloak {
+            // --- ADD missing roles ---
+            for role_name_str in &drift.missing_in_keycloak {
                 let role = RoleName(role_name_str.clone());
                 let mut any_success = false;
 
@@ -626,22 +651,91 @@ impl RoleService {
                     failed += 1;
                 }
             }
+
+            // --- REMOVE expired roles (opt-in) ---
+            if remove_expired {
+                for role_name_str in &drift.expired_in_keycloak {
+                    let role = RoleName(role_name_str.clone());
+                    let mut any_failed = false;
+
+                    for provider in &providers {
+                        if let Err(e) = self
+                            .role_sync
+                            .remove_role(&IdpSubject(provider.provider_user_id.clone()), &role)
+                            .await
+                        {
+                            tracing::error!(
+                                user_id = %user_id,
+                                role = %role_name_str,
+                                provider = %provider.provider_user_id,
+                                "remove_role failed: {e:?}"
+                            );
+                            any_failed = true;
+                        }
+                    }
+
+                    if any_failed {
+                        remove_failed += 1;
+                        continue;
+                    }
+
+                    // Mark all matching expired rows as KC-synced so the scheduler won't re-process them.
+                    for membership in expired_unsynced
+                        .iter()
+                        .filter(|m| m.user_id == *user_id && m.role_name.0 == *role_name_str)
+                    {
+                        if let Err(e) = self
+                            .role_repo
+                            .mark_keycloak_synced(
+                                &membership.user_id,
+                                &membership.role_name.0,
+                                membership.valid_from,
+                            )
+                            .await
+                        {
+                            tracing::error!(
+                                user_id = %user_id,
+                                role = %role_name_str,
+                                "Failed to mark expired role as kc-synced: {e:?}"
+                            );
+                        }
+                    }
+
+                    removed += 1;
+                    self.audit_log
+                        .log(
+                            actor_user_id,
+                            "role_member.kc_sync_remove",
+                            "role_member",
+                            &format!("{}:{}", user_id, role_name_str),
+                            Some(serde_json::json!({
+                                "user_id": user_id,
+                                "role_name": role_name_str,
+                            })),
+                        )
+                        .await;
+                }
+            }
         }
 
         tracing::info!(
             users_processed,
             added,
             failed,
-            "Keycloak role sync (add-only) complete"
+            removed,
+            remove_failed,
+            "Keycloak role sync complete"
         );
 
-        if added > 0 {
+        if added > 0 || removed > 0 {
             self.invalidate_sync_cache();
         }
 
         Ok(SyncMissingRolesSummary {
             added,
             failed,
+            removed,
+            remove_failed,
             users_processed,
         })
     }
@@ -730,22 +824,36 @@ impl RoleService {
             }
         }
 
-        // 5. Get all active registry role memberships
+        let today = chrono::Utc::now().date_naive();
         let role_names: Vec<String> = roles.iter().map(|r| r.name.0.clone()).collect();
-        let members_with_roles = self
+
+        // 5a. Active registry role memberships (valid today).
+        let active_members_with_roles = self
+            .member_service
+            .get_members_with_roles(None, None, Some(role_names.clone()), None, None, None, Some(today), Some(today))
+            .await?;
+
+        // 5b. All registry role memberships regardless of validity (to detect expired records).
+        let all_members_with_roles = self
             .member_service
             .get_members_with_roles(None, None, Some(role_names), None, None, None, None, None)
             .await?;
 
-        // Also include members with no roles (they should show as in_sync if KC also has none)
+        // 5c. All members (no role filter) — to enumerate every known user_id.
         let all_members = self
             .member_service
             .get_members_with_roles(None, None, None, None, None, None, None, None)
             .await?;
 
-        let mut registry_roles_by_user: HashMap<Uuid, HashSet<String>> = HashMap::new();
-        for mwr in &members_with_roles {
-            registry_roles_by_user
+        let mut active_registry_roles_by_user: HashMap<Uuid, HashSet<String>> = HashMap::new();
+        for mwr in &active_members_with_roles {
+            active_registry_roles_by_user
+                .insert(mwr.person.id.0, mwr.role_names.iter().cloned().collect());
+        }
+
+        let mut all_registry_roles_by_user: HashMap<Uuid, HashSet<String>> = HashMap::new();
+        for mwr in &all_members_with_roles {
+            all_registry_roles_by_user
                 .insert(mwr.person.id.0, mwr.role_names.iter().cloned().collect());
         }
 
@@ -756,22 +864,38 @@ impl RoleService {
         let mut result = HashMap::new();
         for user_id in all_user_ids {
             let kc_roles = kc_roles_by_user.get(&user_id).cloned().unwrap_or_default();
-            let reg_roles = registry_roles_by_user
+            let active_roles = active_registry_roles_by_user
+                .get(&user_id)
+                .cloned()
+                .unwrap_or_default();
+            let all_roles = all_registry_roles_by_user
                 .get(&user_id)
                 .cloned()
                 .unwrap_or_default();
 
-            let extra_in_keycloak: Vec<String> = kc_roles.difference(&reg_roles).cloned().collect();
             let missing_in_keycloak: Vec<String> =
-                reg_roles.difference(&kc_roles).cloned().collect();
-            let in_sync = extra_in_keycloak.is_empty() && missing_in_keycloak.is_empty();
+                active_roles.difference(&kc_roles).cloned().collect();
+
+            // Roles KC has that the registry knows about but are expired.
+            let expired_roles: HashSet<String> = all_roles.difference(&active_roles).cloned().collect();
+            let expired_in_keycloak: Vec<String> =
+                expired_roles.intersection(&kc_roles).cloned().collect();
+
+            // Roles KC has with no registry record at all.
+            let unmanaged_in_keycloak: Vec<String> =
+                kc_roles.difference(&all_roles).cloned().collect();
+
+            let in_sync = missing_in_keycloak.is_empty()
+                && expired_in_keycloak.is_empty()
+                && unmanaged_in_keycloak.is_empty();
 
             if !in_sync {
                 result.insert(
                     user_id,
                     MemberKeycloakSyncStatus {
                         in_sync,
-                        extra_in_keycloak,
+                        expired_in_keycloak,
+                        unmanaged_in_keycloak,
                         missing_in_keycloak,
                     },
                 );

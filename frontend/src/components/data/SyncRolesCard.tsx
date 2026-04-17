@@ -22,8 +22,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
+import { Switch } from "../ui/switch";
+import { Label } from "../ui/label";
 
-interface MissingRoleRow {
+interface RoleRow {
   userId: string;
   displayName: string;
   roleName: string;
@@ -36,71 +38,137 @@ function displayNameFor(userId: string, members: MemberWithRoles[] = []) {
   return name.length > 0 ? `${name} (${m.email})` : m.email;
 }
 
+function buildRows(
+  userIds: string[],
+  getRoles: (userId: string) => string[],
+  members: MemberWithRoles[] | undefined,
+): RoleRow[] {
+  const rows: RoleRow[] = [];
+  for (const userId of userIds) {
+    const name = displayNameFor(userId, members);
+    for (const roleName of getRoles(userId)) {
+      rows.push({ userId, displayName: name, roleName });
+    }
+  }
+  rows.sort(
+    (a, b) =>
+      a.displayName.localeCompare(b.displayName) ||
+      a.roleName.localeCompare(b.roleName),
+  );
+  return rows;
+}
+
+function RoleTable({ rows, emptyText }: { rows: RoleRow[]; emptyText: string }) {
+  return (
+    <div className="border rounded-md overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-muted text-left">
+          <tr>
+            <th className="px-3 py-2 font-medium">Member</th>
+            <th className="px-3 py-2 font-medium">Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.length === 0 ? (
+            <tr>
+              <td className="px-3 py-4 text-center text-muted-foreground" colSpan={2}>
+                {emptyText}
+              </td>
+            </tr>
+          ) : (
+            rows.map((row, i) => (
+              <tr key={`${row.userId}-${row.roleName}-${i}`} className="border-t">
+                <td className="px-3 py-2">{row.displayName}</td>
+                <td className="px-3 py-2">{row.roleName}</td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 function SyncRolesCard() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [removeExpired, setRemoveExpired] = useState(false);
   const { data: syncStatus, isLoading } = useGetKeycloakSyncStatus();
   const syncMutation = useSyncMissingKeycloakRoles();
 
-  const { missingUserIds, totalMissing, totalExtras, totalUsersOutOfSync } =
-    useMemo(() => {
-      const statuses = syncStatus?.statuses ?? {};
-      const ids: string[] = [];
-      let missing = 0;
-      let extras = 0;
-      for (const [userId, s] of Object.entries(statuses)) {
-        if (s.missing_in_keycloak.length > 0) ids.push(userId);
-        missing += s.missing_in_keycloak.length;
-        extras += s.extra_in_keycloak.length;
-      }
-      return {
-        missingUserIds: ids,
-        totalMissing: missing,
-        totalExtras: extras,
-        totalUsersOutOfSync: Object.keys(statuses).length,
-      };
-    }, [syncStatus]);
-
-  const { data: members } = useGetMembersWithIds(missingUserIds);
-
-  const missingRows: MissingRoleRow[] = useMemo(() => {
+  const { missingUserIds, expiredUserIds, totals } = useMemo(() => {
     const statuses = syncStatus?.statuses ?? {};
-    const rows: MissingRoleRow[] = [];
-    for (const userId of missingUserIds) {
-      const s = statuses[userId];
-      if (!s) continue;
-      const name = displayNameFor(userId, members);
-      for (const roleName of s.missing_in_keycloak) {
-        rows.push({ userId, displayName: name, roleName });
-      }
+    const missingIds: string[] = [];
+    const expiredIds: string[] = [];
+    let totalMissing = 0;
+    let totalExpired = 0;
+    let totalUnmanaged = 0;
+    for (const [userId, s] of Object.entries(statuses)) {
+      if (s.missing_in_keycloak.length > 0) missingIds.push(userId);
+      if (s.expired_in_keycloak.length > 0) expiredIds.push(userId);
+      totalMissing += s.missing_in_keycloak.length;
+      totalExpired += s.expired_in_keycloak.length;
+      totalUnmanaged += s.unmanaged_in_keycloak.length;
     }
-    rows.sort(
-      (a, b) =>
-        a.displayName.localeCompare(b.displayName) ||
-        a.roleName.localeCompare(b.roleName),
+    return {
+      missingUserIds: missingIds,
+      expiredUserIds: expiredIds,
+      totals: {
+        missing: totalMissing,
+        expired: totalExpired,
+        unmanaged: totalUnmanaged,
+        usersOutOfSync: Object.keys(statuses).length,
+      },
+    };
+  }, [syncStatus]);
+
+  const allRelevantIds = useMemo(
+    () => [...new Set([...missingUserIds, ...expiredUserIds])],
+    [missingUserIds, expiredUserIds],
+  );
+  const { data: members } = useGetMembersWithIds(allRelevantIds);
+
+  const missingRows = useMemo(() => {
+    const statuses = syncStatus?.statuses ?? {};
+    return buildRows(
+      missingUserIds,
+      (id) => statuses[id]?.missing_in_keycloak ?? [],
+      members,
     );
-    return rows;
   }, [syncStatus, missingUserIds, members]);
 
+  const expiredRows = useMemo(() => {
+    const statuses = syncStatus?.statuses ?? {};
+    return buildRows(
+      expiredUserIds,
+      (id) => statuses[id]?.expired_in_keycloak ?? [],
+      members,
+    );
+  }, [syncStatus, expiredUserIds, members]);
+
   const handleSync = () => {
-    syncMutation.mutate(undefined, {
-      onSuccess: (data) => {
-        const msg =
-          data.failed > 0
-            ? `Added ${data.added} role(s) to Keycloak; ${data.failed} failed`
-            : data.added > 0
-              ? `Added ${data.added} role(s) to Keycloak`
-              : "Everything was already in sync";
-        if (data.failed > 0) toast.warning(msg);
-        else toast.success(msg);
-        setDialogOpen(false);
+    syncMutation.mutate(
+      { removeExpired },
+      {
+        onSuccess: (data) => {
+          const parts: string[] = [];
+          if (data.added > 0) parts.push(`Added ${data.added} role(s)`);
+          if (data.removed > 0) parts.push(`Removed ${data.removed} role(s)`);
+          const hasFailures = data.failed > 0 || data.remove_failed > 0;
+          if (data.failed > 0) parts.push(`${data.failed} add(s) failed`);
+          if (data.remove_failed > 0) parts.push(`${data.remove_failed} removal(s) failed`);
+          const msg = parts.length > 0 ? parts.join(", ") : "Everything was already in sync";
+          if (hasFailures) toast.warning(msg);
+          else toast.success(msg);
+          setDialogOpen(false);
+        },
+        onError: () => {
+          toast.error("Keycloak role sync failed");
+        },
       },
-      onError: () => {
-        toast.error("Keycloak role sync failed");
-      },
-    });
+    );
   };
 
-  const nothingToSync = totalMissing === 0;
+  const nothingToSync = totals.missing === 0 && (!removeExpired || totals.expired === 0);
 
   return (
     <>
@@ -108,31 +176,49 @@ function SyncRolesCard() {
         <CardHeader>
           <CardTitle>Sync roles to Keycloak</CardTitle>
           <CardDescription>
-            Add role memberships that exist in the registry but are missing in
-            Keycloak. Registry is the source of truth.
+            Add active role memberships that are missing in Keycloak. Registry is the source of truth.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-4">
           {isLoading ? (
             <p className="text-sm text-muted-foreground">Loading drift…</p>
           ) : (
             <div className="text-sm space-y-1">
               <p>
-                <span className="font-medium">{totalUsersOutOfSync}</span>{" "}
+                <span className="font-medium">{totals.usersOutOfSync}</span>{" "}
                 user(s) out of sync
               </p>
               <p>
-                <span className="font-medium">{totalMissing}</span> role
+                <span className="font-medium">{totals.missing}</span> active role
                 assignment(s) will be added to Keycloak
               </p>
-              {totalExtras > 0 && (
+              {totals.expired > 0 && (
+                <p className={removeExpired ? "text-destructive" : "text-muted-foreground"}>
+                  <span className="font-medium">{totals.expired}</span> expired role(s) in
+                  Keycloak —{" "}
+                  {removeExpired ? "will be removed" : "removable (enable option below)"}
+                </p>
+              )}
+              {totals.unmanaged > 0 && (
                 <p className="text-muted-foreground">
-                  {totalExtras} extra role(s) in Keycloak not in registry —{" "}
-                  <em>not touched by this sync</em>
+                  {totals.unmanaged} unmanaged role(s) in Keycloak (no registry record) —{" "}
+                  <em>never touched by sync</em>
                 </p>
               )}
             </div>
           )}
+
+          <div className="flex items-center gap-2">
+            <Switch
+              id="remove-expired"
+              checked={removeExpired}
+              onCheckedChange={setRemoveExpired}
+            />
+            <Label htmlFor="remove-expired" className="text-sm cursor-pointer">
+              Also remove expired registry roles from Keycloak
+            </Label>
+          </div>
+
           <Button
             onClick={() => setDialogOpen(true)}
             disabled={isLoading || nothingToSync}
@@ -147,42 +233,34 @@ function SyncRolesCard() {
           <DialogHeader>
             <DialogTitle>Confirm Keycloak sync</DialogTitle>
             <DialogDescription>
-              The following role assignments will be added to Keycloak. This
-              action is add-only — no roles will be removed from Keycloak.
+              {removeExpired
+                ? "The following role assignments will be added or removed in Keycloak."
+                : "The following active role assignments will be added to Keycloak. No roles will be removed."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="max-h-80 overflow-y-auto border rounded-md">
-            <table className="w-full text-sm">
-              <thead className="bg-muted text-left">
-                <tr>
-                  <th className="px-3 py-2 font-medium">Member</th>
-                  <th className="px-3 py-2 font-medium">Role</th>
-                </tr>
-              </thead>
-              <tbody>
-                {missingRows.length === 0 ? (
-                  <tr>
-                    <td
-                      className="px-3 py-4 text-center text-muted-foreground"
-                      colSpan={2}
-                    >
-                      No changes to apply.
-                    </td>
-                  </tr>
-                ) : (
-                  missingRows.map((row, i) => (
-                    <tr
-                      key={`${row.userId}-${row.roleName}-${i}`}
-                      className="border-t"
-                    >
-                      <td className="px-3 py-2">{row.displayName}</td>
-                      <td className="px-3 py-2">{row.roleName}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {missingRows.length > 0 && (
+              <div>
+                <p className="text-sm font-medium mb-1">
+                  Will be added ({missingRows.length})
+                </p>
+                <RoleTable rows={missingRows} emptyText="No roles to add." />
+              </div>
+            )}
+            {removeExpired && (
+              <div>
+                <p className="text-sm font-medium mb-1 text-destructive">
+                  Will be removed ({expiredRows.length})
+                </p>
+                <RoleTable rows={expiredRows} emptyText="No expired roles to remove." />
+              </div>
+            )}
+            {missingRows.length === 0 && (!removeExpired || expiredRows.length === 0) && (
+              <p className="text-sm text-center text-muted-foreground py-4">
+                No changes to apply.
+              </p>
+            )}
           </div>
 
           <DialogFooter>
@@ -195,11 +273,14 @@ function SyncRolesCard() {
             </Button>
             <Button
               onClick={handleSync}
-              disabled={syncMutation.isPending || missingRows.length === 0}
+              disabled={
+                syncMutation.isPending ||
+                (missingRows.length === 0 && expiredRows.length === 0)
+              }
             >
               {syncMutation.isPending
                 ? "Syncing…"
-                : `Sync ${missingRows.length} change(s)`}
+                : `Sync ${missingRows.length + (removeExpired ? expiredRows.length : 0)} change(s)`}
             </Button>
           </DialogFooter>
         </DialogContent>
