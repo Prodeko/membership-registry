@@ -830,7 +830,16 @@ impl RoleService {
         // 5a. Active registry role memberships (valid today).
         let active_members_with_roles = self
             .member_service
-            .get_members_with_roles(None, None, Some(role_names.clone()), None, None, None, Some(today), Some(today))
+            .get_members_with_roles(
+                None,
+                None,
+                Some(role_names.clone()),
+                None,
+                None,
+                None,
+                Some(today),
+                Some(today),
+            )
             .await?;
 
         // 5b. All registry role memberships regardless of validity (to detect expired records).
@@ -877,7 +886,8 @@ impl RoleService {
                 active_roles.difference(&kc_roles).cloned().collect();
 
             // Roles KC has that the registry knows about but are expired.
-            let expired_roles: HashSet<String> = all_roles.difference(&active_roles).cloned().collect();
+            let expired_roles: HashSet<String> =
+                all_roles.difference(&active_roles).cloned().collect();
             let expired_in_keycloak: Vec<String> =
                 expired_roles.intersection(&kc_roles).cloned().collect();
 
