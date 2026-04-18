@@ -154,5 +154,13 @@
   "language": {
     "fi": "Suomi",
     "en": "English"
+  },
+  "members": {
+    "edit": {
+      "title": "Muokkaa jäsentä",
+      "save_button": "Tallenna muutokset",
+      "saving": "Tallennetaan...",
+      "id_label": "Käyttäjätunnus"
+    }
   }
 }

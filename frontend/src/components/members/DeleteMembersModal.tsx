@@ -5,6 +5,7 @@ import {
 } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { FunctionComponent } from "react";
+import { Trash2 } from "lucide-react";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -20,12 +21,14 @@ interface DeleteMembersModalProps {
   userIds: string[];
   onClose: () => void;
   disabled: boolean;
+  iconMode?: boolean;
 }
 
 const DeleteMembersModal: FunctionComponent<DeleteMembersModalProps> = ({
   userIds,
   onClose,
   disabled,
+  iconMode = false,
 }) => {
   const { mutate: deleteMultipleMembers } = useDeleteManyMembers();
   const { data: selectedMembers } = useGetMembersWithIds(userIds);
@@ -46,10 +49,16 @@ const DeleteMembersModal: FunctionComponent<DeleteMembersModalProps> = ({
 
   return (
     <Dialog>
-      <DialogTrigger disabled={disabled}>
-        <Button variant={"outline"} disabled={disabled}>
-          Delete
-        </Button>
+      <DialogTrigger asChild disabled={disabled}>
+        {iconMode ? (
+          <Button variant="ghost" size="icon" disabled={disabled}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        ) : (
+          <Button variant={"outline"} disabled={disabled}>
+            Delete
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

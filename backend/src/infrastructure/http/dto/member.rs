@@ -153,4 +153,6 @@ pub struct UpdateMemberDTO {
     pub email_notifications: bool,
     #[validate(length(min = 2, max = 10))]
     pub language: String,
+    #[validate(email, length(max = 320))]
+    pub email: Option<String>,
 }

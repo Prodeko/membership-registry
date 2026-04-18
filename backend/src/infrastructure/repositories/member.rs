@@ -153,7 +153,8 @@ impl MemberRepositoryPort for MemberRepo {
                 last_name = $2,
                 home_municipality = $3,
                 email_notifications = $4,
-                language = $5
+                language = $5,
+                email = COALESCE($7, email)
             WHERE user_id = $6
             RETURNING *"#,
             data.first_name,
@@ -161,7 +162,8 @@ impl MemberRepositoryPort for MemberRepo {
             data.home_municipality,
             data.email_notifications,
             data.language,
-            user_id
+            user_id,
+            data.email
         )
         .fetch_one(&self.pool)
         .await?;

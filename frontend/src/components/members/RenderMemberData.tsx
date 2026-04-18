@@ -13,8 +13,10 @@ const RenderMemberData = ({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
-        <div>{t("profile.fields.name")}:</div>
-        <div>{member.full_name}</div>
+        <div>{t("profile.fields.first_name")}:</div>
+        <div>{member.first_name}</div>
+        <div>{t("profile.fields.last_name")}:</div>
+        <div>{member.last_name}</div>
         {variant === "admin" && (
           <>
             <div>User id:</div>

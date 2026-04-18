@@ -490,6 +490,86 @@ impl KeycloakClient {
         Ok(())
     }
 
+    pub async fn update_user_profile(
+        &self,
+        subject: &str,
+        first_name: &str,
+        last_name: &str,
+        email: Option<&str>,
+        require_verify_email: bool,
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!("users/{}", encode_path(subject)));
+
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to fetch user for profile update: {e:?}");
+                KeycloakError::Unavailable(format!("Get user request failed: {e}"))
+            })?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(KeycloakError::NotFound);
+        }
+        if !response.status().is_success() {
+            let status = response.status();
+            return Err(KeycloakError::Unavailable(format!(
+                "Get user returned status {status}"
+            )));
+        }
+
+        let mut user: serde_json::Value = response.json().await.map_err(|e| {
+            tracing::error!("Failed to parse user response: {e:?}");
+            KeycloakError::BadResponse(format!("User parse error: {e}"))
+        })?;
+
+        if let Some(obj) = user.as_object_mut() {
+            obj.insert("firstName".to_string(), serde_json::json!(first_name));
+            obj.insert("lastName".to_string(), serde_json::json!(last_name));
+            if let Some(new_email) = email {
+                obj.insert("email".to_string(), serde_json::json!(new_email));
+                obj.insert("emailVerified".to_string(), serde_json::json!(false));
+            }
+            if require_verify_email {
+                let actions = obj
+                    .entry("requiredActions")
+                    .or_insert_with(|| serde_json::json!([]));
+                if let Some(arr) = actions.as_array_mut() {
+                    if !arr.iter().any(|v| v.as_str() == Some("VERIFY_EMAIL")) {
+                        arr.push(serde_json::json!("VERIFY_EMAIL"));
+                    }
+                }
+            }
+        }
+
+        let put_response = self
+            .http
+            .put(&url)
+            .bearer_auth(&token)
+            .json(&user)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to update user profile: {e:?}");
+                KeycloakError::Unavailable(format!("Update user request failed: {e}"))
+            })?;
+
+        if !put_response.status().is_success() {
+            let status = put_response.status();
+            let body = put_response.text().await.unwrap_or_default();
+            tracing::error!("Update user profile returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Update user returned status {status}"
+            )));
+        }
+
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Role management (admin API)
     // -----------------------------------------------------------------------

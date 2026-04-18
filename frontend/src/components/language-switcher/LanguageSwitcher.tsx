@@ -24,6 +24,7 @@ export function LanguageSwitcher() {
           home_municipality: member.home_municipality,
           email_notifications: member.email_notifications,
           language: nextLang,
+          email: null,
         },
       });
     }

@@ -181,6 +181,19 @@ impl MemberService {
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Person> {
         let language = data.language.clone();
+
+        // Fetch current member so we can detect an email change.
+        let current = self
+            .member_repo
+            .fetch_one(user_id)
+            .await
+            .map_err(ServiceError::from)?;
+        let email_changed = data
+            .email
+            .as_deref()
+            .map(|new| new != current.email.as_str())
+            .unwrap_or(false);
+
         let updated = self
             .member_repo
             .update(user_id, &data)
@@ -201,19 +214,34 @@ impl MemberService {
             )
             .await;
 
-        // Fire-and-forget sync of locale to Keycloak
+        // Fire-and-forget sync of profile + locale to Keycloak
         let auth_providers = self
             .auth_provider_repo
             .find_by_user_id(&user_id)
             .await
-            .map_err(|e| tracing::warn!("Failed to fetch auth providers for locale sync: {e:?}"))
+            .map_err(|e| tracing::warn!("Failed to fetch auth providers for Keycloak sync: {e:?}"))
             .ok();
 
         if let Some(providers) = auth_providers {
             if let Some(primary) = providers.first() {
                 let subject = primary.provider_user_id.clone();
                 let user_admin = Arc::clone(&self.user_admin);
+                let first_name = updated.first_name.clone();
+                let last_name = updated.last_name.clone();
+                let new_email = email_changed.then(|| updated.email.as_str().to_owned());
                 tokio::spawn(async move {
+                    if let Err(e) = user_admin
+                        .update_user_profile(
+                            &subject,
+                            &first_name,
+                            &last_name,
+                            new_email,
+                            email_changed,
+                        )
+                        .await
+                    {
+                        tracing::error!("Failed to sync profile to Keycloak: {e:?}");
+                    }
                     if let Err(e) = user_admin.update_user_locale(&subject, &language).await {
                         tracing::error!("Failed to sync locale to Keycloak: {e:?}");
                     }

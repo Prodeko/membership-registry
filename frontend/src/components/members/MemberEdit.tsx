@@ -8,56 +8,48 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useGetMeMember, useUpdateMember } from "@/lib/api";
+import { useGetMember, useUpdateMember, QueryKey } from "@/lib/api";
 import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { z } from "zod";
-import MarketingPreferences from "./MarketingPreferences";
 import { Card } from "../ui/card";
 import { Input } from "../ui/input";
-import { Switch } from "../ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
 import MunicipalitySelect from "../ui/MunicipalitySelect";
 
-const ProfileEdit = () => {
+const MemberEdit = () => {
+  const { id: userId } = useParams<{ id: string }>();
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const formSchema = z.object({
     first_name: z.string().min(1, t("validation.first_name_required")),
     last_name: z.string().min(1, t("validation.last_name_required")),
+    email: z.string().email(),
     home_municipality: z
       .enum([...FINNISH_MUNICIPALITIES, ...COUNTRIES])
       .optional(),
-    email_notifications: z.boolean(),
-    language: z.enum(["fi", "en"]),
   });
 
-  type ProfileFormValues = z.infer<typeof formSchema>;
+  type MemberEditFormValues = z.infer<typeof formSchema>;
 
-  const { data: member, isLoading } = useGetMeMember();
+  const { data: member, isLoading } = useGetMember(userId!);
   const { mutate: updateMember, isPending } = useUpdateMember();
-  const navigate = useNavigate();
 
-  const form = useForm<ProfileFormValues>({
+  const form = useForm<MemberEditFormValues>({
     resolver: zodResolver(formSchema),
     values: member
       ? {
           first_name: member.first_name,
           last_name: member.last_name,
+          email: member.email,
           home_municipality:
-            (member.home_municipality as ProfileFormValues["home_municipality"]) ??
+            (member.home_municipality as MemberEditFormValues["home_municipality"]) ??
             undefined,
-          email_notifications: member.email_notifications,
-          language: (member.language as "fi" | "en") || "fi",
         }
       : undefined,
   });
@@ -70,19 +62,25 @@ const ProfileEdit = () => {
     );
   }
 
-  const onSubmit = (values: ProfileFormValues) => {
+  const onSubmit = (values: MemberEditFormValues) => {
     updateMember(
       {
         userId: member.user_id,
         data: {
-          ...values,
+          first_name: values.first_name,
+          last_name: values.last_name,
+          email: values.email,
           home_municipality: values.home_municipality ?? null,
-          email: null,
+          email_notifications: member.email_notifications,
+          language: member.language,
         },
       },
       {
         onSuccess: () => {
-          navigate("/home");
+          queryClient.invalidateQueries({
+            queryKey: [QueryKey.MEMBER, { id: userId }],
+          });
+          navigate(`/members/${userId}`);
         },
       },
     );
@@ -91,7 +89,11 @@ const ProfileEdit = () => {
   return (
     <main className="flex flex-col items-center min-h-screen w-screen px-4 py-20 gap-4">
       <Card className="p-10 space-y-4 h-fit max-w-lg w-full">
-        <h1 className="text-2xl font-bold">{t("profile.edit.title")}</h1>
+        <h1 className="text-2xl font-bold">{t("members.edit.title")}</h1>
+        <div className="text-sm text-muted-foreground">
+          <span className="font-medium">{t("members.edit.id_label")}: </span>
+          {member.user_id}
+        </div>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -101,7 +103,7 @@ const ProfileEdit = () => {
                 <FormItem>
                   <FormLabel>{t("profile.fields.first_name")}</FormLabel>
                   <FormControl>
-                    <Input data-testid="profile-first-name" {...field} />
+                    <Input {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -114,7 +116,20 @@ const ProfileEdit = () => {
                 <FormItem>
                   <FormLabel>{t("profile.fields.last_name")}</FormLabel>
                   <FormControl>
-                    <Input data-testid="profile-last-name" {...field} />
+                    <Input {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t("profile.fields.email")}</FormLabel>
+                  <FormControl>
+                    <Input type="email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -134,67 +149,16 @@ const ProfileEdit = () => {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="language"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>{t("profile.fields.language")}</FormLabel>
-                  <Select
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger data-testid="profile-language-select">
-                        <SelectValue />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="fi">{t("language.fi")}</SelectItem>
-                      <SelectItem value="en">{t("language.en")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="email_notifications"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">
-                      {t("profile.fields.email_notifications")}
-                    </FormLabel>
-                    <FormDescription>
-                      {t("profile.notifications_description")}
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                      data-testid="profile-notifications-switch"
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
             <div className="flex gap-2">
-              <Button
-                type="submit"
-                disabled={isPending}
-                data-testid="profile-save-button"
-              >
+              <Button type="submit" disabled={isPending}>
                 {isPending
-                  ? t("profile.edit.saving")
-                  : t("profile.edit.save_button")}
+                  ? t("members.edit.saving")
+                  : t("members.edit.save_button")}
               </Button>
               <Button
                 type="button"
                 variant="outline"
-                data-testid="profile-cancel-button"
-                onClick={() => navigate("/home")}
+                onClick={() => navigate(`/members/${userId}`)}
               >
                 {t("common.cancel")}
               </Button>
@@ -202,11 +166,8 @@ const ProfileEdit = () => {
           </form>
         </Form>
       </Card>
-      <div className="max-w-lg w-full">
-        <MarketingPreferences />
-      </div>
     </main>
   );
 };
 
-export default ProfileEdit;
+export default MemberEdit;
