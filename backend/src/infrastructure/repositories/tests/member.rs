@@ -312,16 +312,50 @@ mod test_member {
                 user_id,
                 &UpdatePersonData {
                     first_name: "Uusi".to_string(),
-                    last_name: member_to_update.last_name,
-                    home_municipality: member_to_update.home_municipality,
+                    last_name: member_to_update.last_name.clone(),
+                    home_municipality: member_to_update.home_municipality.clone(),
                     email_notifications: member_to_update.email_notifications,
-                    language: member_to_update.language,
+                    language: member_to_update.language.clone(),
+                    email: None,
                 },
             )
             .await
             .unwrap();
 
-        assert!(updated_member.first_name == "Uusi");
+        assert_eq!(updated_member.first_name, "Uusi");
+        assert_eq!(
+            updated_member.email.as_str(),
+            member_to_update.email.as_str(),
+            "email unchanged when None"
+        );
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    #[tokio::test]
+    async fn test_update_member_email() {
+        let (repo, db_url) = setup_test_db().await;
+        let user_id = Uuid::parse_str("3e1ab0ea-c56a-457f-961f-13938954bb2b").unwrap();
+
+        let member_to_update = repo.member.fetch_one(user_id).await.unwrap();
+
+        let updated_member = repo
+            .member
+            .update(
+                user_id,
+                &UpdatePersonData {
+                    first_name: member_to_update.first_name.clone(),
+                    last_name: member_to_update.last_name.clone(),
+                    home_municipality: member_to_update.home_municipality.clone(),
+                    email_notifications: member_to_update.email_notifications,
+                    language: member_to_update.language.clone(),
+                    email: Some("new-email@example.com".to_string()),
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(updated_member.email.as_str(), "new-email@example.com");
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }

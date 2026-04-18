@@ -154,5 +154,13 @@
   "language": {
     "fi": "Suomi",
     "en": "English"
+  },
+  "members": {
+    "edit": {
+      "title": "Edit member",
+      "save_button": "Save changes",
+      "saving": "Saving...",
+      "id_label": "User ID"
+    }
   }
 }

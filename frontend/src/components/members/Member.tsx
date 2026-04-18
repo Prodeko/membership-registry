@@ -1,5 +1,6 @@
 import { useGetMember, useGetMemberRoles } from "@/lib/api";
 import { useNavigate, useParams } from "react-router-dom";
+import { Pencil } from "lucide-react";
 import { Card } from "../ui/card";
 import AddRolesModal from "./AddRolesModal";
 import { Button } from "../ui/button";
@@ -24,8 +25,6 @@ const Member: React.FC = () => {
     refetch: refetchRoles,
   } = useGetMemberRoles(userId!);
 
-  console.log(member);
-
   if (isMemberLoading || isRolesLoading) {
     return <div>Loading...</div>;
   }
@@ -42,10 +41,30 @@ const Member: React.FC = () => {
     return <div>Member not found</div>;
   }
 
-  console.log(roles);
   return (
     <div className="flex justify-center align-middle p-14">
       <Card className="p-8 space-y-6">
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold">
+            {member.first_name} {member.last_name}
+          </h1>
+          <div className="flex gap-1 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => navigate(`/members/${userId}/edit`)}
+              aria-label="Edit member"
+            >
+              <Pencil className="h-4 w-4" />
+            </Button>
+            <DeleteMembersModal
+              userIds={[member.user_id]}
+              onClose={() => navigate("/members")}
+              disabled={false}
+              iconMode
+            />
+          </div>
+        </div>
         <RenderMemberData member={member} variant="admin" />
         <div className="space-y-3">
           <h2 className="text-2xl space-x-4">
@@ -76,20 +95,6 @@ const Member: React.FC = () => {
                 ))
               : "No roles"}
           </ul>
-        </div>
-        <div className="space-x-4">
-          <Button
-            className=""
-            variant={"outline"}
-            onClick={() => navigate(`/members/${userId}/edit`)}
-          >
-            Edit member
-          </Button>
-          <DeleteMembersModal
-            userIds={[member.user_id]}
-            onClose={() => navigate("/members")}
-            disabled={false}
-          />
         </div>
       </Card>
     </div>

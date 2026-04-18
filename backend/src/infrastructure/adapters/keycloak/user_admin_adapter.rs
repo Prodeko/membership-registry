@@ -44,4 +44,24 @@ impl UserAdminPort for KeycloakUserAdminAdapter {
             .await?;
         Ok(())
     }
+
+    async fn update_user_profile(
+        &self,
+        subject: &str,
+        first_name: &str,
+        last_name: &str,
+        email: Option<String>,
+        require_verify_email: bool,
+    ) -> Result<(), UserAdminError> {
+        self.client
+            .update_user_profile(
+                subject,
+                first_name,
+                last_name,
+                email.as_deref(),
+                require_verify_email,
+            )
+            .await?;
+        Ok(())
+    }
 }

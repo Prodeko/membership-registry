@@ -58,6 +58,8 @@ pub struct UpdatePersonData {
     pub home_municipality: Option<String>,
     pub email_notifications: bool,
     pub language: String,
+    /// When `Some`, update the stored email; when `None`, leave it unchanged.
+    pub email: Option<String>,
 }
 
 #[cfg(test)]

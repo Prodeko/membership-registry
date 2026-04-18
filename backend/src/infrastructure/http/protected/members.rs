@@ -112,6 +112,7 @@ async fn update_member(
         home_municipality: body.home_municipality,
         email_notifications: body.email_notifications,
         language: body.language,
+        email: body.email,
     };
     let member = state
         .member_service

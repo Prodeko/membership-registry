@@ -263,6 +263,14 @@ mock! {
     impl UserAdminPort for UserAdminPort {
         async fn get_user(&self, subject: &str) -> Result<IdpUser, UserAdminError>;
         async fn update_user_locale(&self, subject: &str, locale: &str) -> Result<(), UserAdminError>;
+        async fn update_user_profile(
+            &self,
+            subject: &str,
+            first_name: &str,
+            last_name: &str,
+            email: Option<String>,
+            require_verify_email: bool,
+        ) -> Result<(), UserAdminError>;
     }
 }
 

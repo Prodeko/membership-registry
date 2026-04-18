@@ -59,6 +59,7 @@ const Onboarding = () => {
           home_municipality: values.home_municipality,
           email_notifications: member.email_notifications,
           language: member.language,
+          email: null,
         },
       },
       {

@@ -3,4 +3,4 @@
 /**
  * DTO for updating a member. Only contains mutable fields.
  */
-export type UpdateMember = { first_name: string, last_name: string, home_municipality: string | null, email_notifications: boolean, language: string, };
+export type UpdateMember = { first_name: string, last_name: string, home_municipality: string | null, email_notifications: boolean, language: string, email: string | null, };
