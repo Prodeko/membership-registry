@@ -18,10 +18,12 @@ const Members: React.FC = () => {
   const { data: syncStatus } = useGetKeycloakSyncStatus();
   const [selectedRoles, setSelectedRoles] = React.useState<Option[]>([]);
   const [filterVisible, setFilterVisible] = React.useState(false);
-  const [selectedValidFrom, setSelectedValidFrom] =
-    React.useState<Date>(defaultFrom);
-  const [selectedValidUntil, setSelectedValidUntil] =
-    React.useState<Date>(defaultTo);
+  const [selectedValidFrom, setSelectedValidFrom] = React.useState<Date>(
+    new Date(),
+  );
+  const [selectedValidUntil, setSelectedValidUntil] = React.useState<Date>(
+    new Date(),
+  );
 
   const columns = React.useMemo(() => getColumns(syncStatus), [syncStatus]);
 

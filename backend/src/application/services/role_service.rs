@@ -22,6 +22,9 @@ use super::{
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct MemberKeycloakSyncStatus {
     pub in_sync: bool,
+    pub first_name: String,
+    pub last_name: String,
+    pub email: String,
     /// Roles in Keycloak that have an expired registry record — removable when opted in.
     pub expired_in_keycloak: Vec<String>,
     /// Roles in Keycloak with no registry record — never touched by sync.
@@ -866,8 +869,12 @@ impl RoleService {
                 .insert(mwr.person.id.0, mwr.role_names.iter().cloned().collect());
         }
 
-        // 6. Collect all user_ids we know about
-        let all_user_ids: HashSet<Uuid> = all_members.iter().map(|m| m.person.id.0).collect();
+        // 6. Collect all user_ids we know about, and build identity lookup
+        let person_by_user_id: HashMap<Uuid, &crate::domain::Person> = all_members
+            .iter()
+            .map(|m| (m.person.id.0, &m.person))
+            .collect();
+        let all_user_ids: HashSet<Uuid> = person_by_user_id.keys().copied().collect();
 
         // 7. Compare
         let mut result = HashMap::new();
@@ -900,10 +907,14 @@ impl RoleService {
                 && unmanaged_in_keycloak.is_empty();
 
             if !in_sync {
+                let person = person_by_user_id[&user_id];
                 result.insert(
                     user_id,
                     MemberKeycloakSyncStatus {
                         in_sync,
+                        first_name: person.first_name.clone(),
+                        last_name: person.last_name.clone(),
+                        email: person.email.clone().into_inner(),
                         expired_in_keycloak,
                         unmanaged_in_keycloak,
                         missing_in_keycloak,

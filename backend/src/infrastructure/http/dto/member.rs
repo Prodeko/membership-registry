@@ -112,6 +112,9 @@ impl NewMemberDTO {
 #[ts(export, rename = "MemberKeycloakSyncStatus")]
 pub struct MemberKeycloakSyncStatusDTO {
     pub in_sync: bool,
+    pub first_name: String,
+    pub last_name: String,
+    pub email: String,
     pub expired_in_keycloak: Vec<String>,
     pub unmanaged_in_keycloak: Vec<String>,
     pub missing_in_keycloak: Vec<String>,
@@ -121,6 +124,9 @@ impl From<MemberKeycloakSyncStatus> for MemberKeycloakSyncStatusDTO {
     fn from(s: MemberKeycloakSyncStatus) -> Self {
         Self {
             in_sync: s.in_sync,
+            first_name: s.first_name,
+            last_name: s.last_name,
+            email: s.email,
             expired_in_keycloak: s.expired_in_keycloak,
             unmanaged_in_keycloak: s.unmanaged_in_keycloak,
             missing_in_keycloak: s.missing_in_keycloak,

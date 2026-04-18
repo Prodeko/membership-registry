@@ -212,6 +212,81 @@ mod test_member {
         cleanup_test_db(repo.member.pool, &db_url).await;
     }
 
+    /// With a date filter but NO role filter, role_names must only contain
+    /// roles active on that date — the bug was that the date filter was
+    /// skipped entirely when roles was None.
+    #[tokio::test]
+    async fn test_role_names_date_filter_applies_without_role_filter() {
+        let (repo, db_url) = setup_test_db().await;
+        let today = chrono::Utc::now().date_naive();
+
+        let members = repo
+            .member
+            .fetch_members_with_roles(MembersWithRolesParams {
+                valid_from: Some(today),
+                valid_until: Some(today),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        // All 10 members still appear — no member is hidden by the date filter.
+        assert_eq!(members.len(), 10);
+
+        let antti = members
+            .iter()
+            .find(|m| {
+                m.person.id.0 == Uuid::parse_str("9707582e-c149-45a7-bae1-4b0f4de4b06f").unwrap()
+            })
+            .unwrap();
+        // prodeko-external-member and root-users both run until 2999 — active.
+        let mut active: Vec<&str> = antti.role_names.iter().map(String::as_str).collect();
+        active.sort();
+        assert_eq!(active, vec!["prodeko-external-member", "root-users"]);
+
+        // Taneli Mäkinen only has roles that expired in 2022-2023.
+        let taneli = members
+            .iter()
+            .find(|m| {
+                m.person.id.0 == Uuid::parse_str("3e1ab0ea-c56a-457f-961f-13938954bb2b").unwrap()
+            })
+            .unwrap();
+        assert!(
+            taneli.role_names.is_empty(),
+            "expired roles must not appear in role_names"
+        );
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    /// Role filter combined with date filter should only return members who
+    /// have that role active on the given date.
+    #[tokio::test]
+    async fn test_role_names_date_filter_with_role_filter() {
+        let (repo, db_url) = setup_test_db().await;
+        let today = chrono::Utc::now().date_naive();
+
+        let members = repo
+            .member
+            .fetch_members_with_roles(MembersWithRolesParams {
+                roles: Some(vec!["prodeko-external-member".to_string()]),
+                valid_from: Some(today),
+                valid_until: Some(today),
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+
+        // Only Antti Nyberg has prodeko-external-member active today (2025–2999).
+        assert_eq!(members.len(), 1);
+        assert_eq!(
+            members[0].person.id.0,
+            Uuid::parse_str("9707582e-c149-45a7-bae1-4b0f4de4b06f").unwrap()
+        );
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
     #[tokio::test]
     async fn test_delete_member() {
         let (repo, db_url) = setup_test_db().await;

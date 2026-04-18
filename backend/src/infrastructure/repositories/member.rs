@@ -215,19 +215,17 @@ impl MemberRepositoryPort for MemberRepo {
                 Member
             LEFT JOIN
                 RoleMember ON Member.user_id = RoleMember.user_id
+                    AND ($8::date IS NULL OR RoleMember.valid_until IS NULL OR RoleMember.valid_until >= $8)
+                    AND ($7::date IS NULL OR RoleMember.valid_from <= $7)
             WHERE (
                 $4::varchar IS NULL OR
                 Member.full_name ILIKE '%' || $4 || '%' OR
                 Member.email ILIKE '%' || $4 || '%'
-            ) AND (
-                $3::varchar[] is NULL OR
-                (($8::date is NULL OR RoleMember.valid_until >= $8) AND
-                 ($7::date is NULL OR RoleMember.valid_from  <= $7))
             )
             GROUP BY
                 Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.email_notifications, Member.language
             HAVING
-                $3 IS NULL OR
+                $3::varchar[] IS NULL OR
                 EXISTS (
                     SELECT 1
                     FROM unnest($3::varchar[]) AS filter_role

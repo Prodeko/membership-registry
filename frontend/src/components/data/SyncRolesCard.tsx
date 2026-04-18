@@ -1,9 +1,8 @@
 import {
   useGetKeycloakSyncStatus,
-  useGetMembersWithIds,
   useSyncMissingKeycloakRoles,
 } from "@/lib/api";
-import { MemberWithRoles } from "@/common/types";
+import { MemberKeycloakSyncStatus } from "@/common/generated/MemberKeycloakSyncStatus";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "../ui/button";
@@ -31,21 +30,22 @@ interface RoleRow {
   roleName: string;
 }
 
-function displayNameFor(userId: string, members: MemberWithRoles[] = []) {
-  const m = members.find((mm) => mm.user_id === userId);
-  if (!m) return userId;
-  const name = [m.first_name, m.last_name].filter(Boolean).join(" ").trim();
-  return name.length > 0 ? `${name} (${m.email})` : m.email;
+function displayNameFor(status: MemberKeycloakSyncStatus) {
+  const name = [status.first_name, status.last_name]
+    .filter(Boolean)
+    .join(" ")
+    .trim();
+  return name.length > 0 ? `${name} (${status.email})` : status.email;
 }
 
 function buildRows(
   userIds: string[],
   getRoles: (userId: string) => string[],
-  members: MemberWithRoles[] | undefined,
+  statuses: Record<string, MemberKeycloakSyncStatus>,
 ): RoleRow[] {
   const rows: RoleRow[] = [];
   for (const userId of userIds) {
-    const name = displayNameFor(userId, members);
+    const name = statuses[userId] ? displayNameFor(statuses[userId]) : userId;
     for (const roleName of getRoles(userId)) {
       rows.push({ userId, displayName: name, roleName });
     }
@@ -133,29 +133,23 @@ function SyncRolesCard() {
     };
   }, [syncStatus]);
 
-  const allRelevantIds = useMemo(
-    () => [...new Set([...missingUserIds, ...expiredUserIds])],
-    [missingUserIds, expiredUserIds],
-  );
-  const { data: members } = useGetMembersWithIds(allRelevantIds);
-
   const missingRows = useMemo(() => {
     const statuses = syncStatus?.statuses ?? {};
     return buildRows(
       missingUserIds,
       (id) => statuses[id]?.missing_in_keycloak ?? [],
-      members,
+      statuses,
     );
-  }, [syncStatus, missingUserIds, members]);
+  }, [syncStatus, missingUserIds]);
 
   const expiredRows = useMemo(() => {
     const statuses = syncStatus?.statuses ?? {};
     return buildRows(
       expiredUserIds,
       (id) => statuses[id]?.expired_in_keycloak ?? [],
-      members,
+      statuses,
     );
-  }, [syncStatus, expiredUserIds, members]);
+  }, [syncStatus, expiredUserIds]);
 
   const handleSync = () => {
     syncMutation.mutate(
