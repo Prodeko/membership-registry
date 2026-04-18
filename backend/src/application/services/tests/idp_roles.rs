@@ -442,7 +442,7 @@ mod test_idp_roles {
             .await;
 
         let summary = role_service
-            .sync_missing_roles_to_keycloak(None)
+            .sync_missing_roles_to_keycloak(None, false)
             .await
             .unwrap();
 
@@ -508,7 +508,7 @@ mod test_idp_roles {
             .await;
 
         let summary = role_service
-            .sync_missing_roles_to_keycloak(None)
+            .sync_missing_roles_to_keycloak(None, false)
             .await
             .unwrap();
 

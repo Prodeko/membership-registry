@@ -94,7 +94,7 @@ mod test_role {
 
         let role_members = repo.role.fetch_roles_by_member(&_get_user_id()).await;
 
-        assert!(role_members.unwrap().len() == 4);
+        assert!(role_members.unwrap().len() == 6);
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }
@@ -105,7 +105,7 @@ mod test_role {
 
         let role_members = repo.role.fetch_roles_by_member(&_get_user_id()).await;
 
-        assert!(role_members.unwrap().len() == 3);
+        assert!(role_members.unwrap().len() == 5);
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }

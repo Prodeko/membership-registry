@@ -58,7 +58,13 @@ function buildRows(
   return rows;
 }
 
-function RoleTable({ rows, emptyText }: { rows: RoleRow[]; emptyText: string }) {
+function RoleTable({
+  rows,
+  emptyText,
+}: {
+  rows: RoleRow[];
+  emptyText: string;
+}) {
   return (
     <div className="border rounded-md overflow-hidden">
       <table className="w-full text-sm">
@@ -71,13 +77,19 @@ function RoleTable({ rows, emptyText }: { rows: RoleRow[]; emptyText: string }) 
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td className="px-3 py-4 text-center text-muted-foreground" colSpan={2}>
+              <td
+                className="px-3 py-4 text-center text-muted-foreground"
+                colSpan={2}
+              >
                 {emptyText}
               </td>
             </tr>
           ) : (
             rows.map((row, i) => (
-              <tr key={`${row.userId}-${row.roleName}-${i}`} className="border-t">
+              <tr
+                key={`${row.userId}-${row.roleName}-${i}`}
+                className="border-t"
+              >
                 <td className="px-3 py-2">{row.displayName}</td>
                 <td className="px-3 py-2">{row.roleName}</td>
               </tr>
@@ -155,8 +167,12 @@ function SyncRolesCard() {
           if (data.removed > 0) parts.push(`Removed ${data.removed} role(s)`);
           const hasFailures = data.failed > 0 || data.remove_failed > 0;
           if (data.failed > 0) parts.push(`${data.failed} add(s) failed`);
-          if (data.remove_failed > 0) parts.push(`${data.remove_failed} removal(s) failed`);
-          const msg = parts.length > 0 ? parts.join(", ") : "Everything was already in sync";
+          if (data.remove_failed > 0)
+            parts.push(`${data.remove_failed} removal(s) failed`);
+          const msg =
+            parts.length > 0
+              ? parts.join(", ")
+              : "Everything was already in sync";
           if (hasFailures) toast.warning(msg);
           else toast.success(msg);
           setDialogOpen(false);
@@ -168,7 +184,8 @@ function SyncRolesCard() {
     );
   };
 
-  const nothingToSync = totals.missing === 0 && (!removeExpired || totals.expired === 0);
+  const nothingToSync =
+    totals.missing === 0 && (!removeExpired || totals.expired === 0);
 
   return (
     <>
@@ -176,7 +193,8 @@ function SyncRolesCard() {
         <CardHeader>
           <CardTitle>Sync roles to Keycloak</CardTitle>
           <CardDescription>
-            Add active role memberships that are missing in Keycloak. Registry is the source of truth.
+            Add active role memberships that are missing in Keycloak. Registry
+            is the source of truth.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -189,20 +207,26 @@ function SyncRolesCard() {
                 user(s) out of sync
               </p>
               <p>
-                <span className="font-medium">{totals.missing}</span> active role
-                assignment(s) will be added to Keycloak
+                <span className="font-medium">{totals.missing}</span> active
+                role assignment(s) will be added to Keycloak
               </p>
               {totals.expired > 0 && (
-                <p className={removeExpired ? "text-destructive" : "text-muted-foreground"}>
-                  <span className="font-medium">{totals.expired}</span> expired role(s) in
-                  Keycloak —{" "}
-                  {removeExpired ? "will be removed" : "removable (enable option below)"}
+                <p
+                  className={
+                    removeExpired ? "text-destructive" : "text-muted-foreground"
+                  }
+                >
+                  <span className="font-medium">{totals.expired}</span> expired
+                  role(s) in Keycloak —{" "}
+                  {removeExpired
+                    ? "will be removed"
+                    : "removable (enable option below)"}
                 </p>
               )}
               {totals.unmanaged > 0 && (
                 <p className="text-muted-foreground">
-                  {totals.unmanaged} unmanaged role(s) in Keycloak (no registry record) —{" "}
-                  <em>never touched by sync</em>
+                  {totals.unmanaged} unmanaged role(s) in Keycloak (no registry
+                  record) — <em>never touched by sync</em>
                 </p>
               )}
             </div>
@@ -253,14 +277,18 @@ function SyncRolesCard() {
                 <p className="text-sm font-medium mb-1 text-destructive">
                   Will be removed ({expiredRows.length})
                 </p>
-                <RoleTable rows={expiredRows} emptyText="No expired roles to remove." />
+                <RoleTable
+                  rows={expiredRows}
+                  emptyText="No expired roles to remove."
+                />
               </div>
             )}
-            {missingRows.length === 0 && (!removeExpired || expiredRows.length === 0) && (
-              <p className="text-sm text-center text-muted-foreground py-4">
-                No changes to apply.
-              </p>
-            )}
+            {missingRows.length === 0 &&
+              (!removeExpired || expiredRows.length === 0) && (
+                <p className="text-sm text-center text-muted-foreground py-4">
+                  No changes to apply.
+                </p>
+              )}
           </div>
 
           <DialogFooter>

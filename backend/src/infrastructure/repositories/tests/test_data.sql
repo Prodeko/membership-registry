@@ -26,6 +26,8 @@ INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until) VALUES
 ('9707582e-c149-45a7-bae1-4b0f4de4b06f', 'prodeko-external-member', '2022-01-01', '2023-01-01'),
 ('9707582e-c149-45a7-bae1-4b0f4de4b06f', 'prodeko-external-member', '2023-01-01', '2023-01-01'),
 ('9707582e-c149-45a7-bae1-4b0f4de4b06f', 'root-users', '2023-01-01', '2024-01-01'),
+('9707582e-c149-45a7-bae1-4b0f4de4b06f', 'prodeko-external-member', '2025-01-01', '2999-01-01'),
+('9707582e-c149-45a7-bae1-4b0f4de4b06f', 'root-users', '2025-01-01', '2999-01-01'),
 ('9842528d-e376-42ed-9416-af820bb397b7', 'prodeko-official', '2022-01-01', '2023-01-01'),
 ('3e1ab0ea-c56a-457f-961f-13938954bb2b', 'prodeko-external-member', '2022-01-01', '2022-02-01'),
 ('3e1ab0ea-c56a-457f-961f-13938954bb2b', 'prodeko-board', '2022-01-01', '2023-01-01'),
