@@ -46,6 +46,11 @@ pub trait MemberRepositoryPort: Send + Sync {
         params: MembersWithRolesParams,
     ) -> Result<Vec<MemberWithRoles>, RepositoryError>;
 
+    async fn count_members_with_roles(
+        &self,
+        params: MembersWithRolesParams,
+    ) -> Result<i64, RepositoryError>;
+
     /// Narrow update used by marketing list sync when a contact unsubscribes
     /// remotely. Returns the number of rows updated (0 if no member with
     /// that email, or the flag was already at `value`).

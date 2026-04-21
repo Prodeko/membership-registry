@@ -10,7 +10,6 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { DataTableColumnHeader } from "../ui/column-header";
 import {
@@ -22,12 +21,8 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import RoleBadge from "../ui/role-badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "../ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
+import { cn } from "@/lib/utils";
 
 export const getColumns = (
   syncStatus?: KeycloakSyncStatusMap,
@@ -125,60 +120,55 @@ export const getColumns = (
   },
   {
     id: "kc_sync",
-    header: () => <span className="text-xs">KC Status</span>,
+    header: () => <span className="text-xs text-muted-foreground">KC</span>,
     cell: ({ row }) => {
       if (!syncStatus) {
-        return <span className="text-xs text-muted-foreground">...</span>;
-      }
-      const status = syncStatus.statuses[row.original.user_id];
-      if (!status) {
         return (
-          <Badge
-            variant="outline"
-            className="text-xs bg-green-50 text-green-700 border-green-200"
-          >
-            In sync
-          </Badge>
+          <span className="inline-block w-2.5 h-2.5 rounded-full bg-muted-foreground/30" />
         );
       }
+      const status = syncStatus.statuses[row.original.user_id];
+      const isSync = !status;
+      const dotColor = isSync ? "bg-green-500" : "bg-red-500";
+      const ringColor = isSync ? "ring-green-200" : "ring-red-200";
+      const label = isSync ? "In sync" : "Mismatch";
+      const detailParts = status
+        ? [
+            status.missing_in_keycloak.length > 0 &&
+              `Missing in KC: ${status.missing_in_keycloak.join(", ")}`,
+            status.expired_in_keycloak.length > 0 &&
+              `Expired in KC: ${status.expired_in_keycloak.join(", ")}`,
+            status.unmanaged_in_keycloak.length > 0 &&
+              `Unmanaged: ${status.unmanaged_in_keycloak.join(", ")}`,
+          ].filter(Boolean)
+        : [];
+
       return (
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger className="cursor-help">
-              <Badge
-                variant="outline"
-                className="text-xs bg-red-50 text-red-700 border-red-200"
-              >
-                Mismatch
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs">
-              <div className="space-y-1 text-xs">
-                {status.missing_in_keycloak.length > 0 && (
-                  <div>
-                    <span className="font-medium">Missing in KC:</span>{" "}
-                    {status.missing_in_keycloak.join(", ")}
-                  </div>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center justify-center w-5 h-5 cursor-default">
+              <span
+                className={cn(
+                  "w-2.5 h-2.5 rounded-full ring-2 ring-offset-1",
+                  dotColor,
+                  ringColor,
                 )}
-                {status.expired_in_keycloak.length > 0 && (
-                  <div>
-                    <span className="font-medium">Expired in KC:</span>{" "}
-                    {status.expired_in_keycloak.join(", ")}
-                  </div>
-                )}
-                {status.unmanaged_in_keycloak.length > 0 && (
-                  <div>
-                    <span className="font-medium">Unmanaged in KC:</span>{" "}
-                    {status.unmanaged_in_keycloak.join(", ")}
-                  </div>
-                )}
-              </div>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+              />
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="bottom" className="max-w-xs text-xs">
+            <p className="font-medium">{label}</p>
+            {detailParts.length > 0 && (
+              <p className="text-muted-foreground mt-0.5">
+                {detailParts.join(" · ")}
+              </p>
+            )}
+          </TooltipContent>
+        </Tooltip>
       );
     },
     enableSorting: false,
+    size: 48,
   },
   {
     accessorKey: "home_municipality",

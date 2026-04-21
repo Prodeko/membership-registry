@@ -1,34 +1,80 @@
 import {
   useGetAllMembersWithRoles,
   useGetKeycloakSyncStatus,
+  useGetMembersCount,
   useGetRoles,
 } from "@/lib/api";
 import { defaultFrom, defaultTo, stringsToOptions } from "@/lib/utils";
 import React from "react";
+import { RowSelectionState } from "@tanstack/react-table";
 import { DataTable } from "../ui/data-table";
 import { DateRangePicker } from "../ui/date-range-picker";
 import MultipleSelector, { Option } from "../ui/multiple-selector";
-import AddRolesModal from "./AddRolesModal";
-import DeleteMembersModal from "./DeleteMembersModal";
 import { getColumns } from "./columns";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { TooltipProvider } from "../ui/tooltip";
+import BulkCommandDock from "./BulkCommandDock";
+
+type KcFilter = "all" | "sync" | "mismatch" | "unknown";
+
+type FilterState = {
+  roles: Option[];
+  kcFilter: KcFilter;
+  validFrom: Date;
+  validUntil: Date;
+};
+
+const defaultFilterState: FilterState = {
+  roles: [],
+  kcFilter: "all",
+  validFrom: defaultFrom,
+  validUntil: defaultTo,
+};
 
 const Members: React.FC = () => {
   const { data: roles, isLoading, error } = useGetRoles();
   const { data: syncStatus } = useGetKeycloakSyncStatus();
-  const [selectedRoles, setSelectedRoles] = React.useState<Option[]>([]);
   const [filterVisible, setFilterVisible] = React.useState(false);
-  const [selectedValidFrom, setSelectedValidFrom] = React.useState<Date>(
-    new Date(),
-  );
-  const [selectedValidUntil, setSelectedValidUntil] = React.useState<Date>(
-    new Date(),
-  );
+  const [draft, setDraft] = React.useState<FilterState>(defaultFilterState);
+  const [applied, setApplied] = React.useState<FilterState>(defaultFilterState);
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+
+  const customFilters = {
+    roles: applied.roles.map((r) => r.value),
+    valid_until: applied.validUntil,
+    valid_from: applied.validFrom,
+  };
+
+  const { data: countData } = useGetMembersCount({ customFilters });
 
   const columns = React.useMemo(() => getColumns(syncStatus), [syncStatus]);
 
-  const onRoleChange = (selectedRoles: Option[]) => {
-    setSelectedRoles(selectedRoles);
+  const hasPendingChanges =
+    JSON.stringify(draft.roles.map((r) => r.value).sort()) !==
+      JSON.stringify(applied.roles.map((r) => r.value).sort()) ||
+    draft.kcFilter !== applied.kcFilter ||
+    draft.validFrom.getTime() !== applied.validFrom.getTime() ||
+    draft.validUntil.getTime() !== applied.validUntil.getTime();
+
+  const selectedIds = Object.entries(rowSelection)
+    .filter(([, selected]) => selected)
+    .map(([id]) => id);
+
+  const clearSelection = () => setRowSelection({});
+
+  const applyFilters = () => setApplied(draft);
+
+  const clearAllFilters = () => {
+    setDraft(defaultFilterState);
+    setApplied(defaultFilterState);
   };
 
   if (isLoading) {
@@ -40,73 +86,129 @@ const Members: React.FC = () => {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex space-x-8">
-        <h1 className="text-4xl">Members</h1>
-        <Button variant={"outline"} onClick={() => setFilterVisible((e) => !e)}>
-          {filterVisible ? "Hide filters" : "Show filters"}
-        </Button>
-      </div>
-      {filterVisible && (
-        <div className="flex space-x-2 flex-wrap">
-          <MultipleSelector
-            options={stringsToOptions(roles?.map((r) => r.name) ?? [])}
-            onChange={onRoleChange}
-            value={selectedRoles}
-            placeholder="Filter by role"
-          />
-          <DateRangePicker
-            onUpdate={({ range }) => {
-              setSelectedValidUntil(range.to ?? defaultTo);
-              setSelectedValidFrom(range.from);
-            }}
-            initialDateFrom={selectedValidFrom}
-            initialDateTo={selectedValidUntil}
-            locale="fi"
-            showCompare={false}
-            disabled={selectedRoles.length === 0}
-          />
+    <TooltipProvider>
+      <div className="space-y-4">
+        {/* Heading + count badge */}
+        <div className="flex items-center gap-3">
+          <h1 className="text-4xl font-bold tracking-tight">Members</h1>
+          <Badge
+            variant="secondary"
+            className="text-sm font-semibold rounded-full px-3"
+          >
+            {countData?.total ?? "—"}
+          </Badge>
         </div>
-      )}
-      <DataTable
-        modelName="members"
-        columns={columns}
-        useFetchData={useGetAllMembersWithRoles}
-        searchColumn="first_name"
-        initialColumnVisibility={{
-          user_id: false,
-          home_municipality: false,
-        }}
-        filterVisible={filterVisible}
-        customFilters={{
-          roles: selectedRoles.map((role) => role.value),
-          valid_until: selectedValidUntil,
-          valid_from: selectedValidFrom,
-        }}
-        setCustomFilters={(filters) => {
-          setSelectedRoles(stringsToOptions(filters.roles ?? []));
-          setSelectedValidFrom(filters?.valid_from ?? defaultFrom);
-          setSelectedValidUntil(filters?.valid_until ?? defaultTo);
-        }}
-        multipleRowActionElements={[
-          (table, ids) => (
-            <AddRolesModal
-              userIds={ids}
-              onClose={() => table.setRowSelection({})}
-              disabled={ids.length === 0}
-            />
-          ),
-          (table, ids) => (
-            <DeleteMembersModal
-              userIds={ids}
-              onClose={() => table.setRowSelection({})}
-              disabled={ids.length === 0}
-            />
-          ),
-        ]}
-        getRowId={(row) => row.user_id}
-      />
-    </div>
+
+        <DataTable
+          modelName="members"
+          columns={columns}
+          useFetchData={useGetAllMembersWithRoles}
+          searchColumn="first_name"
+          initialColumnVisibility={{
+            user_id: false,
+            home_municipality: false,
+          }}
+          filterVisible={filterVisible}
+          setFilterVisible={setFilterVisible}
+          filterContent={
+            <div className="flex items-center gap-4 flex-wrap px-3 py-2.5 bg-muted rounded-lg">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Role
+                </span>
+                <MultipleSelector
+                  options={stringsToOptions(roles?.map((r) => r.name) ?? [])}
+                  onChange={(rs) => setDraft((d) => ({ ...d, roles: rs }))}
+                  value={draft.roles}
+                  placeholder="All roles"
+                  className="w-48 bg-background"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  KC Status
+                </span>
+                <Select
+                  value={draft.kcFilter}
+                  onValueChange={(v) =>
+                    setDraft((d) => ({ ...d, kcFilter: v as KcFilter }))
+                  }
+                >
+                  <SelectTrigger className="h-8 w-32 text-xs">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="sync">In sync</SelectItem>
+                    <SelectItem value="mismatch">Mismatch</SelectItem>
+                    <SelectItem value="unknown">Unknown</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-muted-foreground">
+                  Valid
+                </span>
+                <DateRangePicker
+                  onUpdate={({ range }) =>
+                    setDraft((d) => ({
+                      ...d,
+                      validUntil: range.to ?? defaultTo,
+                      validFrom: range.from,
+                    }))
+                  }
+                  initialDateFrom={draft.validFrom}
+                  initialDateTo={draft.validUntil}
+                  locale="fi"
+                  showCompare={false}
+                />
+              </div>
+
+              <div className="flex items-center gap-2 ml-auto">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!hasPendingChanges}
+                  onClick={applyFilters}
+                >
+                  Apply filters
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-muted-foreground text-xs"
+                  onClick={clearAllFilters}
+                >
+                  Clear filters
+                </Button>
+              </div>
+            </div>
+          }
+          customFilters={customFilters}
+          setCustomFilters={(filters) => {
+            const next: FilterState = {
+              ...defaultFilterState,
+              roles: stringsToOptions(filters?.roles ?? []),
+              validFrom: filters?.valid_from ?? defaultFrom,
+              validUntil: filters?.valid_until ?? defaultTo,
+            };
+            setDraft(next);
+            setApplied(next);
+          }}
+          getRowId={(row) => row.user_id}
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+        />
+
+        <BulkCommandDock
+          count={selectedIds.length}
+          selectedIds={selectedIds}
+          onClear={clearSelection}
+        />
+      </div>
+    </TooltipProvider>
   );
 };
 

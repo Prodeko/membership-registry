@@ -7,7 +7,7 @@ use axum::{
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
@@ -48,6 +48,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/", delete(delete_many))
         .route("/roles", get(get_members_with_roles))
         .route("/roles", post(add_many_roles))
+        .route("/roles/count", get(count_members_with_roles))
         .route("/roles/export", post(export_members_with_roles))
         .route("/keycloak-sync-status", get(get_keycloak_sync_status))
         .route("/keycloak-sync", post(post_keycloak_sync))
@@ -133,6 +134,32 @@ async fn get_members_with_roles(
         .collect();
 
     Ok(Json(members))
+}
+
+#[derive(Serialize, Debug, TS)]
+#[ts(export, rename = "MembersCount")]
+struct MembersCountDTO {
+    total: i64,
+}
+
+#[debug_handler]
+async fn count_members_with_roles(
+    State(state): State<AppState>,
+    Query(query): Query<MembersWithRolesQueryDTO>,
+) -> ApiResult<Json<MembersCountDTO>> {
+    let roles = query.roles.clone().map(|roles| {
+        roles
+            .split(',')
+            .map(|role| role.to_string())
+            .collect::<Vec<String>>()
+    });
+
+    let total = state
+        .member_service
+        .count_members_with_roles(roles, query.search, query.valid_from, query.valid_until)
+        .await?;
+
+    Ok(Json(MembersCountDTO { total }))
 }
 
 #[debug_handler]

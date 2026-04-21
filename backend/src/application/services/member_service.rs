@@ -321,6 +321,26 @@ impl MemberService {
             .map_err(ServiceError::from)
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub async fn count_members_with_roles(
+        &self,
+        roles: Option<Vec<String>>,
+        search: Option<String>,
+        valid_from: Option<chrono::NaiveDate>,
+        valid_until: Option<chrono::NaiveDate>,
+    ) -> ServiceResult<i64> {
+        self.member_repo
+            .count_members_with_roles(MembersWithRolesParams {
+                valid_from,
+                valid_until,
+                roles,
+                search,
+                ..Default::default()
+            })
+            .await
+            .map_err(ServiceError::from)
+    }
+
     pub async fn log_export(&self, actor_user_id: Option<Uuid>) {
         self.audit_log
             .log(actor_user_id, "member.export_csv", "member", "export", None)

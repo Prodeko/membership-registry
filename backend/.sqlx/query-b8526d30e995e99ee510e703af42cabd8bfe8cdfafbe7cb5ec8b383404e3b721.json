@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n            SELECT COUNT(*)::bigint AS \"count!\"\n            FROM (\n                SELECT Member.user_id\n                FROM Member\n                LEFT JOIN RoleMember\n                    ON Member.user_id = RoleMember.user_id\n                    AND ($4::date IS NULL OR RoleMember.valid_until IS NULL OR RoleMember.valid_until >= $4)\n                    AND ($3::date IS NULL OR RoleMember.valid_from <= $3)\n                WHERE (\n                    $2::varchar IS NULL OR\n                    Member.full_name ILIKE '%' || $2 || '%' OR\n                    Member.email ILIKE '%' || $2 || '%'\n                )\n                GROUP BY Member.user_id\n                HAVING\n                    $1::varchar[] IS NULL OR\n                    EXISTS (\n                        SELECT 1\n                        FROM unnest($1::varchar[]) AS filter_role\n                        WHERE filter_role = ANY(array_agg(RoleMember.role_name))\n                    )\n            ) AS filtered\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "VarcharArray",
+        "Varchar",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "b8526d30e995e99ee510e703af42cabd8bfe8cdfafbe7cb5ec8b383404e3b721"
+}

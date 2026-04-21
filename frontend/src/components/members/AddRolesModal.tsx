@@ -6,7 +6,7 @@ import {
 } from "@/lib/api";
 import { defaultFrom, defaultTo, stringsToOptions } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { FunctionComponent, useState } from "react";
+import { FunctionComponent, ReactNode, useState } from "react";
 import { DateRange } from "react-day-picker";
 import { Button } from "../ui/button";
 import { DateRangePicker } from "../ui/date-range-picker";
@@ -20,18 +20,23 @@ import {
   DialogTrigger,
 } from "../ui/dialog";
 import MultipleSelector from "../ui/multiple-selector";
+import RoleBadge from "../ui/role-badge";
 
 interface AddRolesModalProps {
   userIds: string[];
   onClose: () => void;
   disabled: boolean;
+  trigger?: ReactNode;
 }
 
 const AddRolesModal: FunctionComponent<AddRolesModalProps> = ({
   userIds,
   onClose,
   disabled,
+  trigger,
 }) => {
+  const [open, setOpen] = useState(false);
+  const [step, setStep] = useState<1 | 2>(1);
   const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [selectedDateRange, setSelectedDateRange] = useState<DateRange | null>({
     from: defaultFrom,
@@ -43,10 +48,18 @@ const AddRolesModal: FunctionComponent<AddRolesModalProps> = ({
   const queryClient = useQueryClient();
   const options = stringsToOptions(roles?.map((r) => r.name) ?? []);
 
-  const handleSubmit = () => {
-    console.log(selectedDateRange);
-    console.log(selectedRoles);
+  const resetState = () => {
+    setStep(1);
+    setSelectedRoles([]);
+    setSelectedDateRange({ from: defaultFrom, to: defaultTo });
+  };
 
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) resetState();
+  };
+
+  const handleSubmit = () => {
     if (
       selectedDateRange?.to &&
       selectedDateRange?.from &&
@@ -65,6 +78,8 @@ const AddRolesModal: FunctionComponent<AddRolesModalProps> = ({
             queryClient.invalidateQueries({
               queryKey: [QueryKey.MEMBERS_WITH_ROLES],
             });
+            setOpen(false);
+            resetState();
             onClose();
           },
         },
@@ -73,41 +88,93 @@ const AddRolesModal: FunctionComponent<AddRolesModalProps> = ({
   };
 
   return (
-    <Dialog>
-      <DialogTrigger disabled={disabled}>
-        <Button variant={"outline"} disabled={disabled}>
-          Add roles
-        </Button>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogTrigger asChild disabled={disabled}>
+        {trigger ?? (
+          <Button variant="outline" disabled={disabled}>
+            Add roles
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add roles</DialogTitle>
+          <div className="flex items-start justify-between">
+            <DialogTitle>Add roles</DialogTitle>
+            <span className="text-xs text-muted-foreground">
+              Step {step} of 2
+            </span>
+          </div>
           <DialogDescription>
-            Select the roles you want to add to the selected members and the
-            dates of the validity. Selected members:{" "}
-            {selectedMembers?.map((m) => m.email).join(", ")}
+            {userIds.length} member{userIds.length === 1 ? "" : "s"} selected
+            {selectedMembers && selectedMembers.length > 0
+              ? `: ${selectedMembers
+                  .slice(0, 3)
+                  .map((m) => m.email)
+                  .join(", ")}${selectedMembers.length > 3 ? ", …" : ""}`
+              : null}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex flex-col space-y-4">
-          <MultipleSelector
-            options={options}
-            onChange={(roles) => setSelectedRoles(roles.map((r) => r.value))}
-          />
-          <DateRangePicker
-            onUpdate={({ range }) => {
-              console.log(range);
-              return setSelectedDateRange(range);
-            }}
-            disabled={selectedRoles.length === 0}
-            showCompare={false}
-            align="center"
-            initialDateFrom={defaultFrom}
-            initialDateTo={defaultTo}
-          />
-          <DialogClose asChild>
-            <Button onClick={handleSubmit}>Add roles</Button>
-          </DialogClose>
-        </div>
+
+        {step === 1 ? (
+          <div className="flex flex-col space-y-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Select roles
+              </label>
+              <MultipleSelector
+                options={options}
+                onChange={(rs) => setSelectedRoles(rs.map((r) => r.value))}
+                value={stringsToOptions(selectedRoles)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <DialogClose asChild>
+                <Button variant="outline">Cancel</Button>
+              </DialogClose>
+              <Button
+                onClick={() => setStep(2)}
+                disabled={selectedRoles.length === 0}
+              >
+                Next: Set dates →
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col space-y-4">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1.5 block">
+                Assigning
+              </label>
+              <div className="flex flex-wrap gap-1">
+                {selectedRoles.map((r) => (
+                  <RoleBadge key={r} role={r} />
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">
+                Validity period
+              </label>
+              <DateRangePicker
+                onUpdate={({ range }) => setSelectedDateRange(range)}
+                showCompare={false}
+                align="center"
+                initialDateFrom={selectedDateRange?.from ?? defaultFrom}
+                initialDateTo={selectedDateRange?.to ?? defaultTo}
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                ← Back
+              </button>
+              <Button onClick={handleSubmit}>Add roles</Button>
+            </div>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );
