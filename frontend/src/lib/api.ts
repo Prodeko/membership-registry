@@ -108,6 +108,33 @@ interface PaginatedQueryParams {
   };
 }
 
+interface MemberCountParams {
+  search?: string;
+  customFilters?: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [key: string]: any;
+  };
+}
+
+export function useGetMembersCount(params: MemberCountParams) {
+  return useQuery<{ total: number }>({
+    queryKey: [QueryKey.MEMBERS_WITH_ROLES, "count", params],
+    queryFn: async () => {
+      const response = await admin_axios_client.get("/members/roles/count", {
+        params: {
+          search: params.search || undefined,
+          roles: params.customFilters?.roles?.join(",") || undefined,
+          valid_from:
+            getDateAsString(params.customFilters?.valid_from) || undefined,
+          valid_until:
+            getDateAsString(params.customFilters?.valid_until) || undefined,
+        },
+      });
+      return response.data;
+    },
+  });
+}
+
 export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
   return useQuery<MemberWithRoles[]>({
     queryKey: [QueryKey.MEMBERS_WITH_ROLES, params],

@@ -2,6 +2,7 @@
 
 import {
   ColumnDef,
+  RowSelectionState,
   SortingState,
   VisibilityState,
   flexRender,
@@ -48,6 +49,10 @@ interface DataTableProps<TData, TValue> {
   getRowId?: (row: TData) => string;
   searchColumn?: string;
   filterVisible?: boolean;
+  setFilterVisible?: (v: boolean) => void;
+  filterContent?: React.ReactNode;
+  rowSelection?: RowSelectionState;
+  onRowSelectionChange?: (s: RowSelectionState) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -57,13 +62,27 @@ export function DataTable<TData, TValue>({
   initialColumnVisibility,
   customFilters,
   setCustomFilters,
-  multipleRowActionElements,
   getRowId,
   searchColumn,
   filterVisible,
+  setFilterVisible,
+  filterContent,
+  rowSelection: controlledRowSelection,
+  onRowSelectionChange,
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState<TData[]>([]);
-  const [rowSelection, setRowSelection] = React.useState({});
+  const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
+  const rowSelection = controlledRowSelection ?? internalRowSelection;
+  const setRowSelection: (
+    updater: RowSelectionState | ((old: RowSelectionState) => RowSelectionState),
+  ) => void = (updater) => {
+    const next =
+      typeof updater === "function"
+        ? (updater as (old: RowSelectionState) => RowSelectionState)(rowSelection)
+        : updater;
+    if (onRowSelectionChange) onRowSelectionChange(next);
+    else setInternalRowSelection(next);
+  };
   const [columnVisibility, setColumnVisibility] =
     React.useState<VisibilityState>(initialColumnVisibility ?? {});
   const [sorting, setSorting] = React.useState<SortingState>([]);
@@ -145,12 +164,13 @@ export function DataTable<TData, TValue>({
     <div className="space-y-4">
       <DataTableToolbar
         table={table}
-        multipleRowActionElements={multipleRowActionElements}
         searchColumn={searchColumn}
         modelName={modelName}
         customFilters={customFilters}
         setFilter={setFilter}
         filterVisible={filterVisible}
+        setFilterVisible={setFilterVisible}
+        filterContent={filterContent}
       />
       <div className="rounded-md border">
         <Table>

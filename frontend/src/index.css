@@ -49,6 +49,16 @@
       height: 0;
     }
   }
+  @keyframes dockIn {
+    from {
+      transform: translateX(-50%) translateY(16px) scale(0.97);
+      opacity: 0;
+    }
+    to {
+      transform: translateX(-50%) translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
 }
 
 @layer base {

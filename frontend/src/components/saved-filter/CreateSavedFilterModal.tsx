@@ -7,7 +7,7 @@ import {
   DialogClose,
   DialogHeader,
 } from "../ui/dialog";
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { Input } from "../ui/input";
 import { NewSavedFilter } from "@/common/types";
 import { Button } from "../ui/button";
@@ -17,11 +17,13 @@ import { Label } from "../ui/label";
 interface Props {
   newSavedFilter: NewSavedFilter;
   refetchSavedFilters: () => void;
+  trigger?: ReactNode;
 }
 
 const CreateSavedFilterModal = ({
   newSavedFilter,
   refetchSavedFilters,
+  trigger,
 }: Props) => {
   const [name, setName] = useState<string>(newSavedFilter.name);
   const [visibleForAll, setVisibleForAll] = useState<boolean>(
@@ -45,8 +47,8 @@ const CreateSavedFilterModal = ({
 
   return (
     <Dialog>
-      <DialogTrigger>
-        <Button>Save filter</Button>
+      <DialogTrigger asChild>
+        {trigger ?? <Button>Save filter</Button>}
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>

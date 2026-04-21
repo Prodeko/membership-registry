@@ -270,4 +270,44 @@ impl MemberRepositoryPort for MemberRepo {
 
         Ok(rows.into_iter().map(Into::into).collect())
     }
+
+    async fn count_members_with_roles(
+        &self,
+        params: MembersWithRolesParams,
+    ) -> Result<i64, RepositoryError> {
+        let count: i64 = sqlx::query_scalar!(
+            r#"--sql
+            SELECT COUNT(*)::bigint AS "count!"
+            FROM (
+                SELECT Member.user_id
+                FROM Member
+                LEFT JOIN RoleMember
+                    ON Member.user_id = RoleMember.user_id
+                    AND ($4::date IS NULL OR RoleMember.valid_until IS NULL OR RoleMember.valid_until >= $4)
+                    AND ($3::date IS NULL OR RoleMember.valid_from <= $3)
+                WHERE (
+                    $2::varchar IS NULL OR
+                    Member.full_name ILIKE '%' || $2 || '%' OR
+                    Member.email ILIKE '%' || $2 || '%'
+                )
+                GROUP BY Member.user_id
+                HAVING
+                    $1::varchar[] IS NULL OR
+                    EXISTS (
+                        SELECT 1
+                        FROM unnest($1::varchar[]) AS filter_role
+                        WHERE filter_role = ANY(array_agg(RoleMember.role_name))
+                    )
+            ) AS filtered
+            "#,
+            params.roles.as_deref(),
+            params.search,
+            params.valid_from,
+            params.valid_until,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(count)
+    }
 }
