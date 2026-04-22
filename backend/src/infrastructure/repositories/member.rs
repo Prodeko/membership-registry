@@ -47,19 +47,22 @@ struct MemberWithRolesDAO {
     email_notifications: bool,
     language: String,
     role_names: Value,
+    group_names: Value,
 }
 
 impl From<MemberWithRolesDAO> for PortMemberWithRoles {
     fn from(row: MemberWithRolesDAO) -> Self {
-        let role_names = row
-            .role_names
-            .as_array()
-            .map(|arr| {
-                arr.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let json_to_strings = |v: Value| {
+            v.as_array()
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default()
+        };
+        let role_names = json_to_strings(row.role_names);
+        let group_names = json_to_strings(row.group_names);
 
         Self {
             person: Person {
@@ -73,6 +76,7 @@ impl From<MemberWithRolesDAO> for PortMemberWithRoles {
                 language: row.language,
             },
             role_names,
+            group_names,
         }
     }
 }
@@ -212,7 +216,14 @@ impl MemberRepositoryPort for MemberRepo {
             r#"--sql
             SELECT
                 Member.*,
-                json_agg(RoleMember.role_name) AS role_names
+                json_agg(RoleMember.role_name) AS role_names,
+                COALESCE(
+                    (SELECT json_agg(DISTINCT rg.name)
+                     FROM RoleGroupMember rgm
+                     JOIN RoleGroup rg ON rg.id = rgm.group_id
+                     WHERE rgm.user_id = Member.user_id),
+                    '[]'::json
+                ) AS group_names
             FROM
                 Member
             LEFT JOIN

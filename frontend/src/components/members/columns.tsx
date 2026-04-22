@@ -10,6 +10,7 @@ import {
   User as UserIcon,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { DataTableColumnHeader } from "../ui/column-header";
 import {
@@ -40,11 +41,13 @@ export const getColumns = (
       />
     ),
     cell: ({ row }) => (
-      <Checkbox
-        checked={row.getIsSelected()}
-        onCheckedChange={(value) => row.toggleSelected(!!value)}
-        aria-label="Select row"
-      />
+      <div onClick={(e) => e.stopPropagation()}>
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      </div>
     ),
     enableSorting: false,
     enableHiding: false,
@@ -60,48 +63,44 @@ export const getColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="First Name" />
     ),
-    cell: ({ row }) => {
-      return (
-        <Link
-          to={`/members/${row.original.user_id}`}
-          className="flex items-center"
-        >
-          {row.original.first_name}
-        </Link>
-      );
-    },
+    cell: ({ row }) => <span className="font-medium">{row.original.first_name}</span>,
   },
   {
     accessorKey: "last_name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Last Name" />
     ),
-    cell: ({ row }) => {
-      return (
-        <Link
-          to={`/members/${row.original.user_id}`}
-          className="flex items-center"
-        >
-          {row.original.last_name}
-        </Link>
-      );
-    },
+    cell: ({ row }) => <span className="font-medium">{row.original.last_name}</span>,
   },
   {
     accessorKey: "email",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Email" />
     ),
+    cell: ({ row }) => (
+      <span className="text-muted-foreground text-sm">{row.original.email}</span>
+    ),
+  },
+  {
+    accessorKey: "group_names",
+    header: "Groups",
     cell: ({ row }) => {
+      const groups = row.original.group_names ?? [];
       return (
-        <Link
-          to={`/members/${row.original.user_id}`}
-          className="flex items-center"
-        >
-          {row.original.email}
-        </Link>
+        <div className="flex flex-wrap gap-1">
+          {groups.length === 0 ? (
+            <span className="text-xs text-muted-foreground">—</span>
+          ) : (
+            groups.map((g) => (
+              <Badge key={g} variant="secondary" className="text-xs font-medium">
+                {g}
+              </Badge>
+            ))
+          )}
+        </div>
       );
     },
+    enableSorting: false,
   },
   {
     accessorKey: "role_names",
@@ -187,7 +186,7 @@ export const getColumns = (
 
       return (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
+          <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
             <Button variant="ghost" className="h-8 w-8 p-0">
               <span className="sr-only">Open menu</span>
               <MoreHorizontal className="h-4 w-4" />

@@ -56,6 +56,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/{user_id}", delete(delete_member))
         .route("/{user_id}", put(update_member))
         .route("/{user_id}/roles", post(add_role))
+        .route("/{user_id}/roles", delete(remove_role))
         .route("/{user_id}/role-groups", get(get_member_role_groups))
         .with_state(state)
 }
@@ -402,6 +403,27 @@ async fn post_keycloak_sync(
         remove_failed: summary.remove_failed,
         users_processed: summary.users_processed,
     }))
+}
+
+#[derive(Deserialize)]
+struct RemoveRoleQuery {
+    role_name: String,
+    valid_from: chrono::NaiveDate,
+}
+
+#[debug_handler]
+async fn remove_role(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+    Path((user_id,)): Path<(Uuid,)>,
+    Query(query): Query<RemoveRoleQuery>,
+) -> ApiResult<()> {
+    let actor_id = user_info.map(|u| u.user_id);
+    state
+        .role_service
+        .delete_role_membership(user_id, &query.role_name, query.valid_from, actor_id)
+        .await?;
+    Ok(())
 }
 
 async fn get_member_role_groups(

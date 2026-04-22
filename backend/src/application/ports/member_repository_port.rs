@@ -7,6 +7,7 @@ use crate::domain::{NewPerson, Person, UpdatePersonData};
 pub struct MemberWithRoles {
     pub person: Person,
     pub role_names: Vec<String>,
+    pub group_names: Vec<String>,
 }
 
 #[derive(Default)]

@@ -414,6 +414,20 @@ export const useAddMultipleRolesToMembers = () => {
   });
 };
 
+export const useRemoveMemberRole = () => {
+  return useMutation<
+    void,
+    Error,
+    { userId: string; roleName: string; validFrom: string }
+  >({
+    mutationFn: async ({ userId, roleName, validFrom }) => {
+      await admin_axios_client.delete(`/members/${userId}/roles`, {
+        params: { role_name: roleName, valid_from: validFrom },
+      });
+    },
+  });
+};
+
 export const useCreateRole = () => {
   return useMutation<
     void,
