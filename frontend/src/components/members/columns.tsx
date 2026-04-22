@@ -4,12 +4,7 @@ import { QueryKey, useDeleteMember } from "@/lib/api";
 import { CopyIcon } from "@radix-ui/react-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { ColumnDef } from "@tanstack/react-table";
-import {
-  MoreHorizontal,
-  Trash as TrashIcon,
-  User as UserIcon,
-} from "lucide-react";
-import { Link } from "react-router-dom";
+import { MoreHorizontal, Trash as TrashIcon } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { DataTableColumnHeader } from "../ui/column-header";
@@ -63,14 +58,18 @@ export const getColumns = (
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="First Name" />
     ),
-    cell: ({ row }) => <span className="font-medium">{row.original.first_name}</span>,
+    cell: ({ row }) => (
+      <span className="font-medium">{row.original.first_name}</span>
+    ),
   },
   {
     accessorKey: "last_name",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Last Name" />
     ),
-    cell: ({ row }) => <span className="font-medium">{row.original.last_name}</span>,
+    cell: ({ row }) => (
+      <span className="font-medium">{row.original.last_name}</span>
+    ),
   },
   {
     accessorKey: "email",
@@ -78,7 +77,9 @@ export const getColumns = (
       <DataTableColumnHeader column={column} title="Email" />
     ),
     cell: ({ row }) => (
-      <span className="text-muted-foreground text-sm">{row.original.email}</span>
+      <span className="text-muted-foreground text-sm">
+        {row.original.email}
+      </span>
     ),
   },
   {
@@ -92,7 +93,11 @@ export const getColumns = (
             <span className="text-xs text-muted-foreground">—</span>
           ) : (
             groups.map((g) => (
-              <Badge key={g} variant="secondary" className="text-xs font-medium">
+              <Badge
+                key={g}
+                variant="secondary"
+                className="text-xs font-medium"
+              >
                 {g}
               </Badge>
             ))
@@ -202,15 +207,6 @@ export const getColumns = (
               <CopyIcon className="w-4 h-4 ml-2" />
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link
-                to={`/members/${member.user_id}`}
-                className="flex items-center justify-between w-full"
-              >
-                View user
-                <UserIcon className="w-4 h-4 ml-2" />
-              </Link>
-            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={async () => {
                 deleteMember(member.user_id, {

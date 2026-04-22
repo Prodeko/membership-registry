@@ -235,7 +235,13 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       }
     });
     return memberships;
-  }, [activeGroupMemberships, groupAdditions, groupRemovals, allGroups, userId]);
+  }, [
+    activeGroupMemberships,
+    groupAdditions,
+    groupRemovals,
+    allGroups,
+    userId,
+  ]);
 
   // All roles including staged additions
   const allActiveRoles = useMemo(() => {
@@ -371,7 +377,6 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
     setGroupRemovals((p) => new Set([...p, removalKey(groupId, validFrom)]));
   };
 
-
   const handleAddRole = () => {
     if (!addRoleName) return;
     setRoleAdditions((p) => [
@@ -391,7 +396,6 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   const handleRemoveRole = (roleName: string, validFrom: string) => {
     setRoleRemovals((p) => new Set([...p, removalKey(roleName, validFrom)]));
   };
-
 
   const handleSave = async () => {
     setIsSaving(true);
@@ -858,7 +862,6 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
                   </div>
                 );
               })}
-
             </div>
           </section>
 
@@ -1054,7 +1057,6 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
                   </div>
                 );
               })}
-
             </div>
           </section>
 

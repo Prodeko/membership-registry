@@ -16,8 +16,6 @@ import RequireOnboarded from "./components/auth/RequireOnboarded";
 import ErrorPage from "./components/Error";
 import Onboarding from "./components/onboarding/Onboarding";
 import Layout from "./components/layout/Layout";
-import Member from "./components/members/Member";
-import MemberEdit from "./components/members/MemberEdit";
 import Members from "./components/members/Members";
 import Role from "./components/roles/Role";
 import Roles from "./components/roles/Roles";
@@ -88,26 +86,6 @@ const router = createBrowserRouter([
       <RequireOnboarded>
         <Layout>
           <Members />
-        </Layout>
-      </RequireOnboarded>
-    ),
-  },
-  {
-    path: "/members/:id",
-    element: (
-      <RequireOnboarded>
-        <Layout>
-          <Member />
-        </Layout>
-      </RequireOnboarded>
-    ),
-  },
-  {
-    path: "/members/:id/edit",
-    element: (
-      <RequireOnboarded>
-        <Layout>
-          <MemberEdit />
         </Layout>
       </RequireOnboarded>
     ),
