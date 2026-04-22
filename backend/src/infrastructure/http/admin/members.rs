@@ -23,6 +23,7 @@ use crate::{
                 MemberWithRolesDTO, UpdateMemberDTO,
             },
             role::RoleMembershipDTO,
+            role_group::RoleGroupMembershipDTO,
         },
         errors::{ApiError, ApiResult},
     },
@@ -55,6 +56,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/{user_id}", delete(delete_member))
         .route("/{user_id}", put(update_member))
         .route("/{user_id}/roles", post(add_role))
+        .route("/{user_id}/role-groups", get(get_member_role_groups))
         .with_state(state)
 }
 
@@ -400,4 +402,18 @@ async fn post_keycloak_sync(
         remove_failed: summary.remove_failed,
         users_processed: summary.users_processed,
     }))
+}
+
+async fn get_member_role_groups(
+    Path(user_id): Path<Uuid>,
+    State(state): State<AppState>,
+) -> ApiResult<Json<Vec<RoleGroupMembershipDTO>>> {
+    let groups = state
+        .role_group_service
+        .get_member_groups(&user_id)
+        .await?
+        .into_iter()
+        .map(RoleGroupMembershipDTO::from)
+        .collect();
+    Ok(Json(groups))
 }

@@ -1,0 +1,42 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE RoleGroup SET name = $2, description = $3\n               WHERE id = $1\n               RETURNING id, name, description, keycloak_group_id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "keycloak_group_id",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "04e019638dbf98f3a39c5a83b8f7737bab0ccb88c66f635b513cbaba328216ca"
+}

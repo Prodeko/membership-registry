@@ -1,21 +1,25 @@
-import { FunctionComponent } from "react";
 import { Plus, Trash2, X } from "lucide-react";
-import AddRolesModal from "./AddRolesModal";
-import DeleteMembersModal from "./DeleteMembersModal";
-import AddToGroupsModal from "./AddToGroupsModal";
+import { RoleGroup } from "@/common/types";
+import AddRolesToGroupsModal from "./AddRolesToGroupsModal";
+import DeleteRoleGroupsModal from "./DeleteRoleGroupsModal";
 
-interface BulkCommandDockProps {
+interface Props {
   count: number;
-  selectedIds: string[];
+  selectedGroupIds: string[];
+  groups: RoleGroup[];
   onClear: () => void;
 }
 
-const BulkCommandDock: FunctionComponent<BulkCommandDockProps> = ({
+export default function RoleGroupBulkCommandDock({
   count,
-  selectedIds,
+  selectedGroupIds,
+  groups,
   onClear,
-}) => {
+}: Props) {
   if (count === 0) return null;
+
+  const selectedGroups = groups.filter((g) => selectedGroupIds.includes(g.id));
+  const selectedNames = selectedGroups.map((g) => g.name);
 
   return (
     <div
@@ -28,14 +32,14 @@ const BulkCommandDock: FunctionComponent<BulkCommandDockProps> = ({
         {count}
       </span>
       <span className="text-sm font-medium text-slate-300">
-        {count === 1 ? "member selected" : "members selected"}
+        {count === 1 ? "group selected" : "groups selected"}
       </span>
       <div className="w-px h-5 bg-white/10 mx-0.5" />
 
-      <AddRolesModal
-        userIds={selectedIds}
+      <AddRolesToGroupsModal
+        groupIds={selectedGroupIds}
+        groups={selectedGroups}
         onClose={onClear}
-        disabled={false}
         trigger={
           <button
             type="button"
@@ -48,25 +52,10 @@ const BulkCommandDock: FunctionComponent<BulkCommandDockProps> = ({
         }
       />
 
-      <AddToGroupsModal
-        userIds={selectedIds}
+      <DeleteRoleGroupsModal
+        groupIds={selectedGroupIds}
+        groupNames={selectedNames}
         onClose={onClear}
-        trigger={
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 bg-[hsl(218,80%,30%)] text-[hsl(210,60%,90%)]
-              border border-[hsl(218,60%,38%)] rounded-lg px-3 py-1.5 text-sm font-medium cursor-pointer
-              hover:bg-[hsl(218,80%,35%)] transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" /> Add to groups
-          </button>
-        }
-      />
-
-      <DeleteMembersModal
-        userIds={selectedIds}
-        onClose={onClear}
-        disabled={false}
         trigger={
           <button
             type="button"
@@ -89,6 +78,4 @@ const BulkCommandDock: FunctionComponent<BulkCommandDockProps> = ({
       </button>
     </div>
   );
-};
-
-export default BulkCommandDock;
+}

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT role_name FROM RoleGroupRole WHERE group_id = $1 ORDER BY role_name",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "role_name",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "be7731fd17beaa258a078240cbfef2bcb99cd56118feedaf71c28142d58d6723"
+}

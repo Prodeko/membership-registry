@@ -21,6 +21,8 @@ import MemberEdit from "./components/members/MemberEdit";
 import Members from "./components/members/Members";
 import Role from "./components/roles/Role";
 import Roles from "./components/roles/Roles";
+import RoleGroup from "./components/role-groups/RoleGroup";
+import RoleGroups from "./components/role-groups/RoleGroups";
 import AuditLogs from "./components/audit-logs/AuditLogs";
 import DataManagement from "./components/data/DataManagement";
 import EmailTemplates from "./components/email-templates/EmailTemplates";
@@ -126,6 +128,26 @@ const router = createBrowserRouter([
       <RequireOnboarded>
         <Layout>
           <Role />
+        </Layout>
+      </RequireOnboarded>
+    ),
+  },
+  {
+    path: "/role-groups",
+    element: (
+      <RequireOnboarded>
+        <Layout>
+          <RoleGroups />
+        </Layout>
+      </RequireOnboarded>
+    ),
+  },
+  {
+    path: "/role-groups/:id",
+    element: (
+      <RequireOnboarded>
+        <Layout>
+          <RoleGroup />
         </Layout>
       </RequireOnboarded>
     ),

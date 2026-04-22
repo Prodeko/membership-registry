@@ -200,6 +200,7 @@ const Members: React.FC = () => {
           getRowId={(row) => row.user_id}
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
+          enableSavedFilters={true}
         />
 
         <BulkCommandDock

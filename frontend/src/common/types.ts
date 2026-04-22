@@ -25,6 +25,8 @@ export type {
   PostTargetableRole,
   PublicConfig,
   Role,
+  RoleGroup,
+  RoleGroupMembership,
   RoleMember,
   RoleStats,
   SavedFilter,
