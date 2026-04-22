@@ -3,6 +3,7 @@ use audit_log::AuditLogRepo;
 use email_template::EmailTemplateRepo;
 use marketing_tag::MarketingTagRepo;
 use member::MemberRepo;
+use role_group::RoleGroupRepo;
 use role_renewal::RoleRenewalRepo;
 use user_auth_provider::UserAuthProviderRepo;
 
@@ -33,6 +34,8 @@ pub mod member;
 #[allow(clippy::panic)]
 pub mod role;
 #[allow(clippy::panic)]
+pub mod role_group;
+#[allow(clippy::panic)]
 pub mod role_renewal;
 #[allow(clippy::panic)]
 pub mod saved_filter;
@@ -48,6 +51,7 @@ pub struct PostgresRepo {
     pub member: MemberRepo,
     pub application: ApplicationRepo,
     pub role: role::RoleRepo,
+    pub role_group: RoleGroupRepo,
     pub role_renewal: RoleRenewalRepo,
     pub saved_filter: saved_filter::SavedFilterRepo,
     pub user_auth_provider: UserAuthProviderRepo,
@@ -62,6 +66,7 @@ impl PostgresRepo {
             member: MemberRepo { pool: pool.clone() },
             application: ApplicationRepo { pool: pool.clone() },
             role: role::RoleRepo { pool: pool.clone() },
+            role_group: RoleGroupRepo { pool: pool.clone() },
             role_renewal: RoleRenewalRepo { pool: pool.clone() },
             saved_filter: saved_filter::SavedFilterRepo { pool: pool.clone() },
             user_auth_provider: UserAuthProviderRepo { pool: pool.clone() },

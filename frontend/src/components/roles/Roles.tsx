@@ -79,7 +79,7 @@ const Roles = () => {
         columns={columns}
         useFetchData={useGetRolesStats}
         searchColumn="name"
-        modelName="role"
+        modelName="roles"
       />
     </div>
   );

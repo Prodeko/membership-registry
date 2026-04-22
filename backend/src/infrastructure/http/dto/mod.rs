@@ -5,4 +5,5 @@ pub mod marketing;
 pub mod marketing_tag;
 pub mod member;
 pub mod role;
+pub mod role_group;
 pub mod saved_filter;

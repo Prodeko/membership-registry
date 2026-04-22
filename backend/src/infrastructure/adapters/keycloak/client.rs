@@ -89,7 +89,7 @@ struct AdminTokenDTO {
     expires_in: u64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct RealmRoleDTO {
     pub id: String,
     pub name: String,
@@ -799,6 +799,276 @@ impl KeycloakClient {
             tracing::error!("Add user roles returned {status}: {body}");
             return Err(KeycloakError::Unavailable(format!(
                 "Add roles returned status {status}"
+            )));
+        }
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Group management (admin API)
+    // -----------------------------------------------------------------------
+
+    pub async fn create_group(&self, name: &str) -> Result<String, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("groups");
+
+        let response = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .json(&serde_json::json!({ "name": name }))
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to create group: {e:?}");
+                KeycloakError::Unavailable(format!("Create group request failed: {e}"))
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::error!("Create group returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Create group returned status {status}"
+            )));
+        }
+
+        // Keycloak returns the group location in the Location header
+        let location = response
+            .headers()
+            .get("Location")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+
+        // Extract group id from the Location URL (last path segment)
+        let group_id = location.split('/').next_back().unwrap_or("").to_string();
+
+        if group_id.is_empty() {
+            tracing::error!("Create group response missing Location header group id");
+            return Err(KeycloakError::BadResponse(
+                "Missing group id in Location header".into(),
+            ));
+        }
+
+        Ok(group_id)
+    }
+
+    pub async fn delete_group(&self, group_id: &str) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!("groups/{}", encode_path(group_id)));
+
+        let response = self
+            .http
+            .delete(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to delete group: {e:?}");
+                KeycloakError::Unavailable(format!("Delete group request failed: {e}"))
+            })?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(());
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::error!("Delete group returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Delete group returned status {status}"
+            )));
+        }
+
+        Ok(())
+    }
+
+    pub async fn add_group_realm_roles(
+        &self,
+        group_id: &str,
+        roles: &[RealmRoleDTO],
+    ) -> Result<(), KeycloakError> {
+        if roles.is_empty() {
+            return Ok(());
+        }
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "groups/{}/role-mappings/realm",
+            encode_path(group_id)
+        ));
+
+        let response = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .json(roles)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to add group realm roles: {e:?}");
+                KeycloakError::Unavailable(format!("Add group roles request failed: {e}"))
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::error!("Add group realm roles returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Add group roles returned status {status}"
+            )));
+        }
+
+        Ok(())
+    }
+
+    pub async fn remove_group_realm_roles(
+        &self,
+        group_id: &str,
+        roles: &[RealmRoleDTO],
+    ) -> Result<(), KeycloakError> {
+        if roles.is_empty() {
+            return Ok(());
+        }
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "groups/{}/role-mappings/realm",
+            encode_path(group_id)
+        ));
+
+        let response = self
+            .http
+            .delete(&url)
+            .bearer_auth(&token)
+            .json(roles)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to remove group realm roles: {e:?}");
+                KeycloakError::Unavailable(format!("Remove group roles request failed: {e}"))
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::error!("Remove group realm roles returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Remove group roles returned status {status}"
+            )));
+        }
+
+        Ok(())
+    }
+
+    pub async fn list_group_realm_roles(
+        &self,
+        group_id: &str,
+    ) -> Result<Vec<RealmRoleDTO>, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "groups/{}/role-mappings/realm",
+            encode_path(group_id)
+        ));
+
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to list group realm roles: {e:?}");
+                KeycloakError::Unavailable(format!("List group roles request failed: {e}"))
+            })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            tracing::error!("List group realm roles returned {status}");
+            return Err(KeycloakError::Unavailable(format!(
+                "List group roles returned status {status}"
+            )));
+        }
+
+        response.json().await.map_err(|e| {
+            tracing::error!("Failed to parse group realm roles: {e:?}");
+            KeycloakError::BadResponse(format!("Group roles parse error: {e}"))
+        })
+    }
+
+    pub async fn add_user_to_group(
+        &self,
+        subject: &str,
+        group_id: &str,
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "users/{}/groups/{}",
+            encode_path(subject),
+            encode_path(group_id)
+        ));
+
+        let response = self
+            .http
+            .put(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to add user to group: {e:?}");
+                KeycloakError::Unavailable(format!("Add user to group request failed: {e}"))
+            })?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(KeycloakError::NotFound);
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::error!("Add user to group returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Add user to group returned status {status}"
+            )));
+        }
+
+        Ok(())
+    }
+
+    pub async fn remove_user_from_group(
+        &self,
+        subject: &str,
+        group_id: &str,
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "users/{}/groups/{}",
+            encode_path(subject),
+            encode_path(group_id)
+        ));
+
+        let response = self
+            .http
+            .delete(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to remove user from group: {e:?}");
+                KeycloakError::Unavailable(format!("Remove user from group request failed: {e}"))
+            })?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(());
+        }
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::error!("Remove user from group returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Remove user from group returned status {status}"
             )));
         }
 

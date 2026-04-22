@@ -2,6 +2,7 @@ import { FunctionComponent } from "react";
 import { Plus, Trash2, X } from "lucide-react";
 import AddRolesModal from "./AddRolesModal";
 import DeleteMembersModal from "./DeleteMembersModal";
+import AddToGroupsModal from "./AddToGroupsModal";
 
 interface BulkCommandDockProps {
   count: number;
@@ -43,6 +44,21 @@ const BulkCommandDock: FunctionComponent<BulkCommandDockProps> = ({
               hover:bg-[hsl(218,80%,35%)] transition-colors"
           >
             <Plus className="h-3.5 w-3.5" /> Add roles
+          </button>
+        }
+      />
+
+      <AddToGroupsModal
+        userIds={selectedIds}
+        onClose={onClear}
+        trigger={
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 bg-[hsl(218,80%,30%)] text-[hsl(210,60%,90%)]
+              border border-[hsl(218,60%,38%)] rounded-lg px-3 py-1.5 text-sm font-medium cursor-pointer
+              hover:bg-[hsl(218,80%,35%)] transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add to groups
           </button>
         }
       />

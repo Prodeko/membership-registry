@@ -12,6 +12,7 @@ pub mod ports {
     pub mod member_repository_port;
     pub mod payment_webhook_port;
     pub mod repository_error;
+    pub mod role_group_repository_port;
     pub mod role_renewal_repository_port;
     pub mod role_repository_port;
     pub mod rolesync_port;

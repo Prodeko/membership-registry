@@ -40,6 +40,8 @@ export type { PostTargetableRole } from "./PostTargetableRole";
 export type { PublicConfig } from "./PublicConfig";
 export type { PutTargetableRole } from "./PutTargetableRole";
 export type { Role } from "./Role";
+export type { RoleGroup } from "./RoleGroup";
+export type { RoleGroupMembership } from "./RoleGroupMembership";
 export type { RoleMember } from "./RoleMember";
 export type { RoleMemberBody } from "./RoleMemberBody";
 export type { RoleStats } from "./RoleStats";

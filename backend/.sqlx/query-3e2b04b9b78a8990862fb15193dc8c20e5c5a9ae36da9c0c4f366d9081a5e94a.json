@@ -1,0 +1,44 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT rgm.group_id, rg.name as group_name, rgm.user_id, rgm.valid_from, rgm.valid_until\n               FROM RoleGroupMember rgm\n               JOIN RoleGroup rg ON rg.id = rgm.group_id\n               WHERE rgm.valid_until < CURRENT_DATE\n                 AND rgm.keycloak_removed_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "group_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "group_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "user_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "valid_from",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 4,
+        "name": "valid_until",
+        "type_info": "Date"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "3e2b04b9b78a8990862fb15193dc8c20e5c5a9ae36da9c0c4f366d9081a5e94a"
+}

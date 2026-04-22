@@ -24,6 +24,8 @@ import {
   PostTargetableRole,
   PublicConfig,
   Role,
+  RoleGroup,
+  RoleGroupMembership,
   RoleMember,
   RoleStats,
   SavedFilter,
@@ -41,6 +43,7 @@ export enum QueryKey {
   MEMBER = "member",
   MEMBER_ROLES = "member_roles",
   ROLES = "roles",
+  ROLE_GROUPS = "role_groups",
   TARGETABLE_ROLES = "targetable_roles",
   APPLICATIONS = "applications",
   OAUTH = "oauth_callback",
@@ -406,6 +409,20 @@ export const useAddMultipleRolesToMembers = () => {
         role_names: roleNames,
         valid_from: getDateAsString(validFrom),
         valid_until: getDateAsString(validUntil),
+      });
+    },
+  });
+};
+
+export const useRemoveMemberRole = () => {
+  return useMutation<
+    void,
+    Error,
+    { userId: string; roleName: string; validFrom: string }
+  >({
+    mutationFn: async ({ userId, roleName, validFrom }) => {
+      await admin_axios_client.delete(`/members/${userId}/roles`, {
+        params: { role_name: roleName, valid_from: validFrom },
       });
     },
   });
@@ -867,5 +884,188 @@ export const useGetPublicConfig = () => {
       return response.data;
     },
     staleTime: Infinity,
+  });
+};
+
+// ---------------------------------------------------------------------------
+// Role Groups
+// ---------------------------------------------------------------------------
+
+export const useGetRoleGroups = (params?: {
+  search?: string;
+  [key: string]: unknown;
+}) => {
+  return useQuery<RoleGroup[]>({
+    queryKey: [QueryKey.ROLE_GROUPS, params?.search],
+    queryFn: async () => {
+      const response =
+        await admin_axios_client.get<RoleGroup[]>("/role-groups");
+      let data = response.data;
+      if (params?.search) {
+        const q = params.search.toLowerCase();
+        data = data.filter((g) => g.name.toLowerCase().includes(q));
+      }
+      return data;
+    },
+  });
+};
+
+export const useGetRoleGroup = (id: string) => {
+  return useQuery<RoleGroup>({
+    queryKey: [QueryKey.ROLE_GROUPS, id],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<RoleGroup>(
+        `/role-groups/${id}`,
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useGetRoleGroupMembers = (groupId: string) => {
+  return useQuery<RoleGroupMembership[]>({
+    queryKey: [QueryKey.ROLE_GROUPS, groupId, "members"],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<RoleGroupMembership[]>(
+        `/role-groups/${groupId}/members`,
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useGetMemberRoleGroups = (userId: string) => {
+  return useQuery<RoleGroupMembership[]>({
+    queryKey: [QueryKey.ROLE_GROUPS, "member", userId],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<RoleGroupMembership[]>(
+        `/members/${userId}/role-groups`,
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useCreateRoleGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    RoleGroup,
+    Error,
+    { name: string; description?: string; role_names: string[] }
+  >({
+    mutationFn: async (data) => {
+      const response = await admin_axios_client.post<RoleGroup>(
+        "/role-groups",
+        data,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.ROLE_GROUPS] });
+    },
+  });
+};
+
+export const useUpdateRoleGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    RoleGroup,
+    Error,
+    { id: string; name: string; description?: string }
+  >({
+    mutationFn: async ({ id, ...data }) => {
+      const response = await admin_axios_client.put<RoleGroup>(
+        `/role-groups/${id}`,
+        data,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.ROLE_GROUPS] });
+    },
+  });
+};
+
+export const useDeleteRoleGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (id) => {
+      await admin_axios_client.delete(`/role-groups/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.ROLE_GROUPS] });
+    },
+  });
+};
+
+export const useSetRoleGroupRoles = () => {
+  const queryClient = useQueryClient();
+  return useMutation<RoleGroup, Error, { id: string; role_names: string[] }>({
+    mutationFn: async ({ id, role_names }) => {
+      const response = await admin_axios_client.put<RoleGroup>(
+        `/role-groups/${id}/roles`,
+        { role_names },
+      );
+      return response.data;
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ROLE_GROUPS, variables.id],
+      });
+    },
+  });
+};
+
+export const useAssignRoleGroup = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    {
+      groupId: string;
+      userId: string;
+      validFrom?: string;
+      validUntil?: string;
+    }
+  >({
+    mutationFn: async ({ groupId, userId, validFrom, validUntil }) => {
+      await admin_axios_client.post(`/role-groups/${groupId}/members`, {
+        user_id: userId,
+        valid_from: validFrom,
+        valid_until: validUntil,
+      });
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ROLE_GROUPS, variables.groupId, "members"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ROLE_GROUPS, "member", variables.userId],
+      });
+    },
+  });
+};
+
+export const useRemoveRoleGroupAssignment = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    void,
+    Error,
+    { groupId: string; userId: string; validFrom: string }
+  >({
+    mutationFn: async ({ groupId, userId, validFrom }) => {
+      await admin_axios_client.delete(
+        `/role-groups/${groupId}/members/${userId}`,
+        { params: { valid_from: validFrom } },
+      );
+    },
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ROLE_GROUPS, variables.groupId, "members"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ROLE_GROUPS, "member", variables.userId],
+      });
+    },
   });
 };

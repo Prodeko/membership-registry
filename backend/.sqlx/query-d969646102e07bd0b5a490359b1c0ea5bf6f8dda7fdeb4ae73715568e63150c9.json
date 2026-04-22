@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE RoleGroupMember\n               SET keycloak_removed_at = NOW()\n               WHERE group_id = $1 AND user_id = $2 AND valid_from = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d969646102e07bd0b5a490359b1c0ea5bf6f8dda7fdeb4ae73715568e63150c9"
+}

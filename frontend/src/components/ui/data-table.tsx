@@ -53,6 +53,8 @@ interface DataTableProps<TData, TValue> {
   filterContent?: React.ReactNode;
   rowSelection?: RowSelectionState;
   onRowSelectionChange?: (s: RowSelectionState) => void;
+  enableSavedFilters?: boolean;
+  onRowClick?: (row: TData) => void;
 }
 
 export function DataTable<TData, TValue>({
@@ -69,6 +71,8 @@ export function DataTable<TData, TValue>({
   filterContent,
   rowSelection: controlledRowSelection,
   onRowSelectionChange,
+  enableSavedFilters = false,
+  onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState<TData[]>([]);
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
@@ -171,6 +175,7 @@ export function DataTable<TData, TValue>({
         filterVisible={filterVisible}
         setFilterVisible={setFilterVisible}
         filterContent={filterContent}
+        enableSavedFilters={enableSavedFilters}
       />
       <div className="rounded-md border">
         <Table>
@@ -198,6 +203,8 @@ export function DataTable<TData, TValue>({
                 <TableRow
                   key={row.id}
                   data-state={row.getIsSelected() && "selected"}
+                  onClick={() => onRowClick?.(row.original)}
+                  className={onRowClick ? "cursor-pointer" : ""}
                 >
                   {row.getVisibleCells().map((cell) => (
                     <TableCell key={cell.id}>

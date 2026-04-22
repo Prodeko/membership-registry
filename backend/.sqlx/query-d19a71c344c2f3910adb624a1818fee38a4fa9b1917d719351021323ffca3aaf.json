@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM RoleGroupMember WHERE group_id = $1 AND user_id = $2 AND valid_from = $3",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "d19a71c344c2f3910adb624a1818fee38a4fa9b1917d719351021323ffca3aaf"
+}

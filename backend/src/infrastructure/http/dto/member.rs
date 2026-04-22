@@ -49,6 +49,7 @@ pub struct MemberWithRolesDTO {
     pub email_notifications: bool,
     pub language: String,
     pub role_names: Vec<String>,
+    pub group_names: Vec<String>,
 }
 
 impl From<MemberWithRoles> for MemberWithRolesDTO {
@@ -63,6 +64,7 @@ impl From<MemberWithRoles> for MemberWithRolesDTO {
             email_notifications: mwr.person.email_notifications,
             language: mwr.person.language,
             role_names: mwr.role_names,
+            group_names: mwr.group_names,
         }
     }
 }

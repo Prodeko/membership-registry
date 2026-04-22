@@ -28,6 +28,7 @@ use application::{
         marketing_list_port::MarketingListPort,
         marketing_tag_repository_port::MarketingTagRepositoryPort,
         member_repository_port::MemberRepositoryPort,
+        role_group_repository_port::RoleGroupRepositoryPort,
         role_renewal_repository_port::RoleRenewalRepositoryPort,
         role_repository_port::RoleRepositoryPort,
         rolesync_port::RoleSyncPort,
@@ -41,8 +42,9 @@ use application::{
         authentication_service::AuthenticationService, export_service::ExportService,
         marketing_service::MarketingService, marketing_tag_admin_service::MarketingTagAdminService,
         member_service::MemberService, notification_service::NotificationService,
-        renewal_service::RenewalService, role_service::RoleService,
-        saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
+        renewal_service::RenewalService, role_group_service::RoleGroupService,
+        role_service::RoleService, saved_filter::SavedFilterService,
+        template_admin_service::TemplateAdminService,
     },
 };
 use config::Config;
@@ -71,6 +73,7 @@ pub struct Services {
     pub member_service: MemberService,
     pub application_service: ApplicationService,
     pub role_service: RoleService,
+    pub role_group_service: RoleGroupService,
     pub renewal_service: RenewalService,
     pub authentication_service: AuthenticationService,
     pub saved_filter_service: SavedFilterService,
@@ -205,6 +208,7 @@ impl Services {
 
         let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member);
         let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role);
+        let role_group_repo: Arc<dyn RoleGroupRepositoryPort> = Arc::new(repo.role_group);
         let application_commands: Arc<dyn ApplicationCommandPort> =
             Arc::new(repo.application.clone());
         let application_queries: Arc<dyn ApplicationQueryPort> = Arc::new(repo.application.clone());
@@ -239,6 +243,12 @@ impl Services {
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         );
+        let role_group_service = RoleGroupService::new(
+            Arc::clone(&role_group_repo),
+            Arc::clone(&role_sync),
+            Arc::clone(&auth_provider_repo),
+            audit_log_service.clone(),
+        );
         let application_service = ApplicationService::new(
             application_commands,
             application_queries,
@@ -268,6 +278,7 @@ impl Services {
             member_service,
             application_service,
             role_service,
+            role_group_service,
             renewal_service,
             authentication_service,
             saved_filter_service,
@@ -335,6 +346,7 @@ async fn main() {
 
     let scheduler_handle = tokio::spawn(run_scheduler(
         services.role_service.clone(),
+        services.role_group_service.clone(),
         services.renewal_service.clone(),
         cancel.clone(),
     ));

@@ -7,6 +7,7 @@ import {
 import { defaultFrom, defaultTo, stringsToOptions } from "@/lib/utils";
 import React from "react";
 import { RowSelectionState } from "@tanstack/react-table";
+import { useSearchParams } from "react-router-dom";
 import { DataTable } from "../ui/data-table";
 import { DateRangePicker } from "../ui/date-range-picker";
 import MultipleSelector, { Option } from "../ui/multiple-selector";
@@ -22,6 +23,8 @@ import {
 } from "../ui/select";
 import { TooltipProvider } from "../ui/tooltip";
 import BulkCommandDock from "./BulkCommandDock";
+import MemberDrawer from "./MemberDrawer";
+import { MemberWithRoles } from "@/common/types";
 
 type KcFilter = "all" | "sync" | "mismatch" | "unknown";
 
@@ -46,6 +49,16 @@ const Members: React.FC = () => {
   const [draft, setDraft] = React.useState<FilterState>(defaultFilterState);
   const [applied, setApplied] = React.useState<FilterState>(defaultFilterState);
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [searchParams, setSearchParams] = useSearchParams();
+  const editUserId = searchParams.get("edit");
+
+  const openDrawer = (member: MemberWithRoles) => {
+    setSearchParams({ edit: member.user_id });
+  };
+
+  const closeDrawer = () => {
+    setSearchParams({});
+  };
 
   const customFilters = {
     roles: applied.roles.map((r) => r.value),
@@ -200,6 +213,8 @@ const Members: React.FC = () => {
           getRowId={(row) => row.user_id}
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
+          enableSavedFilters={true}
+          onRowClick={openDrawer}
         />
 
         <BulkCommandDock
@@ -207,6 +222,10 @@ const Members: React.FC = () => {
           selectedIds={selectedIds}
           onClear={clearSelection}
         />
+
+        {editUserId && (
+          <MemberDrawer userId={editUserId} onClose={closeDrawer} />
+        )}
       </div>
     </TooltipProvider>
   );

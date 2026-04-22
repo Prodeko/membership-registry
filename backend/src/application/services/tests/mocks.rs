@@ -25,7 +25,7 @@ use crate::application::ports::{
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     repository_error::RepositoryError,
     role_repository_port::{RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams},
-    rolesync_port::{IdpSubject, RoleSyncError, RoleSyncPort},
+    rolesync_port::{IdpGroupId, IdpSubject, RoleSyncError, RoleSyncPort},
     template_renderer_port::TemplateRendererPort,
     template_repository_port::TemplateRepositoryPort,
     user_admin_port::{IdpUser, UserAdminError, UserAdminPort},
@@ -167,6 +167,11 @@ mock! {
         async fn remove_role(&self, user_id: &IdpSubject, role: &RoleName) -> Result<(), RoleSyncError>;
         async fn has_role(&self, user_id: &IdpSubject, role: &RoleName) -> Result<bool, RoleSyncError>;
         async fn list_role_members(&self, role: &RoleName) -> Result<Vec<IdpSubject>, RoleSyncError>;
+        async fn create_group(&self, name: &str) -> Result<IdpGroupId, RoleSyncError>;
+        async fn delete_group(&self, id: &IdpGroupId) -> Result<(), RoleSyncError>;
+        async fn set_group_roles(&self, id: &IdpGroupId, roles: &[RoleName]) -> Result<(), RoleSyncError>;
+        async fn add_user_to_group(&self, subject: &IdpSubject, group_id: &IdpGroupId) -> Result<(), RoleSyncError>;
+        async fn remove_user_from_group(&self, subject: &IdpSubject, group_id: &IdpGroupId) -> Result<(), RoleSyncError>;
     }
 }
 

@@ -16,11 +16,11 @@ import RequireOnboarded from "./components/auth/RequireOnboarded";
 import ErrorPage from "./components/Error";
 import Onboarding from "./components/onboarding/Onboarding";
 import Layout from "./components/layout/Layout";
-import Member from "./components/members/Member";
-import MemberEdit from "./components/members/MemberEdit";
 import Members from "./components/members/Members";
 import Role from "./components/roles/Role";
 import Roles from "./components/roles/Roles";
+import RoleGroup from "./components/role-groups/RoleGroup";
+import RoleGroups from "./components/role-groups/RoleGroups";
 import AuditLogs from "./components/audit-logs/AuditLogs";
 import DataManagement from "./components/data/DataManagement";
 import EmailTemplates from "./components/email-templates/EmailTemplates";
@@ -91,26 +91,6 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: "/members/:id",
-    element: (
-      <RequireOnboarded>
-        <Layout>
-          <Member />
-        </Layout>
-      </RequireOnboarded>
-    ),
-  },
-  {
-    path: "/members/:id/edit",
-    element: (
-      <RequireOnboarded>
-        <Layout>
-          <MemberEdit />
-        </Layout>
-      </RequireOnboarded>
-    ),
-  },
-  {
     path: "/roles",
     element: (
       <RequireOnboarded>
@@ -126,6 +106,26 @@ const router = createBrowserRouter([
       <RequireOnboarded>
         <Layout>
           <Role />
+        </Layout>
+      </RequireOnboarded>
+    ),
+  },
+  {
+    path: "/role-groups",
+    element: (
+      <RequireOnboarded>
+        <Layout>
+          <RoleGroups />
+        </Layout>
+      </RequireOnboarded>
+    ),
+  },
+  {
+    path: "/role-groups/:id",
+    element: (
+      <RequireOnboarded>
+        <Layout>
+          <RoleGroup />
         </Layout>
       </RequireOnboarded>
     ),

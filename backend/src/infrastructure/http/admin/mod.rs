@@ -9,6 +9,7 @@ mod audit_logs;
 mod email_templates;
 mod marketing_tags;
 mod members;
+mod role_groups;
 mod roles;
 mod saved_filters;
 
@@ -16,6 +17,7 @@ pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .nest("/members", members::router(state.clone()))
         .nest("/applications", applications::router(state.clone()))
+        .nest("/role-groups", role_groups::router(state.clone()))
         .nest("/roles", roles::router(state.clone()))
         .nest("/saved-filters", saved_filters::router(state.clone()))
         .nest("/audit-logs", audit_logs::router(state.clone()))
