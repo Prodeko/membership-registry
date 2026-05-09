@@ -203,6 +203,7 @@ const SyncStatusPanel = () => {
       registry_unlinked: 0,
       keycloak_only: 0,
       value_mismatch: 0,
+      keycloak_multivalued: 0,
     },
   );
   const drift = status.entries.length;
@@ -248,6 +249,8 @@ const SyncStatusPanel = () => {
             {counts.value_mismatch} · Keycloak-only: {counts.keycloak_only}
             {counts.registry_unlinked > 0 &&
               ` · Unlinked: ${counts.registry_unlinked}`}
+            {counts.keycloak_multivalued > 0 &&
+              ` · Multivalued: ${counts.keycloak_multivalued}`}
           </span>
         )}
       </div>

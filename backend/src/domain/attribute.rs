@@ -246,6 +246,14 @@ pub enum DriftEntry {
         registry_value: AttributeValue,
         keycloak_value: AttributeValue,
     },
+    /// Keycloak holds more than one value for an attribute the registry
+    /// treats as single-valued. The registry can't safely overwrite without
+    /// clobbering data; admins must clean up the extras in Keycloak.
+    KeycloakMultivalued {
+        idp_subject: IdpSubject,
+        attribute: AttributeName,
+        values: Vec<AttributeValue>,
+    },
 }
 
 #[cfg(test)]

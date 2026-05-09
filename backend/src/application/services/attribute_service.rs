@@ -587,8 +587,8 @@ impl AttributeService {
             .list_users_with_attributes(&synced_names)
             .await
             .map_err(map_sync_err)?;
-        // subject -> (attribute_name -> value)
-        let kc_map: HashMap<String, HashMap<String, AttributeValue>> = kc_users
+        // subject -> (attribute_name -> all observed values)
+        let kc_map: HashMap<String, HashMap<String, Vec<AttributeValue>>> = kc_users
             .into_iter()
             .map(|(subj, attrs)| (subj.0, attrs))
             .collect();
@@ -620,34 +620,51 @@ impl AttributeService {
             }
 
             for (kc_id, (uid, reg_val)) in &registry_by_kc {
-                let kc_val = kc_map
+                let kc_vals = kc_map
                     .get(kc_id)
                     .and_then(|attrs| attrs.get(def.name().as_str()));
-                match kc_val {
+                match kc_vals {
                     None => entries.push(DriftEntry::RegistryOnly {
                         user_id: uid.clone(),
                         idp_subject: IdpSubject(kc_id.clone()),
                         attribute: def.name().clone(),
                         value: reg_val.clone(),
                     }),
-                    Some(v) if v != reg_val => entries.push(DriftEntry::ValueMismatch {
-                        user_id: uid.clone(),
+                    Some(vs) if vs.len() > 1 => entries.push(DriftEntry::KeycloakMultivalued {
                         idp_subject: IdpSubject(kc_id.clone()),
                         attribute: def.name().clone(),
-                        registry_value: reg_val.clone(),
-                        keycloak_value: v.clone(),
+                        values: vs.clone(),
                     }),
-                    _ => {}
+                    Some(vs) => {
+                        let v = &vs[0];
+                        if v != reg_val {
+                            entries.push(DriftEntry::ValueMismatch {
+                                user_id: uid.clone(),
+                                idp_subject: IdpSubject(kc_id.clone()),
+                                attribute: def.name().clone(),
+                                registry_value: reg_val.clone(),
+                                keycloak_value: v.clone(),
+                            });
+                        }
+                    }
                 }
             }
             for (kc_id, attrs) in &kc_map {
-                if let Some(v) = attrs.get(def.name().as_str()) {
+                if let Some(vs) = attrs.get(def.name().as_str()) {
                     if !registry_by_kc.contains_key(kc_id) {
-                        entries.push(DriftEntry::KeycloakOnly {
-                            idp_subject: IdpSubject(kc_id.clone()),
-                            attribute: def.name().clone(),
-                            value: v.clone(),
-                        });
+                        if vs.len() > 1 {
+                            entries.push(DriftEntry::KeycloakMultivalued {
+                                idp_subject: IdpSubject(kc_id.clone()),
+                                attribute: def.name().clone(),
+                                values: vs.clone(),
+                            });
+                        } else {
+                            entries.push(DriftEntry::KeycloakOnly {
+                                idp_subject: IdpSubject(kc_id.clone()),
+                                attribute: def.name().clone(),
+                                value: vs[0].clone(),
+                            });
+                        }
                     }
                 }
             }
@@ -688,6 +705,16 @@ impl AttributeService {
                     user_id: user_id.0,
                     attribute: attribute.as_str().to_string(),
                     reason: "user has no linked identity provider".to_string(),
+                }),
+                DriftEntry::KeycloakMultivalued {
+                    attribute, values, ..
+                } => failures.push(SyncMissingFailure {
+                    user_id: Uuid::nil(),
+                    attribute: attribute.as_str().to_string(),
+                    reason: format!(
+                        "Keycloak holds {} values for this attribute; clean up the extras manually",
+                        values.len()
+                    ),
                 }),
                 DriftEntry::KeycloakOnly { .. } => {
                     // KC-only entries are not "missing from Keycloak"; this

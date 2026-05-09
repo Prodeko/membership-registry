@@ -299,7 +299,7 @@ async fn drift_emits_value_mismatch_when_kc_disagrees() {
     let mut sync = MockAttributeSyncPort::new();
     sync.expect_list_users_with_attributes().returning(|_| {
         let mut attrs = std::collections::HashMap::new();
-        attrs.insert("xq-year".to_string(), av("II"));
+        attrs.insert("xq-year".to_string(), vec![av("II")]);
         Ok(vec![(crate::domain::IdpSubject("kc-1".to_string()), attrs)])
     });
 
@@ -333,7 +333,7 @@ async fn drift_emits_keycloak_only_when_registry_lacks_value() {
     let mut sync = MockAttributeSyncPort::new();
     sync.expect_list_users_with_attributes().returning(|_| {
         let mut attrs = std::collections::HashMap::new();
-        attrs.insert("xq-year".to_string(), av("IV"));
+        attrs.insert("xq-year".to_string(), vec![av("IV")]);
         Ok(vec![(crate::domain::IdpSubject("kc-1".to_string()), attrs)])
     });
 

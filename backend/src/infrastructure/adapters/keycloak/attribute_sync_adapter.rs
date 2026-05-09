@@ -99,7 +99,7 @@ impl AttributeSyncPort for KeycloakAttributeSyncAdapter {
     async fn list_users_with_attributes(
         &self,
         attrs: &[AttributeName],
-    ) -> Result<Vec<(IdpSubject, HashMap<String, AttributeValue>)>, AttributeSyncError> {
+    ) -> Result<Vec<(IdpSubject, HashMap<String, Vec<AttributeValue>>)>, AttributeSyncError> {
         let keys: Vec<String> = attrs.iter().map(|a| a.as_str().to_string()).collect();
         let raw = self
             .client
@@ -107,17 +107,21 @@ impl AttributeSyncPort for KeycloakAttributeSyncAdapter {
             .await
             .map_err(map_kc_err)?;
 
-        let mut out: Vec<(IdpSubject, HashMap<String, AttributeValue>)> =
+        let mut out: Vec<(IdpSubject, HashMap<String, Vec<AttributeValue>>)> =
             Vec::with_capacity(raw.len());
         for (subject, attr_map) in raw {
-            let mut typed: HashMap<String, AttributeValue> = HashMap::with_capacity(attr_map.len());
-            for (k, v) in attr_map {
+            let mut typed: HashMap<String, Vec<AttributeValue>> =
+                HashMap::with_capacity(attr_map.len());
+            for (k, vs) in attr_map {
                 // KC-observed values bypass domain validation: KC may hold
                 // values written before stricter rules existed (e.g. edge
                 // whitespace, legacy data). Drift detection still works —
                 // any divergence from the registry's stricter values shows
-                // up as a ValueMismatch, which is the right signal.
-                typed.insert(k, AttributeValue::new_unchecked(v));
+                // up as a ValueMismatch (or KeycloakMultivalued when KC
+                // stores more than one value).
+                let values: Vec<AttributeValue> =
+                    vs.into_iter().map(AttributeValue::new_unchecked).collect();
+                typed.insert(k, values);
             }
             out.push((IdpSubject(subject), typed));
         }

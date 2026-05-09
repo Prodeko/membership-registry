@@ -1202,14 +1202,14 @@ impl KeycloakClient {
     pub async fn list_users_with_attributes(
         &self,
         attributes: &[String],
-    ) -> Result<Vec<(String, std::collections::HashMap<String, String>)>, KeycloakError> {
+    ) -> Result<Vec<(String, std::collections::HashMap<String, Vec<String>>)>, KeycloakError> {
         if attributes.is_empty() {
             return Ok(Vec::new());
         }
 
         let token = self.get_service_token().await?;
         let url = self.admin_url("users");
-        let mut out: Vec<(String, std::collections::HashMap<String, String>)> = Vec::new();
+        let mut out: Vec<(String, std::collections::HashMap<String, Vec<String>>)> = Vec::new();
         let mut first: usize = 0;
         let page: usize = 100;
 
@@ -1250,16 +1250,20 @@ impl KeycloakClient {
                     continue;
                 };
                 let attrs_json = u.get("attributes");
-                let mut found: std::collections::HashMap<String, String> =
+                let mut found: std::collections::HashMap<String, Vec<String>> =
                     std::collections::HashMap::new();
                 for key in attributes {
-                    if let Some(val) = attrs_json
+                    if let Some(arr) = attrs_json
                         .and_then(|a| a.get(key))
                         .and_then(|v| v.as_array())
-                        .and_then(|arr| arr.first())
-                        .and_then(|s| s.as_str())
                     {
-                        found.insert(key.clone(), val.to_string());
+                        let values: Vec<String> = arr
+                            .iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect();
+                        if !values.is_empty() {
+                            found.insert(key.clone(), values);
+                        }
                     }
                 }
                 if !found.is_empty() {

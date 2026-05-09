@@ -133,6 +133,11 @@ pub enum DriftEntryDTO {
         registry_value: String,
         keycloak_value: String,
     },
+    KeycloakMultivalued {
+        idp_subject: String,
+        attribute: String,
+        values: Vec<String>,
+    },
 }
 
 impl From<DriftEntry> for DriftEntryDTO {
@@ -179,6 +184,15 @@ impl From<DriftEntry> for DriftEntryDTO {
                 attribute: attribute.into_inner(),
                 registry_value: registry_value.into_inner(),
                 keycloak_value: keycloak_value.into_inner(),
+            },
+            DriftEntry::KeycloakMultivalued {
+                idp_subject,
+                attribute,
+                values,
+            } => Self::KeycloakMultivalued {
+                idp_subject: idp_subject.0,
+                attribute: attribute.into_inner(),
+                values: values.into_iter().map(AttributeValue::into_inner).collect(),
             },
         }
     }

@@ -283,7 +283,7 @@ mock! {
         async fn remove_mapper_from_scope(&self, attr: &AttributeName) -> Result<(), AttributeSyncError>;
         async fn set_user_attribute(&self, subject: &IdpSubject, attr: &AttributeName, value: &AttributeValue) -> Result<(), AttributeSyncError>;
         async fn clear_user_attribute(&self, subject: &IdpSubject, attr: &AttributeName) -> Result<(), AttributeSyncError>;
-        async fn list_users_with_attributes(&self, attrs: &[AttributeName]) -> Result<Vec<(IdpSubject, std::collections::HashMap<String, AttributeValue>)>, AttributeSyncError>;
+        async fn list_users_with_attributes(&self, attrs: &[AttributeName]) -> Result<Vec<(IdpSubject, std::collections::HashMap<String, Vec<AttributeValue>>)>, AttributeSyncError>;
     }
 }
 

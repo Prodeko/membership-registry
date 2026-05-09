@@ -48,11 +48,17 @@ pub trait AttributeSyncPort: Send + Sync {
     ) -> Result<(), AttributeSyncError>;
 
     /// List all KC users (paginated) and return, for each user that has at
-    /// least one of the requested attributes set, a map of attribute → value.
-    /// Used by drift detection to compare registry state against Keycloak in
-    /// a single bulk call rather than per-user lookups.
+    /// least one of the requested attributes set, a map of attribute → all
+    /// observed values. Used by drift detection to compare registry state
+    /// against Keycloak in a single bulk call rather than per-user lookups.
+    ///
+    /// The value is a `Vec` to preserve multivalued observations: KC may
+    /// hold multiple values for an attribute the registry treats as
+    /// single-valued (mis-config or manual KC edit), and the caller needs
+    /// to surface that as a distinct drift kind rather than silently
+    /// taking the first element.
     async fn list_users_with_attributes(
         &self,
         attrs: &[AttributeName],
-    ) -> Result<Vec<(IdpSubject, HashMap<String, AttributeValue>)>, AttributeSyncError>;
+    ) -> Result<Vec<(IdpSubject, HashMap<String, Vec<AttributeValue>>)>, AttributeSyncError>;
 }
