@@ -16,7 +16,7 @@ use crate::application::ports::{
 };
 use crate::domain::{
     AttributeDefinition, AttributeName, AttributeValidationError, AttributeValue, DriftEntry,
-    EditableBy, IdpSubject, MemberAttribute, PersonId, SyncStatus,
+    EditableBy, IdpSubject, MemberAttribute, Patch, PersonId, SyncStatus,
 };
 
 use super::{
@@ -29,6 +29,17 @@ use super::{
 pub struct SyncMissingAttributesSummary {
     pub applied: u32,
     pub failed: u32,
+}
+
+/// Service-level patch for `update_definition`: each field carries explicit
+/// "leave" / "set" / "clear" intent, distinct from the resolved values the
+/// repository writes.
+#[derive(Debug, Clone, Default)]
+pub struct UpdateAttributeDefinitionPatch {
+    pub description: Patch<String>,
+    pub allowed_values: Patch<Vec<AttributeValue>>,
+    pub sync_to_keycloak: Option<bool>,
+    pub editable_by: Option<EditableBy>,
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +117,7 @@ impl AttributeService {
     pub async fn update_definition(
         &self,
         name: &AttributeName,
-        input: UpdateAttributeDefinition,
+        patch: UpdateAttributeDefinitionPatch,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<AttributeDefinition> {
         let existing = self
@@ -115,8 +126,25 @@ impl AttributeService {
             .await?
             .ok_or(ServiceError::NotFound)?;
 
+        // Resolve patches against the existing row.
+        let description = patch
+            .description
+            .apply(existing.description().map(str::to_string));
+        let allowed_values = patch
+            .allowed_values
+            .apply(existing.allowed_values().map(<[AttributeValue]>::to_vec));
+        let sync_to_keycloak = patch.sync_to_keycloak.unwrap_or(existing.sync_to_keycloak());
+        let editable_by = patch.editable_by.unwrap_or(existing.editable_by());
+
+        // Reject Some(empty) at the boundary so the domain invariant holds.
+        if matches!(&allowed_values, Some(v) if v.is_empty()) {
+            return Err(ServiceError::Constraint(
+                "allowed_values must be non-empty (or null to clear)".to_string(),
+            ));
+        }
+
         // If allowed_values is being tightened, verify no existing user value is now invalid.
-        if let Some(allowed) = &input.allowed_values {
+        if let Some(allowed) = &allowed_values {
             let allowed_set: HashSet<&str> =
                 allowed.iter().map(AttributeValue::as_str).collect();
             let rows = self.repo.fetch_all_values_for(name).await?;
@@ -132,22 +160,26 @@ impl AttributeService {
         }
 
         // Sync-to-keycloak transitions: add or remove the mapper.
-        if input.sync_to_keycloak && !existing.sync_to_keycloak() {
+        if sync_to_keycloak && !existing.sync_to_keycloak() {
             self.sync
                 .add_mapper_to_scope(name)
                 .await
                 .map_err(map_sync_err)?;
         }
-        if !input.sync_to_keycloak && existing.sync_to_keycloak() {
+        if !sync_to_keycloak && existing.sync_to_keycloak() {
             self.sync
                 .remove_mapper_from_scope(name)
                 .await
                 .map_err(map_sync_err)?;
         }
 
-        let editable_by = input.editable_by;
-        let sync_flag = input.sync_to_keycloak;
-        let updated = self.repo.update_definition(name, input).await?;
+        let resolved = UpdateAttributeDefinition {
+            description,
+            allowed_values,
+            sync_to_keycloak,
+            editable_by,
+        };
+        let updated = self.repo.update_definition(name, resolved).await?;
 
         self.audit_log
             .log(
@@ -156,7 +188,7 @@ impl AttributeService {
                 "attribute_definition",
                 name.as_str(),
                 Some(serde_json::json!({
-                    "sync_to_keycloak": sync_flag,
+                    "sync_to_keycloak": sync_to_keycloak,
                     "editable_by": editable_by.as_str(),
                 })),
             )

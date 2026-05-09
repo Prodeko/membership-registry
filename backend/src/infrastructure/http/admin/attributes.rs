@@ -11,13 +11,13 @@ use uuid::Uuid;
 
 use crate::{
     application::{
-        ports::attribute_repository_port::{CreateAttributeDefinition, UpdateAttributeDefinition},
+        ports::attribute_repository_port::CreateAttributeDefinition,
         services::{
-            attribute_service::SyncMissingAttributesSummary,
+            attribute_service::{SyncMissingAttributesSummary, UpdateAttributeDefinitionPatch},
             authentication_service::AuthenticatedUser,
         },
     },
-    domain::{AttributeName, AttributeValue},
+    domain::{AttributeName, AttributeValue, Patch},
     infrastructure::http::{
         dto::attribute::{
             editable_for_admin, parse_allowed_values, AttributeDefinitionDTO,
@@ -105,17 +105,32 @@ async fn update_definition(
 ) -> ApiResult<Json<AttributeDefinitionDTO>> {
     let actor_id = user_info.map(|u| u.user_id);
     let n = parse_name(name)?;
-    let allowed_values =
-        parse_allowed_values(body.allowed_values).map_err(|_| ApiError::BadRequest)?;
+    let allowed_values_patch = match body.allowed_values {
+        None => Patch::Leave,
+        Some(None) => Patch::Clear,
+        Some(Some(vs)) => {
+            let parsed: Vec<AttributeValue> = vs
+                .into_iter()
+                .map(AttributeValue::new)
+                .collect::<Result<_, _>>()
+                .map_err(|_| ApiError::BadRequest)?;
+            Patch::Set(parsed)
+        }
+    };
+    let description_patch = match body.description {
+        None => Patch::Leave,
+        Some(None) => Patch::Clear,
+        Some(Some(s)) => Patch::Set(s),
+    };
     let updated = state
         .attribute_service
         .update_definition(
             &n,
-            UpdateAttributeDefinition {
-                description: body.description,
-                allowed_values,
+            UpdateAttributeDefinitionPatch {
+                description: description_patch,
+                allowed_values: allowed_values_patch,
                 sync_to_keycloak: body.sync_to_keycloak,
-                editable_by: body.editable_by.into(),
+                editable_by: body.editable_by.map(Into::into),
             },
             actor_id,
         )

@@ -68,13 +68,25 @@ pub struct CreateAttributeDefinitionDTO {
     pub editable_by: EditableByDTO,
 }
 
+/// Patch DTO for updating a definition. Each field's wire semantics:
+/// - field omitted → leave unchanged
+/// - `null` → clear (or no-op for non-nullable fields)
+/// - value → set
 #[derive(Debug, Deserialize, TS)]
 #[ts(export, rename = "UpdateAttributeDefinition")]
 pub struct UpdateAttributeDefinitionDTO {
-    pub description: Option<String>,
-    pub allowed_values: Option<Vec<String>>,
-    pub sync_to_keycloak: bool,
-    pub editable_by: EditableByDTO,
+    #[serde(default, with = "::serde_with::rust::double_option")]
+    #[ts(optional, type = "string | null")]
+    pub description: Option<Option<String>>,
+    #[serde(default, with = "::serde_with::rust::double_option")]
+    #[ts(optional, type = "Array<string> | null")]
+    pub allowed_values: Option<Option<Vec<String>>>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub sync_to_keycloak: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub editable_by: Option<EditableByDTO>,
 }
 
 #[derive(Debug, Serialize, TS)]
