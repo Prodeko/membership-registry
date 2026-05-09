@@ -335,8 +335,12 @@ pub fn editable_for_self(d: &AttributeDefinition) -> bool {
 }
 
 /// Parse a wire-level `Vec<String>` of allowed_values into validated
-/// `Vec<AttributeValue>`. Empty input vec returns Ok(empty) — the caller is
-/// responsible for converting empty to None if that's the intended semantics.
+/// `Vec<AttributeValue>`.
+///
+/// `Some(vec![])` is preserved as `Ok(Some(vec![]))`; the outer `Option` is
+/// passed through verbatim. Callers that treat empty as "no constraint" must
+/// collapse `Some(vec![])` to `None` themselves — `AttributeDefinition::new`
+/// rejects it as invalid.
 pub fn parse_allowed_values(
     raw: Option<Vec<String>>,
 ) -> Result<Option<Vec<AttributeValue>>, crate::domain::InvalidAttributeValue> {
