@@ -1255,11 +1255,16 @@ impl KeycloakClient {
             .bearer_auth(&token)
             .send()
             .await
-            .map_err(|e| KeycloakError::Unavailable(format!("List scopes failed: {e}")))?;
+            .map_err(|e| {
+                tracing::error!("List scopes request failed: {e:?}");
+                KeycloakError::Unavailable(format!("List scopes failed: {e}"))
+            })?;
         if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            tracing::error!("List client-scopes returned {status}: {body}");
             return Err(KeycloakError::Unavailable(format!(
-                "List scopes returned {}",
-                resp.status()
+                "List scopes returned {status}"
             )));
         }
         let scopes: Vec<serde_json::Value> = resp
@@ -1340,11 +1345,16 @@ impl KeycloakClient {
             .bearer_auth(&token)
             .send()
             .await
-            .map_err(|e| KeycloakError::Unavailable(format!("List mappers failed: {e}")))?;
+            .map_err(|e| {
+                tracing::error!("List mappers request failed: {e:?}");
+                KeycloakError::Unavailable(format!("List mappers failed: {e}"))
+            })?;
         if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            tracing::error!("List protocol-mappers returned {status}: {body}");
             return Err(KeycloakError::Unavailable(format!(
-                "List mappers returned {}",
-                resp.status()
+                "List mappers returned {status}"
             )));
         }
         let mappers: Vec<serde_json::Value> = resp
