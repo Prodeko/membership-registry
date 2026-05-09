@@ -9,8 +9,11 @@ pub enum AttributeSyncError {
     /// The realm is missing the registry-attributes client scope. This is a
     /// configuration error, not transient.
     ScopeMissing,
-    /// The targeted KC user is gone from the realm — likely deleted out of
-    /// band. The caller should not treat this the same as a transient outage.
+    /// A user-targeted KC call returned 404 — the IdP subject is gone from
+    /// the realm, likely deleted out of band. Adapter implementations are
+    /// responsible for ensuring non-user 404s (missing scope, missing mapper)
+    /// don't leak into this variant; they should be normalized to `Ok(None)`
+    /// or a domain-specific error at the client boundary.
     UserNotFound,
     Unexpected(String),
 }

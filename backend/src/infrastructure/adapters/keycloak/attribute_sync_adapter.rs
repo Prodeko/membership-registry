@@ -27,6 +27,14 @@ impl KeycloakAttributeSyncAdapter {
     }
 }
 
+/// Map a Keycloak client error into the port's error type.
+///
+/// All `KeycloakError::NotFound` reach this function from user-targeted calls
+/// only: scope/mapper lookups in this adapter use `find_*_id` helpers that
+/// return `Ok(None)` on 404 instead of bubbling a `NotFound`. If a future
+/// caller is added that targets a non-user resource and can produce a 404,
+/// this mapping must be revisited — otherwise admins will see "user missing"
+/// when the real cause is a missing scope or mapper.
 fn map_kc_err(e: KeycloakError) -> AttributeSyncError {
     match e {
         KeycloakError::Unavailable(_) => AttributeSyncError::Unavailable,
