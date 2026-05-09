@@ -52,8 +52,9 @@ pub enum InvalidAttributeValue {
     ControlChar,
 }
 
-/// Keycloak's practical attribute value limit; Postgres has no constraint
-/// so this is the only enforcement point.
+/// Keycloak's practical attribute value limit. Postgres has no length
+/// constraint (only `value <> ''`), so this is the only length enforcement
+/// point.
 pub const ATTRIBUTE_VALUE_MAX_LEN: usize = 4096;
 
 impl AttributeValue {
