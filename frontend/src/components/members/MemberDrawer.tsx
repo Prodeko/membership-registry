@@ -17,7 +17,7 @@ import {
 import AttributesSection from "../attributes/AttributesSection";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -191,12 +191,12 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   });
 
   // ── close handler with animation ──
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setIsClosing(true);
     setTimeout(() => {
       onClose();
     }, 250);
-  };
+  }, [onClose]);
 
   // ── close on Escape ──
   useEffect(() => {
