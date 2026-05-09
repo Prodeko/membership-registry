@@ -53,6 +53,9 @@ const AttributeFormModal = ({
   const [allowedValuesText, setAllowedValuesText] = useState(
     initial?.allowed_values?.join(", ") ?? "",
   );
+  const [defaultValue, setDefaultValue] = useState(
+    initial?.default_value ?? "",
+  );
   const [syncToKeycloak, setSyncToKeycloak] = useState(
     initial?.sync_to_keycloak ?? true,
   );
@@ -66,6 +69,7 @@ const AttributeFormModal = ({
       setName(initial?.name ?? "");
       setDescription(initial?.description ?? "");
       setAllowedValuesText(initial?.allowed_values?.join(", ") ?? "");
+      setDefaultValue(initial?.default_value ?? "");
       setSyncToKeycloak(initial?.sync_to_keycloak ?? true);
       setEditableBy(initial?.editable_by ?? "admin");
       setNameError(null);
@@ -77,6 +81,7 @@ const AttributeFormModal = ({
       .split(",")
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
+    const default_value = defaultValue.trim() || null;
 
     if (mode === "create") {
       if (!NAME_RE.test(name)) {
@@ -89,6 +94,7 @@ const AttributeFormModal = ({
         name,
         description: description || null,
         allowed_values: allowed_values.length > 0 ? allowed_values : null,
+        default_value,
         sync_to_keycloak: syncToKeycloak,
         editable_by: editableBy,
       } satisfies CreateAttributeDefinition);
@@ -114,6 +120,9 @@ const AttributeFormModal = ({
             nextAllowed.some((v, i) => v !== initialAllowed[i])));
       if (allowedChanged) patch.allowed_values = nextAllowed;
 
+      const initialDefault = initial?.default_value ?? null;
+      if (default_value !== initialDefault) patch.default_value = default_value;
+
       if (syncToKeycloak !== (initial?.sync_to_keycloak ?? true)) {
         patch.sync_to_keycloak = syncToKeycloak;
       }
@@ -123,6 +132,11 @@ const AttributeFormModal = ({
       onSubmit(patch);
     }
   };
+
+  const allowedValuesList = allowedValuesText
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -177,6 +191,43 @@ const AttributeFormModal = ({
             />
             <p className="text-xs text-muted-foreground">
               Comma-separated. Leave empty for free text.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="attr-default">Default value</Label>
+            {allowedValuesList.length > 0 ? (
+              <Select
+                value={defaultValue || "__attr_default_none__"}
+                onValueChange={(v) =>
+                  setDefaultValue(v === "__attr_default_none__" ? "" : v)
+                }
+              >
+                <SelectTrigger id="attr-default">
+                  <SelectValue placeholder="No default" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__attr_default_none__">
+                    No default
+                  </SelectItem>
+                  {allowedValuesList.map((v) => (
+                    <SelectItem key={v} value={v}>
+                      {v}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <Input
+                id="attr-default"
+                placeholder="(none)"
+                value={defaultValue}
+                onChange={(e) => setDefaultValue(e.target.value)}
+              />
+            )}
+            <p className="text-xs text-muted-foreground">
+              Applied to newly registered users. Existing members are not
+              touched. Must satisfy allowed values when both are set.
             </p>
           </div>
 
