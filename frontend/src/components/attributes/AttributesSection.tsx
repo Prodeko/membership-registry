@@ -137,7 +137,7 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
             <SelectTrigger id={`attr-${attr.name}`} className="w-64">
               <SelectValue placeholder={t("attributes.not_set_placeholder")} />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="z-[300]">
               <SelectItem value={CLEAR_VALUE}>
                 {t("attributes.not_set_option")}
               </SelectItem>

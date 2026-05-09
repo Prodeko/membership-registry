@@ -78,7 +78,7 @@ const MunicipalitySelect = ({ field, form }: { field: any; form: any }) => {
           </Button>
         </FormControl>
       </PopoverTrigger>
-      <PopoverContent className="w-[200px] p-0">
+      <PopoverContent className="w-[200px] p-0 z-[300]">
         <Command>
           <CommandInput placeholder={t("municipality_select.search")} data-testid="municipality-search-input" />
           <CommandEmpty>{t("municipality_select.empty")}</CommandEmpty>
