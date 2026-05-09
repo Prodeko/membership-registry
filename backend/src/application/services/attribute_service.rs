@@ -42,6 +42,41 @@ pub struct UpdateAttributeDefinitionPatch {
     pub editable_by: Option<EditableBy>,
 }
 
+/// Per-provider outcome of a KC push initiated after a successful DB write.
+/// `failed` non-empty turns into `ServiceError::PartialSync` so the caller
+/// learns the registry is ahead.
+#[derive(Default, Debug)]
+struct KcPushOutcome {
+    applied: Vec<String>,
+    failed: Vec<(String, AttributeSyncError)>,
+}
+
+impl KcPushOutcome {
+    fn into_result(self, name: &AttributeName) -> ServiceResult<()> {
+        if self.failed.is_empty() {
+            return Ok(());
+        }
+        // ScopeMissing is a config error, not partial sync — surface it directly.
+        if self
+            .failed
+            .iter()
+            .any(|(_, e)| matches!(e, AttributeSyncError::ScopeMissing))
+        {
+            return Err(ServiceError::Misconfigured(
+                "Keycloak client scope `registry-attributes` is missing — add it to the realm config"
+                    .to_string(),
+            ));
+        }
+        let providers: Vec<String> = self.failed.iter().map(|(s, _)| s.clone()).collect();
+        Err(ServiceError::PartialSync(format!(
+            "Attribute `{}` saved locally; Keycloak push failed for {} provider(s): {}",
+            name.as_str(),
+            providers.len(),
+            providers.join(", ")
+        )))
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -341,23 +376,19 @@ impl AttributeService {
             )));
         }
 
-        if def.sync_to_keycloak() {
-            let providers = self
-                .auth_provider_repo
-                .find_by_user_id(&user_id.0)
-                .await
-                .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
-            for p in &providers {
-                self.sync
-                    .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), def.name(), value)
-                    .await
-                    .map_err(map_sync_err)?;
-            }
-        }
-
+        // Registry is the source of truth: write DB first. If the DB write
+        // fails the caller can retry idempotently; KC isn't touched.
         self.repo
             .upsert_member_value(&user_id, def.name(), value)
             .await?;
+
+        // Then push to KC. Collect partial failures so the caller knows the
+        // registry is ahead and which providers need reconciliation.
+        let kc_outcome = if def.sync_to_keycloak() {
+            self.push_to_kc_set(&user_id, def.name(), value).await?
+        } else {
+            KcPushOutcome::default()
+        };
 
         self.audit_log
             .log(
@@ -373,7 +404,7 @@ impl AttributeService {
             .await;
 
         self.invalidate_sync_cache();
-        Ok(())
+        kc_outcome.into_result(def.name())
     }
 
     async fn clear_inner(
@@ -383,21 +414,13 @@ impl AttributeService {
         actor_user_id: Option<Uuid>,
         actor_kind: &'static str,
     ) -> ServiceResult<()> {
-        if def.sync_to_keycloak() {
-            let providers = self
-                .auth_provider_repo
-                .find_by_user_id(&user_id.0)
-                .await
-                .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
-            for p in &providers {
-                self.sync
-                    .clear_user_attribute(&IdpSubject(p.provider_user_id.clone()), def.name())
-                    .await
-                    .map_err(map_sync_err)?;
-            }
-        }
-
         self.repo.delete_member_value(&user_id, def.name()).await?;
+
+        let kc_outcome = if def.sync_to_keycloak() {
+            self.push_to_kc_clear(&user_id, def.name()).await?
+        } else {
+            KcPushOutcome::default()
+        };
 
         self.audit_log
             .log(
@@ -410,7 +433,70 @@ impl AttributeService {
             .await;
 
         self.invalidate_sync_cache();
-        Ok(())
+        kc_outcome.into_result(def.name())
+    }
+
+    async fn push_to_kc_set(
+        &self,
+        user_id: &PersonId,
+        name: &AttributeName,
+        value: &AttributeValue,
+    ) -> ServiceResult<KcPushOutcome> {
+        let providers = self
+            .auth_provider_repo
+            .find_by_user_id(&user_id.0)
+            .await
+            .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
+        let mut outcome = KcPushOutcome::default();
+        for p in &providers {
+            match self
+                .sync
+                .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), name, value)
+                .await
+            {
+                Ok(()) => outcome.applied.push(p.provider_user_id.clone()),
+                Err(e) => {
+                    tracing::error!(
+                        provider_user_id = %p.provider_user_id,
+                        attribute = %name.as_str(),
+                        "Keycloak set_user_attribute failed: {e:?}"
+                    );
+                    outcome.failed.push((p.provider_user_id.clone(), e));
+                }
+            }
+        }
+        Ok(outcome)
+    }
+
+    async fn push_to_kc_clear(
+        &self,
+        user_id: &PersonId,
+        name: &AttributeName,
+    ) -> ServiceResult<KcPushOutcome> {
+        let providers = self
+            .auth_provider_repo
+            .find_by_user_id(&user_id.0)
+            .await
+            .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
+        let mut outcome = KcPushOutcome::default();
+        for p in &providers {
+            match self
+                .sync
+                .clear_user_attribute(&IdpSubject(p.provider_user_id.clone()), name)
+                .await
+            {
+                Ok(()) => outcome.applied.push(p.provider_user_id.clone()),
+                Err(e) => {
+                    tracing::error!(
+                        provider_user_id = %p.provider_user_id,
+                        attribute = %name.as_str(),
+                        "Keycloak clear_user_attribute failed: {e:?}"
+                    );
+                    outcome.failed.push((p.provider_user_id.clone(), e));
+                }
+            }
+        }
+        Ok(outcome)
     }
 
     // -----------------------------------------------------------------------
