@@ -240,9 +240,7 @@ const UserAttributesCard = () => {
           setMutation.mutate(input, {
             onSuccess: () => toast.success(`Saved ${input.name}`),
             onError: (e) =>
-              toast.error(
-                `Failed to save ${input.name}: ${describeError(e)}`,
-              ),
+              toast.error(`Failed to save ${input.name}: ${describeError(e)}`),
           })
         }
         onDelete={(name) =>

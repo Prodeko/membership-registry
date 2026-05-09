@@ -154,9 +154,7 @@ async fn delete_definition(
 }
 
 #[debug_handler]
-async fn get_sync_status(
-    State(state): State<AppState>,
-) -> ApiResult<Json<AttributeSyncStatusDTO>> {
+async fn get_sync_status(State(state): State<AppState>) -> ApiResult<Json<AttributeSyncStatusDTO>> {
     let status = state.attribute_service.get_keycloak_sync_status().await?;
     Ok(Json(status.into()))
 }

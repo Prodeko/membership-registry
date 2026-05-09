@@ -102,8 +102,7 @@ impl AttributeSyncPort for KeycloakAttributeSyncAdapter {
         let mut out: Vec<(IdpSubject, HashMap<String, AttributeValue>)> =
             Vec::with_capacity(raw.len());
         for (subject, attr_map) in raw {
-            let mut typed: HashMap<String, AttributeValue> =
-                HashMap::with_capacity(attr_map.len());
+            let mut typed: HashMap<String, AttributeValue> = HashMap::with_capacity(attr_map.len());
             for (k, v) in attr_map {
                 let value = AttributeValue::new(v).map_err(|_| {
                     AttributeSyncError::Unexpected("empty attribute value from KC".into())

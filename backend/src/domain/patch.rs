@@ -1,9 +1,10 @@
 /// A three-valued patch over an optional field. Distinguishes "leave the
 /// existing value alone" from "set to nothing" — both of which the standard
 /// `Option<T>` collapses into `None`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub enum Patch<T> {
     /// Field was omitted; preserve the existing value.
+    #[default]
     Leave,
     /// Field was supplied with a value; replace.
     Set(T),
@@ -19,11 +20,5 @@ impl<T> Patch<T> {
             Self::Set(v) => Some(v),
             Self::Clear => None,
         }
-    }
-}
-
-impl<T> Default for Patch<T> {
-    fn default() -> Self {
-        Self::Leave
     }
 }

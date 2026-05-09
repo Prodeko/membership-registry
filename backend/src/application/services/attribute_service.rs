@@ -203,7 +203,9 @@ impl AttributeService {
         let allowed_values = patch
             .allowed_values
             .apply(existing.allowed_values().map(<[AttributeValue]>::to_vec));
-        let sync_to_keycloak = patch.sync_to_keycloak.unwrap_or(existing.sync_to_keycloak());
+        let sync_to_keycloak = patch
+            .sync_to_keycloak
+            .unwrap_or(existing.sync_to_keycloak());
         let editable_by = patch.editable_by.unwrap_or(existing.editable_by());
 
         // Reject Some(empty) at the boundary so the domain invariant holds.
@@ -215,8 +217,7 @@ impl AttributeService {
 
         // If allowed_values is being tightened, verify no existing user value is now invalid.
         if let Some(allowed) = &allowed_values {
-            let allowed_set: HashSet<&str> =
-                allowed.iter().map(AttributeValue::as_str).collect();
+            let allowed_set: HashSet<&str> = allowed.iter().map(AttributeValue::as_str).collect();
             let rows = self.repo.fetch_all_values_for(name).await?;
             for (uid, val) in rows {
                 if !allowed_set.contains(val.as_str()) {
@@ -412,10 +413,7 @@ impl AttributeService {
         self.clear_inner(&def, user_id, actor, "self").await
     }
 
-    pub async fn fetch_for_member(
-        &self,
-        user_id: PersonId,
-    ) -> ServiceResult<Vec<MemberAttribute>> {
+    pub async fn fetch_for_member(&self, user_id: PersonId) -> ServiceResult<Vec<MemberAttribute>> {
         Ok(self.repo.fetch_member_values(&user_id).await?)
     }
 
@@ -617,8 +615,7 @@ impl AttributeService {
                     continue;
                 }
                 for p in providers {
-                    registry_by_kc
-                        .insert(p.provider_user_id.clone(), (uid.clone(), val.clone()));
+                    registry_by_kc.insert(p.provider_user_id.clone(), (uid.clone(), val.clone()));
                 }
             }
 
@@ -719,7 +716,10 @@ impl AttributeService {
         name: &AttributeName,
         value: &AttributeValue,
     ) -> Result<(), String> {
-        let providers = self.auth_provider_repo.find_by_user_id(&user_id.0).await
+        let providers = self
+            .auth_provider_repo
+            .find_by_user_id(&user_id.0)
+            .await
             .map_err(|e| {
                 tracing::error!(
                     user_id = %user_id.0,

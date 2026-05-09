@@ -117,7 +117,8 @@ async fn set_as_admin_accepts_both_editable() {
     let mut repo = MockAttributeRepositoryPort::new();
     repo.expect_fetch_definition()
         .returning(|_| Ok(Some(def("note", false, EditableBy::Both))));
-    repo.expect_upsert_member_value().returning(|_, _, _| Ok(()));
+    repo.expect_upsert_member_value()
+        .returning(|_, _, _| Ok(()));
 
     let svc = build_service(
         repo,
@@ -185,7 +186,8 @@ async fn set_returns_partial_sync_when_kc_fails_after_db_success() {
     repo.expect_fetch_definition()
         .returning(|_| Ok(Some(def("xq-year", true, EditableBy::Admin))));
     // DB write succeeds first.
-    repo.expect_upsert_member_value().returning(|_, _, _| Ok(()));
+    repo.expect_upsert_member_value()
+        .returning(|_, _, _| Ok(()));
 
     let mut auth_provider = MockAuthProviderRepo::new();
     auth_provider.expect_find_by_user_id().returning(|uid| {
@@ -298,10 +300,7 @@ async fn drift_emits_value_mismatch_when_kc_disagrees() {
     sync.expect_list_users_with_attributes().returning(|_| {
         let mut attrs = std::collections::HashMap::new();
         attrs.insert("xq-year".to_string(), av("II"));
-        Ok(vec![(
-            crate::domain::IdpSubject("kc-1".to_string()),
-            attrs,
-        )])
+        Ok(vec![(crate::domain::IdpSubject("kc-1".to_string()), attrs)])
     });
 
     let mut auth_provider = MockAuthProviderRepo::new();
@@ -329,17 +328,13 @@ async fn drift_emits_keycloak_only_when_registry_lacks_value() {
     let mut repo = MockAttributeRepositoryPort::new();
     repo.expect_fetch_all_definitions()
         .returning(|| Ok(vec![def("xq-year", true, EditableBy::Admin)]));
-    repo.expect_fetch_all_values_for()
-        .returning(|_| Ok(vec![]));
+    repo.expect_fetch_all_values_for().returning(|_| Ok(vec![]));
 
     let mut sync = MockAttributeSyncPort::new();
     sync.expect_list_users_with_attributes().returning(|_| {
         let mut attrs = std::collections::HashMap::new();
         attrs.insert("xq-year".to_string(), av("IV"));
-        Ok(vec![(
-            crate::domain::IdpSubject("kc-1".to_string()),
-            attrs,
-        )])
+        Ok(vec![(crate::domain::IdpSubject("kc-1".to_string()), attrs)])
     });
 
     let svc = build_service(repo, sync, MockAuthProviderRepo::new());
