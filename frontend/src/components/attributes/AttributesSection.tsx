@@ -84,12 +84,13 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
   const isDirty = draft !== (attr.value ?? "");
   const hasEnum = attr.allowed_values && attr.allowed_values.length > 0;
 
-  const save = () => {
-    if (!draft) {
-      if (attr.value) onDelete(attr.name);
-      return;
+  // Blur-triggered save only writes non-empty values. Clearing requires the
+  // explicit Clear button so a typo + tab can't destructively delete the
+  // existing value with no undo path.
+  const saveOnBlur = () => {
+    if (draft) {
+      onSet({ name: attr.name, value: draft });
     }
-    onSet({ name: attr.name, value: draft });
   };
 
   const handleSelectChange = (v: string) => {
@@ -155,7 +156,7 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onBlur={() => {
-              if (isDirty) save();
+              if (isDirty) saveOnBlur();
             }}
             disabled={isMutating}
             placeholder={t("attributes.not_set_placeholder")}
