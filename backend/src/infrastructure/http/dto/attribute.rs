@@ -198,6 +198,132 @@ impl From<SyncStatus> for AttributeSyncStatusDTO {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::domain::{AttributeName, IdpSubject, PersonId};
+
+    fn av(s: &str) -> AttributeValue {
+        AttributeValue::new(s).unwrap()
+    }
+
+    #[test]
+    fn parse_allowed_values_ok_path() {
+        let raw = Some(vec!["one".to_string(), "two".to_string()]);
+        let parsed = parse_allowed_values(raw).unwrap().unwrap();
+        assert_eq!(parsed.len(), 2);
+        assert_eq!(parsed[0].as_str(), "one");
+    }
+
+    #[test]
+    fn parse_allowed_values_rejects_empty_element() {
+        let raw = Some(vec!["ok".to_string(), "".to_string()]);
+        let parsed = parse_allowed_values(raw);
+        assert!(parsed.is_err());
+    }
+
+    #[test]
+    fn parse_allowed_values_rejects_control_char() {
+        let raw = Some(vec!["ok\nbad".to_string()]);
+        assert!(parse_allowed_values(raw).is_err());
+    }
+
+    #[test]
+    fn parse_allowed_values_passes_through_none() {
+        assert!(parse_allowed_values(None).unwrap().is_none());
+    }
+
+    #[test]
+    fn editable_by_dto_round_trip() {
+        for v in [EditableBy::Admin, EditableBy::User, EditableBy::Both] {
+            let dto: EditableByDTO = v.into();
+            let back: EditableBy = dto.into();
+            assert_eq!(v, back);
+        }
+    }
+
+    #[test]
+    fn editable_by_dto_serializes_lowercase() {
+        let json = serde_json::to_string(&EditableByDTO::Admin).unwrap();
+        assert_eq!(json, "\"admin\"");
+        let json = serde_json::to_string(&EditableByDTO::User).unwrap();
+        assert_eq!(json, "\"user\"");
+        let json = serde_json::to_string(&EditableByDTO::Both).unwrap();
+        assert_eq!(json, "\"both\"");
+    }
+
+    #[test]
+    fn drift_entry_dto_uses_tagged_union() {
+        let entry = DriftEntry::RegistryUnlinked {
+            user_id: PersonId(uuid::Uuid::nil()),
+            attribute: AttributeName::new("xq-year").unwrap(),
+            value: av("IV"),
+        };
+        let dto: DriftEntryDTO = entry.into();
+        let json = serde_json::to_value(&dto).unwrap();
+        assert_eq!(json["type"], "registry_unlinked");
+        assert_eq!(json["attribute"], "xq-year");
+        assert_eq!(json["value"], "IV");
+    }
+
+    #[test]
+    fn drift_entry_dto_value_mismatch_carries_both_values() {
+        let entry = DriftEntry::ValueMismatch {
+            user_id: PersonId(uuid::Uuid::nil()),
+            idp_subject: IdpSubject("kc-1".to_string()),
+            attribute: AttributeName::new("xq-year").unwrap(),
+            registry_value: av("IV"),
+            keycloak_value: av("II"),
+        };
+        let dto: DriftEntryDTO = entry.into();
+        let json = serde_json::to_value(&dto).unwrap();
+        assert_eq!(json["type"], "value_mismatch");
+        assert_eq!(json["registry_value"], "IV");
+        assert_eq!(json["keycloak_value"], "II");
+    }
+
+    #[test]
+    fn sync_status_dto_serializes_with_entries_field() {
+        let status = SyncStatus {
+            entries: vec![DriftEntry::KeycloakOnly {
+                idp_subject: IdpSubject("kc-1".to_string()),
+                attribute: AttributeName::new("xq-year").unwrap(),
+                value: av("IV"),
+            }],
+        };
+        let dto: AttributeSyncStatusDTO = status.into();
+        let json = serde_json::to_value(&dto).unwrap();
+        let entries = json["entries"].as_array().unwrap();
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0]["type"], "keycloak_only");
+    }
+
+    #[test]
+    fn update_attribute_definition_dto_omitted_field_means_leave() {
+        // serde double_option: missing field deserializes to None.
+        let json = "{}";
+        let dto: UpdateAttributeDefinitionDTO = serde_json::from_str(json).unwrap();
+        assert!(dto.description.is_none());
+        assert!(dto.allowed_values.is_none());
+        assert!(dto.sync_to_keycloak.is_none());
+    }
+
+    #[test]
+    fn update_attribute_definition_dto_null_field_means_clear() {
+        let json = r#"{"description": null}"#;
+        let dto: UpdateAttributeDefinitionDTO = serde_json::from_str(json).unwrap();
+        // double_option: null deserializes to Some(None) → clear.
+        assert_eq!(dto.description, Some(None));
+    }
+
+    #[test]
+    fn update_attribute_definition_dto_value_means_set() {
+        let json = r#"{"description": "the year"}"#;
+        let dto: UpdateAttributeDefinitionDTO = serde_json::from_str(json).unwrap();
+        assert_eq!(dto.description, Some(Some("the year".to_string())));
+    }
+}
+
 /// Helper used by the routing layer to compute the per-row `editable` flag for
 /// a given actor.
 pub fn editable_for_admin(d: &AttributeDefinition) -> bool {
