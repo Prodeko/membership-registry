@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { toast } from "sonner";
 import { MemberAttribute } from "@/common/types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -156,7 +155,6 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
               onClick={() => {
                 setDraft("");
                 onDelete(attr.name);
-                toast.success(`Cleared ${attr.name}`);
               }}
               disabled={isMutating}
             >

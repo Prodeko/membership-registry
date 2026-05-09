@@ -18,7 +18,6 @@ import AttributesSection from "../attributes/AttributesSection";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -137,8 +136,8 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   const { mutateAsync: removeGroup } = useRemoveRoleGroupAssignment();
   const { mutateAsync: addRoles } = useAddMultipleRolesToMembers();
   const { mutateAsync: removeRole } = useRemoveMemberRole();
-  const setAttribute = useSetMemberAttribute(userId);
-  const deleteAttribute = useDeleteMemberAttribute(userId);
+  const { mutateAsync: setAttribute } = useSetMemberAttribute(userId);
+  const { mutateAsync: deleteAttribute } = useDeleteMemberAttribute(userId);
 
   // ── local staged state ──
   const [editingProfile, setEditingProfile] = useState(false);
@@ -156,6 +155,11 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   const [roleDateEdits, setRoleDateEdits] = useState<
     Record<string, { validFrom: string; validUntil: string }>
   >({}); // key = `${roleName}::${validFrom}`
+  // Pending attribute changes; key = attribute name, value = "" means clear,
+  // non-empty string means set. Flushed on Save.
+  const [attributeEdits, setAttributeEdits] = useState<Record<string, string>>(
+    {},
+  );
 
   // ── UI state ──
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
@@ -227,6 +231,16 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       (r) => !roleRemovals.has(removalKey(r.role_name, r.valid_from)),
     );
   }, [memberRoles, roleRemovals]);
+
+  // Attributes with pending edits overlaid on the server values.
+  const displayedAttributes = useMemo(() => {
+    if (!memberAttributes) return undefined;
+    return memberAttributes.map((a) => {
+      const edited = attributeEdits[a.name];
+      if (edited === undefined) return a;
+      return { ...a, value: edited === "" ? null : edited };
+    });
+  }, [memberAttributes, attributeEdits]);
 
   // All group memberships including staged additions
   const allGroupMemberships = useMemo(() => {
@@ -502,7 +516,21 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
         });
       }
 
-      // 8. Invalidate
+      // 8. Attribute edits — set non-empty, delete empty.
+      const originalAttrValues = new Map(
+        (memberAttributes ?? []).map((a) => [a.name, a.value ?? ""]),
+      );
+      for (const [name, value] of Object.entries(attributeEdits)) {
+        const original = originalAttrValues.get(name) ?? "";
+        if (value === original) continue;
+        if (value === "") {
+          await deleteAttribute(name);
+        } else {
+          await setAttribute({ name, value });
+        }
+      }
+
+      // 9. Invalidate
       await queryClient.invalidateQueries({ queryKey: [QueryKey.MEMBER] });
       await queryClient.invalidateQueries({
         queryKey: [QueryKey.MEMBER_ROLES],
@@ -513,12 +541,25 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       await queryClient.invalidateQueries({
         queryKey: [QueryKey.MEMBERS_WITH_ROLES],
       });
+      await queryClient.invalidateQueries({
+        queryKey: [QueryKey.MEMBER_ATTRIBUTES, userId],
+      });
 
       handleClose();
     } finally {
       setIsSaving(false);
     }
   };
+
+  const hasAttributeEdits = useMemo(() => {
+    if (!memberAttributes) return Object.keys(attributeEdits).length > 0;
+    const original = new Map(
+      memberAttributes.map((a) => [a.name, a.value ?? ""]),
+    );
+    return Object.entries(attributeEdits).some(
+      ([name, value]) => (original.get(name) ?? "") !== value,
+    );
+  }, [attributeEdits, memberAttributes]);
 
   const hasChanges =
     editingProfile ||
@@ -527,7 +568,8 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
     Object.keys(groupDateEdits).length > 0 ||
     roleAdditions.length > 0 ||
     roleRemovals.size > 0 ||
-    Object.keys(roleDateEdits).length > 0;
+    Object.keys(roleDateEdits).length > 0 ||
+    hasAttributeEdits;
 
   if (!member) return null;
 
@@ -1076,20 +1118,17 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
               Attributes
             </p>
             <AttributesSection
-              attributes={memberAttributes}
+              attributes={displayedAttributes}
               isLoading={isAttributesLoading}
               onSet={(input) =>
-                setAttribute.mutate(input, {
-                  onSuccess: () =>
-                    toast.success(`Set ${input.name} = ${input.value}`),
-                })
+                setAttributeEdits((prev) => ({
+                  ...prev,
+                  [input.name]: input.value,
+                }))
               }
               onDelete={(name) =>
-                deleteAttribute.mutate(name, {
-                  onSuccess: () => toast.success(`Cleared ${name}`),
-                })
+                setAttributeEdits((prev) => ({ ...prev, [name]: "" }))
               }
-              isMutating={setAttribute.isPending || deleteAttribute.isPending}
               heading=""
               emptyMessage="No attributes defined yet. Configure them in the Attributes admin page."
             />
