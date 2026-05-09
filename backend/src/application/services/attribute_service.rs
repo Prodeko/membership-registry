@@ -247,9 +247,7 @@ impl AttributeService {
         let allowed_values = patch
             .allowed_values
             .apply(existing.allowed_values().map(<[AttributeValue]>::to_vec));
-        let default_value = patch
-            .default_value
-            .apply(existing.default_value().cloned());
+        let default_value = patch.default_value.apply(existing.default_value().cloned());
         let sync_to_keycloak = patch
             .sync_to_keycloak
             .unwrap_or(existing.sync_to_keycloak());

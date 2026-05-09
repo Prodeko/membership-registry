@@ -716,20 +716,18 @@ async fn create_application_writes_submitted_attribute_to_member() {
         .expect_fetch_existing()
         .returning(|_, _, _| Err(RepositoryError::NotFound));
 
-    targetable
-        .expect_fetch_targetable_role()
-        .returning(|_, _| {
-            Ok(ApplicationTargetableRole {
-                role_name: "test-role".to_string(),
-                valid_until: valid_until(),
-                active: true,
-                optional_roles: None,
-                payment_link: None,
-                approved_email_template: None,
-                rejected_email_template: None,
-                form_attributes: vec![AttributeName::new("major-subject").unwrap()],
-            })
-        });
+    targetable.expect_fetch_targetable_role().returning(|_, _| {
+        Ok(ApplicationTargetableRole {
+            role_name: "test-role".to_string(),
+            valid_until: valid_until(),
+            active: true,
+            optional_roles: None,
+            payment_link: None,
+            approved_email_template: None,
+            rejected_email_template: None,
+            form_attributes: vec![AttributeName::new("major-subject").unwrap()],
+        })
+    });
 
     commands.expect_create().returning(|new| {
         Ok(Application::from((

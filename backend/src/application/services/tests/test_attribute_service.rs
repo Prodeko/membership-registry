@@ -991,7 +991,11 @@ async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
     svc.apply_defaults_for_new_user(user_id).await;
 
     let recorded = upserts.lock().unwrap().clone();
-    assert_eq!(recorded.len(), 2, "exactly the two defaults must be upserted");
+    assert_eq!(
+        recorded.len(),
+        2,
+        "exactly the two defaults must be upserted"
+    );
     assert!(recorded.contains(&("membership-type".to_string(), "external".to_string())));
     assert!(recorded.contains(&("major-subject".to_string(), "other".to_string())));
 }
@@ -1002,9 +1006,11 @@ async fn apply_defaults_for_new_user_swallows_repo_failure() {
 
     let mut repo = MockAttributeRepositoryPort::new();
     repo.expect_fetch_all_definitions().returning(|| {
-        Err(crate::application::ports::repository_error::RepositoryError::Unexpected(
-            "boom".to_string(),
-        ))
+        Err(
+            crate::application::ports::repository_error::RepositoryError::Unexpected(
+                "boom".to_string(),
+            ),
+        )
     });
 
     let svc = build_service(

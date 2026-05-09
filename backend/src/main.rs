@@ -250,7 +250,9 @@ impl Services {
             audit_log_service.clone(),
             marketing_service.clone(),
             Arc::clone(&attribute_service)
-                as Arc<dyn crate::application::ports::attribute_bootstrap_port::AttributeBootstrapPort>,
+                as Arc<
+                    dyn crate::application::ports::attribute_bootstrap_port::AttributeBootstrapPort,
+                >,
         );
         let role_service = RoleService::new(
             Arc::clone(&role_repo),

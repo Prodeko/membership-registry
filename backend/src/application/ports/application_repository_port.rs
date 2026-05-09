@@ -114,6 +114,7 @@ pub trait TargetableRolePort: Send + Sync {
         valid_until: NaiveDate,
     ) -> Result<ApplicationTargetableRole, RepositoryError>;
 
+    #[allow(clippy::too_many_arguments)]
     async fn create_targetable_role(
         &self,
         role_name: String,

@@ -405,7 +405,10 @@ mod tests {
             EditableBy::Admin,
         )
         .unwrap();
-        assert_eq!(def.default_value().map(AttributeValue::as_str), Some("external"));
+        assert_eq!(
+            def.default_value().map(AttributeValue::as_str),
+            Some("external")
+        );
     }
 
     #[test]
@@ -418,7 +421,10 @@ mod tests {
             true,
             EditableBy::Admin,
         );
-        assert_eq!(r, Err(InvalidAttributeDefinition::DefaultNotInAllowedValues));
+        assert_eq!(
+            r,
+            Err(InvalidAttributeDefinition::DefaultNotInAllowedValues)
+        );
     }
 
     #[test]
@@ -432,6 +438,9 @@ mod tests {
             EditableBy::Admin,
         )
         .unwrap();
-        assert_eq!(def.default_value().map(AttributeValue::as_str), Some("anything goes"));
+        assert_eq!(
+            def.default_value().map(AttributeValue::as_str),
+            Some("anything goes")
+        );
     }
 }

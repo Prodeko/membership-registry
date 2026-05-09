@@ -8,9 +8,7 @@ use crate::application::ports::application_repository_port::{
     ApplicationWithMember as PortWithMember, TargetableRolePort, UpdateTargetableRoleResolved,
 };
 use crate::application::ports::repository_error::RepositoryError;
-use crate::domain::{
-    Application, ApplicationId, ApplicationStatus, AttributeName, NewApplication,
-};
+use crate::domain::{Application, ApplicationId, ApplicationStatus, AttributeName, NewApplication};
 
 // --- Bridge types (private to repo, map DB shape to domain types) ---
 

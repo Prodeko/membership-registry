@@ -236,9 +236,7 @@ fn double_option_to_patch<T>(v: Option<Option<T>>) -> crate::domain::Patch<T> {
     }
 }
 
-fn parse_form_attribute_names(
-    raw: Vec<String>,
-) -> ApiResult<Vec<crate::domain::AttributeName>> {
+fn parse_form_attribute_names(raw: Vec<String>) -> ApiResult<Vec<crate::domain::AttributeName>> {
     raw.into_iter()
         .map(|n| crate::domain::AttributeName::new(n).map_err(|_| ApiError::BadRequest))
         .collect()

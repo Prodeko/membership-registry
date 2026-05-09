@@ -158,9 +158,7 @@ const CreateTargetableRolesModal = () => {
         <div className="space-y-1">
           <Label>Application form attributes</Label>
           <MultipleSelector
-            options={stringsToOptions(
-              attributeDefs?.map((d) => d.name) ?? [],
-            )}
+            options={stringsToOptions(attributeDefs?.map((d) => d.name) ?? [])}
             onChange={onFormAttributesChange}
             placeholder="Attributes shown on the application form"
           />

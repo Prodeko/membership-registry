@@ -148,12 +148,7 @@ impl ApplicationService {
         // application_id.
         for (name, value) in params.attributes {
             self.attribute_service
-                .set_via_application_form(
-                    PersonId(params.user_id),
-                    &name,
-                    value,
-                    actor_user_id,
-                )
+                .set_via_application_form(PersonId(params.user_id), &name, value, actor_user_id)
                 .await?;
         }
 
@@ -421,7 +416,8 @@ impl ApplicationService {
         // catalog before persisting the targetable role. Otherwise the
         // join-table FK violation surfaces as a generic database error
         // and the admin gets no useful feedback.
-        self.validate_form_attributes_exist(&form_attributes).await?;
+        self.validate_form_attributes_exist(&form_attributes)
+            .await?;
 
         let attr_count = form_attributes.len();
         self.targetable_roles
@@ -437,17 +433,19 @@ impl ApplicationService {
             .await
             .map_err(E::from)?;
 
-        self.audit_log.log(
-            actor_user_id,
-            "targetable_role.create",
-            "targetable_role",
-            &format!("{}:{}", role_name, valid_until),
-            Some(serde_json::json!({
-                "role_name": role_name,
-                "valid_until": valid_until.to_string(),
-                "form_attributes_count": attr_count,
-            })),
-        ).await;
+        self.audit_log
+            .log(
+                actor_user_id,
+                "targetable_role.create",
+                "targetable_role",
+                &format!("{}:{}", role_name, valid_until),
+                Some(serde_json::json!({
+                    "role_name": role_name,
+                    "valid_until": valid_until.to_string(),
+                    "form_attributes_count": attr_count,
+                })),
+            )
+            .await;
 
         Ok(())
     }
@@ -490,9 +488,7 @@ impl ApplicationService {
             rejected_email_template: patch
                 .rejected_email_template
                 .apply(existing.rejected_email_template),
-            form_attributes: patch
-                .form_attributes
-                .unwrap_or(existing.form_attributes),
+            form_attributes: patch.form_attributes.unwrap_or(existing.form_attributes),
         };
 
         let attrs_count = resolved.form_attributes.len();
@@ -519,10 +515,7 @@ impl ApplicationService {
         Ok(())
     }
 
-    async fn validate_form_attributes_exist(
-        &self,
-        names: &[AttributeName],
-    ) -> ServiceResult<()> {
+    async fn validate_form_attributes_exist(&self, names: &[AttributeName]) -> ServiceResult<()> {
         for name in names {
             if self.attribute_service.get_definition(name).await?.is_none() {
                 return Err(E::Constraint(format!(
