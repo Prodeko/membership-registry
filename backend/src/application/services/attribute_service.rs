@@ -275,7 +275,8 @@ impl AttributeService {
 
         // Then any mapper transition. On failure the registry is ahead;
         // surface PartialSync so the admin sees the divergence.
-        let mapper_transition = if sync_to_keycloak && !existing.sync_to_keycloak() {
+        let toggling_on = sync_to_keycloak && !existing.sync_to_keycloak();
+        let mapper_transition = if toggling_on {
             Some(self.sync.add_mapper_to_scope(name).await)
         } else if !sync_to_keycloak && existing.sync_to_keycloak() {
             Some(self.sync.remove_mapper_from_scope(name).await)
@@ -296,6 +297,16 @@ impl AttributeService {
             };
         }
 
+        // When sync_to_keycloak transitions off→on, push existing values to KC
+        // so JWTs reflect the registry immediately. Without this, admins enabling
+        // sync on a populated attribute see empty token claims until they
+        // manually run sync-missing.
+        let push_summary = if toggling_on {
+            Some(self.push_existing_values(name).await?)
+        } else {
+            None
+        };
+
         self.audit_log
             .log(
                 actor_user_id,
@@ -305,9 +316,27 @@ impl AttributeService {
                 Some(serde_json::json!({
                     "sync_to_keycloak": sync_to_keycloak,
                     "editable_by": editable_by.as_str(),
+                    "auto_pushed_applied": push_summary.as_ref().map(|s| s.applied),
+                    "auto_pushed_failed": push_summary.as_ref().map(|s| s.failures.len()),
                 })),
             )
             .await;
+
+        // If auto-push had failures, the mapper exists but values diverge.
+        // Surface PartialSync so admins know to re-run sync-missing; the DB
+        // and mapper are correct, only individual user pushes need retry.
+        if let Some(s) = push_summary {
+            if !s.failures.is_empty() {
+                self.invalidate_sync_cache();
+                return Err(ServiceError::PartialSync(format!(
+                    "Attribute `{}` mapper added; {} value(s) pushed, {} failed. \
+                     Run sync-missing to retry.",
+                    name.as_str(),
+                    s.applied,
+                    s.failures.len()
+                )));
+            }
+        }
 
         self.invalidate_sync_cache();
         Ok(updated)
@@ -775,6 +804,34 @@ impl AttributeService {
         }
 
         self.invalidate_sync_cache();
+        let failed = failures.len() as u32;
+        Ok(SyncMissingAttributesSummary {
+            applied,
+            failed,
+            failures,
+        })
+    }
+
+    /// Fetch every registry value for an attribute and push it to Keycloak.
+    /// Used after `sync_to_keycloak` toggles off→on so existing values land
+    /// in JWTs without admins having to manually run sync-missing.
+    async fn push_existing_values(
+        &self,
+        name: &AttributeName,
+    ) -> ServiceResult<SyncMissingAttributesSummary> {
+        let rows = self.repo.fetch_all_values_for(name).await?;
+        let mut applied = 0u32;
+        let mut failures = Vec::new();
+        for (uid, val) in rows {
+            match self.push_one(&uid, name, &val).await {
+                Ok(()) => applied += 1,
+                Err(reason) => failures.push(SyncMissingFailure {
+                    user_id: uid.0,
+                    attribute: name.as_str().to_string(),
+                    reason,
+                }),
+            }
+        }
         let failed = failures.len() as u32;
         Ok(SyncMissingAttributesSummary {
             applied,
