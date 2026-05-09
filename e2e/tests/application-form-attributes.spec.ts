@@ -40,7 +40,9 @@ test.describe("Application form attributes", () => {
   test.afterEach(async ({ db, adminApi, testUser, testRole }, testInfo) => {
     await db.cleanupTestUser(testUser.email);
     await db.cleanupTestRole(testRole.name);
-    await adminApi.deleteAttributeDefinition(attributeName(testInfo.parallelIndex));
+    await adminApi.deleteAttributeDefinition(
+      attributeName(testInfo.parallelIndex),
+    );
   });
 
   // Fresh login — beforeEach removed the test user.
