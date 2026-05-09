@@ -61,11 +61,22 @@ struct KcPushOutcome {
 }
 
 impl KcPushOutcome {
+    /// Map a per-provider push outcome to a service-level result.
+    ///
+    /// Precedence (each branch is mutually exclusive on its trigger):
+    ///   1. No failures → Ok.
+    ///   2. Any ScopeMissing → Misconfigured. The realm needs operator action;
+    ///      the rest of the failure list is irrelevant until the scope exists.
+    ///   3. All failures are UserNotFound → ProviderUserDeleted. Retrying will
+    ///      never succeed; the IdP mapping is dead and the user needs to be
+    ///      unlinked. Distinct HTTP status (410) so the UI can surface a
+    ///      "remediate" affordance instead of "retry".
+    ///   4. Mixed / transient failures → PartialSync. At least one provider
+    ///      could plausibly succeed on retry.
     fn into_result(self, name: &AttributeName) -> ServiceResult<()> {
         if self.failed.is_empty() {
             return Ok(());
         }
-        // ScopeMissing is a config error, not partial sync — surface it directly.
         if self
             .failed
             .iter()
@@ -76,7 +87,20 @@ impl KcPushOutcome {
                     .to_string(),
             ));
         }
-        let providers: Vec<String> = self
+        let all_user_not_found = self
+            .failed
+            .iter()
+            .all(|(_, e)| matches!(e, AttributeSyncError::UserNotFound));
+        let providers: Vec<String> = self.failed.iter().map(|(s, _)| s.clone()).collect();
+        if all_user_not_found {
+            return Err(ServiceError::ProviderUserDeleted(format!(
+                "Attribute `{}` saved locally; the linked Keycloak user(s) are missing: {}. \
+                 Unlink the dead provider mapping(s) before retrying.",
+                name.as_str(),
+                providers.join(", ")
+            )));
+        }
+        let annotated: Vec<String> = self
             .failed
             .iter()
             .map(|(s, e)| match e {
@@ -87,8 +111,8 @@ impl KcPushOutcome {
         Err(ServiceError::PartialSync(format!(
             "Attribute `{}` saved locally; Keycloak push failed for {} provider(s): {}",
             name.as_str(),
-            providers.len(),
-            providers.join(", ")
+            annotated.len(),
+            annotated.join(", ")
         )))
     }
 }

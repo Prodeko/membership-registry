@@ -47,6 +47,7 @@ impl IntoResponse for ServiceError {
             | ServiceError::IdpError
             | ServiceError::Misconfigured(_)
             | ServiceError::PartialSync(_)
+            | ServiceError::ProviderUserDeleted(_)
             | ServiceError::ExportFailed
             | ServiceError::MarketingSyncFailed(_) => {
                 tracing::error!("ServiceError: {self:?}");
@@ -90,6 +91,9 @@ impl IntoResponse for ServiceError {
                 (StatusCode::INTERNAL_SERVER_ERROR, msg).into_response()
             }
             ServiceError::PartialSync(msg) => (StatusCode::BAD_GATEWAY, msg).into_response(),
+            ServiceError::ProviderUserDeleted(msg) => {
+                (StatusCode::GONE, msg).into_response()
+            }
             ServiceError::TokenExpired => {
                 (StatusCode::UNAUTHORIZED, "Token expired").into_response()
             }
@@ -142,6 +146,9 @@ impl From<ServiceError> for ApiError {
             }
             ServiceError::PartialSync(msg) => {
                 ApiError::ServiceError(ServiceError::PartialSync(msg))
+            }
+            ServiceError::ProviderUserDeleted(msg) => {
+                ApiError::ServiceError(ServiceError::ProviderUserDeleted(msg))
             }
             ServiceError::TokenExpired => ApiError::Unauthorized,
             ServiceError::InvalidIdpUserId => ApiError::BadRequest,

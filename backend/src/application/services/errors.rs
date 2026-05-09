@@ -26,6 +26,11 @@ pub enum ServiceError {
     /// systems are now out of sync until reconciled. Carries a description
     /// the admin can act on (which subjects/providers failed).
     PartialSync(String),
+    /// The local write succeeded but every linked IdP user is gone (deleted
+    /// out of band). Distinct from PartialSync: retrying will never succeed —
+    /// the user needs to unlink the dead provider mapping. Maps to HTTP 410
+    /// so the UI can surface a "remediate" affordance instead of "retry".
+    ProviderUserDeleted(String),
     TokenExpired,
     InvalidIdpUserId,
     UserNotFound,
