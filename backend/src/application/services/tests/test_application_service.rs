@@ -8,6 +8,7 @@ use crate::application::ports::{
 };
 use crate::application::services::{
     application_service::{ApplicationService, CreateApplicationParams},
+    attribute_service::AttributeService,
     member_service::MemberService,
     notification_service::NotificationService,
     role_service::RoleService,
@@ -47,6 +48,7 @@ fn active_targetable_role(payment_link: Option<String>) -> ApplicationTargetable
         payment_link,
         approved_email_template: None,
         rejected_email_template: None,
+        form_attributes: vec![],
     }
 }
 
@@ -87,16 +89,35 @@ fn build_role_service() -> RoleService {
     )
 }
 
+fn build_attribute_service() -> Arc<AttributeService> {
+    Arc::new(AttributeService::new(
+        Arc::new(MockAttributeRepositoryPort::new()),
+        Arc::new(MockAttributeSyncPort::new()),
+        Arc::new(MockAuthProviderRepo::new()),
+        noop_audit_log(),
+    ))
+}
+
 fn build_service(
     commands: MockApplicationCommandPort,
     queries: MockApplicationQueryPort,
     targetable: MockTargetableRolePort,
+) -> ApplicationService {
+    build_service_with_attribute(commands, queries, targetable, build_attribute_service())
+}
+
+fn build_service_with_attribute(
+    commands: MockApplicationCommandPort,
+    queries: MockApplicationQueryPort,
+    targetable: MockTargetableRolePort,
+    attribute_service: Arc<AttributeService>,
 ) -> ApplicationService {
     ApplicationService::new(
         Arc::new(commands),
         Arc::new(queries),
         Arc::new(targetable),
         build_role_service(),
+        attribute_service,
         noop_audit_log(),
         build_notification_service(),
     )
@@ -137,6 +158,7 @@ async fn create_application_happy_path() {
                 optional_roles: None,
                 application_text: None,
                 frontend_url: "http://localhost".to_string(),
+                attributes: vec![],
             },
             None,
         )
@@ -170,6 +192,7 @@ async fn create_application_duplicate_returns_already_exists() {
                 optional_roles: None,
                 application_text: None,
                 frontend_url: "http://localhost".to_string(),
+                attributes: vec![],
             },
             None,
         )
@@ -206,6 +229,7 @@ async fn create_application_targetable_not_found() {
                 optional_roles: None,
                 application_text: None,
                 frontend_url: "http://localhost".to_string(),
+                attributes: vec![],
             },
             None,
         )
@@ -245,6 +269,7 @@ async fn create_application_inactive_role() {
                 optional_roles: None,
                 application_text: None,
                 frontend_url: "http://localhost".to_string(),
+                attributes: vec![],
             },
             None,
         )
@@ -291,6 +316,7 @@ async fn create_application_payment_required_sets_unpaid() {
                 optional_roles: None,
                 application_text: None,
                 frontend_url: "http://localhost".to_string(),
+                attributes: vec![],
             },
             None,
         )
@@ -369,6 +395,7 @@ async fn update_status_approve_calls_role_assignment() {
         Arc::new(queries),
         Arc::new(targetable),
         role_service,
+        build_attribute_service(),
         noop_audit_log(),
         build_notification_service(),
     );
@@ -461,6 +488,7 @@ async fn update_status_approve_succeeds_when_idp_sync_fails() {
         Arc::new(queries),
         Arc::new(targetable),
         role_service,
+        build_attribute_service(),
         noop_audit_log(),
         build_notification_service(),
     );
@@ -531,6 +559,7 @@ async fn update_status_reject_does_not_assign_role() {
         Arc::new(queries),
         Arc::new(targetable),
         role_service,
+        build_attribute_service(),
         noop_audit_log(),
         build_notification_service(),
     );
@@ -621,4 +650,158 @@ async fn delete_application_happy_path() {
     let result = svc.delete_application(Uuid::new_v4(), None).await;
 
     assert!(result.is_ok());
+}
+
+// --- form attributes on application creation ---
+
+#[tokio::test]
+async fn create_application_rejects_attribute_not_on_form() {
+    use crate::domain::{AttributeName, AttributeValue};
+
+    let mut commands = MockApplicationCommandPort::new();
+    let mut queries = MockApplicationQueryPort::new();
+    let mut targetable = MockTargetableRolePort::new();
+
+    queries
+        .expect_fetch_existing()
+        .returning(|_, _, _| Err(RepositoryError::NotFound));
+
+    // Form lists no attributes — submitting any should be rejected before
+    // we reach the application_commands.create call.
+    targetable
+        .expect_fetch_targetable_role()
+        .returning(|_, _| Ok(active_targetable_role(None)));
+
+    commands.expect_create().times(0);
+
+    let svc = build_service(commands, queries, targetable);
+    let result = svc
+        .create_application(
+            CreateApplicationParams {
+                user_id: Uuid::new_v4(),
+                role_name: "test-role".to_string(),
+                valid_until: valid_until(),
+                stripe_payment_id: None,
+                optional_roles: None,
+                application_text: None,
+                frontend_url: "http://localhost".to_string(),
+                attributes: vec![(
+                    AttributeName::new("major-subject").unwrap(),
+                    AttributeValue::new("iem").unwrap(),
+                )],
+            },
+            None,
+        )
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(crate::application::services::errors::ServiceError::Constraint(_))
+    ));
+}
+
+#[tokio::test]
+async fn create_application_writes_submitted_attribute_to_member() {
+    use crate::application::ports::application_repository_port::ApplicationTargetableRole;
+    use crate::domain::{AttributeDefinition, AttributeName, AttributeValue, EditableBy};
+    use std::sync::Mutex;
+
+    let user_id = Uuid::new_v4();
+
+    let mut commands = MockApplicationCommandPort::new();
+    let mut queries = MockApplicationQueryPort::new();
+    let mut targetable = MockTargetableRolePort::new();
+
+    queries
+        .expect_fetch_existing()
+        .returning(|_, _, _| Err(RepositoryError::NotFound));
+
+    targetable
+        .expect_fetch_targetable_role()
+        .returning(|_, _| {
+            Ok(ApplicationTargetableRole {
+                role_name: "test-role".to_string(),
+                valid_until: valid_until(),
+                active: true,
+                optional_roles: None,
+                payment_link: None,
+                approved_email_template: None,
+                rejected_email_template: None,
+                form_attributes: vec![AttributeName::new("major-subject").unwrap()],
+            })
+        });
+
+    commands.expect_create().returning(|new| {
+        Ok(Application::from((
+            ApplicationId(Uuid::new_v4()),
+            Utc::now(),
+            new.clone(),
+        )))
+    });
+
+    // The attribute service path must produce one upsert against MemberAttribute
+    // for the submitted value, bypassing editable_by because the form is its
+    // own authorization context.
+    let mut attr_repo = MockAttributeRepositoryPort::new();
+    attr_repo.expect_fetch_definition().returning(|_| {
+        Ok(Some(
+            AttributeDefinition::new(
+                AttributeName::new("major-subject").unwrap(),
+                None,
+                Some(vec![
+                    AttributeValue::new("iem").unwrap(),
+                    AttributeValue::new("other").unwrap(),
+                ]),
+                None,
+                false,
+                EditableBy::Admin, // admin-only on profile, but form bypasses
+            )
+            .unwrap(),
+        ))
+    });
+    let upserts: Arc<Mutex<Vec<(String, String)>>> = Arc::new(Mutex::new(Vec::new()));
+    let upserts_for_repo = Arc::clone(&upserts);
+    attr_repo
+        .expect_upsert_member_value()
+        .returning(move |_uid, name, value| {
+            upserts_for_repo
+                .lock()
+                .unwrap()
+                .push((name.as_str().to_string(), value.as_str().to_string()));
+            Ok(())
+        });
+
+    let attr_service = Arc::new(AttributeService::new(
+        Arc::new(attr_repo),
+        Arc::new(MockAttributeSyncPort::new()),
+        Arc::new(MockAuthProviderRepo::new()),
+        noop_audit_log(),
+    ));
+
+    let svc = build_service_with_attribute(commands, queries, targetable, attr_service);
+    let result = svc
+        .create_application(
+            CreateApplicationParams {
+                user_id,
+                role_name: "test-role".to_string(),
+                valid_until: valid_until(),
+                stripe_payment_id: None,
+                optional_roles: None,
+                application_text: None,
+                frontend_url: "http://localhost".to_string(),
+                attributes: vec![(
+                    AttributeName::new("major-subject").unwrap(),
+                    AttributeValue::new("iem").unwrap(),
+                )],
+            },
+            None,
+        )
+        .await;
+
+    assert!(result.is_ok());
+    let recorded = upserts.lock().unwrap().clone();
+    assert_eq!(
+        recorded,
+        vec![("major-subject".to_string(), "iem".to_string())]
+    );
 }

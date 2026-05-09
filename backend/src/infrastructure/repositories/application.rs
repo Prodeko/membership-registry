@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use sqlx::{types::chrono, PgPool};
 use uuid::Uuid;
 
@@ -6,7 +8,9 @@ use crate::application::ports::application_repository_port::{
     ApplicationWithMember as PortWithMember, TargetableRolePort,
 };
 use crate::application::ports::repository_error::RepositoryError;
-use crate::domain::{Application, ApplicationId, ApplicationStatus, NewApplication};
+use crate::domain::{
+    Application, ApplicationId, ApplicationStatus, AttributeName, NewApplication,
+};
 
 // --- Bridge types (private to repo, map DB shape to domain types) ---
 
@@ -114,16 +118,17 @@ struct ApplicationTargetableRoleDAO {
     rejected_email_template: Option<String>,
 }
 
-impl From<ApplicationTargetableRoleDAO> for PortTargetableRole {
-    fn from(row: ApplicationTargetableRoleDAO) -> Self {
-        Self {
-            role_name: row.role_name,
-            valid_until: row.valid_until,
-            active: row.active,
-            optional_roles: row.optional_roles,
-            payment_link: row.payment_link,
-            approved_email_template: row.approved_email_template,
-            rejected_email_template: row.rejected_email_template,
+impl ApplicationTargetableRoleDAO {
+    fn into_port(self, form_attributes: Vec<AttributeName>) -> PortTargetableRole {
+        PortTargetableRole {
+            role_name: self.role_name,
+            valid_until: self.valid_until,
+            active: self.active,
+            optional_roles: self.optional_roles,
+            payment_link: self.payment_link,
+            approved_email_template: self.approved_email_template,
+            rejected_email_template: self.rejected_email_template,
+            form_attributes,
         }
     }
 }
@@ -320,7 +325,33 @@ impl TargetableRolePort for ApplicationRepo {
         )
         .fetch_all(&self.pool)
         .await?;
-        Ok(rows.into_iter().map(Into::into).collect())
+
+        // Single query for every role's form_attributes. Bucket them by
+        // (role_name, valid_until) so each role gets its own ordered Vec.
+        let attr_rows = sqlx::query!(
+            r#"SELECT role_name, valid_until, attribute_name
+               FROM ApplicationTargetableRoleAttribute
+               ORDER BY role_name, valid_until, position"#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        let mut attrs_by_role: HashMap<(String, chrono::NaiveDate), Vec<AttributeName>> =
+            HashMap::new();
+        for r in attr_rows {
+            attrs_by_role
+                .entry((r.role_name, r.valid_until))
+                .or_default()
+                .push(AttributeName::new_unchecked(r.attribute_name));
+        }
+
+        Ok(rows
+            .into_iter()
+            .map(|row| {
+                let key = (row.role_name.clone(), row.valid_until);
+                let attrs = attrs_by_role.remove(&key).unwrap_or_default();
+                row.into_port(attrs)
+            })
+            .collect())
     }
 
     async fn fetch_targetable_role(
@@ -336,7 +367,8 @@ impl TargetableRolePort for ApplicationRepo {
         )
         .fetch_one(&self.pool)
         .await?;
-        Ok(row.into())
+        let attrs = fetch_form_attributes(&self.pool, &row.role_name, row.valid_until).await?;
+        Ok(row.into_port(attrs))
     }
 
     async fn create_targetable_role(
@@ -347,7 +379,12 @@ impl TargetableRolePort for ApplicationRepo {
         payment_link: Option<String>,
         approved_email_template: Option<String>,
         rejected_email_template: Option<String>,
+        form_attributes: Vec<AttributeName>,
     ) -> Result<(), RepositoryError> {
+        // Wrap in a transaction so the role + its form_attributes are atomic.
+        // A partial insert (role with no attributes when caller asked for some)
+        // would surface as silent data loss in the admin UI.
+        let mut tx = self.pool.begin().await?;
         sqlx::query!(
             r#"
             INSERT INTO ApplicationTargetableRole (role_name, valid_until, active, payment_link, approved_email_template, rejected_email_template)
@@ -360,9 +397,24 @@ impl TargetableRolePort for ApplicationRepo {
             approved_email_template,
             rejected_email_template
         )
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
 
+        for (i, name) in form_attributes.iter().enumerate() {
+            sqlx::query!(
+                r#"INSERT INTO ApplicationTargetableRoleAttribute
+                       (role_name, valid_until, attribute_name, position)
+                   VALUES ($1, $2, $3, $4)"#,
+                role_name,
+                valid_until,
+                name.as_str(),
+                i as i32,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -371,16 +423,51 @@ impl TargetableRolePort for ApplicationRepo {
         role_name: String,
         valid_until: chrono::NaiveDate,
         active: Option<bool>,
+        form_attributes: Option<Vec<AttributeName>>,
     ) -> Result<(), RepositoryError> {
-        sqlx::query!(
-            "UPDATE ApplicationTargetableRole SET active = $3 WHERE role_name = $1 AND valid_until = $2",
-            role_name,
-            valid_until,
-            active
-        )
-        .execute(&self.pool)
-        .await?;
+        let mut tx = self.pool.begin().await?;
+        if let Some(active) = active {
+            sqlx::query!(
+                "UPDATE ApplicationTargetableRole SET active = $3 WHERE role_name = $1 AND valid_until = $2",
+                role_name,
+                valid_until,
+                active
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
 
+        if let Some(attrs) = form_attributes {
+            // Replace-all semantics: simpler than a position-aware diff and
+            // correct under typical admin-UI usage where the whole list is
+            // resubmitted. The CASCADE on ApplicationTargetableRole's PK
+            // means application_attribute_role_attribute already cleans up
+            // when the role is deleted, but we own the row deletion path
+            // for in-place edits here.
+            sqlx::query!(
+                r#"DELETE FROM ApplicationTargetableRoleAttribute
+                   WHERE role_name = $1 AND valid_until = $2"#,
+                role_name,
+                valid_until,
+            )
+            .execute(&mut *tx)
+            .await?;
+            for (i, name) in attrs.iter().enumerate() {
+                sqlx::query!(
+                    r#"INSERT INTO ApplicationTargetableRoleAttribute
+                           (role_name, valid_until, attribute_name, position)
+                       VALUES ($1, $2, $3, $4)"#,
+                    role_name,
+                    valid_until,
+                    name.as_str(),
+                    i as i32,
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+        }
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -399,4 +486,24 @@ impl TargetableRolePort for ApplicationRepo {
 
         Ok(())
     }
+}
+
+async fn fetch_form_attributes(
+    pool: &PgPool,
+    role_name: &str,
+    valid_until: chrono::NaiveDate,
+) -> Result<Vec<AttributeName>, RepositoryError> {
+    let rows = sqlx::query!(
+        r#"SELECT attribute_name FROM ApplicationTargetableRoleAttribute
+           WHERE role_name = $1 AND valid_until = $2
+           ORDER BY position"#,
+        role_name,
+        valid_until,
+    )
+    .fetch_all(pool)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| AttributeName::new_unchecked(r.attribute_name))
+        .collect())
 }

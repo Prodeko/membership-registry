@@ -78,9 +78,19 @@ pub struct ApplicationTargetableRoleDTO {
     pub payment_link: Option<String>,
     pub approved_email_template: Option<String>,
     pub rejected_email_template: Option<String>,
+    /// Attribute names the applicant fills in on the form for this role,
+    /// in display order.
+    pub form_attributes: Vec<String>,
 }
 
 // --- Request DTOs ---
+
+#[derive(Deserialize, Debug, TS)]
+#[ts(export, rename = "ApplicationFormAttribute")]
+pub struct ApplicationFormAttributeDTO {
+    pub name: String,
+    pub value: String,
+}
 
 #[derive(Deserialize, Debug, TS, Validate)]
 #[ts(export, rename = "CreateApplicationRequest")]
@@ -92,6 +102,11 @@ pub struct CreateApplicationRequestDTO {
     #[validate(length(max = 10000))]
     pub application_text: Option<String>,
     pub optional_roles: Option<Vec<String>>,
+    /// Optional attribute values submitted with the application. Each
+    /// `name` must appear in the targetable role's `form_attributes`.
+    #[serde(default)]
+    #[ts(optional)]
+    pub attributes: Option<Vec<ApplicationFormAttributeDTO>>,
 }
 
 // --- From conversions ---
@@ -178,6 +193,11 @@ impl From<ApplicationTargetableRole> for ApplicationTargetableRoleDTO {
             payment_link: tr.payment_link,
             approved_email_template: tr.approved_email_template,
             rejected_email_template: tr.rejected_email_template,
+            form_attributes: tr
+                .form_attributes
+                .into_iter()
+                .map(|n| n.into_inner())
+                .collect(),
         }
     }
 }

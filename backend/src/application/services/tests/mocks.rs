@@ -82,8 +82,8 @@ mock! {
     impl TargetableRolePort for TargetableRolePort {
         async fn fetch_all_targetable_roles(&self) -> Result<Vec<ApplicationTargetableRole>, RepositoryError>;
         async fn fetch_targetable_role(&self, role_name: String, valid_until: NaiveDate) -> Result<ApplicationTargetableRole, RepositoryError>;
-        async fn create_targetable_role(&self, role_name: String, valid_until: NaiveDate, active: Option<bool>, payment_link: Option<String>, approved_email_template: Option<String>, rejected_email_template: Option<String>) -> Result<(), RepositoryError>;
-        async fn update_targetable_role(&self, role_name: String, valid_until: NaiveDate, active: Option<bool>) -> Result<(), RepositoryError>;
+        async fn create_targetable_role(&self, role_name: String, valid_until: NaiveDate, active: Option<bool>, payment_link: Option<String>, approved_email_template: Option<String>, rejected_email_template: Option<String>, form_attributes: Vec<AttributeName>) -> Result<(), RepositoryError>;
+        async fn update_targetable_role(&self, role_name: String, valid_until: NaiveDate, active: Option<bool>, form_attributes: Option<Vec<AttributeName>>) -> Result<(), RepositoryError>;
         async fn delete_targetable_role(&self, role_name: String, valid_until: NaiveDate) -> Result<(), RepositoryError>;
     }
 }

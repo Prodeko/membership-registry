@@ -270,6 +270,7 @@ impl Services {
             application_queries,
             targetable_roles,
             role_service.clone(),
+            Arc::clone(&attribute_service),
             audit_log_service.clone(),
             notification_service.clone(),
         );

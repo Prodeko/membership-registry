@@ -15,7 +15,7 @@ use crate::{
         dto::application::{
             ApplicationActionDTO, ApplicationDTO, ApplicationStatusDTO, ApplicationWithMemberDTO,
         },
-        errors::ApiResult,
+        errors::{ApiError, ApiResult},
         types::ApplicationPath,
     },
 };
@@ -131,6 +131,11 @@ struct PostTargetableRoleDTO {
     payment_link: Option<String>,
     approved_email_template: Option<String>,
     rejected_email_template: Option<String>,
+    /// Attribute names to surface on the application form, in display
+    /// order. Names must reference existing AttributeDefinition entries.
+    #[serde(default)]
+    #[ts(optional)]
+    form_attributes: Option<Vec<String>>,
 }
 #[debug_handler]
 async fn post_targetable_role(
@@ -139,6 +144,8 @@ async fn post_targetable_role(
     Json(body): Json<PostTargetableRoleDTO>,
 ) -> ApiResult<Json<()>> {
     let actor_id = user_info.map(|u| u.user_id);
+
+    let form_attributes = parse_form_attribute_names(body.form_attributes.unwrap_or_default())?;
 
     let targetable_role = state
         .application_service
@@ -149,6 +156,7 @@ async fn post_targetable_role(
             body.payment_link,
             body.approved_email_template,
             body.rejected_email_template,
+            form_attributes,
             actor_id,
         )
         .await
@@ -162,7 +170,14 @@ async fn post_targetable_role(
 struct PutTargetableRoleDTO {
     role_name: String,
     valid_until: chrono::NaiveDate,
-    active: bool,
+    /// `None` means leave unchanged; `Some(...)` toggles the active flag.
+    #[serde(default)]
+    #[ts(optional)]
+    active: Option<bool>,
+    /// `None` means leave unchanged; `Some(vec![])` clears the list.
+    #[serde(default)]
+    #[ts(optional)]
+    form_attributes: Option<Vec<String>>,
 }
 #[debug_handler]
 async fn put_targetable_role(
@@ -174,14 +189,26 @@ async fn put_targetable_role(
     let role_name = body.role_name;
     let valid_until = body.valid_until;
     let active = body.active;
+    let form_attributes = body
+        .form_attributes
+        .map(parse_form_attribute_names)
+        .transpose()?;
 
     let targetable_role = state
         .application_service
-        .update_targetable_role(role_name, valid_until, Some(active), actor_id)
+        .update_targetable_role(role_name, valid_until, active, form_attributes, actor_id)
         .await
         .map(Json)?;
 
     Ok(targetable_role)
+}
+
+fn parse_form_attribute_names(
+    raw: Vec<String>,
+) -> ApiResult<Vec<crate::domain::AttributeName>> {
+    raw.into_iter()
+        .map(|n| crate::domain::AttributeName::new(n).map_err(|_| ApiError::BadRequest))
+        .collect()
 }
 
 #[derive(Deserialize, Debug, TS)]
