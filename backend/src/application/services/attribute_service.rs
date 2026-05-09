@@ -16,7 +16,7 @@ use crate::application::ports::{
 };
 use crate::domain::{
     AttributeDefinition, AttributeName, AttributeValidationError, AttributeValue, DriftEntry,
-    EditableBy, IdpSubject, MemberAttribute, Patch, PersonId, SyncStatus,
+    EditableBy, IdpSubject, MemberAttribute, Patch, PersonId,
 };
 
 use super::{
@@ -103,7 +103,7 @@ pub struct AttributeService {
     pub sync: Arc<dyn AttributeSyncPort>,
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
-    sync_status_cache: Cache<String, SyncStatus>,
+    sync_status_cache: Cache<String, Vec<DriftEntry>>,
 }
 
 impl AttributeService {
@@ -559,24 +559,24 @@ impl AttributeService {
     // Drift detection & reconciliation
     // -----------------------------------------------------------------------
 
-    pub async fn get_keycloak_sync_status(&self) -> ServiceResult<SyncStatus> {
+    pub async fn get_keycloak_sync_status(&self) -> ServiceResult<Vec<DriftEntry>> {
         if let Some(cached) = self.sync_status_cache.get(&String::new()).await {
             return Ok(cached);
         }
-        let status = self.compute_sync_status().await?;
+        let entries = self.compute_sync_status().await?;
         self.sync_status_cache
-            .insert(String::new(), status.clone())
+            .insert(String::new(), entries.clone())
             .await;
-        Ok(status)
+        Ok(entries)
     }
 
-    async fn compute_sync_status(&self) -> ServiceResult<SyncStatus> {
+    async fn compute_sync_status(&self) -> ServiceResult<Vec<DriftEntry>> {
         let defs = self.repo.fetch_all_definitions().await?;
         let synced_defs: Vec<_> = defs.iter().filter(|d| d.sync_to_keycloak()).collect();
         let mut entries: Vec<DriftEntry> = Vec::new();
 
         if synced_defs.is_empty() {
-            return Ok(SyncStatus { entries });
+            return Ok(entries);
         }
 
         // One paginated KC user listing covers all synced definitions.
@@ -653,15 +653,15 @@ impl AttributeService {
             }
         }
 
-        Ok(SyncStatus { entries })
+        Ok(entries)
     }
 
     pub async fn sync_missing_to_keycloak(&self) -> ServiceResult<SyncMissingAttributesSummary> {
-        let status = self.compute_sync_status().await?;
+        let entries = self.compute_sync_status().await?;
         let mut applied = 0u32;
         let mut failures = Vec::new();
 
-        for entry in &status.entries {
+        for entry in &entries {
             match entry {
                 DriftEntry::RegistryOnly {
                     user_id,

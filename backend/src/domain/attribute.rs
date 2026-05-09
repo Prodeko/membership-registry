@@ -248,17 +248,6 @@ pub enum DriftEntry {
     },
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub struct SyncStatus {
-    pub entries: Vec<DriftEntry>,
-}
-
-impl SyncStatus {
-    pub fn is_in_sync(&self) -> bool {
-        self.entries.is_empty()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

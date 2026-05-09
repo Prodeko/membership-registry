@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use uuid::Uuid;
 
-use crate::domain::{AttributeDefinition, AttributeValue, DriftEntry, EditableBy, SyncStatus};
+use crate::domain::{AttributeDefinition, AttributeValue, DriftEntry, EditableBy};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename = "EditableBy")]
@@ -190,10 +190,10 @@ pub struct AttributeSyncStatusDTO {
     pub entries: Vec<DriftEntryDTO>,
 }
 
-impl From<SyncStatus> for AttributeSyncStatusDTO {
-    fn from(s: SyncStatus) -> Self {
+impl From<Vec<DriftEntry>> for AttributeSyncStatusDTO {
+    fn from(entries: Vec<DriftEntry>) -> Self {
         Self {
-            entries: s.entries.into_iter().map(Into::into).collect(),
+            entries: entries.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -284,14 +284,12 @@ mod tests {
 
     #[test]
     fn sync_status_dto_serializes_with_entries_field() {
-        let status = SyncStatus {
-            entries: vec![DriftEntry::KeycloakOnly {
-                idp_subject: IdpSubject("kc-1".to_string()),
-                attribute: AttributeName::new("xq-year").unwrap(),
-                value: av("IV"),
-            }],
-        };
-        let dto: AttributeSyncStatusDTO = status.into();
+        let entries: Vec<DriftEntry> = vec![DriftEntry::KeycloakOnly {
+            idp_subject: IdpSubject("kc-1".to_string()),
+            attribute: AttributeName::new("xq-year").unwrap(),
+            value: av("IV"),
+        }];
+        let dto: AttributeSyncStatusDTO = entries.into();
         let json = serde_json::to_value(&dto).unwrap();
         let entries = json["entries"].as_array().unwrap();
         assert_eq!(entries.len(), 1);

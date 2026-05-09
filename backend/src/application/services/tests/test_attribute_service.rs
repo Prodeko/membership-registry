@@ -245,9 +245,9 @@ async fn drift_emits_registry_unlinked_for_user_with_no_providers() {
     let svc = build_service(repo, sync, auth_provider);
     let status = svc.get_keycloak_sync_status().await.unwrap();
 
-    assert_eq!(status.entries.len(), 1);
+    assert_eq!(status.len(), 1);
     assert!(matches!(
-        &status.entries[0],
+        &status[0],
         DriftEntry::RegistryUnlinked { .. }
     ));
 }
@@ -279,9 +279,9 @@ async fn drift_emits_registry_only_when_kc_user_lacks_attribute() {
     let svc = build_service(repo, sync, auth_provider);
     let status = svc.get_keycloak_sync_status().await.unwrap();
 
-    assert_eq!(status.entries.len(), 1);
+    assert_eq!(status.len(), 1);
     assert!(matches!(
-        &status.entries[0],
+        &status[0],
         DriftEntry::RegistryOnly { .. }
     ));
 }
@@ -316,9 +316,9 @@ async fn drift_emits_value_mismatch_when_kc_disagrees() {
     let svc = build_service(repo, sync, auth_provider);
     let status = svc.get_keycloak_sync_status().await.unwrap();
 
-    assert_eq!(status.entries.len(), 1);
+    assert_eq!(status.len(), 1);
     assert!(matches!(
-        &status.entries[0],
+        &status[0],
         DriftEntry::ValueMismatch { .. }
     ));
 }
@@ -340,9 +340,9 @@ async fn drift_emits_keycloak_only_when_registry_lacks_value() {
     let svc = build_service(repo, sync, MockAuthProviderRepo::new());
     let status = svc.get_keycloak_sync_status().await.unwrap();
 
-    assert_eq!(status.entries.len(), 1);
+    assert_eq!(status.len(), 1);
     assert!(matches!(
-        &status.entries[0],
+        &status[0],
         DriftEntry::KeycloakOnly { .. }
     ));
 }
