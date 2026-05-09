@@ -591,7 +591,9 @@ impl AttributeService {
         for def in synced_defs {
             let registry_rows = self.repo.fetch_all_values_for(def.name()).await?;
 
-            // Map registry user_ids → IdP subjects for diffing.
+            // Map registry user_ids → IdP subjects for diffing. Registry rows
+            // with no linked provider are surfaced as RegistryUnlinked so
+            // they don't silently disappear from drift detection.
             let mut registry_by_kc: HashMap<String, (PersonId, AttributeValue)> = HashMap::new();
             for (uid, val) in &registry_rows {
                 let providers = self
@@ -599,6 +601,14 @@ impl AttributeService {
                     .find_by_user_id(&uid.0)
                     .await
                     .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
+                if providers.is_empty() {
+                    entries.push(DriftEntry::RegistryUnlinked {
+                        user_id: uid.clone(),
+                        attribute: def.name().clone(),
+                        value: val.clone(),
+                    });
+                    continue;
+                }
                 for p in providers {
                     registry_by_kc
                         .insert(p.provider_user_id.clone(), (uid.clone(), val.clone()));
@@ -668,6 +678,13 @@ impl AttributeService {
                         reason,
                     }),
                 },
+                DriftEntry::RegistryUnlinked {
+                    user_id, attribute, ..
+                } => failures.push(SyncMissingFailure {
+                    user_id: user_id.0,
+                    attribute: attribute.as_str().to_string(),
+                    reason: "user has no linked identity provider".to_string(),
+                }),
                 DriftEntry::KeycloakOnly { .. } => {
                     // KC-only entries are not "missing from Keycloak"; this
                     // function only pushes registry → KC. KC-only cleanup

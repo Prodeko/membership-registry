@@ -116,6 +116,11 @@ pub enum DriftEntryDTO {
         attribute: String,
         value: String,
     },
+    RegistryUnlinked {
+        user_id: Uuid,
+        attribute: String,
+        value: String,
+    },
     KeycloakOnly {
         idp_subject: String,
         attribute: String,
@@ -141,6 +146,15 @@ impl From<DriftEntry> for DriftEntryDTO {
             } => Self::RegistryOnly {
                 user_id: user_id.0,
                 idp_subject: idp_subject.0,
+                attribute: attribute.into_inner(),
+                value: value.into_inner(),
+            },
+            DriftEntry::RegistryUnlinked {
+                user_id,
+                attribute,
+                value,
+            } => Self::RegistryUnlinked {
+                user_id: user_id.0,
                 attribute: attribute.into_inner(),
                 value: value.into_inner(),
             },

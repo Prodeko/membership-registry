@@ -188,7 +188,12 @@ const SyncStatusPanel = () => {
       acc[e.type] += 1;
       return acc;
     },
-    { registry_only: 0, keycloak_only: 0, value_mismatch: 0 },
+    {
+      registry_only: 0,
+      registry_unlinked: 0,
+      keycloak_only: 0,
+      value_mismatch: 0,
+    },
   );
   const drift = status.entries.length;
   const inSync = drift === 0;
@@ -228,6 +233,8 @@ const SyncStatusPanel = () => {
           <span className="text-sm text-muted-foreground">
             Registry-only: {counts.registry_only} · Value mismatch:{" "}
             {counts.value_mismatch} · Keycloak-only: {counts.keycloak_only}
+            {counts.registry_unlinked > 0 &&
+              ` · Unlinked: ${counts.registry_unlinked}`}
           </span>
         )}
       </div>

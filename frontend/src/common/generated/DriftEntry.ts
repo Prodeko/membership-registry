@@ -3,4 +3,4 @@
 /**
  * Tagged-union wire form for a single drift observation.
  */
-export type DriftEntry = { "type": "registry_only", user_id: string, idp_subject: string, attribute: string, value: string, } | { "type": "keycloak_only", idp_subject: string, attribute: string, value: string, } | { "type": "value_mismatch", user_id: string, idp_subject: string, attribute: string, registry_value: string, keycloak_value: string, };
+export type DriftEntry = { "type": "registry_only", user_id: string, idp_subject: string, attribute: string, value: string, } | { "type": "registry_unlinked", user_id: string, attribute: string, value: string, } | { "type": "keycloak_only", idp_subject: string, attribute: string, value: string, } | { "type": "value_mismatch", user_id: string, idp_subject: string, attribute: string, registry_value: string, keycloak_value: string, };

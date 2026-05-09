@@ -208,6 +208,14 @@ pub enum DriftEntry {
         attribute: AttributeName,
         value: AttributeValue,
     },
+    /// Registry has a value but the user has no linked identity provider, so
+    /// no KC subject exists to compare against. These cannot be auto-synced
+    /// without first linking the user to KC.
+    RegistryUnlinked {
+        user_id: PersonId,
+        attribute: AttributeName,
+        value: AttributeValue,
+    },
     /// Keycloak has a value the registry doesn't track for any linked user.
     KeycloakOnly {
         idp_subject: IdpSubject,
