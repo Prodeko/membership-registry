@@ -1113,6 +1113,287 @@ impl KeycloakClient {
 
         Ok(())
     }
+
+    // -----------------------------------------------------------------------
+    // User attribute (single-key, used by the registry-attributes feature)
+    // -----------------------------------------------------------------------
+
+    /// Clear a single user attribute by removing its key from the user's
+    /// attributes map. Other attributes are preserved.
+    pub async fn clear_user_attribute(
+        &self,
+        subject: &str,
+        attribute: &str,
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!("users/{}", encode_path(subject)));
+
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("Get user request failed: {e}")))?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(KeycloakError::NotFound);
+        }
+        if !response.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "Get user returned status {}",
+                response.status()
+            )));
+        }
+
+        let mut user: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| KeycloakError::BadResponse(format!("User parse error: {e}")))?;
+
+        if let Some(obj) = user.as_object_mut() {
+            if let Some(attrs) = obj.get_mut("attributes").and_then(|a| a.as_object_mut()) {
+                attrs.remove(attribute);
+            }
+        }
+
+        let put = self
+            .http
+            .put(&url)
+            .bearer_auth(&token)
+            .json(&user)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("Update user failed: {e}")))?;
+
+        if !put.status().is_success() {
+            let status = put.status();
+            return Err(KeycloakError::Unavailable(format!(
+                "Update user returned status {status}"
+            )));
+        }
+        Ok(())
+    }
+
+    /// List all (subject_id, value) pairs for a given attribute. Uses
+    /// Keycloak's user search by attribute (`q=<attr>:*`).
+    pub async fn list_users_with_attribute(
+        &self,
+        attribute: &str,
+    ) -> Result<Vec<(String, String)>, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("users");
+        let mut out: Vec<(String, String)> = Vec::new();
+        let mut first: usize = 0;
+        let page: usize = 100;
+
+        loop {
+            let resp = self
+                .http
+                .get(&url)
+                .bearer_auth(&token)
+                .query(&[
+                    ("q", format!("{}:*", attribute)),
+                    ("first", first.to_string()),
+                    ("max", page.to_string()),
+                    ("briefRepresentation", "false".to_string()),
+                ])
+                .send()
+                .await
+                .map_err(|e| {
+                    KeycloakError::Unavailable(format!("User search request failed: {e}"))
+                })?;
+
+            if !resp.status().is_success() {
+                return Err(KeycloakError::Unavailable(format!(
+                    "User search returned status {}",
+                    resp.status()
+                )));
+            }
+
+            let users: Vec<serde_json::Value> = resp
+                .json()
+                .await
+                .map_err(|e| KeycloakError::BadResponse(format!("User search parse: {e}")))?;
+            let len = users.len();
+            for u in users {
+                let id = u.get("id").and_then(|v| v.as_str()).map(String::from);
+                let val = u
+                    .get("attributes")
+                    .and_then(|a| a.get(attribute))
+                    .and_then(|v| v.as_array())
+                    .and_then(|arr| arr.first())
+                    .and_then(|s| s.as_str())
+                    .map(String::from);
+                if let (Some(id), Some(val)) = (id, val) {
+                    out.push((id, val));
+                }
+            }
+            if len < page {
+                break;
+            }
+            first += page;
+        }
+
+        Ok(out)
+    }
+
+    // -----------------------------------------------------------------------
+    // Client scopes & protocol mappers (registry-attributes feature)
+    // -----------------------------------------------------------------------
+
+    /// Find a client scope by name. Returns its ID, or None if not found.
+    pub async fn find_client_scope_id(
+        &self,
+        scope_name: &str,
+    ) -> Result<Option<String>, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("client-scopes");
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("List scopes failed: {e}")))?;
+        if !resp.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "List scopes returned {}",
+                resp.status()
+            )));
+        }
+        let scopes: Vec<serde_json::Value> = resp
+            .json()
+            .await
+            .map_err(|e| KeycloakError::BadResponse(format!("Scope parse error: {e}")))?;
+        Ok(scopes.into_iter().find_map(|s| {
+            if s.get("name").and_then(|n| n.as_str()) == Some(scope_name) {
+                s.get("id")
+                    .and_then(|i| i.as_str())
+                    .map(|s| s.to_string())
+            } else {
+                None
+            }
+        }))
+    }
+
+    /// Create a User Attribute protocol mapper inside a client scope.
+    /// Returns Ok if the mapper already exists (HTTP 409).
+    pub async fn create_attribute_mapper(
+        &self,
+        scope_id: &str,
+        attribute_name: &str,
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "client-scopes/{}/protocol-mappers/models",
+            encode_path(scope_id)
+        ));
+        let body = serde_json::json!({
+            "name": attribute_name,
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-usermodel-attribute-mapper",
+            "config": {
+                "user.attribute": attribute_name,
+                "claim.name": attribute_name,
+                "jsonType.label": "String",
+                "multivalued": "false",
+                "userinfo.token.claim": "true",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+            }
+        });
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("Create mapper failed: {e}")))?;
+        if resp.status() == reqwest::StatusCode::CONFLICT {
+            return Ok(());
+        }
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            tracing::error!("Create attribute mapper returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Create mapper returned status {status}"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Find a protocol mapper by name inside a client scope. Returns its ID.
+    pub async fn find_attribute_mapper_id(
+        &self,
+        scope_id: &str,
+        attribute_name: &str,
+    ) -> Result<Option<String>, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "client-scopes/{}/protocol-mappers/models",
+            encode_path(scope_id)
+        ));
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("List mappers failed: {e}")))?;
+        if !resp.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "List mappers returned {}",
+                resp.status()
+            )));
+        }
+        let mappers: Vec<serde_json::Value> = resp
+            .json()
+            .await
+            .map_err(|e| KeycloakError::BadResponse(format!("Mappers parse error: {e}")))?;
+        Ok(mappers.into_iter().find_map(|m| {
+            if m.get("name").and_then(|n| n.as_str()) == Some(attribute_name) {
+                m.get("id")
+                    .and_then(|i| i.as_str())
+                    .map(|s| s.to_string())
+            } else {
+                None
+            }
+        }))
+    }
+
+    /// Delete a protocol mapper from a client scope. Idempotent (404 = ok).
+    pub async fn delete_attribute_mapper(
+        &self,
+        scope_id: &str,
+        mapper_id: &str,
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "client-scopes/{}/protocol-mappers/models/{}",
+            encode_path(scope_id),
+            encode_path(mapper_id)
+        ));
+        let resp = self
+            .http
+            .delete(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("Delete mapper failed: {e}")))?;
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(());
+        }
+        if !resp.status().is_success() {
+            let status = resp.status();
+            return Err(KeycloakError::Unavailable(format!(
+                "Delete mapper returned status {status}"
+            )));
+        }
+        Ok(())
+    }
 }
 
 #[cfg(test)]
