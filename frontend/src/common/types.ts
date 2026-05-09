@@ -32,6 +32,7 @@ export type {
   NewMember,
   NewSavedFilter,
   PostTargetableRole,
+  PutTargetableRole,
   PublicConfig,
   Role,
   RoleGroup,

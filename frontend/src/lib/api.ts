@@ -29,6 +29,7 @@ import {
   NewMember,
   NewSavedFilter,
   PostTargetableRole,
+  PutTargetableRole,
   PublicConfig,
   Role,
   RoleGroup,
@@ -503,6 +504,14 @@ export const useDeleteTargetableRole = () => {
           valid_until: id.valid_until,
         },
       });
+    },
+  });
+};
+
+export const useUpdateTargetableRole = () => {
+  return useMutation<void, Error, PutTargetableRole>({
+    mutationFn: async (body: PutTargetableRole) => {
+      await admin_axios_client.put("/applications/targetable-roles", body);
     },
   });
 };
