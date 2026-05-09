@@ -22,6 +22,8 @@ use application::{
         application_repository_port::{
             ApplicationCommandPort, ApplicationQueryPort, TargetableRolePort,
         },
+        attribute_repository_port::AttributeRepositoryPort,
+        attribute_sync_port::AttributeSyncPort,
         audit_log_repository_port::AuditLogRepositoryPort,
         auth_provider_repo_port::AuthProviderRepositoryPort,
         email_port::EmailPort,
@@ -38,7 +40,8 @@ use application::{
         user_admin_port::UserAdminPort,
     },
     services::{
-        application_service::ApplicationService, audit_log_service::AuditLogService,
+        application_service::ApplicationService, attribute_service::AttributeService,
+        audit_log_service::AuditLogService,
         authentication_service::AuthenticationService, export_service::ExportService,
         marketing_service::MarketingService, marketing_tag_admin_service::MarketingTagAdminService,
         member_service::MemberService, notification_service::NotificationService,
@@ -55,8 +58,8 @@ use infrastructure::{
         ammonia_sanitizer::AmmoniaSanitizer,
         csv_adapter::CsvAdapter,
         keycloak::{
-            KeycloakAuthAdapter, KeycloakClient, KeycloakConfig, KeycloakRoleSyncAdapter,
-            KeycloakUserAdminAdapter,
+            KeycloakAttributeSyncAdapter, KeycloakAuthAdapter, KeycloakClient, KeycloakConfig,
+            KeycloakRoleSyncAdapter, KeycloakUserAdminAdapter,
         },
         mailchimp::{MailchimpConfig, MailchimpMarketingAdapter},
         sendgrid::{SendGridConfig, SendGridEmailAdapter},
@@ -72,6 +75,7 @@ use infrastructure::{
 pub struct Services {
     pub member_service: MemberService,
     pub application_service: ApplicationService,
+    pub attribute_service: AttributeService,
     pub role_service: RoleService,
     pub role_group_service: RoleGroupService,
     pub renewal_service: RenewalService,
@@ -178,6 +182,9 @@ impl Services {
             Arc::new(KeycloakAuthAdapter::new(keycloak_client.clone()));
         let role_sync: Arc<dyn RoleSyncPort> =
             Arc::new(KeycloakRoleSyncAdapter::new(keycloak_client.clone()));
+        let attribute_sync: Arc<dyn AttributeSyncPort> = Arc::new(
+            KeycloakAttributeSyncAdapter::new(keycloak_client.clone()),
+        );
         let user_admin: Arc<dyn UserAdminPort> =
             Arc::new(KeycloakUserAdminAdapter::new(keycloak_client));
         let auth_provider_repo: Arc<dyn AuthProviderRepositoryPort> =
@@ -209,6 +216,7 @@ impl Services {
         let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member);
         let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role);
         let role_group_repo: Arc<dyn RoleGroupRepositoryPort> = Arc::new(repo.role_group);
+        let attribute_repo: Arc<dyn AttributeRepositoryPort> = Arc::new(repo.attribute);
         let application_commands: Arc<dyn ApplicationCommandPort> =
             Arc::new(repo.application.clone());
         let application_queries: Arc<dyn ApplicationQueryPort> = Arc::new(repo.application.clone());
@@ -249,6 +257,12 @@ impl Services {
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         );
+        let attribute_service = AttributeService::new(
+            Arc::clone(&attribute_repo),
+            Arc::clone(&attribute_sync),
+            Arc::clone(&auth_provider_repo),
+            audit_log_service.clone(),
+        );
         let application_service = ApplicationService::new(
             application_commands,
             application_queries,
@@ -277,6 +291,7 @@ impl Services {
         Self {
             member_service,
             application_service,
+            attribute_service,
             role_service,
             role_group_service,
             renewal_service,

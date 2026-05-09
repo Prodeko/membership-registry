@@ -1,4 +1,5 @@
 pub mod application;
+pub mod attribute;
 pub mod audit_log;
 pub mod email_template;
 pub mod marketing;

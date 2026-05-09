@@ -19,7 +19,8 @@ use crate::{
     application::{
         ports::payment_webhook_port::PaymentWebhookPort,
         services::{
-            application_service::ApplicationService, audit_log_service::AuditLogService,
+            application_service::ApplicationService, attribute_service::AttributeService,
+            audit_log_service::AuditLogService,
             authentication_service::AuthenticationService, export_service::ExportService,
             marketing_service::MarketingService,
             marketing_tag_admin_service::MarketingTagAdminService, member_service::MemberService,
@@ -46,6 +47,7 @@ pub struct AppState {
     pub config: Arc<Config>,
     pub member_service: Arc<MemberService>,
     pub application_service: Arc<ApplicationService>,
+    pub attribute_service: Arc<AttributeService>,
     pub role_service: Arc<RoleService>,
     pub role_group_service: Arc<RoleGroupService>,
     pub renewal_service: Arc<RenewalService>,
@@ -97,6 +99,7 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
         config: Arc::new(config),
         member_service: Arc::new(services.member_service),
         application_service: Arc::new(services.application_service),
+        attribute_service: Arc::new(services.attribute_service),
         role_service: Arc::new(services.role_service),
         role_group_service: Arc::new(services.role_group_service),
         renewal_service: Arc::new(services.renewal_service),
