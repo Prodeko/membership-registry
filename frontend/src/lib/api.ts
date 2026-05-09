@@ -1237,6 +1237,9 @@ export const useSetMemberAttribute = (memberId: string) => {
       queryClient.invalidateQueries({
         queryKey: [QueryKey.MEMBER_ATTRIBUTES, memberId],
       });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTES_SYNC_STATUS],
+      });
     },
   });
 };
@@ -1252,6 +1255,9 @@ export const useDeleteMemberAttribute = (memberId: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: [QueryKey.MEMBER_ATTRIBUTES, memberId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTES_SYNC_STATUS],
       });
     },
   });
