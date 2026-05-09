@@ -218,13 +218,16 @@ const SyncStatusPanel = () => {
           );
           return;
         }
+        // Toast samples the first three; emit the full list to console so
+        // the remaining failures aren't lost when sync_status is invalidated.
+        console.error("Sync-missing failures:", summary.failures);
         const sample = summary.failures
           .slice(0, 3)
           .map((f) => `${f.attribute}: ${f.reason}`)
           .join("\n");
         const more =
           summary.failures.length > 3
-            ? `\n…and ${summary.failures.length - 3} more`
+            ? `\n…and ${summary.failures.length - 3} more (see browser console)`
             : "";
         toast.error(
           `Synced ${summary.applied}, ${summary.failed} failed.\n${sample}${more}`,
