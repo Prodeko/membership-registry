@@ -251,7 +251,11 @@ const ApplicationForm = () => {
                       )}
                       {attr.allowed_values && attr.allowed_values.length > 0 ? (
                         <Select value={value} onValueChange={set}>
-                          <SelectTrigger id={id} className="w-64">
+                          <SelectTrigger
+                            id={id}
+                            className="w-64"
+                            data-testid={`application-attr-${attr.name}`}
+                          >
                             <SelectValue placeholder="(select)" />
                           </SelectTrigger>
                           <SelectContent>
@@ -267,6 +271,7 @@ const ApplicationForm = () => {
                           id={id}
                           value={value}
                           onChange={(e) => set(e.target.value)}
+                          data-testid={`application-attr-${attr.name}`}
                         />
                       )}
                     </div>
