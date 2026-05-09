@@ -31,7 +31,9 @@ interface Props {
   mode: Mode;
   initial?: AttributeDefinition;
   onClose: () => void;
-  onSubmit: (body: CreateAttributeDefinition | UpdateAttributeDefinition) => void;
+  onSubmit: (
+    body: CreateAttributeDefinition | UpdateAttributeDefinition,
+  ) => void;
   submitting: boolean;
 }
 
@@ -196,11 +198,7 @@ const AttributeFormModal = ({
             Cancel
           </Button>
           <Button onClick={handleSubmit} disabled={submitting}>
-            {submitting
-              ? "Saving..."
-              : mode === "create"
-                ? "Create"
-                : "Save"}
+            {submitting ? "Saving..." : mode === "create" ? "Create" : "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

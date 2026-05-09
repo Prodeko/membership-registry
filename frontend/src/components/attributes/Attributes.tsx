@@ -119,7 +119,9 @@ const Attributes = () => {
                     )}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={def.sync_to_keycloak ? "default" : "outline"}>
+                    <Badge
+                      variant={def.sync_to_keycloak ? "default" : "outline"}
+                    >
                       {def.sync_to_keycloak ? "SSO" : "Internal"}
                     </Badge>
                   </TableCell>
@@ -154,9 +156,7 @@ const Attributes = () => {
         open={createOpen}
         mode="create"
         onClose={() => setCreateOpen(false)}
-        onSubmit={(body) =>
-          handleCreate(body as CreateAttributeDefinition)
-        }
+        onSubmit={(body) => handleCreate(body as CreateAttributeDefinition)}
         submitting={createMutation.isPending}
       />
 

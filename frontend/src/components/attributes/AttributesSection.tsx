@@ -83,9 +83,7 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
       if (attr.value) onDelete(attr.name);
       return;
     }
-    onSet(
-      { name: attr.name, value: draft },
-    );
+    onSet({ name: attr.name, value: draft });
   };
 
   const handleSelectChange = (v: string) => {
@@ -116,7 +114,9 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
 
       {!attr.editable ? (
         <p className="text-sm">
-          {attr.value ?? <span className="text-muted-foreground">— not set</span>}
+          {attr.value ?? (
+            <span className="text-muted-foreground">— not set</span>
+          )}
         </p>
       ) : hasEnum ? (
         <div className="flex gap-2">

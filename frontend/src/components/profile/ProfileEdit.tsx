@@ -235,8 +235,7 @@ const UserAttributesCard = () => {
         isLoading={isLoading}
         onSet={(input) =>
           setMutation.mutate(input, {
-            onSuccess: () =>
-              toast.success(`Saved ${input.name}`),
+            onSuccess: () => toast.success(`Saved ${input.name}`),
           })
         }
         onDelete={(name) =>
