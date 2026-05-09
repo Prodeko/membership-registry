@@ -83,7 +83,19 @@
       "pending_hint": "Tarkista sähköpostistasi vahvistusviesti.",
       "save_error": "Markkinointiasetusten tallennus epäonnistui.",
       "load_error": "Markkinointiasetusten lataaminen epäonnistui."
+    },
+    "attributes": {
+      "title": "Lisätiedot",
+      "empty": "Ei täytettäviä lisätietoja."
     }
+  },
+  "attributes": {
+    "loading": "Ladataan lisätietoja...",
+    "read_only": "vain luku",
+    "not_set": "— ei asetettu",
+    "not_set_option": "— ei asetettu —",
+    "not_set_placeholder": "Ei asetettu",
+    "clear": "Tyhjennä"
   },
   "application": {
     "form": {

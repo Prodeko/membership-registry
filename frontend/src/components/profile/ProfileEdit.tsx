@@ -219,6 +219,7 @@ const ProfileEdit = () => {
 };
 
 const UserAttributesCard = () => {
+  const { t } = useTranslation();
   const { data: attributes, isLoading } = useGetMyAttributes();
   const setMutation = useSetMyAttribute();
   const deleteMutation = useDeleteMyAttribute();
@@ -230,7 +231,8 @@ const UserAttributesCard = () => {
   return (
     <Card className="p-10 space-y-4 h-fit max-w-lg w-full">
       <AttributesSection
-        heading="Additional info"
+        heading={t("profile.attributes.title")}
+        emptyMessage={t("profile.attributes.empty")}
         attributes={attributes}
         isLoading={isLoading}
         onSet={(input) =>

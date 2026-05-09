@@ -83,7 +83,19 @@
       "pending_hint": "Check your inbox for the confirmation email.",
       "save_error": "Failed to save marketing preferences.",
       "load_error": "Failed to load marketing preferences."
+    },
+    "attributes": {
+      "title": "Additional info",
+      "empty": "No additional info to fill in."
     }
+  },
+  "attributes": {
+    "loading": "Loading attributes...",
+    "read_only": "read-only",
+    "not_set": "— not set",
+    "not_set_option": "— not set —",
+    "not_set_placeholder": "Not set",
+    "clear": "Clear"
   },
   "application": {
     "form": {

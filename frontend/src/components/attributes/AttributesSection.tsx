@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MemberAttribute } from "@/common/types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -31,17 +32,22 @@ const AttributesSection = ({
   onDelete,
   isLoading,
   isMutating,
-  heading = "Attributes",
-  emptyMessage = "No attributes defined.",
+  heading,
+  emptyMessage,
 }: Props) => {
+  const { t } = useTranslation();
   if (isLoading) {
-    return <div className="text-muted-foreground">Loading attributes...</div>;
+    return (
+      <div className="text-muted-foreground">{t("attributes.loading")}</div>
+    );
   }
   if (!attributes || attributes.length === 0) {
     return (
       <div className="space-y-2">
         {heading && <h3 className="text-lg font-semibold">{heading}</h3>}
-        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+        {emptyMessage && (
+          <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+        )}
       </div>
     );
   }
@@ -72,6 +78,7 @@ interface RowProps {
 }
 
 const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
+  const { t } = useTranslation();
   const [draft, setDraft] = useState<string>(attr.value ?? "");
 
   const isDirty = draft !== (attr.value ?? "");
@@ -103,7 +110,7 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
         </Label>
         {!attr.editable && (
           <span className="text-xs text-muted-foreground italic">
-            read-only
+            {t("attributes.read_only")}
           </span>
         )}
       </div>
@@ -114,7 +121,9 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
       {!attr.editable ? (
         <p className="text-sm">
           {attr.value ?? (
-            <span className="text-muted-foreground">— not set</span>
+            <span className="text-muted-foreground">
+              {t("attributes.not_set")}
+            </span>
           )}
         </p>
       ) : hasEnum ? (
@@ -125,10 +134,12 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
             disabled={isMutating}
           >
             <SelectTrigger id={`attr-${attr.name}`} className="w-64">
-              <SelectValue placeholder="Not set" />
+              <SelectValue placeholder={t("attributes.not_set_placeholder")} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value={CLEAR_VALUE}>— not set —</SelectItem>
+              <SelectItem value={CLEAR_VALUE}>
+                {t("attributes.not_set_option")}
+              </SelectItem>
               {attr.allowed_values?.map((v) => (
                 <SelectItem key={v} value={v}>
                   {v}
@@ -147,7 +158,7 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
               if (isDirty) save();
             }}
             disabled={isMutating}
-            placeholder="Not set"
+            placeholder={t("attributes.not_set_placeholder")}
           />
           {attr.value && (
             <Button
@@ -158,7 +169,7 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
               }}
               disabled={isMutating}
             >
-              Clear
+              {t("attributes.clear")}
             </Button>
           )}
         </div>
