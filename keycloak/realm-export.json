@@ -1,5 +1,18 @@
 {
   "realm": "membership-registry",
   "enabled": true,
-  "sslRequired": "none"
+  "sslRequired": "none",
+  "clientScopes": [
+    {
+      "name": "registry-attributes",
+      "description": "User attributes managed by membership-registry, exposed to clients via JWT claims",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": []
+    }
+  ],
+  "defaultDefaultClientScopes": ["registry-attributes"]
 }
