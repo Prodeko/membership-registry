@@ -1,0 +1,20 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE ApplicationTargetableRole\n               SET active = $3,\n                   optional_roles = $4,\n                   payment_link = $5,\n                   approved_email_template = $6,\n                   rejected_email_template = $7\n               WHERE role_name = $1 AND valid_until = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Date",
+        "Bool",
+        "TextArray",
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6c03baa0ac0324c5465fab1caf2b8dd981224a26dd5121b03c439e303bfee5a3"
+}

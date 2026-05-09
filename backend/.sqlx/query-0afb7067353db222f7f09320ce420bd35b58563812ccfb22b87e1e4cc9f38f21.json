@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT name, description, allowed_values,\n                      sync_to_keycloak,\n                      editable_by AS \"editable_by: EditableByDAO\"\n               FROM AttributeDefinition ORDER BY name",
+  "query": "SELECT name, description, allowed_values, default_value,\n                      sync_to_keycloak,\n                      editable_by AS \"editable_by: EditableByDAO\"\n               FROM AttributeDefinition WHERE name = $1",
   "describe": {
     "columns": [
       {
@@ -20,11 +20,16 @@
       },
       {
         "ordinal": 3,
+        "name": "default_value",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
         "name": "sync_to_keycloak",
         "type_info": "Bool"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "editable_by: EditableByDAO",
         "type_info": {
           "Custom": {
@@ -41,15 +46,18 @@
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Text"
+      ]
     },
     "nullable": [
       false,
+      true,
       true,
       true,
       false,
       false
     ]
   },
-  "hash": "a854a40292b477a601f149f802ba0ca55e55ef7df487476bd2523b2e8ab2f18f"
+  "hash": "0afb7067353db222f7f09320ce420bd35b58563812ccfb22b87e1e4cc9f38f21"
 }

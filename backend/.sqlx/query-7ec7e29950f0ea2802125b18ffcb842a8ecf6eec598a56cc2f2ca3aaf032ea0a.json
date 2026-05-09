@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO AttributeDefinition (name, description, allowed_values, sync_to_keycloak, editable_by)\n               VALUES ($1, $2, $3, $4, $5)\n               RETURNING name, description, allowed_values,\n                         sync_to_keycloak,\n                         editable_by AS \"editable_by: EditableByDAO\"",
+  "query": "UPDATE AttributeDefinition\n               SET description = $2, allowed_values = $3, default_value = $4,\n                   sync_to_keycloak = $5, editable_by = $6\n               WHERE name = $1\n               RETURNING name, description, allowed_values, default_value,\n                         sync_to_keycloak,\n                         editable_by AS \"editable_by: EditableByDAO\"",
   "describe": {
     "columns": [
       {
@@ -20,11 +20,16 @@
       },
       {
         "ordinal": 3,
+        "name": "default_value",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
         "name": "sync_to_keycloak",
         "type_info": "Bool"
       },
       {
-        "ordinal": 4,
+        "ordinal": 5,
         "name": "editable_by: EditableByDAO",
         "type_info": {
           "Custom": {
@@ -45,6 +50,7 @@
         "Text",
         "Text",
         "TextArray",
+        "Text",
         "Bool",
         {
           "Custom": {
@@ -64,9 +70,10 @@
       false,
       true,
       true,
+      true,
       false,
       false
     ]
   },
-  "hash": "6e3a4742e71137eb9b0e0abfd4430050019833357bcea87bfb78ca7fcc23a6a2"
+  "hash": "7ec7e29950f0ea2802125b18ffcb842a8ecf6eec598a56cc2f2ca3aaf032ea0a"
 }
