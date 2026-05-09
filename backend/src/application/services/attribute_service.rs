@@ -162,6 +162,16 @@ impl AttributeService {
         input: CreateAttributeDefinition,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<AttributeDefinition> {
+        // Reject Some(empty) here so create matches update's behavior. The
+        // domain's new_unchecked silently normalizes empty → None, which
+        // would make `allowed_values: []` mean "no constraint" — surprising
+        // and inconsistent with update_definition.
+        if matches!(&input.allowed_values, Some(v) if v.is_empty()) {
+            return Err(ServiceError::Constraint(
+                "allowed_values must be non-empty (or null for no constraint)".to_string(),
+            ));
+        }
+
         let name_str = input.name.as_str().to_string();
         let editable_by = input.editable_by;
         let sync_flag = input.sync_to_keycloak;
