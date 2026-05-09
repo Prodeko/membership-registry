@@ -273,12 +273,15 @@ impl AttributeService {
         };
         let updated = self.repo.update_definition(name, resolved).await?;
 
-        // Then any mapper transition. On failure the registry is ahead;
-        // surface PartialSync so the admin sees the divergence.
+        // Mapper reconciliation: add_mapper_to_scope is idempotent, so we
+        // re-add unconditionally whenever sync_to_keycloak should be true.
+        // This heals out-of-band deletions (mapper purged via KC UI) that
+        // would otherwise leave the registry claiming sync=true with no
+        // mapper until something forced a transition.
         let toggling_on = sync_to_keycloak && !existing.sync_to_keycloak();
-        let mapper_transition = if toggling_on {
+        let mapper_transition = if sync_to_keycloak {
             Some(self.sync.add_mapper_to_scope(name).await)
-        } else if !sync_to_keycloak && existing.sync_to_keycloak() {
+        } else if existing.sync_to_keycloak() {
             Some(self.sync.remove_mapper_from_scope(name).await)
         } else {
             None
