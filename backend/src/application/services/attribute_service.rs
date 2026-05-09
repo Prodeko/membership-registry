@@ -725,29 +725,56 @@ impl AttributeService {
             .map(|(subj, attrs)| (subj.0, attrs))
             .collect();
 
+        // Fetch all registry rows once, then batch-resolve providers for the
+        // distinct user_ids in a single DB call. The previous shape did
+        // N×M find_by_user_id roundtrips (N attributes × M users); the
+        // first call after cache invalidation could stall the admin UI as
+        // the registry grows.
+        let mut rows_by_def: HashMap<String, Vec<(PersonId, AttributeValue)>> = HashMap::new();
+        let mut all_user_ids: HashSet<Uuid> = HashSet::new();
+        for def in &synced_defs {
+            let rows = self.repo.fetch_all_values_for(def.name()).await?;
+            for (uid, _) in &rows {
+                all_user_ids.insert(uid.0);
+            }
+            rows_by_def.insert(def.name().as_str().to_string(), rows);
+        }
+
+        let user_id_vec: Vec<Uuid> = all_user_ids.into_iter().collect();
+        let providers = self
+            .auth_provider_repo
+            .find_by_user_ids(&user_id_vec)
+            .await
+            .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
+        let mut providers_by_user: HashMap<Uuid, Vec<String>> = HashMap::new();
+        for p in providers {
+            providers_by_user
+                .entry(p.user_id)
+                .or_default()
+                .push(p.provider_user_id);
+        }
+
         for def in synced_defs {
-            let registry_rows = self.repo.fetch_all_values_for(def.name()).await?;
+            let registry_rows = rows_by_def.remove(def.name().as_str()).unwrap_or_default();
 
             // Map registry user_ids → IdP subjects for diffing. Registry rows
             // with no linked provider are surfaced as RegistryUnlinked so
             // they don't silently disappear from drift detection.
             let mut registry_by_kc: HashMap<String, (PersonId, AttributeValue)> = HashMap::new();
             for (uid, val) in &registry_rows {
-                let providers = self
-                    .auth_provider_repo
-                    .find_by_user_id(&uid.0)
-                    .await
-                    .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
-                if providers.is_empty() {
-                    entries.push(DriftEntry::RegistryUnlinked {
-                        user_id: uid.clone(),
-                        attribute: def.name().clone(),
-                        value: val.clone(),
-                    });
-                    continue;
-                }
-                for p in providers {
-                    registry_by_kc.insert(p.provider_user_id.clone(), (uid.clone(), val.clone()));
+                match providers_by_user.get(&uid.0) {
+                    Some(pids) if !pids.is_empty() => {
+                        for pid in pids {
+                            registry_by_kc.insert(pid.clone(), (uid.clone(), val.clone()));
+                        }
+                    }
+                    _ => {
+                        entries.push(DriftEntry::RegistryUnlinked {
+                            user_id: uid.clone(),
+                            attribute: def.name().clone(),
+                            value: val.clone(),
+                        });
+                    }
                 }
             }
 

@@ -239,7 +239,7 @@ async fn drift_emits_registry_unlinked_for_user_with_no_providers() {
 
     let mut auth_provider = MockAuthProviderRepo::new();
     auth_provider
-        .expect_find_by_user_id()
+        .expect_find_by_user_ids()
         .returning(|_| Ok(vec![]));
 
     let svc = build_service(repo, sync, auth_provider);
@@ -267,13 +267,16 @@ async fn drift_emits_registry_only_when_kc_user_lacks_attribute() {
         .returning(|_| Ok(vec![]));
 
     let mut auth_provider = MockAuthProviderRepo::new();
-    auth_provider.expect_find_by_user_id().returning(|uid| {
-        Ok(vec![AuthProviderMapping {
-            user_id: *uid,
-            provider_name: "keycloak".to_string(),
-            provider_user_id: "kc-1".to_string(),
-            linked_at: chrono::Utc::now(),
-        }])
+    auth_provider.expect_find_by_user_ids().returning(|uids| {
+        Ok(uids
+            .iter()
+            .map(|u| AuthProviderMapping {
+                user_id: *u,
+                provider_name: "keycloak".to_string(),
+                provider_user_id: "kc-1".to_string(),
+                linked_at: chrono::Utc::now(),
+            })
+            .collect())
     });
 
     let svc = build_service(repo, sync, auth_provider);
@@ -304,13 +307,16 @@ async fn drift_emits_value_mismatch_when_kc_disagrees() {
     });
 
     let mut auth_provider = MockAuthProviderRepo::new();
-    auth_provider.expect_find_by_user_id().returning(|uid| {
-        Ok(vec![AuthProviderMapping {
-            user_id: *uid,
-            provider_name: "keycloak".to_string(),
-            provider_user_id: "kc-1".to_string(),
-            linked_at: chrono::Utc::now(),
-        }])
+    auth_provider.expect_find_by_user_ids().returning(|uids| {
+        Ok(uids
+            .iter()
+            .map(|u| AuthProviderMapping {
+                user_id: *u,
+                provider_name: "keycloak".to_string(),
+                provider_user_id: "kc-1".to_string(),
+                linked_at: chrono::Utc::now(),
+            })
+            .collect())
     });
 
     let svc = build_service(repo, sync, auth_provider);
@@ -337,7 +343,11 @@ async fn drift_emits_keycloak_only_when_registry_lacks_value() {
         Ok(vec![(crate::domain::IdpSubject("kc-1".to_string()), attrs)])
     });
 
-    let svc = build_service(repo, sync, MockAuthProviderRepo::new());
+    let mut auth_provider = MockAuthProviderRepo::new();
+    auth_provider
+        .expect_find_by_user_ids()
+        .returning(|_| Ok(vec![]));
+    let svc = build_service(repo, sync, auth_provider);
     let status = svc.get_keycloak_sync_status().await.unwrap();
 
     assert_eq!(status.len(), 1);

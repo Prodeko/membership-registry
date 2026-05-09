@@ -152,6 +152,7 @@ mock! {
     impl AuthProviderRepositoryPort for AuthProviderRepo {
         async fn find_by_provider(&self, provider_name: &str, provider_user_id: &str) -> Result<Option<AuthProviderMapping>, AuthProviderRepoError>;
         async fn find_by_user_id(&self, user_id: &Uuid) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError>;
+        async fn find_by_user_ids(&self, user_ids: &[Uuid]) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError>;
         async fn create(&self, user_id: &Uuid, provider_name: &str, provider_user_id: &str) -> Result<AuthProviderMapping, AuthProviderRepoError>;
         async fn delete(&self, user_id: &Uuid, provider_name: &str) -> Result<bool, AuthProviderRepoError>;
         async fn count_by_user_id(&self, user_id: &Uuid) -> Result<usize, AuthProviderRepoError>;

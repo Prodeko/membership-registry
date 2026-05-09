@@ -29,6 +29,14 @@ pub trait AuthProviderRepositoryPort: Send + Sync {
         user_id: &Uuid,
     ) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError>;
 
+    /// Batch lookup: return every mapping for any of the supplied user_ids
+    /// in a single query. Used by drift detection to avoid N+1 fan-out
+    /// across many attributes × users.
+    async fn find_by_user_ids(
+        &self,
+        user_ids: &[Uuid],
+    ) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError>;
+
     async fn create(
         &self,
         user_id: &Uuid,

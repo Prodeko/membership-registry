@@ -153,6 +153,25 @@ impl AuthProviderRepositoryPort for UserAuthProviderRepo {
             .collect())
     }
 
+    async fn find_by_user_ids(
+        &self,
+        user_ids: &[Uuid],
+    ) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError> {
+        if user_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let rows = sqlx::query_as::<_, UserAuthProviderDAO>(
+            "SELECT user_id, provider_name, provider_user_id, linked_at, metadata
+             FROM UserAuthProvider
+             WHERE user_id = ANY($1)
+             ORDER BY linked_at ASC",
+        )
+        .bind(user_ids)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
     async fn create(
         &self,
         user_id: &Uuid,
