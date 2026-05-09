@@ -1,7 +1,9 @@
 use uuid::Uuid;
 
 use super::repository_error::RepositoryError;
-use crate::domain::{AttributeDefinition, AttributeName, AttributeValue, EditableBy, MemberAttribute};
+use crate::domain::{
+    AttributeDefinition, AttributeName, AttributeValue, EditableBy, MemberAttribute,
+};
 
 #[derive(Debug, Clone)]
 pub struct CreateAttributeDefinition {

@@ -118,9 +118,12 @@ impl AttributeRepositoryPort for AttributeRepo {
     }
 
     async fn delete_definition(&self, name: &AttributeName) -> Result<(), RepositoryError> {
-        sqlx::query!("DELETE FROM AttributeDefinition WHERE name = $1", name.as_str())
-            .execute(&self.pool)
-            .await?;
+        sqlx::query!(
+            "DELETE FROM AttributeDefinition WHERE name = $1",
+            name.as_str()
+        )
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 

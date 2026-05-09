@@ -11,9 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     application::{
-        ports::attribute_repository_port::{
-            CreateAttributeDefinition, UpdateAttributeDefinition,
-        },
+        ports::attribute_repository_port::{CreateAttributeDefinition, UpdateAttributeDefinition},
         services::{
             attribute_service::{AttributeSyncStatus, SyncMissingAttributesSummary},
             authentication_service::AuthenticatedUser,
@@ -163,14 +161,10 @@ async fn sync_missing(
 
 pub fn member_router(state: AppState) -> Router<AppState> {
     Router::new()
-        .route(
-            "/{user_id}/attributes",
-            get(get_member_attributes_admin),
-        )
+        .route("/{user_id}/attributes", get(get_member_attributes_admin))
         .route(
             "/{user_id}/attributes/{name}",
-            axum::routing::put(set_member_attribute_admin)
-                .delete(clear_member_attribute_admin),
+            axum::routing::put(set_member_attribute_admin).delete(clear_member_attribute_admin),
         )
         .with_state(state)
 }

@@ -304,7 +304,8 @@ impl AttributeService {
         if def.editable_by == EditableBy::User {
             return Err(ServiceError::Forbidden);
         }
-        self.clear_inner(&def, user_id, actor_user_id, "admin").await
+        self.clear_inner(&def, user_id, actor_user_id, "admin")
+            .await
     }
 
     pub async fn clear_as_self(&self, user_id: Uuid, name: &AttributeName) -> ServiceResult<()> {
@@ -319,10 +320,7 @@ impl AttributeService {
         self.clear_inner(&def, user_id, Some(user_id), "self").await
     }
 
-    pub async fn fetch_for_member(
-        &self,
-        user_id: Uuid,
-    ) -> ServiceResult<Vec<MemberAttribute>> {
+    pub async fn fetch_for_member(&self, user_id: Uuid) -> ServiceResult<Vec<MemberAttribute>> {
         Ok(self.repo.fetch_member_values(&user_id).await?)
     }
 
@@ -349,11 +347,7 @@ impl AttributeService {
                 .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
             for p in &providers {
                 self.sync
-                    .set_user_attribute(
-                        &IdpSubject(p.provider_user_id.clone()),
-                        &def.name,
-                        value,
-                    )
+                    .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), &def.name, value)
                     .await
                     .map_err(map_sync_err)?;
             }
@@ -395,10 +389,7 @@ impl AttributeService {
                 .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
             for p in &providers {
                 self.sync
-                    .clear_user_attribute(
-                        &IdpSubject(p.provider_user_id.clone()),
-                        &def.name,
-                    )
+                    .clear_user_attribute(&IdpSubject(p.provider_user_id.clone()), &def.name)
                     .await
                     .map_err(map_sync_err)?;
             }
@@ -510,7 +501,10 @@ impl AttributeService {
         let mut applied = 0u32;
         let mut failed = 0u32;
 
-        let mut push = |val_str: &str, attr_str: &str, uid: Uuid| -> Option<(Uuid, AttributeName, AttributeValue)> {
+        let mut push = |val_str: &str,
+                        attr_str: &str,
+                        uid: Uuid|
+         -> Option<(Uuid, AttributeName, AttributeValue)> {
             let name = AttributeName::new(attr_str).ok()?;
             let value = AttributeValue::new(val_str).ok()?;
             Some((uid, name, value))
@@ -526,9 +520,7 @@ impl AttributeService {
             }
         }
         for m in &status.value_mismatch {
-            if let Some((uid, name, value)) =
-                push(&m.registry_value, &m.attribute, m.user_id)
-            {
+            if let Some((uid, name, value)) = push(&m.registry_value, &m.attribute, m.user_id) {
                 if self.push_one(uid, &name, &value).await {
                     applied += 1;
                 } else {
@@ -541,12 +533,7 @@ impl AttributeService {
         Ok(SyncMissingAttributesSummary { applied, failed })
     }
 
-    async fn push_one(
-        &self,
-        user_id: Uuid,
-        name: &AttributeName,
-        value: &AttributeValue,
-    ) -> bool {
+    async fn push_one(&self, user_id: Uuid, name: &AttributeName, value: &AttributeValue) -> bool {
         let providers = match self.auth_provider_repo.find_by_user_id(&user_id).await {
             Ok(ps) => ps,
             Err(_) => return false,

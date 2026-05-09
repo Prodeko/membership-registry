@@ -1268,9 +1268,7 @@ impl KeycloakClient {
             .map_err(|e| KeycloakError::BadResponse(format!("Scope parse error: {e}")))?;
         Ok(scopes.into_iter().find_map(|s| {
             if s.get("name").and_then(|n| n.as_str()) == Some(scope_name) {
-                s.get("id")
-                    .and_then(|i| i.as_str())
-                    .map(|s| s.to_string())
+                s.get("id").and_then(|i| i.as_str()).map(|s| s.to_string())
             } else {
                 None
             }
@@ -1355,9 +1353,7 @@ impl KeycloakClient {
             .map_err(|e| KeycloakError::BadResponse(format!("Mappers parse error: {e}")))?;
         Ok(mappers.into_iter().find_map(|m| {
             if m.get("name").and_then(|n| n.as_str()) == Some(attribute_name) {
-                m.get("id")
-                    .and_then(|i| i.as_str())
-                    .map(|s| s.to_string())
+                m.get("id").and_then(|i| i.as_str()).map(|s| s.to_string())
             } else {
                 None
             }

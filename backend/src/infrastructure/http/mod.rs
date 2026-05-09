@@ -20,9 +20,8 @@ use crate::{
         ports::payment_webhook_port::PaymentWebhookPort,
         services::{
             application_service::ApplicationService, attribute_service::AttributeService,
-            audit_log_service::AuditLogService,
-            authentication_service::AuthenticationService, export_service::ExportService,
-            marketing_service::MarketingService,
+            audit_log_service::AuditLogService, authentication_service::AuthenticationService,
+            export_service::ExportService, marketing_service::MarketingService,
             marketing_tag_admin_service::MarketingTagAdminService, member_service::MemberService,
             notification_service::NotificationService, renewal_service::RenewalService,
             role_group_service::RoleGroupService, role_service::RoleService,

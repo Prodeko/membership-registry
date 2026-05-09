@@ -66,7 +66,10 @@ async fn set_my_attribute(
     let user = user_info.ok_or(ApiError::Unauthorized)?;
     let n = AttributeName::new(name).map_err(|_| ApiError::BadRequest)?;
     let v = AttributeValue::new(body.value).map_err(|_| ApiError::BadRequest)?;
-    state.attribute_service.set_as_self(user.user_id, &n, v).await?;
+    state
+        .attribute_service
+        .set_as_self(user.user_id, &n, v)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -78,6 +81,9 @@ async fn clear_my_attribute(
 ) -> ApiResult<StatusCode> {
     let user = user_info.ok_or(ApiError::Unauthorized)?;
     let n = AttributeName::new(name).map_err(|_| ApiError::BadRequest)?;
-    state.attribute_service.clear_as_self(user.user_id, &n).await?;
+    state
+        .attribute_service
+        .clear_as_self(user.user_id, &n)
+        .await?;
     Ok(StatusCode::NO_CONTENT)
 }
