@@ -50,13 +50,16 @@ struct AttributeDefinitionDAO {
 
 impl From<AttributeDefinitionDAO> for AttributeDefinition {
     fn from(row: AttributeDefinitionDAO) -> Self {
-        Self {
-            name: AttributeName::new_unchecked(row.name),
-            description: row.description,
-            allowed_values: row.allowed_values,
-            sync_to_keycloak: row.sync_to_keycloak,
-            editable_by: row.editable_by.into(),
-        }
+        let allowed = row
+            .allowed_values
+            .map(|vs| vs.into_iter().map(AttributeValue::new_unchecked).collect());
+        AttributeDefinition::new_unchecked(
+            AttributeName::new_unchecked(row.name),
+            row.description,
+            allowed,
+            row.sync_to_keycloak,
+            row.editable_by.into(),
+        )
     }
 }
 
@@ -74,6 +77,10 @@ impl AttributeRepositoryPort for AttributeRepo {
         input: CreateAttributeDefinition,
     ) -> Result<AttributeDefinition, RepositoryError> {
         let editable_by = EditableByDAO::from(input.editable_by);
+        let allowed: Option<Vec<String>> = input
+            .allowed_values
+            .as_ref()
+            .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect());
         let row = sqlx::query_as!(
             AttributeDefinitionDAO,
             r#"INSERT INTO AttributeDefinition (name, description, allowed_values, sync_to_keycloak, editable_by)
@@ -83,7 +90,7 @@ impl AttributeRepositoryPort for AttributeRepo {
                          editable_by AS "editable_by: EditableByDAO""#,
             input.name.as_str(),
             input.description.as_deref(),
-            input.allowed_values.as_deref(),
+            allowed.as_deref(),
             input.sync_to_keycloak,
             editable_by as EditableByDAO,
         )
@@ -98,6 +105,10 @@ impl AttributeRepositoryPort for AttributeRepo {
         input: UpdateAttributeDefinition,
     ) -> Result<AttributeDefinition, RepositoryError> {
         let editable_by = EditableByDAO::from(input.editable_by);
+        let allowed: Option<Vec<String>> = input
+            .allowed_values
+            .as_ref()
+            .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect());
         let row = sqlx::query_as!(
             AttributeDefinitionDAO,
             r#"UPDATE AttributeDefinition
@@ -108,7 +119,7 @@ impl AttributeRepositoryPort for AttributeRepo {
                          editable_by AS "editable_by: EditableByDAO""#,
             name.as_str(),
             input.description.as_deref(),
-            input.allowed_values.as_deref(),
+            allowed.as_deref(),
             input.sync_to_keycloak,
             editable_by as EditableByDAO,
         )

@@ -47,10 +47,12 @@ async fn get_my_attributes(
         .into_iter()
         .map(|d| MemberAttributeDTO {
             editable: editable_for_self(&d),
-            value: values.get(d.name.as_str()).cloned(),
-            allowed_values: d.allowed_values.clone(),
-            description: d.description.clone(),
-            name: d.name.into_inner(),
+            value: values.get(d.name().as_str()).cloned(),
+            allowed_values: d
+                .allowed_values()
+                .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect()),
+            description: d.description().map(str::to_string),
+            name: d.name().clone().into_inner(),
         })
         .collect();
     Ok(Json(dtos))

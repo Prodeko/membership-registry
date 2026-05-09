@@ -20,8 +20,9 @@ use crate::{
     domain::{AttributeName, AttributeValue},
     infrastructure::http::{
         dto::attribute::{
-            editable_for_admin, AttributeDefinitionDTO, CreateAttributeDefinitionDTO,
-            MemberAttributeDTO, SetMemberAttributeDTO, UpdateAttributeDefinitionDTO,
+            editable_for_admin, parse_allowed_values, AttributeDefinitionDTO,
+            CreateAttributeDefinitionDTO, MemberAttributeDTO, SetMemberAttributeDTO,
+            UpdateAttributeDefinitionDTO,
         },
         errors::{ApiError, ApiResult},
     },
@@ -77,13 +78,15 @@ async fn create_definition(
 ) -> ApiResult<Json<AttributeDefinitionDTO>> {
     let actor_id = user_info.map(|u| u.user_id);
     let name = parse_name(body.name)?;
+    let allowed_values =
+        parse_allowed_values(body.allowed_values).map_err(|_| ApiError::BadRequest)?;
     let created = state
         .attribute_service
         .create_definition(
             CreateAttributeDefinition {
                 name,
                 description: body.description,
-                allowed_values: body.allowed_values,
+                allowed_values,
                 sync_to_keycloak: body.sync_to_keycloak,
                 editable_by: body.editable_by.into(),
             },
@@ -102,13 +105,15 @@ async fn update_definition(
 ) -> ApiResult<Json<AttributeDefinitionDTO>> {
     let actor_id = user_info.map(|u| u.user_id);
     let n = parse_name(name)?;
+    let allowed_values =
+        parse_allowed_values(body.allowed_values).map_err(|_| ApiError::BadRequest)?;
     let updated = state
         .attribute_service
         .update_definition(
             &n,
             UpdateAttributeDefinition {
                 description: body.description,
-                allowed_values: body.allowed_values,
+                allowed_values,
                 sync_to_keycloak: body.sync_to_keycloak,
                 editable_by: body.editable_by.into(),
             },
@@ -181,10 +186,12 @@ async fn get_member_attributes_admin(
         .into_iter()
         .map(|d| MemberAttributeDTO {
             editable: editable_for_admin(&d),
-            value: values.get(d.name.as_str()).cloned(),
-            allowed_values: d.allowed_values.clone(),
-            description: d.description.clone(),
-            name: d.name.into_inner(),
+            value: values.get(d.name().as_str()).cloned(),
+            allowed_values: d
+                .allowed_values()
+                .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect()),
+            description: d.description().map(str::to_string),
+            name: d.name().clone().into_inner(),
         })
         .collect();
     Ok(Json(dtos))

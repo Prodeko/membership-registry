@@ -156,7 +156,8 @@ impl AttributeService {
 
         // If allowed_values is being tightened, verify no existing user value is now invalid.
         if let Some(allowed) = &input.allowed_values {
-            let allowed_set: HashSet<&str> = allowed.iter().map(String::as_str).collect();
+            let allowed_set: HashSet<&str> =
+                allowed.iter().map(AttributeValue::as_str).collect();
             let rows = self.repo.fetch_all_values_for(name).await?;
             for (uid, val) in rows {
                 if !allowed_set.contains(val.as_str()) {
@@ -170,13 +171,13 @@ impl AttributeService {
         }
 
         // Sync-to-keycloak transitions: add or remove the mapper.
-        if input.sync_to_keycloak && !existing.sync_to_keycloak {
+        if input.sync_to_keycloak && !existing.sync_to_keycloak() {
             self.sync
                 .add_mapper_to_scope(name)
                 .await
                 .map_err(map_sync_err)?;
         }
-        if !input.sync_to_keycloak && existing.sync_to_keycloak {
+        if !input.sync_to_keycloak && existing.sync_to_keycloak() {
             self.sync
                 .remove_mapper_from_scope(name)
                 .await
@@ -215,7 +216,7 @@ impl AttributeService {
             .await?
             .ok_or(ServiceError::NotFound)?;
 
-        if existing.sync_to_keycloak {
+        if existing.sync_to_keycloak() {
             self.sync
                 .remove_mapper_from_scope(name)
                 .await
@@ -264,7 +265,7 @@ impl AttributeService {
             .fetch_definition(name)
             .await?
             .ok_or(ServiceError::NotFound)?;
-        if def.editable_by == EditableBy::User {
+        if def.editable_by() == EditableBy::User {
             return Err(ServiceError::Forbidden);
         }
         self.set_inner(&def, user_id, &value, actor_user_id, "admin")
@@ -283,7 +284,7 @@ impl AttributeService {
             .fetch_definition(name)
             .await?
             .ok_or(ServiceError::NotFound)?;
-        if def.editable_by == EditableBy::Admin {
+        if def.editable_by() == EditableBy::Admin {
             return Err(ServiceError::Forbidden);
         }
         self.set_inner(&def, user_id, &value, Some(user_id), "self")
@@ -301,7 +302,7 @@ impl AttributeService {
             .fetch_definition(name)
             .await?
             .ok_or(ServiceError::NotFound)?;
-        if def.editable_by == EditableBy::User {
+        if def.editable_by() == EditableBy::User {
             return Err(ServiceError::Forbidden);
         }
         self.clear_inner(&def, user_id, actor_user_id, "admin")
@@ -314,7 +315,7 @@ impl AttributeService {
             .fetch_definition(name)
             .await?
             .ok_or(ServiceError::NotFound)?;
-        if def.editable_by == EditableBy::Admin {
+        if def.editable_by() == EditableBy::Admin {
             return Err(ServiceError::Forbidden);
         }
         self.clear_inner(&def, user_id, Some(user_id), "self").await
@@ -339,7 +340,7 @@ impl AttributeService {
             )));
         }
 
-        if def.sync_to_keycloak {
+        if def.sync_to_keycloak() {
             let providers = self
                 .auth_provider_repo
                 .find_by_user_id(&user_id)
@@ -347,14 +348,14 @@ impl AttributeService {
                 .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
             for p in &providers {
                 self.sync
-                    .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), &def.name, value)
+                    .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), def.name(), value)
                     .await
                     .map_err(map_sync_err)?;
             }
         }
 
         self.repo
-            .upsert_member_value(&user_id, &def.name, value)
+            .upsert_member_value(&user_id, def.name(), value)
             .await?;
 
         self.audit_log
@@ -362,7 +363,7 @@ impl AttributeService {
                 actor_user_id,
                 "member_attribute.set",
                 "member_attribute",
-                &format!("{}:{}", user_id, def.name.as_str()),
+                &format!("{}:{}", user_id, def.name().as_str()),
                 Some(serde_json::json!({
                     "actor_kind": actor_kind,
                     "value": value.as_str(),
@@ -381,7 +382,7 @@ impl AttributeService {
         actor_user_id: Option<Uuid>,
         actor_kind: &'static str,
     ) -> ServiceResult<()> {
-        if def.sync_to_keycloak {
+        if def.sync_to_keycloak() {
             let providers = self
                 .auth_provider_repo
                 .find_by_user_id(&user_id)
@@ -389,20 +390,20 @@ impl AttributeService {
                 .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
             for p in &providers {
                 self.sync
-                    .clear_user_attribute(&IdpSubject(p.provider_user_id.clone()), &def.name)
+                    .clear_user_attribute(&IdpSubject(p.provider_user_id.clone()), def.name())
                     .await
                     .map_err(map_sync_err)?;
             }
         }
 
-        self.repo.delete_member_value(&user_id, &def.name).await?;
+        self.repo.delete_member_value(&user_id, def.name()).await?;
 
         self.audit_log
             .log(
                 actor_user_id,
                 "member_attribute.clear",
                 "member_attribute",
-                &format!("{}:{}", user_id, def.name.as_str()),
+                &format!("{}:{}", user_id, def.name().as_str()),
                 Some(serde_json::json!({ "actor_kind": actor_kind })),
             )
             .await;
@@ -428,7 +429,7 @@ impl AttributeService {
 
     async fn compute_sync_status(&self) -> ServiceResult<AttributeSyncStatus> {
         let defs = self.repo.fetch_all_definitions().await?;
-        let synced_defs: Vec<_> = defs.iter().filter(|d| d.sync_to_keycloak).collect();
+        let synced_defs: Vec<_> = defs.iter().filter(|d| d.sync_to_keycloak()).collect();
         let mut registry_only = Vec::new();
         let mut keycloak_only = Vec::new();
         let mut value_mismatch = Vec::new();
@@ -444,7 +445,7 @@ impl AttributeService {
 
         // One paginated KC user listing covers all synced definitions.
         let synced_names: Vec<AttributeName> =
-            synced_defs.iter().map(|d| d.name.clone()).collect();
+            synced_defs.iter().map(|d| d.name().clone()).collect();
         let kc_users = self
             .sync
             .list_users_with_attributes(&synced_names)
@@ -463,7 +464,7 @@ impl AttributeService {
             .collect();
 
         for def in synced_defs {
-            let registry_rows = self.repo.fetch_all_values_for(&def.name).await?;
+            let registry_rows = self.repo.fetch_all_values_for(def.name()).await?;
 
             // Map registry user_ids → IdP subjects for diffing.
             let mut registry_by_kc: HashMap<String, (Uuid, String)> = HashMap::new();
@@ -482,16 +483,16 @@ impl AttributeService {
             for (kc_id, (uid, reg_val)) in &registry_by_kc {
                 let kc_val = kc_map
                     .get(kc_id)
-                    .and_then(|attrs| attrs.get(def.name.as_str()));
+                    .and_then(|attrs| attrs.get(def.name().as_str()));
                 match kc_val {
                     None => registry_only.push(RegistryOnly {
                         user_id: *uid,
-                        attribute: def.name.as_str().to_string(),
+                        attribute: def.name().as_str().to_string(),
                         value: reg_val.clone(),
                     }),
                     Some(v) if v != reg_val => value_mismatch.push(ValueMismatch {
                         user_id: *uid,
-                        attribute: def.name.as_str().to_string(),
+                        attribute: def.name().as_str().to_string(),
                         registry_value: reg_val.clone(),
                         keycloak_value: v.clone(),
                     }),
@@ -499,11 +500,11 @@ impl AttributeService {
                 }
             }
             for (kc_id, attrs) in &kc_map {
-                if let Some(v) = attrs.get(def.name.as_str()) {
+                if let Some(v) = attrs.get(def.name().as_str()) {
                     if !registry_by_kc.contains_key(kc_id) {
                         keycloak_only.push(KeycloakOnly {
                             idp_subject: kc_id.clone(),
-                            attribute: def.name.as_str().to_string(),
+                            attribute: def.name().as_str().to_string(),
                             value: v.clone(),
                         });
                     }

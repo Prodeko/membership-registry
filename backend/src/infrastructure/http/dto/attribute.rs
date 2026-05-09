@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::domain::{AttributeDefinition, EditableBy};
+use crate::domain::{AttributeDefinition, AttributeValue, EditableBy};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename = "EditableBy")]
@@ -44,12 +44,15 @@ pub struct AttributeDefinitionDTO {
 
 impl From<AttributeDefinition> for AttributeDefinitionDTO {
     fn from(d: AttributeDefinition) -> Self {
+        let allowed = d
+            .allowed_values()
+            .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect());
         Self {
-            name: d.name.into_inner(),
-            description: d.description,
-            allowed_values: d.allowed_values,
-            sync_to_keycloak: d.sync_to_keycloak,
-            editable_by: d.editable_by.into(),
+            sync_to_keycloak: d.sync_to_keycloak(),
+            editable_by: d.editable_by().into(),
+            description: d.description().map(str::to_string),
+            allowed_values: allowed,
+            name: d.name().clone().into_inner(),
         }
     }
 }
@@ -92,9 +95,23 @@ pub struct SetMemberAttributeDTO {
 /// Helper used by the routing layer to compute the per-row `editable` flag for
 /// a given actor.
 pub fn editable_for_admin(d: &AttributeDefinition) -> bool {
-    !matches!(d.editable_by, EditableBy::User)
+    !matches!(d.editable_by(), EditableBy::User)
 }
 
 pub fn editable_for_self(d: &AttributeDefinition) -> bool {
-    !matches!(d.editable_by, EditableBy::Admin)
+    !matches!(d.editable_by(), EditableBy::Admin)
+}
+
+/// Parse a wire-level `Vec<String>` of allowed_values into validated
+/// `Vec<AttributeValue>`. Empty input vec returns Ok(empty) — the caller is
+/// responsible for converting empty to None if that's the intended semantics.
+pub fn parse_allowed_values(
+    raw: Option<Vec<String>>,
+) -> Result<Option<Vec<AttributeValue>>, crate::domain::InvalidAttributeValue> {
+    raw.map(|vs| {
+        vs.into_iter()
+            .map(AttributeValue::new)
+            .collect::<Result<Vec<_>, _>>()
+    })
+    .transpose()
 }

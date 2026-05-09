@@ -9,7 +9,7 @@ use crate::domain::{
 pub struct CreateAttributeDefinition {
     pub name: AttributeName,
     pub description: Option<String>,
-    pub allowed_values: Option<Vec<String>>,
+    pub allowed_values: Option<Vec<AttributeValue>>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableBy,
 }
@@ -17,7 +17,7 @@ pub struct CreateAttributeDefinition {
 #[derive(Debug, Clone)]
 pub struct UpdateAttributeDefinition {
     pub description: Option<String>,
-    pub allowed_values: Option<Vec<String>>,
+    pub allowed_values: Option<Vec<AttributeValue>>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableBy,
 }

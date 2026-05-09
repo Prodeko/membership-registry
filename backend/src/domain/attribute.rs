@@ -103,11 +103,11 @@ impl EditableBy {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AttributeDefinition {
-    pub name: AttributeName,
-    pub description: Option<String>,
-    pub allowed_values: Option<Vec<String>>,
-    pub sync_to_keycloak: bool,
-    pub editable_by: EditableBy,
+    name: AttributeName,
+    description: Option<String>,
+    allowed_values: Option<Vec<AttributeValue>>,
+    sync_to_keycloak: bool,
+    editable_by: EditableBy,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -115,11 +115,76 @@ pub enum AttributeValidationError {
     NotInAllowedValues,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum InvalidAttributeDefinition {
+    EmptyAllowedValues,
+}
+
 impl AttributeDefinition {
+    /// Constructs a definition, rejecting `Some(empty)` allowed_values.
+    /// `None` means "any value", `Some(non_empty)` means "must be one of".
+    pub fn new(
+        name: AttributeName,
+        description: Option<String>,
+        allowed_values: Option<Vec<AttributeValue>>,
+        sync_to_keycloak: bool,
+        editable_by: EditableBy,
+    ) -> Result<Self, InvalidAttributeDefinition> {
+        if matches!(&allowed_values, Some(v) if v.is_empty()) {
+            return Err(InvalidAttributeDefinition::EmptyAllowedValues);
+        }
+        Ok(Self {
+            name,
+            description,
+            allowed_values,
+            sync_to_keycloak,
+            editable_by,
+        })
+    }
+
+    /// Constructs from a trusted source (DB row) without validation. Empty
+    /// `allowed_values` are normalized to `None`.
+    pub fn new_unchecked(
+        name: AttributeName,
+        description: Option<String>,
+        allowed_values: Option<Vec<AttributeValue>>,
+        sync_to_keycloak: bool,
+        editable_by: EditableBy,
+    ) -> Self {
+        let allowed_values = allowed_values.and_then(|v| if v.is_empty() { None } else { Some(v) });
+        Self {
+            name,
+            description,
+            allowed_values,
+            sync_to_keycloak,
+            editable_by,
+        }
+    }
+
+    pub fn name(&self) -> &AttributeName {
+        &self.name
+    }
+
+    pub fn description(&self) -> Option<&str> {
+        self.description.as_deref()
+    }
+
+    pub fn allowed_values(&self) -> Option<&[AttributeValue]> {
+        self.allowed_values.as_deref()
+    }
+
+    pub fn sync_to_keycloak(&self) -> bool {
+        self.sync_to_keycloak
+    }
+
+    pub fn editable_by(&self) -> EditableBy {
+        self.editable_by
+    }
+
     pub fn validate(&self, value: &AttributeValue) -> Result<(), AttributeValidationError> {
         match &self.allowed_values {
             None => Ok(()),
-            Some(allowed) if allowed.iter().any(|v| v == value.as_str()) => Ok(()),
+            Some(allowed) if allowed.iter().any(|v| v == value) => Ok(()),
             Some(_) => Err(AttributeValidationError::NotInAllowedValues),
         }
     }
@@ -180,32 +245,49 @@ mod tests {
         assert!(AttributeValue::new("käytäntö ässät").is_ok());
     }
 
+    fn av(s: &str) -> AttributeValue {
+        AttributeValue::new(s).unwrap()
+    }
+
     #[test]
     fn definition_validate_accepts_when_no_allowed_values() {
-        let def = AttributeDefinition {
-            name: AttributeName::new("note").unwrap(),
-            description: None,
-            allowed_values: None,
-            sync_to_keycloak: false,
-            editable_by: EditableBy::Admin,
-        };
-        let v = AttributeValue::new("anything").unwrap();
-        assert!(def.validate(&v).is_ok());
+        let def = AttributeDefinition::new(
+            AttributeName::new("note").unwrap(),
+            None,
+            None,
+            false,
+            EditableBy::Admin,
+        )
+        .unwrap();
+        assert!(def.validate(&av("anything")).is_ok());
     }
 
     #[test]
     fn definition_validate_enforces_enum() {
-        let def = AttributeDefinition {
-            name: AttributeName::new("xq-year").unwrap(),
-            description: None,
-            allowed_values: Some(vec!["I".into(), "II".into(), "IV".into()]),
-            sync_to_keycloak: true,
-            editable_by: EditableBy::Admin,
-        };
-        assert!(def.validate(&AttributeValue::new("IV").unwrap()).is_ok());
+        let def = AttributeDefinition::new(
+            AttributeName::new("xq-year").unwrap(),
+            None,
+            Some(vec![av("I"), av("II"), av("IV")]),
+            true,
+            EditableBy::Admin,
+        )
+        .unwrap();
+        assert!(def.validate(&av("IV")).is_ok());
         assert_eq!(
-            def.validate(&AttributeValue::new("V").unwrap()),
+            def.validate(&av("V")),
             Err(AttributeValidationError::NotInAllowedValues)
         );
+    }
+
+    #[test]
+    fn definition_rejects_empty_allowed_values() {
+        let r = AttributeDefinition::new(
+            AttributeName::new("note").unwrap(),
+            None,
+            Some(vec![]),
+            false,
+            EditableBy::Admin,
+        );
+        assert_eq!(r, Err(InvalidAttributeDefinition::EmptyAllowedValues));
     }
 }
