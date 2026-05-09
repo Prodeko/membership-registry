@@ -196,8 +196,23 @@ const SyncStatusPanel = () => {
   const handleSync = () => {
     syncMutation.mutate(undefined, {
       onSuccess: (summary) => {
-        toast.success(
-          `Pushed ${summary.applied} attribute value(s) to Keycloak${summary.failed > 0 ? `, ${summary.failed} failed` : ""}`,
+        if (summary.failed === 0) {
+          toast.success(
+            `Pushed ${summary.applied} attribute value(s) to Keycloak`,
+          );
+          return;
+        }
+        const sample = summary.failures
+          .slice(0, 3)
+          .map((f) => `${f.attribute}: ${f.reason}`)
+          .join("\n");
+        const more =
+          summary.failures.length > 3
+            ? `\n…and ${summary.failures.length - 3} more`
+            : "";
+        toast.error(
+          `Synced ${summary.applied}, ${summary.failed} failed.\n${sample}${more}`,
+          { duration: 10000 },
         );
       },
     });

@@ -15,6 +15,7 @@ export type {
   MemberAttribute,
   SetMemberAttribute,
   SyncMissingAttributesSummary,
+  SyncMissingFailure,
   UpdateAttributeDefinition,
   CreateApplicationResponse,
   CreateEmailTemplate,

@@ -7,6 +7,7 @@ export type { EditableBy } from "./EditableBy";
 export type { MemberAttribute } from "./MemberAttribute";
 export type { SetMemberAttribute } from "./SetMemberAttribute";
 export type { SyncMissingAttributesSummary } from "./SyncMissingAttributesSummary";
+export type { SyncMissingFailure } from "./SyncMissingFailure";
 export type { UpdateAttributeDefinition } from "./UpdateAttributeDefinition";
 export type { AuditLogEntry } from "./AuditLogEntry";
 export type { AuditLogEntryWithActor } from "./AuditLogEntryWithActor";

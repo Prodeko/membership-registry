@@ -29,6 +29,15 @@ use super::{
 pub struct SyncMissingAttributesSummary {
     pub applied: u32,
     pub failed: u32,
+    pub failures: Vec<SyncMissingFailure>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
+pub struct SyncMissingFailure {
+    pub user_id: Uuid,
+    pub attribute: String,
+    pub reason: String,
 }
 
 /// Service-level patch for `update_definition`: each field carries explicit
@@ -636,7 +645,7 @@ impl AttributeService {
     pub async fn sync_missing_to_keycloak(&self) -> ServiceResult<SyncMissingAttributesSummary> {
         let status = self.compute_sync_status().await?;
         let mut applied = 0u32;
-        let mut failed = 0u32;
+        let mut failures = Vec::new();
 
         for entry in &status.entries {
             match entry {
@@ -651,47 +660,74 @@ impl AttributeService {
                     attribute,
                     registry_value: value,
                     ..
-                } => {
-                    if self.push_one(user_id, attribute, value).await {
-                        applied += 1;
-                    } else {
-                        failed += 1;
-                    }
-                }
+                } => match self.push_one(user_id, attribute, value).await {
+                    Ok(()) => applied += 1,
+                    Err(reason) => failures.push(SyncMissingFailure {
+                        user_id: user_id.0,
+                        attribute: attribute.as_str().to_string(),
+                        reason,
+                    }),
+                },
                 DriftEntry::KeycloakOnly { .. } => {
                     // KC-only entries are not "missing from Keycloak"; this
-                    // function only pushes registry → KC. KC-only cleanup is
-                    // a separate operation.
+                    // function only pushes registry → KC. KC-only cleanup
+                    // is a separate operation.
                 }
             }
         }
 
         self.invalidate_sync_cache();
-        Ok(SyncMissingAttributesSummary { applied, failed })
+        let failed = failures.len() as u32;
+        Ok(SyncMissingAttributesSummary {
+            applied,
+            failed,
+            failures,
+        })
     }
 
+    /// Push a single (user, attribute, value) to every linked KC provider.
+    /// Returns Err with a human-readable reason if any step failed; the
+    /// reason is suitable for surfacing in admin UI / logs (the underlying
+    /// error categories are also logged at error level).
     async fn push_one(
         &self,
         user_id: &PersonId,
         name: &AttributeName,
         value: &AttributeValue,
-    ) -> bool {
-        let providers = match self.auth_provider_repo.find_by_user_id(&user_id.0).await {
-            Ok(ps) => ps,
-            Err(_) => return false,
-        };
-        let mut all_ok = !providers.is_empty();
+    ) -> Result<(), String> {
+        let providers = self.auth_provider_repo.find_by_user_id(&user_id.0).await
+            .map_err(|e| {
+                tracing::error!(
+                    user_id = %user_id.0,
+                    attribute = %name.as_str(),
+                    "auth_provider lookup failed: {e:?}"
+                );
+                format!("auth provider lookup failed: {e:?}")
+            })?;
+        if providers.is_empty() {
+            return Err("user has no linked identity providers".to_string());
+        }
+        let mut errors: Vec<String> = Vec::new();
         for p in providers {
-            if self
+            if let Err(e) = self
                 .sync
-                .set_user_attribute(&IdpSubject(p.provider_user_id), name, value)
+                .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), name, value)
                 .await
-                .is_err()
             {
-                all_ok = false;
+                tracing::error!(
+                    user_id = %user_id.0,
+                    provider_user_id = %p.provider_user_id,
+                    attribute = %name.as_str(),
+                    "Keycloak set_user_attribute failed: {e:?}"
+                );
+                errors.push(format!("{}: {e:?}", p.provider_user_id));
             }
         }
-        all_ok
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(format!("Keycloak push failed: {}", errors.join("; ")))
+        }
     }
 }
 
