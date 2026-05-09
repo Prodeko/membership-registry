@@ -428,14 +428,44 @@ impl AttributeService {
 
     async fn compute_sync_status(&self) -> ServiceResult<AttributeSyncStatus> {
         let defs = self.repo.fetch_all_definitions().await?;
+        let synced_defs: Vec<_> = defs.iter().filter(|d| d.sync_to_keycloak).collect();
         let mut registry_only = Vec::new();
         let mut keycloak_only = Vec::new();
         let mut value_mismatch = Vec::new();
 
-        for def in defs.iter().filter(|d| d.sync_to_keycloak) {
+        if synced_defs.is_empty() {
+            return Ok(AttributeSyncStatus {
+                in_sync: true,
+                registry_only,
+                keycloak_only,
+                value_mismatch,
+            });
+        }
+
+        // One paginated KC user listing covers all synced definitions.
+        let synced_names: Vec<AttributeName> =
+            synced_defs.iter().map(|d| d.name.clone()).collect();
+        let kc_users = self
+            .sync
+            .list_users_with_attributes(&synced_names)
+            .await
+            .map_err(map_sync_err)?;
+        // subject -> (attribute_name -> value_string)
+        let kc_map: HashMap<String, HashMap<String, String>> = kc_users
+            .into_iter()
+            .map(|(subj, attrs)| {
+                let inner: HashMap<String, String> = attrs
+                    .into_iter()
+                    .map(|(k, v)| (k, v.into_inner()))
+                    .collect();
+                (subj.0, inner)
+            })
+            .collect();
+
+        for def in synced_defs {
             let registry_rows = self.repo.fetch_all_values_for(&def.name).await?;
 
-            // Map registry user_ids → IdP subjects for diffing
+            // Map registry user_ids → IdP subjects for diffing.
             let mut registry_by_kc: HashMap<String, (Uuid, String)> = HashMap::new();
             for (uid, val) in &registry_rows {
                 let providers = self
@@ -449,39 +479,34 @@ impl AttributeService {
                 }
             }
 
-            let kc_pairs = self
-                .sync
-                .list_users_with_attribute(&def.name)
-                .await
-                .map_err(map_sync_err)?;
-            let kc_map: HashMap<String, String> = kc_pairs
-                .into_iter()
-                .map(|(s, v)| (s.0, v.into_inner()))
-                .collect();
-
             for (kc_id, (uid, reg_val)) in &registry_by_kc {
-                match kc_map.get(kc_id) {
+                let kc_val = kc_map
+                    .get(kc_id)
+                    .and_then(|attrs| attrs.get(def.name.as_str()));
+                match kc_val {
                     None => registry_only.push(RegistryOnly {
                         user_id: *uid,
                         attribute: def.name.as_str().to_string(),
                         value: reg_val.clone(),
                     }),
-                    Some(kc_val) if kc_val != reg_val => value_mismatch.push(ValueMismatch {
+                    Some(v) if v != reg_val => value_mismatch.push(ValueMismatch {
                         user_id: *uid,
                         attribute: def.name.as_str().to_string(),
                         registry_value: reg_val.clone(),
-                        keycloak_value: kc_val.clone(),
+                        keycloak_value: v.clone(),
                     }),
                     _ => {}
                 }
             }
-            for (kc_id, kc_val) in &kc_map {
-                if !registry_by_kc.contains_key(kc_id) {
-                    keycloak_only.push(KeycloakOnly {
-                        idp_subject: kc_id.clone(),
-                        attribute: def.name.as_str().to_string(),
-                        value: kc_val.clone(),
-                    });
+            for (kc_id, attrs) in &kc_map {
+                if let Some(v) = attrs.get(def.name.as_str()) {
+                    if !registry_by_kc.contains_key(kc_id) {
+                        keycloak_only.push(KeycloakOnly {
+                            idp_subject: kc_id.clone(),
+                            attribute: def.name.as_str().to_string(),
+                            value: v.clone(),
+                        });
+                    }
                 }
             }
         }

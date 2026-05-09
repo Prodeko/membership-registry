@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::application::ports::rolesync_port::IdpSubject;
 use crate::domain::{AttributeName, AttributeValue};
 
@@ -37,9 +39,12 @@ pub trait AttributeSyncPort: Send + Sync {
         attr: &AttributeName,
     ) -> Result<(), AttributeSyncError>;
 
-    /// List all (subject, value) pairs in Keycloak that have `attr` set.
-    async fn list_users_with_attribute(
+    /// List all KC users (paginated) and return, for each user that has at
+    /// least one of the requested attributes set, a map of attribute → value.
+    /// Used by drift detection to compare registry state against Keycloak in
+    /// a single bulk call rather than per-user lookups.
+    async fn list_users_with_attributes(
         &self,
-        attr: &AttributeName,
-    ) -> Result<Vec<(IdpSubject, AttributeValue)>, AttributeSyncError>;
+        attrs: &[AttributeName],
+    ) -> Result<Vec<(IdpSubject, HashMap<String, AttributeValue>)>, AttributeSyncError>;
 }

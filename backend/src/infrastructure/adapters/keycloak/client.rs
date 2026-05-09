@@ -1175,15 +1175,26 @@ impl KeycloakClient {
         Ok(())
     }
 
-    /// List all (subject_id, value) pairs for a given attribute. Uses
-    /// Keycloak's user search by attribute (`q=<attr>:*`).
-    pub async fn list_users_with_attribute(
+    /// Page through every realm user and collect, for each one, the values
+    /// of the requested attribute keys. Returns one `(subject_id, attrs)`
+    /// tuple per user that has at least one of the requested attributes set;
+    /// users with none of them are omitted.
+    ///
+    /// KC's `q=key:value` search doesn't support wildcards, so we can't
+    /// server-side filter for "users that have this attribute set". We list
+    /// everything (paginated, `briefRepresentation=false` so attributes
+    /// come along) and filter client-side.
+    pub async fn list_users_with_attributes(
         &self,
-        attribute: &str,
-    ) -> Result<Vec<(String, String)>, KeycloakError> {
+        attributes: &[String],
+    ) -> Result<Vec<(String, std::collections::HashMap<String, String>)>, KeycloakError> {
+        if attributes.is_empty() {
+            return Ok(Vec::new());
+        }
+
         let token = self.get_service_token().await?;
         let url = self.admin_url("users");
-        let mut out: Vec<(String, String)> = Vec::new();
+        let mut out: Vec<(String, std::collections::HashMap<String, String>)> = Vec::new();
         let mut first: usize = 0;
         let page: usize = 100;
 
@@ -1193,7 +1204,6 @@ impl KeycloakClient {
                 .get(&url)
                 .bearer_auth(&token)
                 .query(&[
-                    ("q", format!("{}:*", attribute)),
                     ("first", first.to_string()),
                     ("max", page.to_string()),
                     ("briefRepresentation", "false".to_string()),
@@ -1201,34 +1211,47 @@ impl KeycloakClient {
                 .send()
                 .await
                 .map_err(|e| {
-                    KeycloakError::Unavailable(format!("User search request failed: {e}"))
+                    tracing::error!("User listing request failed: {e:?}");
+                    KeycloakError::Unavailable(format!("User listing failed: {e}"))
                 })?;
 
             if !resp.status().is_success() {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                tracing::error!("User listing returned {status}: {body}");
                 return Err(KeycloakError::Unavailable(format!(
-                    "User search returned status {}",
-                    resp.status()
+                    "User listing returned status {status}"
                 )));
             }
 
             let users: Vec<serde_json::Value> = resp
                 .json()
                 .await
-                .map_err(|e| KeycloakError::BadResponse(format!("User search parse: {e}")))?;
+                .map_err(|e| KeycloakError::BadResponse(format!("User listing parse: {e}")))?;
             let len = users.len();
+
             for u in users {
-                let id = u.get("id").and_then(|v| v.as_str()).map(String::from);
-                let val = u
-                    .get("attributes")
-                    .and_then(|a| a.get(attribute))
-                    .and_then(|v| v.as_array())
-                    .and_then(|arr| arr.first())
-                    .and_then(|s| s.as_str())
-                    .map(String::from);
-                if let (Some(id), Some(val)) = (id, val) {
-                    out.push((id, val));
+                let Some(id) = u.get("id").and_then(|v| v.as_str()) else {
+                    continue;
+                };
+                let attrs_json = u.get("attributes");
+                let mut found: std::collections::HashMap<String, String> =
+                    std::collections::HashMap::new();
+                for key in attributes {
+                    if let Some(val) = attrs_json
+                        .and_then(|a| a.get(key))
+                        .and_then(|v| v.as_array())
+                        .and_then(|arr| arr.first())
+                        .and_then(|s| s.as_str())
+                    {
+                        found.insert(key.clone(), val.to_string());
+                    }
+                }
+                if !found.is_empty() {
+                    out.push((id.to_string(), found));
                 }
             }
+
             if len < page {
                 break;
             }

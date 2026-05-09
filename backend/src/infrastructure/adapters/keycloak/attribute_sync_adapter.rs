@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::application::ports::attribute_sync_port::{AttributeSyncError, AttributeSyncPort};
 use crate::application::ports::rolesync_port::IdpSubject;
 use crate::domain::{AttributeName, AttributeValue};
@@ -85,22 +87,30 @@ impl AttributeSyncPort for KeycloakAttributeSyncAdapter {
             .map_err(map_kc_err)
     }
 
-    async fn list_users_with_attribute(
+    async fn list_users_with_attributes(
         &self,
-        attr: &AttributeName,
-    ) -> Result<Vec<(IdpSubject, AttributeValue)>, AttributeSyncError> {
-        let pairs = self
+        attrs: &[AttributeName],
+    ) -> Result<Vec<(IdpSubject, HashMap<String, AttributeValue>)>, AttributeSyncError> {
+        let keys: Vec<String> = attrs.iter().map(|a| a.as_str().to_string()).collect();
+        let raw = self
             .client
-            .list_users_with_attribute(attr.as_str())
+            .list_users_with_attributes(&keys)
             .await
             .map_err(map_kc_err)?;
-        pairs
-            .into_iter()
-            .map(|(id, val)| {
-                AttributeValue::new(val)
-                    .map(|v| (IdpSubject(id), v))
-                    .map_err(|_| AttributeSyncError::Unexpected("empty value from KC".into()))
-            })
-            .collect()
+
+        let mut out: Vec<(IdpSubject, HashMap<String, AttributeValue>)> =
+            Vec::with_capacity(raw.len());
+        for (subject, attr_map) in raw {
+            let mut typed: HashMap<String, AttributeValue> =
+                HashMap::with_capacity(attr_map.len());
+            for (k, v) in attr_map {
+                let value = AttributeValue::new(v).map_err(|_| {
+                    AttributeSyncError::Unexpected("empty attribute value from KC".into())
+                })?;
+                typed.insert(k, value);
+            }
+            out.push((IdpSubject(subject), typed));
+        }
+        Ok(out)
     }
 }

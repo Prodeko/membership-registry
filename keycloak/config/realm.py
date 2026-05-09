@@ -3,10 +3,27 @@
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from admin import KeycloakAdmin
+
+
+def _allow_unmanaged_user_attributes(kc: KeycloakAdmin) -> None:
+    """Allow the registry to push arbitrary user attributes via the admin API.
+
+    KC 26 ships with Declarative User Profile and `unmanagedAttributePolicy`
+    defaulting to DISABLED, which means PUT /users/{id} silently drops
+    attribute keys that aren't declared in the user-profile schema. We set it
+    to ADMIN_EDIT so admins can see and edit registry-managed attributes in
+    Keycloak's user page; end users don't see them in the account console.
+    """
+    profile: dict[str, Any] = kc.get("/users/profile")
+    if profile.get("unmanagedAttributePolicy") == "ADMIN_EDIT":
+        return
+    profile["unmanagedAttributePolicy"] = "ADMIN_EDIT"
+    kc.put("/users/profile", profile)
+    print("  Set unmanagedAttributePolicy=ADMIN_EDIT.")
 
 
 def configure_realm(kc: KeycloakAdmin) -> None:
@@ -51,3 +68,5 @@ def configure_realm(kc: KeycloakAdmin) -> None:
         print("  SMTP not configured (set SENDGRID_API_KEY to enable).")
 
     kc.put("", realm_payload)
+
+    _allow_unmanaged_user_attributes(kc)
