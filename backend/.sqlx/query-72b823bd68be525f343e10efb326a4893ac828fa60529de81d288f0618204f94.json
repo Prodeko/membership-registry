@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO MemberAttribute (user_id, attribute_name, value)\n               VALUES ($1, $2, $3)\n               ON CONFLICT (user_id, attribute_name) DO UPDATE\n                 SET value = EXCLUDED.value, updated_at = NOW()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "72b823bd68be525f343e10efb326a4893ac828fa60529de81d288f0618204f94"
+}

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM MemberAttribute WHERE user_id = $1 AND attribute_name = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2dbb207df67a36b54412856a29d1377f59f0a7c5529cda9511d6dff48c3ee5c8"
+}
