@@ -119,13 +119,19 @@ pub struct KeycloakClient {
 }
 
 impl KeycloakClient {
+    // Builder failure here is a startup-only event (TLS/system init); the
+    // previous `unwrap_or_default()` silently produced a timeout-less default
+    // client. Surface the failure loudly instead — the registry can't run
+    // without a working HTTP client to Keycloak.
+    #[allow(clippy::expect_used)]
     pub fn new(cfg: KeycloakConfig) -> Self {
+        let http = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("failed to build Keycloak HTTP client");
         Self {
             cfg,
-            http: Client::builder()
-                .timeout(Duration::from_secs(30))
-                .build()
-                .unwrap_or_default(),
+            http,
             jwks: Default::default(),
             service_token: Default::default(),
             role_id_cache: Cache::builder()
