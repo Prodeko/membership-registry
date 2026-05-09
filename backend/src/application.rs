@@ -1,6 +1,8 @@
 pub mod services;
 pub mod ports {
     pub mod application_repository_port;
+    pub mod attribute_repository_port;
+    pub mod attribute_sync_port;
     pub mod audit_log_repository_port;
     pub mod auth_port;
     pub mod auth_provider_repo_port;

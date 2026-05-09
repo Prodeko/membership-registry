@@ -1,4 +1,5 @@
 use application::ApplicationRepo;
+use attribute::AttributeRepo;
 use audit_log::AuditLogRepo;
 use email_template::EmailTemplateRepo;
 use marketing_tag::MarketingTagRepo;
@@ -23,6 +24,8 @@ impl From<sqlx::Error> for RepositoryError {
 
 #[allow(clippy::panic)]
 pub mod application;
+#[allow(clippy::panic)]
+pub mod attribute;
 #[allow(clippy::panic)]
 pub mod audit_log;
 #[allow(clippy::panic)]
@@ -50,6 +53,7 @@ pub mod tests;
 pub struct PostgresRepo {
     pub member: MemberRepo,
     pub application: ApplicationRepo,
+    pub attribute: AttributeRepo,
     pub role: role::RoleRepo,
     pub role_group: RoleGroupRepo,
     pub role_renewal: RoleRenewalRepo,
@@ -65,6 +69,7 @@ impl PostgresRepo {
         Self {
             member: MemberRepo { pool: pool.clone() },
             application: ApplicationRepo { pool: pool.clone() },
+            attribute: AttributeRepo { pool: pool.clone() },
             role: role::RoleRepo { pool: pool.clone() },
             role_group: RoleGroupRepo { pool: pool.clone() },
             role_renewal: RoleRenewalRepo { pool: pool.clone() },
