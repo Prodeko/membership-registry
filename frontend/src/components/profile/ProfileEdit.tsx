@@ -95,10 +95,9 @@ const ProfileEdit = () => {
           navigate("/home");
         },
         onError: (e) => {
-          toast.error(
-            `${t("profile.edit.save_failed")}: ${describeError(e)}`,
-            { duration: 10000 },
-          );
+          toast.error(`${t("profile.edit.save_failed")}: ${describeError(e)}`, {
+            duration: 10000,
+          });
         },
       },
     );

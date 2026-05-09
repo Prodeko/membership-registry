@@ -91,9 +91,7 @@ impl IntoResponse for ServiceError {
                 (StatusCode::INTERNAL_SERVER_ERROR, msg).into_response()
             }
             ServiceError::PartialSync(msg) => (StatusCode::BAD_GATEWAY, msg).into_response(),
-            ServiceError::ProviderUserDeleted(msg) => {
-                (StatusCode::GONE, msg).into_response()
-            }
+            ServiceError::ProviderUserDeleted(msg) => (StatusCode::GONE, msg).into_response(),
             ServiceError::TokenExpired => {
                 (StatusCode::UNAUTHORIZED, "Token expired").into_response()
             }

@@ -246,10 +246,7 @@ async fn drift_emits_registry_unlinked_for_user_with_no_providers() {
     let status = svc.get_keycloak_sync_status().await.unwrap();
 
     assert_eq!(status.len(), 1);
-    assert!(matches!(
-        &status[0],
-        DriftEntry::RegistryUnlinked { .. }
-    ));
+    assert!(matches!(&status[0], DriftEntry::RegistryUnlinked { .. }));
 }
 
 #[tokio::test]
@@ -283,10 +280,7 @@ async fn drift_emits_registry_only_when_kc_user_lacks_attribute() {
     let status = svc.get_keycloak_sync_status().await.unwrap();
 
     assert_eq!(status.len(), 1);
-    assert!(matches!(
-        &status[0],
-        DriftEntry::RegistryOnly { .. }
-    ));
+    assert!(matches!(&status[0], DriftEntry::RegistryOnly { .. }));
 }
 
 #[tokio::test]
@@ -323,10 +317,7 @@ async fn drift_emits_value_mismatch_when_kc_disagrees() {
     let status = svc.get_keycloak_sync_status().await.unwrap();
 
     assert_eq!(status.len(), 1);
-    assert!(matches!(
-        &status[0],
-        DriftEntry::ValueMismatch { .. }
-    ));
+    assert!(matches!(&status[0], DriftEntry::ValueMismatch { .. }));
 }
 
 #[tokio::test]
@@ -351,10 +342,7 @@ async fn drift_emits_keycloak_only_when_registry_lacks_value() {
     let status = svc.get_keycloak_sync_status().await.unwrap();
 
     assert_eq!(status.len(), 1);
-    assert!(matches!(
-        &status[0],
-        DriftEntry::KeycloakOnly { .. }
-    ));
+    assert!(matches!(&status[0], DriftEntry::KeycloakOnly { .. }));
 }
 
 // ---------------------------------------------------------------------------
@@ -484,22 +472,17 @@ async fn sync_missing_pushes_registry_only_value_mismatch_skips_kc_only_fails_un
     });
 
     let mut sync = MockAttributeSyncPort::new();
-    sync.expect_list_users_with_attributes().returning(move |_| {
-        let mut b_attrs = std::collections::HashMap::new();
-        b_attrs.insert("xq-year".to_string(), vec![av("X")]);
-        let mut d_attrs = std::collections::HashMap::new();
-        d_attrs.insert("xq-year".to_string(), vec![av("X")]);
-        Ok(vec![
-            (
-                crate::domain::IdpSubject("kc-B".to_string()),
-                b_attrs,
-            ),
-            (
-                crate::domain::IdpSubject("kc-D".to_string()),
-                d_attrs,
-            ),
-        ])
-    });
+    sync.expect_list_users_with_attributes()
+        .returning(move |_| {
+            let mut b_attrs = std::collections::HashMap::new();
+            b_attrs.insert("xq-year".to_string(), vec![av("X")]);
+            let mut d_attrs = std::collections::HashMap::new();
+            d_attrs.insert("xq-year".to_string(), vec![av("X")]);
+            Ok(vec![
+                (crate::domain::IdpSubject("kc-B".to_string()), b_attrs),
+                (crate::domain::IdpSubject("kc-D".to_string()), d_attrs),
+            ])
+        });
     sync.expect_set_user_attribute().returning(|_, _, _| Ok(()));
 
     let mut auth_provider = MockAuthProviderRepo::new();

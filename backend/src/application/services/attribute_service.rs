@@ -562,11 +562,8 @@ impl AttributeService {
             KcPushOutcome::default()
         };
 
-        let kc_failed_providers: Vec<&str> = kc_outcome
-            .failed
-            .iter()
-            .map(|(s, _)| s.as_str())
-            .collect();
+        let kc_failed_providers: Vec<&str> =
+            kc_outcome.failed.iter().map(|(s, _)| s.as_str()).collect();
         self.audit_log
             .log(
                 actor_user_id,
@@ -601,11 +598,8 @@ impl AttributeService {
             KcPushOutcome::default()
         };
 
-        let kc_failed_providers: Vec<&str> = kc_outcome
-            .failed
-            .iter()
-            .map(|(s, _)| s.as_str())
-            .collect();
+        let kc_failed_providers: Vec<&str> =
+            kc_outcome.failed.iter().map(|(s, _)| s.as_str()).collect();
         self.audit_log
             .log(
                 actor_user_id,
