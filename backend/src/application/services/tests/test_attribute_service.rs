@@ -553,6 +553,232 @@ async fn sync_missing_pushes_registry_only_value_mismatch_skips_kc_only_fails_un
 }
 
 // ---------------------------------------------------------------------------
+// KcPushOutcome variant selection: ProviderUserDeleted, multi-provider mix
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn set_returns_provider_user_deleted_when_all_providers_are_missing() {
+    use crate::application::ports::attribute_sync_port::AttributeSyncError;
+
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_definition()
+        .returning(|_| Ok(Some(def("xq-year", true, EditableBy::Admin))));
+    repo.expect_upsert_member_value()
+        .returning(|_, _, _| Ok(()));
+
+    let mut auth_provider = MockAuthProviderRepo::new();
+    auth_provider.expect_find_by_user_id().returning(|uid| {
+        Ok(vec![AuthProviderMapping {
+            user_id: *uid,
+            provider_name: "keycloak".to_string(),
+            provider_user_id: "kc-1".to_string(),
+            linked_at: chrono::Utc::now(),
+        }])
+    });
+
+    let mut sync = MockAttributeSyncPort::new();
+    // KC says the user is gone — every push fails with UserNotFound.
+    sync.expect_set_user_attribute()
+        .returning(|_, _, _| Err(AttributeSyncError::UserNotFound));
+
+    let svc = build_service(repo, sync, auth_provider);
+    let res = svc
+        .set_as_admin(
+            PersonId(uuid::Uuid::new_v4()),
+            &AttributeName::new("xq-year").unwrap(),
+            av("IV"),
+            None,
+        )
+        .await;
+
+    assert!(
+        matches!(res, Err(ServiceError::ProviderUserDeleted(_))),
+        "expected ProviderUserDeleted (410), got: {res:?}"
+    );
+}
+
+#[tokio::test]
+async fn set_with_two_providers_one_unavailable_returns_partial_sync() {
+    use crate::application::ports::attribute_sync_port::AttributeSyncError;
+    use std::sync::Mutex;
+
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_definition()
+        .returning(|_| Ok(Some(def("xq-year", true, EditableBy::Admin))));
+    repo.expect_upsert_member_value()
+        .returning(|_, _, _| Ok(()));
+
+    let mut auth_provider = MockAuthProviderRepo::new();
+    auth_provider.expect_find_by_user_id().returning(|uid| {
+        Ok(vec![
+            AuthProviderMapping {
+                user_id: *uid,
+                provider_name: "keycloak".to_string(),
+                provider_user_id: "kc-1".to_string(),
+                linked_at: chrono::Utc::now(),
+            },
+            AuthProviderMapping {
+                user_id: *uid,
+                provider_name: "keycloak-2".to_string(),
+                provider_user_id: "kc-2".to_string(),
+                linked_at: chrono::Utc::now(),
+            },
+        ])
+    });
+
+    let call_count = Arc::new(Mutex::new(0u32));
+    let mut sync = MockAttributeSyncPort::new();
+    let cc = call_count.clone();
+    sync.expect_set_user_attribute().returning(move |_, _, _| {
+        let mut n = cc.lock().unwrap();
+        *n += 1;
+        if *n == 1 {
+            Ok(())
+        } else {
+            Err(AttributeSyncError::Unavailable)
+        }
+    });
+
+    let svc = build_service(repo, sync, auth_provider);
+    let res = svc
+        .set_as_admin(
+            PersonId(uuid::Uuid::new_v4()),
+            &AttributeName::new("xq-year").unwrap(),
+            av("IV"),
+            None,
+        )
+        .await;
+
+    // One provider succeeded, one failed transiently → mixed → PartialSync,
+    // not ProviderUserDeleted.
+    assert!(
+        matches!(res, Err(ServiceError::PartialSync(_))),
+        "expected PartialSync, got: {res:?}"
+    );
+}
+
+#[tokio::test]
+async fn set_with_scope_missing_returns_misconfigured_even_when_other_providers_succeed() {
+    use crate::application::ports::attribute_sync_port::AttributeSyncError;
+    use std::sync::Mutex;
+
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_definition()
+        .returning(|_| Ok(Some(def("xq-year", true, EditableBy::Admin))));
+    repo.expect_upsert_member_value()
+        .returning(|_, _, _| Ok(()));
+
+    let mut auth_provider = MockAuthProviderRepo::new();
+    auth_provider.expect_find_by_user_id().returning(|uid| {
+        Ok(vec![
+            AuthProviderMapping {
+                user_id: *uid,
+                provider_name: "keycloak".to_string(),
+                provider_user_id: "kc-1".to_string(),
+                linked_at: chrono::Utc::now(),
+            },
+            AuthProviderMapping {
+                user_id: *uid,
+                provider_name: "keycloak-2".to_string(),
+                provider_user_id: "kc-2".to_string(),
+                linked_at: chrono::Utc::now(),
+            },
+        ])
+    });
+
+    let call_count = Arc::new(Mutex::new(0u32));
+    let mut sync = MockAttributeSyncPort::new();
+    let cc = call_count.clone();
+    sync.expect_set_user_attribute().returning(move |_, _, _| {
+        let mut n = cc.lock().unwrap();
+        *n += 1;
+        if *n == 1 {
+            Ok(())
+        } else {
+            Err(AttributeSyncError::ScopeMissing)
+        }
+    });
+
+    let svc = build_service(repo, sync, auth_provider);
+    let res = svc
+        .set_as_admin(
+            PersonId(uuid::Uuid::new_v4()),
+            &AttributeName::new("xq-year").unwrap(),
+            av("IV"),
+            None,
+        )
+        .await;
+
+    // ScopeMissing on any provider trumps PartialSync.
+    assert!(
+        matches!(res, Err(ServiceError::Misconfigured(_))),
+        "expected Misconfigured, got: {res:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Symmetric clear paths
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn clear_as_admin_returns_partial_sync_when_kc_fails_after_db_success() {
+    use crate::application::ports::attribute_sync_port::AttributeSyncError;
+
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_definition()
+        .returning(|_| Ok(Some(def("xq-year", true, EditableBy::Admin))));
+    repo.expect_delete_member_value().returning(|_, _| Ok(()));
+
+    let mut auth_provider = MockAuthProviderRepo::new();
+    auth_provider.expect_find_by_user_id().returning(|uid| {
+        Ok(vec![AuthProviderMapping {
+            user_id: *uid,
+            provider_name: "keycloak".to_string(),
+            provider_user_id: "kc-1".to_string(),
+            linked_at: chrono::Utc::now(),
+        }])
+    });
+
+    let mut sync = MockAttributeSyncPort::new();
+    sync.expect_clear_user_attribute()
+        .returning(|_, _| Err(AttributeSyncError::Unavailable));
+
+    let svc = build_service(repo, sync, auth_provider);
+    let res = svc
+        .clear_as_admin(
+            PersonId(uuid::Uuid::new_v4()),
+            &AttributeName::new("xq-year").unwrap(),
+            None,
+        )
+        .await;
+
+    assert!(matches!(res, Err(ServiceError::PartialSync(_))));
+}
+
+#[tokio::test]
+async fn clear_as_admin_rejects_user_only_attribute() {
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_definition()
+        .returning(|_| Ok(Some(def("note", false, EditableBy::User))));
+
+    let svc = build_service(
+        repo,
+        MockAttributeSyncPort::new(),
+        MockAuthProviderRepo::new(),
+    );
+
+    let res = svc
+        .clear_as_admin(
+            PersonId(uuid::Uuid::new_v4()),
+            &AttributeName::new("note").unwrap(),
+            None,
+        )
+        .await;
+
+    assert!(matches!(res, Err(ServiceError::Forbidden)));
+}
+
+// ---------------------------------------------------------------------------
 // Catalog mutations: rollback + tightening guards
 // ---------------------------------------------------------------------------
 
