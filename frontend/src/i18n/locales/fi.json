@@ -68,7 +68,9 @@
     "edit": {
       "title": "Muokkaa profiilia",
       "save_button": "Tallenna muutokset",
-      "saving": "Tallennetaan..."
+      "saving": "Tallennetaan...",
+      "saved": "Profiili tallennettu",
+      "save_failed": "Profiilin tallentaminen epäonnistui"
     },
     "municipality_description": "Valitse kunta, jossa asut pääasiassa. Jos asut pääasiassa Suomen ulkopuolella, valitse maasi.",
     "notifications_description": "Vastaanota sähköposti-ilmoituksia hakemuksistasi, uusimismuistutuksista ja muista tilin tapahtumista.",

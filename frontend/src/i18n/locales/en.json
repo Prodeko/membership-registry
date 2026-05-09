@@ -68,7 +68,9 @@
     "edit": {
       "title": "Edit profile",
       "save_button": "Save changes",
-      "saving": "Saving..."
+      "saving": "Saving...",
+      "saved": "Profile saved",
+      "save_failed": "Failed to save profile"
     },
     "municipality_description": "Select the municipality where you mainly live. If you mainly live outside of Finland, select your country.",
     "notifications_description": "Receive emails about your applications, renewal reminders, and other account notifications.",

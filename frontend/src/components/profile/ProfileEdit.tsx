@@ -91,7 +91,14 @@ const ProfileEdit = () => {
       },
       {
         onSuccess: () => {
+          toast.success(t("profile.edit.saved"));
           navigate("/home");
+        },
+        onError: (e) => {
+          toast.error(
+            `${t("profile.edit.save_failed")}: ${describeError(e)}`,
+            { duration: 10000 },
+          );
         },
       },
     );
