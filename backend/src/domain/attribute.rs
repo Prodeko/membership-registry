@@ -48,13 +48,25 @@ pub struct AttributeValue(String);
 #[derive(Debug, PartialEq, Eq)]
 pub enum InvalidAttributeValue {
     Empty,
+    TooLong,
+    ControlChar,
 }
+
+/// Keycloak's practical attribute value limit; Postgres has no constraint
+/// so this is the only enforcement point.
+pub const ATTRIBUTE_VALUE_MAX_LEN: usize = 4096;
 
 impl AttributeValue {
     pub fn new(s: impl Into<String>) -> Result<Self, InvalidAttributeValue> {
         let s = s.into();
         if s.is_empty() {
             return Err(InvalidAttributeValue::Empty);
+        }
+        if s.len() > ATTRIBUTE_VALUE_MAX_LEN {
+            return Err(InvalidAttributeValue::TooLong);
+        }
+        if s.chars().any(|c| c.is_control()) {
+            return Err(InvalidAttributeValue::ControlChar);
         }
         Ok(Self(s))
     }
@@ -143,8 +155,29 @@ mod tests {
 
     #[test]
     fn attribute_value_rejects_empty() {
-        assert!(AttributeValue::new("").is_err());
+        assert_eq!(AttributeValue::new(""), Err(InvalidAttributeValue::Empty));
         assert!(AttributeValue::new("IV").is_ok());
+    }
+
+    #[test]
+    fn attribute_value_rejects_too_long() {
+        let s = "a".repeat(ATTRIBUTE_VALUE_MAX_LEN + 1);
+        assert_eq!(AttributeValue::new(s), Err(InvalidAttributeValue::TooLong));
+        let s = "a".repeat(ATTRIBUTE_VALUE_MAX_LEN);
+        assert!(AttributeValue::new(s).is_ok());
+    }
+
+    #[test]
+    fn attribute_value_rejects_control_chars() {
+        for c in ['\0', '\n', '\r', '\t', '\x07'] {
+            let s = format!("ok{c}value");
+            assert_eq!(
+                AttributeValue::new(&s),
+                Err(InvalidAttributeValue::ControlChar),
+                "expected {s:?} to be rejected"
+            );
+        }
+        assert!(AttributeValue::new("käytäntö ässät").is_ok());
     }
 
     #[test]
