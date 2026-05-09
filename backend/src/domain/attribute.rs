@@ -29,7 +29,9 @@ impl AttributeName {
     }
 
     /// Construct from a trusted source (e.g. database) without validation.
-    pub fn new_unchecked(s: String) -> Self {
+    /// Crate-internal — domain invariants only hold if construction goes
+    /// through `new` for everything outside the trusted boundary.
+    pub(crate) fn new_unchecked(s: String) -> Self {
         Self(s)
     }
 
@@ -80,7 +82,12 @@ impl AttributeValue {
         Ok(Self(s))
     }
 
-    pub fn new_unchecked(s: String) -> Self {
+    /// Construct from a trusted or external source without validation.
+    /// Crate-internal — domain invariants only hold if construction goes
+    /// through `new` for caller-supplied values. Used for DB rows and for
+    /// KC-observed values during drift detection (where the registry's
+    /// stricter rules can't be retroactively imposed).
+    pub(crate) fn new_unchecked(s: String) -> Self {
         Self(s)
     }
 
@@ -152,8 +159,8 @@ impl AttributeDefinition {
     }
 
     /// Constructs from a trusted source (DB row) without validation. Empty
-    /// `allowed_values` are normalized to `None`.
-    pub fn new_unchecked(
+    /// `allowed_values` are normalized to `None`. Crate-internal.
+    pub(crate) fn new_unchecked(
         name: AttributeName,
         description: Option<String>,
         allowed_values: Option<Vec<AttributeValue>>,
