@@ -93,12 +93,34 @@ const AttributeFormModal = ({
         editable_by: editableBy,
       } satisfies CreateAttributeDefinition);
     } else {
-      onSubmit({
-        description: description || null,
-        allowed_values: allowed_values.length > 0 ? allowed_values : null,
-        sync_to_keycloak: syncToKeycloak,
-        editable_by: editableBy,
-      } satisfies UpdateAttributeDefinition);
+      // Build a sparse Patch payload: omit fields that match the loaded
+      // value so the wire-level Patch::Leave semantics actually fire,
+      // instead of always sending Set/Clear and silently degrading the
+      // contract. Required so a future client reusing this modal for
+      // partial updates (or running concurrently with another writer)
+      // doesn't clobber unrelated fields.
+      const patch: UpdateAttributeDefinition = {};
+      const nextDesc = description || null;
+      const initialDesc = initial?.description ?? null;
+      if (nextDesc !== initialDesc) patch.description = nextDesc;
+
+      const nextAllowed = allowed_values.length > 0 ? allowed_values : null;
+      const initialAllowed = initial?.allowed_values ?? null;
+      const allowedChanged =
+        (nextAllowed === null) !== (initialAllowed === null) ||
+        (nextAllowed !== null &&
+          initialAllowed !== null &&
+          (nextAllowed.length !== initialAllowed.length ||
+            nextAllowed.some((v, i) => v !== initialAllowed[i])));
+      if (allowedChanged) patch.allowed_values = nextAllowed;
+
+      if (syncToKeycloak !== (initial?.sync_to_keycloak ?? true)) {
+        patch.sync_to_keycloak = syncToKeycloak;
+      }
+      if (editableBy !== (initial?.editable_by ?? "admin")) {
+        patch.editable_by = editableBy;
+      }
+      onSubmit(patch);
     }
   };
 
