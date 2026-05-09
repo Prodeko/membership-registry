@@ -1,4 +1,14 @@
 export type { AddManyRolesBody } from "./AddManyRolesBody";
+export type { AttributeDefinition } from "./AttributeDefinition";
+export type { AttributeSyncStatus } from "./AttributeSyncStatus";
+export type { CreateAttributeDefinition } from "./CreateAttributeDefinition";
+export type { KeycloakOnly } from "./KeycloakOnly";
+export type { MemberAttribute } from "./MemberAttribute";
+export type { RegistryOnly } from "./RegistryOnly";
+export type { SetMemberAttribute } from "./SetMemberAttribute";
+export type { SyncMissingAttributesSummary } from "./SyncMissingAttributesSummary";
+export type { UpdateAttributeDefinition } from "./UpdateAttributeDefinition";
+export type { ValueMismatch } from "./ValueMismatch";
 export type { AuditLogEntry } from "./AuditLogEntry";
 export type { AuditLogEntryWithActor } from "./AuditLogEntryWithActor";
 export type { AuditLogQueryParams } from "./AuditLogQueryParams";

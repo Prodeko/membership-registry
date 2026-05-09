@@ -19,6 +19,13 @@ import {
   UpdateMarketingTag,
   Member,
   MemberWithRoles,
+  AttributeDefinition,
+  AttributeSyncStatus,
+  CreateAttributeDefinition,
+  MemberAttribute,
+  SetMemberAttribute,
+  SyncMissingAttributesSummary,
+  UpdateAttributeDefinition,
   NewMember,
   NewSavedFilter,
   PostTargetableRole,
@@ -56,6 +63,10 @@ export enum QueryKey {
   KEYCLOAK_SYNC_STATUS = "keycloak_sync_status",
   MARKETING_PREFERENCES = "marketing_preferences",
   MARKETING_TAGS = "marketing_tags",
+  ATTRIBUTE_DEFINITIONS = "attribute_definitions",
+  ATTRIBUTES_SYNC_STATUS = "attributes_sync_status",
+  MEMBER_ATTRIBUTES = "member_attributes",
+  MY_ATTRIBUTES = "my_attributes",
 }
 
 export const axios_client = axios.create({
@@ -1066,6 +1077,221 @@ export const useRemoveRoleGroupAssignment = () => {
       queryClient.invalidateQueries({
         queryKey: [QueryKey.ROLE_GROUPS, "member", variables.userId],
       });
+    },
+  });
+};
+
+// ---------------------------------------------------------------------------
+// Flexible user attributes
+// ---------------------------------------------------------------------------
+
+export const useGetAttributeDefinitions = () => {
+  return useQuery<AttributeDefinition[]>({
+    queryKey: [QueryKey.ATTRIBUTE_DEFINITIONS],
+    queryFn: async () => {
+      const response =
+        await admin_axios_client.get<AttributeDefinition[]>("/attributes");
+      return response.data;
+    },
+  });
+};
+
+export const useGetAttributeDefinition = (
+  name: string,
+  options?: { enabled?: boolean },
+) => {
+  return useQuery<AttributeDefinition>({
+    queryKey: [QueryKey.ATTRIBUTE_DEFINITIONS, name],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<AttributeDefinition>(
+        `/attributes/${encodeURIComponent(name)}`,
+      );
+      return response.data;
+    },
+    enabled: options?.enabled,
+  });
+};
+
+export const useCreateAttributeDefinition = () => {
+  const queryClient = useQueryClient();
+  return useMutation<AttributeDefinition, Error, CreateAttributeDefinition>({
+    mutationFn: async (body) => {
+      const response = await admin_axios_client.post<AttributeDefinition>(
+        "/attributes",
+        body,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTE_DEFINITIONS],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTES_SYNC_STATUS],
+      });
+    },
+  });
+};
+
+export const useUpdateAttributeDefinition = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    AttributeDefinition,
+    Error,
+    { name: string; data: UpdateAttributeDefinition }
+  >({
+    mutationFn: async ({ name, data }) => {
+      const response = await admin_axios_client.put<AttributeDefinition>(
+        `/attributes/${encodeURIComponent(name)}`,
+        data,
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTE_DEFINITIONS],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTES_SYNC_STATUS],
+      });
+    },
+  });
+};
+
+export const useDeleteAttributeDefinition = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (name) => {
+      await admin_axios_client.delete(
+        `/attributes/${encodeURIComponent(name)}`,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTE_DEFINITIONS],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTES_SYNC_STATUS],
+      });
+    },
+  });
+};
+
+export const useGetAttributesSyncStatus = () => {
+  return useQuery<AttributeSyncStatus>({
+    queryKey: [QueryKey.ATTRIBUTES_SYNC_STATUS],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<AttributeSyncStatus>(
+        "/attributes/sync-status",
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useSyncMissingAttributes = () => {
+  const queryClient = useQueryClient();
+  return useMutation<SyncMissingAttributesSummary, Error>({
+    mutationFn: async () => {
+      const response =
+        await admin_axios_client.post<SyncMissingAttributesSummary>(
+          "/attributes/sync-missing",
+        );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTES_SYNC_STATUS],
+      });
+    },
+  });
+};
+
+export const useGetMemberAttributes = (
+  memberId: string,
+  options?: { enabled?: boolean },
+) => {
+  return useQuery<MemberAttribute[]>({
+    queryKey: [QueryKey.MEMBER_ATTRIBUTES, memberId],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<MemberAttribute[]>(
+        `/members/${memberId}/attributes`,
+      );
+      return response.data;
+    },
+    enabled: options?.enabled,
+  });
+};
+
+export const useSetMemberAttribute = (memberId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { name: string; value: string }>({
+    mutationFn: async ({ name, value }) => {
+      const body: SetMemberAttribute = { value };
+      await admin_axios_client.put(
+        `/members/${memberId}/attributes/${encodeURIComponent(name)}`,
+        body,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.MEMBER_ATTRIBUTES, memberId],
+      });
+    },
+  });
+};
+
+export const useDeleteMemberAttribute = (memberId: string) => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (name) => {
+      await admin_axios_client.delete(
+        `/members/${memberId}/attributes/${encodeURIComponent(name)}`,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.MEMBER_ATTRIBUTES, memberId],
+      });
+    },
+  });
+};
+
+export const useGetMyAttributes = () => {
+  return useQuery<MemberAttribute[]>({
+    queryKey: [QueryKey.MY_ATTRIBUTES],
+    queryFn: async () => {
+      const response =
+        await axios_client.get<MemberAttribute[]>("/attributes/me");
+      return response.data;
+    },
+  });
+};
+
+export const useSetMyAttribute = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { name: string; value: string }>({
+    mutationFn: async ({ name, value }) => {
+      const body: SetMemberAttribute = { value };
+      await axios_client.put(
+        `/attributes/me/${encodeURIComponent(name)}`,
+        body,
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.MY_ATTRIBUTES] });
+    },
+  });
+};
+
+export const useDeleteMyAttribute = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (name) => {
+      await axios_client.delete(`/attributes/me/${encodeURIComponent(name)}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.MY_ATTRIBUTES] });
     },
   });
 };

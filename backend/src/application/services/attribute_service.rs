@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use moka::future::Cache;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::application::ports::{
@@ -28,21 +29,24 @@ use super::{
 // Drift / sync status types
 // ---------------------------------------------------------------------------
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct RegistryOnly {
     pub user_id: Uuid,
     pub attribute: String,
     pub value: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct KeycloakOnly {
     pub idp_subject: String,
     pub attribute: String,
     pub value: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct ValueMismatch {
     pub user_id: Uuid,
     pub attribute: String,
@@ -50,7 +54,8 @@ pub struct ValueMismatch {
     pub keycloak_value: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct AttributeSyncStatus {
     pub in_sync: bool,
     pub registry_only: Vec<RegistryOnly>,
@@ -58,7 +63,8 @@ pub struct AttributeSyncStatus {
     pub value_mismatch: Vec<ValueMismatch>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, TS)]
+#[ts(export)]
 pub struct SyncMissingAttributesSummary {
     pub applied: u32,
     pub failed: u32,
