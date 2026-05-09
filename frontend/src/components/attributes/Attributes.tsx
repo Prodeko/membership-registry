@@ -183,10 +183,15 @@ const SyncStatusPanel = () => {
   if (isLoading) return null;
   if (!status) return null;
 
-  const drift =
-    status.registry_only.length +
-    status.value_mismatch.length +
-    status.keycloak_only.length;
+  const counts = status.entries.reduce(
+    (acc, e) => {
+      acc[e.type] += 1;
+      return acc;
+    },
+    { registry_only: 0, keycloak_only: 0, value_mismatch: 0 },
+  );
+  const drift = status.entries.length;
+  const inSync = drift === 0;
 
   const handleSync = () => {
     syncMutation.mutate(undefined, {
@@ -201,21 +206,20 @@ const SyncStatusPanel = () => {
   return (
     <Card className="p-4 flex items-center justify-between">
       <div className="space-x-3">
-        <Badge variant={status.in_sync ? "default" : "destructive"}>
-          {status.in_sync ? "In sync" : `${drift} differences`}
+        <Badge variant={inSync ? "default" : "destructive"}>
+          {inSync ? "In sync" : `${drift} differences`}
         </Badge>
-        {!status.in_sync && (
+        {!inSync && (
           <span className="text-sm text-muted-foreground">
-            Registry-only: {status.registry_only.length} · Value mismatch:{" "}
-            {status.value_mismatch.length} · Keycloak-only:{" "}
-            {status.keycloak_only.length}
+            Registry-only: {counts.registry_only} · Value mismatch:{" "}
+            {counts.value_mismatch} · Keycloak-only: {counts.keycloak_only}
           </span>
         )}
       </div>
       <Button
         variant="outline"
         onClick={handleSync}
-        disabled={syncMutation.isPending || status.in_sync}
+        disabled={syncMutation.isPending || inSync}
       >
         {syncMutation.isPending ? "Syncing..." : "Sync now"}
       </Button>

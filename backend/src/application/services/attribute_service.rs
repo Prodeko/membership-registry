@@ -13,55 +13,16 @@ use crate::application::ports::{
     },
     attribute_sync_port::{AttributeSyncError, AttributeSyncPort},
     auth_provider_repo_port::AuthProviderRepositoryPort,
-    rolesync_port::IdpSubject,
 };
 use crate::domain::{
-    AttributeDefinition, AttributeName, AttributeValidationError, AttributeValue, EditableBy,
-    MemberAttribute,
+    AttributeDefinition, AttributeName, AttributeValidationError, AttributeValue, DriftEntry,
+    EditableBy, IdpSubject, MemberAttribute, PersonId, SyncStatus,
 };
 
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
 };
-
-// ---------------------------------------------------------------------------
-// Drift / sync status types
-// ---------------------------------------------------------------------------
-
-#[derive(Clone, Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct RegistryOnly {
-    pub user_id: Uuid,
-    pub attribute: String,
-    pub value: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct KeycloakOnly {
-    pub idp_subject: String,
-    pub attribute: String,
-    pub value: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct ValueMismatch {
-    pub user_id: Uuid,
-    pub attribute: String,
-    pub registry_value: String,
-    pub keycloak_value: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, TS)]
-#[ts(export)]
-pub struct AttributeSyncStatus {
-    pub in_sync: bool,
-    pub registry_only: Vec<RegistryOnly>,
-    pub keycloak_only: Vec<KeycloakOnly>,
-    pub value_mismatch: Vec<ValueMismatch>,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -80,7 +41,7 @@ pub struct AttributeService {
     pub sync: Arc<dyn AttributeSyncPort>,
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
-    sync_status_cache: Cache<String, AttributeSyncStatus>,
+    sync_status_cache: Cache<String, SyncStatus>,
 }
 
 impl AttributeService {
@@ -416,7 +377,7 @@ impl AttributeService {
     // Drift detection & reconciliation
     // -----------------------------------------------------------------------
 
-    pub async fn get_keycloak_sync_status(&self) -> ServiceResult<AttributeSyncStatus> {
+    pub async fn get_keycloak_sync_status(&self) -> ServiceResult<SyncStatus> {
         if let Some(cached) = self.sync_status_cache.get(&String::new()).await {
             return Ok(cached);
         }
@@ -427,20 +388,13 @@ impl AttributeService {
         Ok(status)
     }
 
-    async fn compute_sync_status(&self) -> ServiceResult<AttributeSyncStatus> {
+    async fn compute_sync_status(&self) -> ServiceResult<SyncStatus> {
         let defs = self.repo.fetch_all_definitions().await?;
         let synced_defs: Vec<_> = defs.iter().filter(|d| d.sync_to_keycloak()).collect();
-        let mut registry_only = Vec::new();
-        let mut keycloak_only = Vec::new();
-        let mut value_mismatch = Vec::new();
+        let mut entries: Vec<DriftEntry> = Vec::new();
 
         if synced_defs.is_empty() {
-            return Ok(AttributeSyncStatus {
-                in_sync: true,
-                registry_only,
-                keycloak_only,
-                value_mismatch,
-            });
+            return Ok(SyncStatus { entries });
         }
 
         // One paginated KC user listing covers all synced definitions.
@@ -451,23 +405,17 @@ impl AttributeService {
             .list_users_with_attributes(&synced_names)
             .await
             .map_err(map_sync_err)?;
-        // subject -> (attribute_name -> value_string)
-        let kc_map: HashMap<String, HashMap<String, String>> = kc_users
+        // subject -> (attribute_name -> value)
+        let kc_map: HashMap<String, HashMap<String, AttributeValue>> = kc_users
             .into_iter()
-            .map(|(subj, attrs)| {
-                let inner: HashMap<String, String> = attrs
-                    .into_iter()
-                    .map(|(k, v)| (k, v.into_inner()))
-                    .collect();
-                (subj.0, inner)
-            })
+            .map(|(subj, attrs)| (subj.0, attrs))
             .collect();
 
         for def in synced_defs {
             let registry_rows = self.repo.fetch_all_values_for(def.name()).await?;
 
             // Map registry user_ids → IdP subjects for diffing.
-            let mut registry_by_kc: HashMap<String, (Uuid, String)> = HashMap::new();
+            let mut registry_by_kc: HashMap<String, (Uuid, AttributeValue)> = HashMap::new();
             for (uid, val) in &registry_rows {
                 let providers = self
                     .auth_provider_repo
@@ -476,7 +424,7 @@ impl AttributeService {
                     .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
                 for p in providers {
                     registry_by_kc
-                        .insert(p.provider_user_id.clone(), (*uid, val.as_str().to_string()));
+                        .insert(p.provider_user_id.clone(), (*uid, val.clone()));
                 }
             }
 
@@ -485,14 +433,16 @@ impl AttributeService {
                     .get(kc_id)
                     .and_then(|attrs| attrs.get(def.name().as_str()));
                 match kc_val {
-                    None => registry_only.push(RegistryOnly {
-                        user_id: *uid,
-                        attribute: def.name().as_str().to_string(),
+                    None => entries.push(DriftEntry::RegistryOnly {
+                        user_id: PersonId(*uid),
+                        idp_subject: IdpSubject(kc_id.clone()),
+                        attribute: def.name().clone(),
                         value: reg_val.clone(),
                     }),
-                    Some(v) if v != reg_val => value_mismatch.push(ValueMismatch {
-                        user_id: *uid,
-                        attribute: def.name().as_str().to_string(),
+                    Some(v) if v != reg_val => entries.push(DriftEntry::ValueMismatch {
+                        user_id: PersonId(*uid),
+                        idp_subject: IdpSubject(kc_id.clone()),
+                        attribute: def.name().clone(),
                         registry_value: reg_val.clone(),
                         keycloak_value: v.clone(),
                     }),
@@ -502,9 +452,9 @@ impl AttributeService {
             for (kc_id, attrs) in &kc_map {
                 if let Some(v) = attrs.get(def.name().as_str()) {
                     if !registry_by_kc.contains_key(kc_id) {
-                        keycloak_only.push(KeycloakOnly {
-                            idp_subject: kc_id.clone(),
-                            attribute: def.name().as_str().to_string(),
+                        entries.push(DriftEntry::KeycloakOnly {
+                            idp_subject: IdpSubject(kc_id.clone()),
+                            attribute: def.name().clone(),
                             value: v.clone(),
                         });
                     }
@@ -512,14 +462,7 @@ impl AttributeService {
             }
         }
 
-        let in_sync =
-            registry_only.is_empty() && keycloak_only.is_empty() && value_mismatch.is_empty();
-        Ok(AttributeSyncStatus {
-            in_sync,
-            registry_only,
-            keycloak_only,
-            value_mismatch,
-        })
+        Ok(SyncStatus { entries })
     }
 
     pub async fn sync_missing_to_keycloak(&self) -> ServiceResult<SyncMissingAttributesSummary> {
@@ -527,30 +470,30 @@ impl AttributeService {
         let mut applied = 0u32;
         let mut failed = 0u32;
 
-        let mut push = |val_str: &str,
-                        attr_str: &str,
-                        uid: Uuid|
-         -> Option<(Uuid, AttributeName, AttributeValue)> {
-            let name = AttributeName::new(attr_str).ok()?;
-            let value = AttributeValue::new(val_str).ok()?;
-            Some((uid, name, value))
-        };
-
-        for r in &status.registry_only {
-            if let Some((uid, name, value)) = push(&r.value, &r.attribute, r.user_id) {
-                if self.push_one(uid, &name, &value).await {
-                    applied += 1;
-                } else {
-                    failed += 1;
+        for entry in &status.entries {
+            match entry {
+                DriftEntry::RegistryOnly {
+                    user_id,
+                    attribute,
+                    value,
+                    ..
                 }
-            }
-        }
-        for m in &status.value_mismatch {
-            if let Some((uid, name, value)) = push(&m.registry_value, &m.attribute, m.user_id) {
-                if self.push_one(uid, &name, &value).await {
-                    applied += 1;
-                } else {
-                    failed += 1;
+                | DriftEntry::ValueMismatch {
+                    user_id,
+                    attribute,
+                    registry_value: value,
+                    ..
+                } => {
+                    if self.push_one(user_id.0, attribute, value).await {
+                        applied += 1;
+                    } else {
+                        failed += 1;
+                    }
+                }
+                DriftEntry::KeycloakOnly { .. } => {
+                    // KC-only entries are not "missing from Keycloak"; this
+                    // function only pushes registry → KC. KC-only cleanup is
+                    // a separate operation.
                 }
             }
         }

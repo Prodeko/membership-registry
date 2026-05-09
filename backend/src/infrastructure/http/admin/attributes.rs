@@ -13,7 +13,7 @@ use crate::{
     application::{
         ports::attribute_repository_port::{CreateAttributeDefinition, UpdateAttributeDefinition},
         services::{
-            attribute_service::{AttributeSyncStatus, SyncMissingAttributesSummary},
+            attribute_service::SyncMissingAttributesSummary,
             authentication_service::AuthenticatedUser,
         },
     },
@@ -21,8 +21,8 @@ use crate::{
     infrastructure::http::{
         dto::attribute::{
             editable_for_admin, parse_allowed_values, AttributeDefinitionDTO,
-            CreateAttributeDefinitionDTO, MemberAttributeDTO, SetMemberAttributeDTO,
-            UpdateAttributeDefinitionDTO,
+            AttributeSyncStatusDTO, CreateAttributeDefinitionDTO, MemberAttributeDTO,
+            SetMemberAttributeDTO, UpdateAttributeDefinitionDTO,
         },
         errors::{ApiError, ApiResult},
     },
@@ -139,10 +139,11 @@ async fn delete_definition(
 }
 
 #[debug_handler]
-async fn get_sync_status(State(state): State<AppState>) -> ApiResult<Json<AttributeSyncStatus>> {
-    Ok(Json(
-        state.attribute_service.get_keycloak_sync_status().await?,
-    ))
+async fn get_sync_status(
+    State(state): State<AppState>,
+) -> ApiResult<Json<AttributeSyncStatusDTO>> {
+    let status = state.attribute_service.get_keycloak_sync_status().await?;
+    Ok(Json(status.into()))
 }
 
 #[debug_handler]

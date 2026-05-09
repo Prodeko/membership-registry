@@ -1,4 +1,4 @@
-use crate::domain::PersonId;
+use crate::domain::{IdpSubject, PersonId};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AttributeName(String);
@@ -195,6 +195,44 @@ pub struct MemberAttribute {
     pub user_id: PersonId,
     pub name: AttributeName,
     pub value: AttributeValue,
+}
+
+/// One observed disagreement between the registry and Keycloak for a single
+/// `(subject, attribute)` pair.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DriftEntry {
+    /// Registry has a value the corresponding Keycloak user is missing.
+    RegistryOnly {
+        user_id: PersonId,
+        idp_subject: IdpSubject,
+        attribute: AttributeName,
+        value: AttributeValue,
+    },
+    /// Keycloak has a value the registry doesn't track for any linked user.
+    KeycloakOnly {
+        idp_subject: IdpSubject,
+        attribute: AttributeName,
+        value: AttributeValue,
+    },
+    /// Both sides have a value but they disagree.
+    ValueMismatch {
+        user_id: PersonId,
+        idp_subject: IdpSubject,
+        attribute: AttributeName,
+        registry_value: AttributeValue,
+        keycloak_value: AttributeValue,
+    },
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct SyncStatus {
+    pub entries: Vec<DriftEntry>,
+}
+
+impl SyncStatus {
+    pub fn is_in_sync(&self) -> bool {
+        self.entries.is_empty()
+    }
 }
 
 #[cfg(test)]

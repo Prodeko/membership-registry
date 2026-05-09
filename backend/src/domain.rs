@@ -1,6 +1,7 @@
 pub mod application;
 pub mod attribute;
 pub mod email_template;
+pub mod identity;
 pub mod marketing_tag;
 pub mod person;
 pub mod role;
@@ -10,6 +11,7 @@ pub mod role_renewal;
 pub use application::*;
 pub use attribute::*;
 pub use email_template::*;
+pub use identity::*;
 pub use marketing_tag::*;
 pub use person::*;
 pub use role::*;

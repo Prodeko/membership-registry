@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+use uuid::Uuid;
 
-use crate::domain::{AttributeDefinition, AttributeValue, EditableBy};
+use crate::domain::{AttributeDefinition, AttributeValue, DriftEntry, EditableBy, SyncStatus};
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename = "EditableBy")]
@@ -90,6 +91,85 @@ pub struct MemberAttributeDTO {
 #[ts(export, rename = "SetMemberAttribute")]
 pub struct SetMemberAttributeDTO {
     pub value: String,
+}
+
+/// Tagged-union wire form for a single drift observation.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, rename = "DriftEntry")]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum DriftEntryDTO {
+    RegistryOnly {
+        user_id: Uuid,
+        idp_subject: String,
+        attribute: String,
+        value: String,
+    },
+    KeycloakOnly {
+        idp_subject: String,
+        attribute: String,
+        value: String,
+    },
+    ValueMismatch {
+        user_id: Uuid,
+        idp_subject: String,
+        attribute: String,
+        registry_value: String,
+        keycloak_value: String,
+    },
+}
+
+impl From<DriftEntry> for DriftEntryDTO {
+    fn from(e: DriftEntry) -> Self {
+        match e {
+            DriftEntry::RegistryOnly {
+                user_id,
+                idp_subject,
+                attribute,
+                value,
+            } => Self::RegistryOnly {
+                user_id: user_id.0,
+                idp_subject: idp_subject.0,
+                attribute: attribute.into_inner(),
+                value: value.into_inner(),
+            },
+            DriftEntry::KeycloakOnly {
+                idp_subject,
+                attribute,
+                value,
+            } => Self::KeycloakOnly {
+                idp_subject: idp_subject.0,
+                attribute: attribute.into_inner(),
+                value: value.into_inner(),
+            },
+            DriftEntry::ValueMismatch {
+                user_id,
+                idp_subject,
+                attribute,
+                registry_value,
+                keycloak_value,
+            } => Self::ValueMismatch {
+                user_id: user_id.0,
+                idp_subject: idp_subject.0,
+                attribute: attribute.into_inner(),
+                registry_value: registry_value.into_inner(),
+                keycloak_value: keycloak_value.into_inner(),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, rename = "AttributeSyncStatus")]
+pub struct AttributeSyncStatusDTO {
+    pub entries: Vec<DriftEntryDTO>,
+}
+
+impl From<SyncStatus> for AttributeSyncStatusDTO {
+    fn from(s: SyncStatus) -> Self {
+        Self {
+            entries: s.entries.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 /// Helper used by the routing layer to compute the per-row `editable` flag for
