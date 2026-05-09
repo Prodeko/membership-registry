@@ -570,10 +570,13 @@ impl AttributeService {
 fn map_sync_err(e: AttributeSyncError) -> ServiceError {
     match e {
         AttributeSyncError::Unavailable => ServiceError::IdpError,
-        AttributeSyncError::ScopeMissing => ServiceError::DatabaseError(
+        AttributeSyncError::ScopeMissing => ServiceError::Misconfigured(
             "Keycloak client scope `registry-attributes` is missing — add it to the realm config"
                 .to_string(),
         ),
-        AttributeSyncError::Unexpected(s) => ServiceError::DatabaseError(s),
+        AttributeSyncError::Unexpected(s) => {
+            tracing::error!("Keycloak attribute sync unexpected error: {s}");
+            ServiceError::IdpError
+        }
     }
 }

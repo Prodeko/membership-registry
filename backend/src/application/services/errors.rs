@@ -19,6 +19,13 @@ pub enum ServiceError {
     Unauthorized,
     Forbidden,
     IdpError,
+    /// External system is reachable but configured wrong (e.g. missing
+    /// Keycloak client scope). Distinct from IdpError which is transient.
+    Misconfigured(String),
+    /// The local write succeeded but the matching IdP write failed; the two
+    /// systems are now out of sync until reconciled. Carries a description
+    /// the admin can act on (which subjects/providers failed).
+    PartialSync(String),
     TokenExpired,
     InvalidIdpUserId,
     UserNotFound,
