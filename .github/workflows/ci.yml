@@ -100,9 +100,22 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-audit
-      - run: cargo audit
+      # Advisories below are dead code paths in this binary. async-stripe 0.41
+      # is used only for `Webhook::construct_event` (HMAC-SHA256 verification);
+      # no outbound TLS is opened, so its bundled rustls 0.21 / hyper-rustls
+      # 0.24 / http-types stack never executes. The `rand` 0.7/0.8 unsoundness
+      # only triggers via a custom logger calling `rand::rng()` from drop, which
+      # we do not install. Re-evaluate when async-stripe is upgraded or dropped.
+      - name: cargo audit
         working-directory: backend
         if: always()
+        run: |
+          cargo audit \
+            --ignore RUSTSEC-2026-0098 \
+            --ignore RUSTSEC-2026-0099 \
+            --ignore RUSTSEC-2026-0104 \
+            --ignore RUSTSEC-2024-0384 \
+            --ignore RUSTSEC-2026-0097
       - run: pnpm audit --audit-level high
         working-directory: frontend
         if: always()
