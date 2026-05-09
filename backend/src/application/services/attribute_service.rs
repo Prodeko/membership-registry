@@ -8,6 +8,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::application::ports::{
+    attribute_bootstrap_port::AttributeBootstrapPort,
     attribute_repository_port::{
         AttributeRepositoryPort, CreateAttributeDefinition, UpdateAttributeDefinition,
     },
@@ -47,6 +48,7 @@ pub struct SyncMissingFailure {
 pub struct UpdateAttributeDefinitionPatch {
     pub description: Patch<String>,
     pub allowed_values: Patch<Vec<AttributeValue>>,
+    pub default_value: Patch<AttributeValue>,
     pub sync_to_keycloak: Option<bool>,
     pub editable_by: Option<EditableBy>,
 }
@@ -171,6 +173,14 @@ impl AttributeService {
                 "allowed_values must be non-empty (or null for no constraint)".to_string(),
             ));
         }
+        if let (Some(allowed), Some(default)) = (&input.allowed_values, &input.default_value) {
+            if !allowed.iter().any(|v| v == default) {
+                return Err(ServiceError::Constraint(format!(
+                    "default_value {:?} is not in allowed_values",
+                    default.as_str()
+                )));
+            }
+        }
 
         let name_str = input.name.as_str().to_string();
         let editable_by = input.editable_by;
@@ -237,6 +247,9 @@ impl AttributeService {
         let allowed_values = patch
             .allowed_values
             .apply(existing.allowed_values().map(<[AttributeValue]>::to_vec));
+        let default_value = patch
+            .default_value
+            .apply(existing.default_value().cloned());
         let sync_to_keycloak = patch
             .sync_to_keycloak
             .unwrap_or(existing.sync_to_keycloak());
@@ -247,6 +260,19 @@ impl AttributeService {
             return Err(ServiceError::Constraint(
                 "allowed_values must be non-empty (or null to clear)".to_string(),
             ));
+        }
+
+        // The resolved (allowed_values, default_value) pair must be consistent.
+        // Otherwise an admin could clear allowed_values while leaving a stale
+        // default that no existing user value matches, or set a default that
+        // doesn't satisfy a tightened enum.
+        if let (Some(allowed), Some(default)) = (&allowed_values, &default_value) {
+            if !allowed.iter().any(|v| v == default) {
+                return Err(ServiceError::Constraint(format!(
+                    "default_value {:?} is not in allowed_values",
+                    default.as_str()
+                )));
+            }
         }
 
         // If allowed_values is being tightened, verify no existing user value is now invalid.
@@ -268,6 +294,7 @@ impl AttributeService {
         let resolved = UpdateAttributeDefinition {
             description,
             allowed_values,
+            default_value,
             sync_to_keycloak,
             editable_by,
         };
@@ -531,6 +558,64 @@ impl AttributeService {
 
     pub async fn fetch_for_member(&self, user_id: PersonId) -> ServiceResult<Vec<MemberAttribute>> {
         Ok(self.repo.fetch_member_values(&user_id).await?)
+    }
+
+    /// Write every definition's `default_value` to MemberAttribute for a
+    /// freshly created user. Best-effort: failures are logged but never
+    /// abort registration. Existing values on the user (if any) are
+    /// overwritten by the default — the contract is "fresh user, no
+    /// pre-existing values" so callers must invoke this only at
+    /// registration time. KC push happens through the same path as a
+    /// regular set; for users with no linked provider it's a no-op and
+    /// the next sync_status check will surface drift.
+    pub async fn apply_defaults_for_new_user(&self, user_id: PersonId) {
+        let defs = match self.repo.fetch_all_definitions().await {
+            Ok(defs) => defs,
+            Err(e) => {
+                tracing::error!(
+                    user_id = %user_id.0,
+                    "Failed to load attribute definitions for default application: {e:?}"
+                );
+                return;
+            }
+        };
+        for def in defs {
+            let Some(default) = def.default_value().cloned() else {
+                continue;
+            };
+            if let Err(e) = self
+                .set_inner(&def, user_id.clone(), &default, None, "system")
+                .await
+            {
+                tracing::error!(
+                    user_id = %user_id.0,
+                    attribute = %def.name().as_str(),
+                    "Failed to apply default for new user: {e:?}"
+                );
+            }
+        }
+    }
+
+    /// Set a member's value via an application-form submission. Bypasses
+    /// `editable_by` because the form is a distinct authorization context:
+    /// the applicant is providing input the admin will review (or has
+    /// already pre-approved by adding the attribute to the form), not
+    /// editing a profile field. Validation against `allowed_values` still
+    /// applies.
+    pub async fn set_via_application_form(
+        &self,
+        user_id: PersonId,
+        name: &AttributeName,
+        value: AttributeValue,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<()> {
+        let def = self
+            .repo
+            .fetch_definition(name)
+            .await?
+            .ok_or(ServiceError::NotFound)?;
+        self.set_inner(&def, user_id, &value, actor_user_id, "application_form")
+            .await
     }
 
     async fn set_inner(
@@ -960,6 +1045,13 @@ impl AttributeService {
         } else {
             Err(format!("Keycloak push failed: {}", errors.join("; ")))
         }
+    }
+}
+
+#[async_trait::async_trait]
+impl AttributeBootstrapPort for AttributeService {
+    async fn apply_defaults_for_new_user(&self, user_id: PersonId) {
+        AttributeService::apply_defaults_for_new_user(self, user_id).await;
     }
 }
 

@@ -10,6 +10,7 @@ use crate::application::ports::{
         ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole,
         ApplicationWithMember, TargetableRolePort,
     },
+    attribute_bootstrap_port::AttributeBootstrapPort,
     attribute_repository_port::{
         AttributeRepositoryPort, CreateAttributeDefinition, UpdateAttributeDefinition,
     },
@@ -318,6 +319,25 @@ mock! {
             require_verify_email: bool,
         ) -> Result<(), UserAdminError>;
     }
+}
+
+// --- AttributeBootstrapPort ---
+
+mock! {
+    pub AttributeBootstrap {}
+
+    #[async_trait::async_trait]
+    impl AttributeBootstrapPort for AttributeBootstrap {
+        async fn apply_defaults_for_new_user(&self, user_id: PersonId);
+    }
+}
+
+/// `AttributeBootstrapPort` whose `apply_defaults_for_new_user` is a no-op.
+/// Use in member service tests that don't care about default propagation.
+pub fn noop_attribute_bootstrap() -> Arc<dyn AttributeBootstrapPort> {
+    let mut mock = MockAttributeBootstrap::new();
+    mock.expect_apply_defaults_for_new_user().returning(|_| ());
+    Arc::new(mock)
 }
 
 // --- Helpers ---

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::application::ports::{
+    attribute_bootstrap_port::AttributeBootstrapPort,
     auth_provider_repo_port::AuthProviderRepositoryPort,
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     user_admin_port::UserAdminPort,
@@ -26,6 +27,9 @@ pub struct MemberService {
     /// registration path — explicit `POST /members`, OAuth first-login —
     /// goes through the same side effect.
     pub marketing_service: Option<Arc<MarketingService>>,
+    /// Hook for writing registration-time attribute defaults. Centralised
+    /// here so every `create_member` path picks up the defaults.
+    pub attribute_bootstrap: Arc<dyn AttributeBootstrapPort>,
 }
 
 impl MemberService {
@@ -35,6 +39,7 @@ impl MemberService {
         auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
         audit_log: AuditLogService,
         marketing_service: Option<Arc<MarketingService>>,
+        attribute_bootstrap: Arc<dyn AttributeBootstrapPort>,
     ) -> Self {
         Self {
             member_repo,
@@ -42,6 +47,7 @@ impl MemberService {
             auth_provider_repo,
             audit_log,
             marketing_service,
+            attribute_bootstrap,
         }
     }
 
@@ -98,6 +104,13 @@ impl MemberService {
         if let Some(marketing) = self.marketing_service.as_ref() {
             marketing.subscribe_on_registration(&person).await;
         }
+
+        // Best-effort: write registration-time attribute defaults. The
+        // hook itself swallows individual failures so a single broken
+        // default cannot block signup.
+        self.attribute_bootstrap
+            .apply_defaults_for_new_user(person.id.clone())
+            .await;
 
         Ok(person)
     }

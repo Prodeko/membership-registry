@@ -7,4 +7,4 @@ import type { EditableBy } from "./EditableBy";
  * - `null` → clear (or no-op for non-nullable fields)
  * - value → set
  */
-export type UpdateAttributeDefinition = { description?: string | null, allowed_values?: Array<string> | null, sync_to_keycloak?: boolean, editable_by?: EditableBy, };
+export type UpdateAttributeDefinition = { description?: string | null, allowed_values?: Array<string> | null, default_value?: string | null, sync_to_keycloak?: boolean, editable_by?: EditableBy, };

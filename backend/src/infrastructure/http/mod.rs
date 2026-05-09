@@ -98,7 +98,7 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
         config: Arc::new(config),
         member_service: Arc::new(services.member_service),
         application_service: Arc::new(services.application_service),
-        attribute_service: Arc::new(services.attribute_service),
+        attribute_service: services.attribute_service,
         role_service: Arc::new(services.role_service),
         role_group_service: Arc::new(services.role_group_service),
         renewal_service: Arc::new(services.renewal_service),

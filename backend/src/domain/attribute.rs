@@ -122,6 +122,7 @@ pub struct AttributeDefinition {
     name: AttributeName,
     description: Option<String>,
     allowed_values: Option<Vec<AttributeValue>>,
+    default_value: Option<AttributeValue>,
     sync_to_keycloak: bool,
     editable_by: EditableBy,
 }
@@ -134,25 +135,35 @@ pub enum AttributeValidationError {
 #[derive(Debug, PartialEq, Eq)]
 pub enum InvalidAttributeDefinition {
     EmptyAllowedValues,
+    DefaultNotInAllowedValues,
 }
 
 impl AttributeDefinition {
-    /// Constructs a definition, rejecting `Some(empty)` allowed_values.
-    /// `None` means "any value", `Some(non_empty)` means "must be one of".
+    /// Constructs a definition. Rejects `Some(empty)` allowed_values, and a
+    /// `default_value` that violates `allowed_values` when both are present.
+    /// `None` allowed_values means "any value", `Some(non_empty)` means
+    /// "must be one of".
     pub fn new(
         name: AttributeName,
         description: Option<String>,
         allowed_values: Option<Vec<AttributeValue>>,
+        default_value: Option<AttributeValue>,
         sync_to_keycloak: bool,
         editable_by: EditableBy,
     ) -> Result<Self, InvalidAttributeDefinition> {
         if matches!(&allowed_values, Some(v) if v.is_empty()) {
             return Err(InvalidAttributeDefinition::EmptyAllowedValues);
         }
+        if let (Some(allowed), Some(default)) = (&allowed_values, &default_value) {
+            if !allowed.iter().any(|v| v == default) {
+                return Err(InvalidAttributeDefinition::DefaultNotInAllowedValues);
+            }
+        }
         Ok(Self {
             name,
             description,
             allowed_values,
+            default_value,
             sync_to_keycloak,
             editable_by,
         })
@@ -164,6 +175,7 @@ impl AttributeDefinition {
         name: AttributeName,
         description: Option<String>,
         allowed_values: Option<Vec<AttributeValue>>,
+        default_value: Option<AttributeValue>,
         sync_to_keycloak: bool,
         editable_by: EditableBy,
     ) -> Self {
@@ -172,6 +184,7 @@ impl AttributeDefinition {
             name,
             description,
             allowed_values,
+            default_value,
             sync_to_keycloak,
             editable_by,
         }
@@ -187,6 +200,10 @@ impl AttributeDefinition {
 
     pub fn allowed_values(&self) -> Option<&[AttributeValue]> {
         self.allowed_values.as_deref()
+    }
+
+    pub fn default_value(&self) -> Option<&AttributeValue> {
+        self.default_value.as_ref()
     }
 
     pub fn sync_to_keycloak(&self) -> bool {
@@ -338,6 +355,7 @@ mod tests {
             AttributeName::new("note").unwrap(),
             None,
             None,
+            None,
             false,
             EditableBy::Admin,
         )
@@ -351,6 +369,7 @@ mod tests {
             AttributeName::new("xq-year").unwrap(),
             None,
             Some(vec![av("I"), av("II"), av("IV")]),
+            None,
             true,
             EditableBy::Admin,
         )
@@ -368,9 +387,51 @@ mod tests {
             AttributeName::new("note").unwrap(),
             None,
             Some(vec![]),
+            None,
             false,
             EditableBy::Admin,
         );
         assert_eq!(r, Err(InvalidAttributeDefinition::EmptyAllowedValues));
+    }
+
+    #[test]
+    fn definition_accepts_default_within_allowed_values() {
+        let def = AttributeDefinition::new(
+            AttributeName::new("membership-type").unwrap(),
+            None,
+            Some(vec![av("true"), av("external")]),
+            Some(av("external")),
+            true,
+            EditableBy::Admin,
+        )
+        .unwrap();
+        assert_eq!(def.default_value().map(AttributeValue::as_str), Some("external"));
+    }
+
+    #[test]
+    fn definition_rejects_default_outside_allowed_values() {
+        let r = AttributeDefinition::new(
+            AttributeName::new("membership-type").unwrap(),
+            None,
+            Some(vec![av("true"), av("external")]),
+            Some(av("other")),
+            true,
+            EditableBy::Admin,
+        );
+        assert_eq!(r, Err(InvalidAttributeDefinition::DefaultNotInAllowedValues));
+    }
+
+    #[test]
+    fn definition_accepts_default_with_no_allowed_values() {
+        let def = AttributeDefinition::new(
+            AttributeName::new("note").unwrap(),
+            None,
+            None,
+            Some(av("anything goes")),
+            false,
+            EditableBy::Admin,
+        )
+        .unwrap();
+        assert_eq!(def.default_value().map(AttributeValue::as_str), Some("anything goes"));
     }
 }

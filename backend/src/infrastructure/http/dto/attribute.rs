@@ -39,6 +39,7 @@ pub struct AttributeDefinitionDTO {
     pub name: String,
     pub description: Option<String>,
     pub allowed_values: Option<Vec<String>>,
+    pub default_value: Option<String>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableByDTO,
 }
@@ -48,11 +49,13 @@ impl From<AttributeDefinition> for AttributeDefinitionDTO {
         let allowed = d
             .allowed_values()
             .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect());
+        let default = d.default_value().map(|v| v.as_str().to_string());
         Self {
             sync_to_keycloak: d.sync_to_keycloak(),
             editable_by: d.editable_by().into(),
             description: d.description().map(str::to_string),
             allowed_values: allowed,
+            default_value: default,
             name: d.name().clone().into_inner(),
         }
     }
@@ -64,6 +67,7 @@ pub struct CreateAttributeDefinitionDTO {
     pub name: String,
     pub description: Option<String>,
     pub allowed_values: Option<Vec<String>>,
+    pub default_value: Option<String>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableByDTO,
 }
@@ -81,6 +85,9 @@ pub struct UpdateAttributeDefinitionDTO {
     #[serde(default, with = "::serde_with::rust::double_option")]
     #[ts(optional, type = "Array<string> | null")]
     pub allowed_values: Option<Option<Vec<String>>>,
+    #[serde(default, with = "::serde_with::rust::double_option")]
+    #[ts(optional, type = "string | null")]
+    pub default_value: Option<Option<String>>,
     #[serde(default)]
     #[ts(optional)]
     pub sync_to_keycloak: Option<bool>,

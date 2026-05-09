@@ -16,6 +16,7 @@ fn def(name: &str, sync: bool, editable_by: EditableBy) -> AttributeDefinition {
         AttributeName::new(name).unwrap(),
         None,
         None,
+        None,
         sync,
         editable_by,
     )
@@ -151,6 +152,7 @@ async fn set_rejects_value_not_in_allowed_values() {
                 AttributeName::new("xq-year").unwrap(),
                 None,
                 Some(vec![av("I"), av("II"), av("IV")]),
+                None,
                 false,
                 EditableBy::Admin,
             )
@@ -355,6 +357,7 @@ async fn update_patch_leave_preserves_existing_description() {
         AttributeName::new("xq-year").unwrap(),
         Some("the year".to_string()),
         None,
+        None,
         false,
         EditableBy::Admin,
     )
@@ -371,6 +374,7 @@ async fn update_patch_leave_preserves_existing_description() {
             AttributeName::new("xq-year").unwrap(),
             input.description,
             input.allowed_values,
+            input.default_value,
             input.sync_to_keycloak,
             input.editable_by,
         )
@@ -386,6 +390,7 @@ async fn update_patch_leave_preserves_existing_description() {
     let patch = UpdateAttributeDefinitionPatch {
         description: Patch::Leave,
         allowed_values: Patch::Leave,
+        default_value: Patch::Leave,
         sync_to_keycloak: None,
         editable_by: None,
     };
@@ -400,6 +405,7 @@ async fn update_patch_clear_drops_description() {
     let existing = AttributeDefinition::new(
         AttributeName::new("xq-year").unwrap(),
         Some("the year".to_string()),
+        None,
         None,
         false,
         EditableBy::Admin,
@@ -416,6 +422,7 @@ async fn update_patch_clear_drops_description() {
             AttributeName::new("xq-year").unwrap(),
             input.description,
             input.allowed_values,
+            input.default_value,
             input.sync_to_keycloak,
             input.editable_by,
         )
@@ -431,6 +438,7 @@ async fn update_patch_clear_drops_description() {
     let patch = UpdateAttributeDefinitionPatch {
         description: Patch::Clear,
         allowed_values: Patch::Leave,
+        default_value: Patch::Leave,
         sync_to_keycloak: None,
         editable_by: None,
     };
@@ -778,6 +786,7 @@ async fn create_definition_rolls_back_db_when_kc_mapper_add_fails() {
             input.name,
             input.description,
             input.allowed_values,
+            input.default_value,
             input.sync_to_keycloak,
             input.editable_by,
         )
@@ -800,6 +809,7 @@ async fn create_definition_rolls_back_db_when_kc_mapper_add_fails() {
                 name: AttributeName::new("xq-year").unwrap(),
                 description: None,
                 allowed_values: None,
+                default_value: None,
                 sync_to_keycloak: true,
                 editable_by: EditableBy::Admin,
             },
@@ -821,6 +831,7 @@ async fn update_definition_rejects_tightening_that_invalidates_existing_value() 
         AttributeName::new("xq-year").unwrap(),
         None,
         None, // currently no allowed_values constraint
+        None,
         false,
         EditableBy::Admin,
     )
@@ -844,6 +855,7 @@ async fn update_definition_rejects_tightening_that_invalidates_existing_value() 
     let patch = UpdateAttributeDefinitionPatch {
         description: Patch::Leave,
         allowed_values: Patch::Set(vec![av("A"), av("B")]),
+        default_value: Patch::Leave,
         sync_to_keycloak: None,
         editable_by: None,
     };
@@ -901,4 +913,105 @@ async fn sync_missing_surfaces_keycloak_multivalued_as_failure() {
         "expected multivalued reason, got: {}",
         summary.failures[0].reason
     );
+}
+
+// ---------------------------------------------------------------------------
+// Default values: registration-time application
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
+    use std::sync::Mutex;
+
+    let user_id = PersonId(uuid::Uuid::new_v4());
+
+    // Two definitions with defaults, one without — only the first two should
+    // produce upserts. Mixing sync_to_keycloak true/false guards against the
+    // KC path silently swallowing a missing provider lookup for the synced one.
+    let def_with_default_synced = AttributeDefinition::new(
+        AttributeName::new("membership-type").unwrap(),
+        None,
+        Some(vec![av("true"), av("external")]),
+        Some(av("external")),
+        true,
+        EditableBy::Admin,
+    )
+    .unwrap();
+    let def_with_default_internal = AttributeDefinition::new(
+        AttributeName::new("major-subject").unwrap(),
+        None,
+        Some(vec![av("iem"), av("other")]),
+        Some(av("other")),
+        false,
+        EditableBy::Both,
+    )
+    .unwrap();
+    let def_without_default = AttributeDefinition::new(
+        AttributeName::new("note").unwrap(),
+        None,
+        None,
+        None,
+        false,
+        EditableBy::Admin,
+    )
+    .unwrap();
+
+    let mut repo = MockAttributeRepositoryPort::new();
+    let defs = vec![
+        def_with_default_synced.clone(),
+        def_with_default_internal.clone(),
+        def_without_default.clone(),
+    ];
+    repo.expect_fetch_all_definitions()
+        .returning(move || Ok(defs.clone()));
+
+    // Track each upsert so we can assert content + count.
+    let upserts: Arc<Mutex<Vec<(String, String)>>> = Arc::new(Mutex::new(Vec::new()));
+    let upserts_for_repo = Arc::clone(&upserts);
+    repo.expect_upsert_member_value()
+        .returning(move |_uid, name, value| {
+            upserts_for_repo
+                .lock()
+                .unwrap()
+                .push((name.as_str().to_string(), value.as_str().to_string()));
+            Ok(())
+        });
+
+    let mut sync = MockAttributeSyncPort::new();
+    // Synced definition's KC push: user has no provider, so set_user_attribute
+    // is never called. Asserting times(0) makes that explicit.
+    sync.expect_set_user_attribute().times(0);
+
+    let mut auth_provider = MockAuthProviderRepo::new();
+    auth_provider
+        .expect_find_by_user_id()
+        .returning(|_| Ok(vec![]));
+
+    let svc = build_service(repo, sync, auth_provider);
+    svc.apply_defaults_for_new_user(user_id).await;
+
+    let recorded = upserts.lock().unwrap().clone();
+    assert_eq!(recorded.len(), 2, "exactly the two defaults must be upserted");
+    assert!(recorded.contains(&("membership-type".to_string(), "external".to_string())));
+    assert!(recorded.contains(&("major-subject".to_string(), "other".to_string())));
+}
+
+#[tokio::test]
+async fn apply_defaults_for_new_user_swallows_repo_failure() {
+    let user_id = PersonId(uuid::Uuid::new_v4());
+
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_all_definitions().returning(|| {
+        Err(crate::application::ports::repository_error::RepositoryError::Unexpected(
+            "boom".to_string(),
+        ))
+    });
+
+    let svc = build_service(
+        repo,
+        MockAttributeSyncPort::new(),
+        MockAuthProviderRepo::new(),
+    );
+    // Must not panic; registration cannot be blocked by attribute defaults.
+    svc.apply_defaults_for_new_user(user_id).await;
 }

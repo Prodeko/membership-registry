@@ -80,6 +80,11 @@ async fn create_definition(
     let name = parse_name(body.name)?;
     let allowed_values =
         parse_allowed_values(body.allowed_values).map_err(|_| ApiError::BadRequest)?;
+    let default_value = body
+        .default_value
+        .map(AttributeValue::new)
+        .transpose()
+        .map_err(|_| ApiError::BadRequest)?;
     let created = state
         .attribute_service
         .create_definition(
@@ -87,6 +92,7 @@ async fn create_definition(
                 name,
                 description: body.description,
                 allowed_values,
+                default_value,
                 sync_to_keycloak: body.sync_to_keycloak,
                 editable_by: body.editable_by.into(),
             },
@@ -122,6 +128,11 @@ async fn update_definition(
         Some(None) => Patch::Clear,
         Some(Some(s)) => Patch::Set(s),
     };
+    let default_value_patch = match body.default_value {
+        None => Patch::Leave,
+        Some(None) => Patch::Clear,
+        Some(Some(s)) => Patch::Set(AttributeValue::new(s).map_err(|_| ApiError::BadRequest)?),
+    };
     let updated = state
         .attribute_service
         .update_definition(
@@ -129,6 +140,7 @@ async fn update_definition(
             UpdateAttributeDefinitionPatch {
                 description: description_patch,
                 allowed_values: allowed_values_patch,
+                default_value: default_value_patch,
                 sync_to_keycloak: body.sync_to_keycloak,
                 editable_by: body.editable_by.map(Into::into),
             },

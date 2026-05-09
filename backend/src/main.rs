@@ -74,7 +74,7 @@ use infrastructure::{
 pub struct Services {
     pub member_service: MemberService,
     pub application_service: ApplicationService,
-    pub attribute_service: AttributeService,
+    pub attribute_service: Arc<AttributeService>,
     pub role_service: RoleService,
     pub role_group_service: RoleGroupService,
     pub renewal_service: RenewalService,
@@ -235,12 +235,22 @@ impl Services {
                 ))
             });
 
+        // Attribute service must precede member_service: registration-time
+        // defaults are pushed via the AttributeBootstrapPort hook.
+        let attribute_service = Arc::new(AttributeService::new(
+            Arc::clone(&attribute_repo),
+            Arc::clone(&attribute_sync),
+            Arc::clone(&auth_provider_repo),
+            audit_log_service.clone(),
+        ));
         let member_service = MemberService::new(
             Arc::clone(&member_repo),
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
             marketing_service.clone(),
+            Arc::clone(&attribute_service)
+                as Arc<dyn crate::application::ports::attribute_bootstrap_port::AttributeBootstrapPort>,
         );
         let role_service = RoleService::new(
             Arc::clone(&role_repo),
@@ -252,12 +262,6 @@ impl Services {
         let role_group_service = RoleGroupService::new(
             Arc::clone(&role_group_repo),
             Arc::clone(&role_sync),
-            Arc::clone(&auth_provider_repo),
-            audit_log_service.clone(),
-        );
-        let attribute_service = AttributeService::new(
-            Arc::clone(&attribute_repo),
-            Arc::clone(&attribute_sync),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         );

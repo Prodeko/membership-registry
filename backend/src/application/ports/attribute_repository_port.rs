@@ -8,6 +8,7 @@ pub struct CreateAttributeDefinition {
     pub name: AttributeName,
     pub description: Option<String>,
     pub allowed_values: Option<Vec<AttributeValue>>,
+    pub default_value: Option<AttributeValue>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableBy,
 }
@@ -16,6 +17,7 @@ pub struct CreateAttributeDefinition {
 pub struct UpdateAttributeDefinition {
     pub description: Option<String>,
     pub allowed_values: Option<Vec<AttributeValue>>,
+    pub default_value: Option<AttributeValue>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableBy,
 }

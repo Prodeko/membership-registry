@@ -98,6 +98,7 @@ mod test_idp_roles {
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
             None,
+            crate::application::services::tests::mocks::noop_attribute_bootstrap(),
         );
         let role_service = RoleService::new(
             role_repo,

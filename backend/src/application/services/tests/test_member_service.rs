@@ -110,6 +110,7 @@ async fn update_member_syncs_profile_to_keycloak_and_requires_verify_on_email_ch
         Arc::new(auth_provider_repo),
         noop_audit_log(),
         None,
+        noop_attribute_bootstrap(),
     );
 
     svc.update_member(
@@ -178,6 +179,7 @@ async fn update_member_does_not_require_verify_when_email_unchanged() {
         Arc::new(auth_provider_repo),
         noop_audit_log(),
         None,
+        noop_attribute_bootstrap(),
     );
 
     svc.update_member(
@@ -243,6 +245,7 @@ async fn create_member_auto_subscribes_to_marketing_list() {
         Arc::new(auth_provider_repo),
         noop_audit_log(),
         Some(marketing_service),
+        noop_attribute_bootstrap(),
     );
 
     svc.create_member(new_person(user_id), None).await.unwrap();
@@ -271,6 +274,7 @@ async fn create_member_without_marketing_service_still_succeeds() {
         Arc::new(auth_provider_repo),
         noop_audit_log(),
         None,
+        noop_attribute_bootstrap(),
     );
 
     let person = svc.create_member(new_person(user_id), None).await.unwrap();

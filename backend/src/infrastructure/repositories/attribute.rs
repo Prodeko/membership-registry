@@ -43,6 +43,7 @@ struct AttributeDefinitionDAO {
     name: String,
     description: Option<String>,
     allowed_values: Option<Vec<String>>,
+    default_value: Option<String>,
     sync_to_keycloak: bool,
     editable_by: EditableByDAO,
 }
@@ -52,10 +53,12 @@ impl From<AttributeDefinitionDAO> for AttributeDefinition {
         let allowed = row
             .allowed_values
             .map(|vs| vs.into_iter().map(AttributeValue::new_unchecked).collect());
+        let default = row.default_value.map(AttributeValue::new_unchecked);
         AttributeDefinition::new_unchecked(
             AttributeName::new_unchecked(row.name),
             row.description,
             allowed,
+            default,
             row.sync_to_keycloak,
             row.editable_by.into(),
         )
@@ -80,16 +83,18 @@ impl AttributeRepositoryPort for AttributeRepo {
             .allowed_values
             .as_ref()
             .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect());
+        let default = input.default_value.as_ref().map(|v| v.as_str().to_string());
         let row = sqlx::query_as!(
             AttributeDefinitionDAO,
-            r#"INSERT INTO AttributeDefinition (name, description, allowed_values, sync_to_keycloak, editable_by)
-               VALUES ($1, $2, $3, $4, $5)
-               RETURNING name, description, allowed_values,
+            r#"INSERT INTO AttributeDefinition (name, description, allowed_values, default_value, sync_to_keycloak, editable_by)
+               VALUES ($1, $2, $3, $4, $5, $6)
+               RETURNING name, description, allowed_values, default_value,
                          sync_to_keycloak,
                          editable_by AS "editable_by: EditableByDAO""#,
             input.name.as_str(),
             input.description.as_deref(),
             allowed.as_deref(),
+            default.as_deref(),
             input.sync_to_keycloak,
             editable_by as EditableByDAO,
         )
@@ -108,17 +113,20 @@ impl AttributeRepositoryPort for AttributeRepo {
             .allowed_values
             .as_ref()
             .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect());
+        let default = input.default_value.as_ref().map(|v| v.as_str().to_string());
         let row = sqlx::query_as!(
             AttributeDefinitionDAO,
             r#"UPDATE AttributeDefinition
-               SET description = $2, allowed_values = $3, sync_to_keycloak = $4, editable_by = $5
+               SET description = $2, allowed_values = $3, default_value = $4,
+                   sync_to_keycloak = $5, editable_by = $6
                WHERE name = $1
-               RETURNING name, description, allowed_values,
+               RETURNING name, description, allowed_values, default_value,
                          sync_to_keycloak,
                          editable_by AS "editable_by: EditableByDAO""#,
             name.as_str(),
             input.description.as_deref(),
             allowed.as_deref(),
+            default.as_deref(),
             input.sync_to_keycloak,
             editable_by as EditableByDAO,
         )
@@ -143,7 +151,7 @@ impl AttributeRepositoryPort for AttributeRepo {
     ) -> Result<Option<AttributeDefinition>, RepositoryError> {
         let row = sqlx::query_as!(
             AttributeDefinitionDAO,
-            r#"SELECT name, description, allowed_values,
+            r#"SELECT name, description, allowed_values, default_value,
                       sync_to_keycloak,
                       editable_by AS "editable_by: EditableByDAO"
                FROM AttributeDefinition WHERE name = $1"#,
@@ -157,7 +165,7 @@ impl AttributeRepositoryPort for AttributeRepo {
     async fn fetch_all_definitions(&self) -> Result<Vec<AttributeDefinition>, RepositoryError> {
         let rows = sqlx::query_as!(
             AttributeDefinitionDAO,
-            r#"SELECT name, description, allowed_values,
+            r#"SELECT name, description, allowed_values, default_value,
                       sync_to_keycloak,
                       editable_by AS "editable_by: EditableByDAO"
                FROM AttributeDefinition ORDER BY name"#
