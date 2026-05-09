@@ -552,6 +552,102 @@ async fn sync_missing_pushes_registry_only_value_mismatch_skips_kc_only_fails_un
     );
 }
 
+// ---------------------------------------------------------------------------
+// Catalog mutations: rollback + tightening guards
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn create_definition_rolls_back_db_when_kc_mapper_add_fails() {
+    use crate::application::ports::attribute_repository_port::CreateAttributeDefinition;
+    use crate::application::ports::attribute_sync_port::AttributeSyncError;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    let delete_called = Arc::new(AtomicBool::new(false));
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_create_definition().returning(|input| {
+        Ok(AttributeDefinition::new(
+            input.name,
+            input.description,
+            input.allowed_values,
+            input.sync_to_keycloak,
+            input.editable_by,
+        )
+        .unwrap())
+    });
+    let delete_called_for = delete_called.clone();
+    repo.expect_delete_definition().returning(move |_| {
+        delete_called_for.store(true, Ordering::SeqCst);
+        Ok(())
+    });
+
+    let mut sync = MockAttributeSyncPort::new();
+    sync.expect_add_mapper_to_scope()
+        .returning(|_| Err(AttributeSyncError::Unavailable));
+
+    let svc = build_service(repo, sync, MockAuthProviderRepo::new());
+    let res = svc
+        .create_definition(
+            CreateAttributeDefinition {
+                name: AttributeName::new("xq-year").unwrap(),
+                description: None,
+                allowed_values: None,
+                sync_to_keycloak: true,
+                editable_by: EditableBy::Admin,
+            },
+            None,
+        )
+        .await;
+
+    assert!(matches!(res, Err(ServiceError::IdpError)));
+    assert!(
+        delete_called.load(Ordering::SeqCst),
+        "compensating delete_definition must run when mapper add fails"
+    );
+}
+
+#[tokio::test]
+async fn update_definition_rejects_tightening_that_invalidates_existing_value() {
+    let user_id = PersonId(uuid::Uuid::new_v4());
+    let existing = AttributeDefinition::new(
+        AttributeName::new("xq-year").unwrap(),
+        None,
+        None, // currently no allowed_values constraint
+        false,
+        EditableBy::Admin,
+    )
+    .unwrap();
+
+    let mut repo = MockAttributeRepositoryPort::new();
+    let existing_for_fetch = existing.clone();
+    repo.expect_fetch_definition()
+        .returning(move |_| Ok(Some(existing_for_fetch.clone())));
+    let owned = user_id.clone();
+    repo.expect_fetch_all_values_for()
+        .returning(move |_| Ok(vec![(owned.clone(), av("Z"))]));
+
+    let svc = build_service(
+        repo,
+        MockAttributeSyncPort::new(),
+        MockAuthProviderRepo::new(),
+    );
+
+    // Tightening to {A, B} would make the existing "Z" value invalid.
+    let patch = UpdateAttributeDefinitionPatch {
+        description: Patch::Leave,
+        allowed_values: Patch::Set(vec![av("A"), av("B")]),
+        sync_to_keycloak: None,
+        editable_by: None,
+    };
+    let res = svc
+        .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)
+        .await;
+
+    assert!(
+        matches!(res, Err(ServiceError::Constraint(ref msg)) if msg.contains("not in allowed_values")),
+        "expected Constraint, got: {res:?}"
+    );
+}
+
 #[tokio::test]
 async fn sync_missing_surfaces_keycloak_multivalued_as_failure() {
     let user_id = PersonId(uuid::Uuid::new_v4());
