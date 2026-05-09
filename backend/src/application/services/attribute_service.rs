@@ -470,6 +470,11 @@ impl AttributeService {
             KcPushOutcome::default()
         };
 
+        let kc_failed_providers: Vec<&str> = kc_outcome
+            .failed
+            .iter()
+            .map(|(s, _)| s.as_str())
+            .collect();
         self.audit_log
             .log(
                 actor_user_id,
@@ -479,6 +484,8 @@ impl AttributeService {
                 Some(serde_json::json!({
                     "actor_kind": actor_kind,
                     "value": value.as_str(),
+                    "kc_applied": kc_outcome.applied,
+                    "kc_failed_providers": kc_failed_providers,
                 })),
             )
             .await;
@@ -502,13 +509,22 @@ impl AttributeService {
             KcPushOutcome::default()
         };
 
+        let kc_failed_providers: Vec<&str> = kc_outcome
+            .failed
+            .iter()
+            .map(|(s, _)| s.as_str())
+            .collect();
         self.audit_log
             .log(
                 actor_user_id,
                 "member_attribute.clear",
                 "member_attribute",
                 &format!("{}:{}", user_id.0, def.name().as_str()),
-                Some(serde_json::json!({ "actor_kind": actor_kind })),
+                Some(serde_json::json!({
+                    "actor_kind": actor_kind,
+                    "kc_applied": kc_outcome.applied,
+                    "kc_failed_providers": kc_failed_providers,
+                })),
             )
             .await;
 
