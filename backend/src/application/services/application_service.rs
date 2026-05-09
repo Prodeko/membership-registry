@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use crate::application::ports::application_repository_port::{
     ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole, ApplicationWithMember,
-    TargetableRolePort,
+    TargetableRolePort, UpdateTargetableRoleResolved,
 };
 use crate::domain::application::{
     Application, ApplicationAction, ApplicationStatus, ApplicationTransition, NewApplication,
     TransitionError,
 };
-use crate::domain::{AttributeName, AttributeValue, PersonId};
+use crate::domain::{AttributeName, AttributeValue, Patch, PersonId};
 use chrono::NaiveDate;
 use uuid::Uuid;
 
@@ -37,6 +37,19 @@ pub struct CreateApplicationParams {
 pub struct CreateApplicationResult {
     pub application: Application,
     pub redirect_to: String,
+}
+
+/// Service-level patch for `update_targetable_role`. Each field carries
+/// explicit leave/set (or leave/clear/set for nullable fields) intent so
+/// concurrent admins editing different fields don't clobber each other.
+#[derive(Debug, Clone, Default)]
+pub struct UpdateTargetableRolePatch {
+    pub active: Option<bool>,
+    pub optional_roles: Patch<Vec<String>>,
+    pub payment_link: Patch<String>,
+    pub approved_email_template: Patch<String>,
+    pub rejected_email_template: Patch<String>,
+    pub form_attributes: Option<Vec<AttributeName>>,
 }
 
 pub struct ApplicationService {
@@ -452,16 +465,40 @@ impl ApplicationService {
         &self,
         role_name: String,
         valid_until: chrono::NaiveDate,
-        active: Option<bool>,
-        form_attributes: Option<Vec<AttributeName>>,
+        patch: UpdateTargetableRolePatch,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
-        if let Some(attrs) = &form_attributes {
+        if let Some(attrs) = &patch.form_attributes {
             self.validate_form_attributes_exist(attrs).await?;
         }
-        let attrs_audit = form_attributes.as_ref().map(|a| a.len());
+
+        // Fetch the existing row so we can resolve Patch::Leave fields
+        // against current values; the repo writes all columns.
+        let existing = self
+            .targetable_roles
+            .fetch_targetable_role(role_name.clone(), valid_until)
+            .await
+            .map_err(E::from)?;
+
+        let resolved = UpdateTargetableRoleResolved {
+            active: patch.active.unwrap_or(existing.active),
+            optional_roles: patch.optional_roles.apply(existing.optional_roles),
+            payment_link: patch.payment_link.apply(existing.payment_link),
+            approved_email_template: patch
+                .approved_email_template
+                .apply(existing.approved_email_template),
+            rejected_email_template: patch
+                .rejected_email_template
+                .apply(existing.rejected_email_template),
+            form_attributes: patch
+                .form_attributes
+                .unwrap_or(existing.form_attributes),
+        };
+
+        let attrs_count = resolved.form_attributes.len();
+        let active = resolved.active;
         self.targetable_roles
-            .update_targetable_role(role_name.clone(), valid_until, active, form_attributes)
+            .update_targetable_role(role_name.clone(), valid_until, resolved)
             .await
             .map_err(E::from)?;
 
@@ -474,7 +511,7 @@ impl ApplicationService {
                 Some(serde_json::json!({
                     "role_name": role_name,
                     "active": active,
-                    "form_attributes_count": attrs_audit,
+                    "form_attributes_count": attrs_count,
                 })),
             )
             .await;

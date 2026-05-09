@@ -165,16 +165,30 @@ async fn post_targetable_role(
     Ok(targetable_role)
 }
 
+/// Patch DTO for updating a targetable role. Per-field wire semantics:
+/// - field omitted → leave unchanged
+/// - `null` → clear (only valid for nullable fields)
+/// - value → set
 #[derive(Deserialize, Debug, TS)]
 #[ts(export, rename = "PutTargetableRole")]
 struct PutTargetableRoleDTO {
     role_name: String,
     valid_until: chrono::NaiveDate,
-    /// `None` means leave unchanged; `Some(...)` toggles the active flag.
     #[serde(default)]
     #[ts(optional)]
     active: Option<bool>,
-    /// `None` means leave unchanged; `Some(vec![])` clears the list.
+    #[serde(default, with = "::serde_with::rust::double_option")]
+    #[ts(optional, type = "Array<string> | null")]
+    optional_roles: Option<Option<Vec<String>>>,
+    #[serde(default, with = "::serde_with::rust::double_option")]
+    #[ts(optional, type = "string | null")]
+    payment_link: Option<Option<String>>,
+    #[serde(default, with = "::serde_with::rust::double_option")]
+    #[ts(optional, type = "string | null")]
+    approved_email_template: Option<Option<String>>,
+    #[serde(default, with = "::serde_with::rust::double_option")]
+    #[ts(optional, type = "string | null")]
+    rejected_email_template: Option<Option<String>>,
     #[serde(default)]
     #[ts(optional)]
     form_attributes: Option<Vec<String>>,
@@ -185,22 +199,41 @@ async fn put_targetable_role(
     State(state): State<AppState>,
     Json(body): Json<PutTargetableRoleDTO>,
 ) -> ApiResult<Json<()>> {
+    use crate::application::services::application_service::UpdateTargetableRolePatch;
+    use crate::domain::Patch;
     let actor_id = user_info.map(|u| u.user_id);
     let role_name = body.role_name;
     let valid_until = body.valid_until;
-    let active = body.active;
+
     let form_attributes = body
         .form_attributes
         .map(parse_form_attribute_names)
         .transpose()?;
 
+    let patch = UpdateTargetableRolePatch {
+        active: body.active,
+        optional_roles: double_option_to_patch(body.optional_roles),
+        payment_link: double_option_to_patch(body.payment_link),
+        approved_email_template: double_option_to_patch(body.approved_email_template),
+        rejected_email_template: double_option_to_patch(body.rejected_email_template),
+        form_attributes,
+    };
+
     let targetable_role = state
         .application_service
-        .update_targetable_role(role_name, valid_until, active, form_attributes, actor_id)
+        .update_targetable_role(role_name, valid_until, patch, actor_id)
         .await
         .map(Json)?;
 
     Ok(targetable_role)
+}
+
+fn double_option_to_patch<T>(v: Option<Option<T>>) -> crate::domain::Patch<T> {
+    match v {
+        None => crate::domain::Patch::Leave,
+        Some(None) => crate::domain::Patch::Clear,
+        Some(Some(v)) => crate::domain::Patch::Set(v),
+    }
 }
 
 fn parse_form_attribute_names(

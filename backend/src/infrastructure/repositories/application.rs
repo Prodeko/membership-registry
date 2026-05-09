@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::application::ports::application_repository_port::{
     ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole as PortTargetableRole,
-    ApplicationWithMember as PortWithMember, TargetableRolePort,
+    ApplicationWithMember as PortWithMember, TargetableRolePort, UpdateTargetableRoleResolved,
 };
 use crate::application::ports::repository_error::RepositoryError;
 use crate::domain::{
@@ -422,49 +422,51 @@ impl TargetableRolePort for ApplicationRepo {
         &self,
         role_name: String,
         valid_until: chrono::NaiveDate,
-        active: Option<bool>,
-        form_attributes: Option<Vec<AttributeName>>,
+        update: UpdateTargetableRoleResolved,
     ) -> Result<(), RepositoryError> {
         let mut tx = self.pool.begin().await?;
-        if let Some(active) = active {
-            sqlx::query!(
-                "UPDATE ApplicationTargetableRole SET active = $3 WHERE role_name = $1 AND valid_until = $2",
-                role_name,
-                valid_until,
-                active
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
+        sqlx::query!(
+            r#"UPDATE ApplicationTargetableRole
+               SET active = $3,
+                   optional_roles = $4,
+                   payment_link = $5,
+                   approved_email_template = $6,
+                   rejected_email_template = $7
+               WHERE role_name = $1 AND valid_until = $2"#,
+            role_name,
+            valid_until,
+            update.active,
+            update.optional_roles.as_deref(),
+            update.payment_link,
+            update.approved_email_template,
+            update.rejected_email_template,
+        )
+        .execute(&mut *tx)
+        .await?;
 
-        if let Some(attrs) = form_attributes {
-            // Replace-all semantics: simpler than a position-aware diff and
-            // correct under typical admin-UI usage where the whole list is
-            // resubmitted. The CASCADE on ApplicationTargetableRole's PK
-            // means application_attribute_role_attribute already cleans up
-            // when the role is deleted, but we own the row deletion path
-            // for in-place edits here.
+        // Replace-all semantics on form_attributes: simpler than a
+        // position-aware diff and correct under typical admin-UI usage
+        // where the whole list is resubmitted.
+        sqlx::query!(
+            r#"DELETE FROM ApplicationTargetableRoleAttribute
+               WHERE role_name = $1 AND valid_until = $2"#,
+            role_name,
+            valid_until,
+        )
+        .execute(&mut *tx)
+        .await?;
+        for (i, name) in update.form_attributes.iter().enumerate() {
             sqlx::query!(
-                r#"DELETE FROM ApplicationTargetableRoleAttribute
-                   WHERE role_name = $1 AND valid_until = $2"#,
+                r#"INSERT INTO ApplicationTargetableRoleAttribute
+                       (role_name, valid_until, attribute_name, position)
+                   VALUES ($1, $2, $3, $4)"#,
                 role_name,
                 valid_until,
+                name.as_str(),
+                i as i32,
             )
             .execute(&mut *tx)
             .await?;
-            for (i, name) in attrs.iter().enumerate() {
-                sqlx::query!(
-                    r#"INSERT INTO ApplicationTargetableRoleAttribute
-                           (role_name, valid_until, attribute_name, position)
-                       VALUES ($1, $2, $3, $4)"#,
-                    role_name,
-                    valid_until,
-                    name.as_str(),
-                    i as i32,
-                )
-                .execute(&mut *tx)
-                .await?;
-            }
         }
 
         tx.commit().await?;

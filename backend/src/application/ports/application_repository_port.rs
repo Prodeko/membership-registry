@@ -23,6 +23,16 @@ pub struct ApplicationWithMember {
 }
 
 #[derive(Debug)]
+pub struct UpdateTargetableRoleResolved {
+    pub active: bool,
+    pub optional_roles: Option<Vec<String>>,
+    pub payment_link: Option<String>,
+    pub approved_email_template: Option<String>,
+    pub rejected_email_template: Option<String>,
+    pub form_attributes: Vec<AttributeName>,
+}
+
+#[derive(Debug)]
 pub struct ApplicationTargetableRole {
     pub role_name: String,
     pub valid_until: NaiveDate,
@@ -115,15 +125,16 @@ pub trait TargetableRolePort: Send + Sync {
         form_attributes: Vec<AttributeName>,
     ) -> Result<(), RepositoryError>;
 
-    /// Update the targetable role. `active = None` and
-    /// `form_attributes = None` both mean "leave unchanged"; `Some(vec![])`
-    /// for `form_attributes` clears the list.
+    /// Replace every mutable column on the targetable role. Service callers
+    /// resolve patches against the existing row and pass the resulting
+    /// fully-specified value here, so the repo never needs to know about
+    /// "leave unchanged" — it always writes all columns. `form_attributes`
+    /// is rewritten with replace-all semantics.
     async fn update_targetable_role(
         &self,
         role_name: String,
         valid_until: NaiveDate,
-        active: Option<bool>,
-        form_attributes: Option<Vec<AttributeName>>,
+        update: UpdateTargetableRoleResolved,
     ) -> Result<(), RepositoryError>;
 
     async fn delete_targetable_role(
