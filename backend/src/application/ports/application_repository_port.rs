@@ -2,7 +2,7 @@ use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
 use super::repository_error::RepositoryError;
-use crate::domain::{Application, ApplicationId, ApplicationStatus, NewApplication};
+use crate::domain::{Application, ApplicationId, ApplicationStatus, AttributeName, NewApplication};
 
 // --- Read models ---
 
@@ -23,6 +23,16 @@ pub struct ApplicationWithMember {
 }
 
 #[derive(Debug)]
+pub struct UpdateTargetableRoleResolved {
+    pub active: bool,
+    pub optional_roles: Option<Vec<String>>,
+    pub payment_link: Option<String>,
+    pub approved_email_template: Option<String>,
+    pub rejected_email_template: Option<String>,
+    pub form_attributes: Vec<AttributeName>,
+}
+
+#[derive(Debug)]
 pub struct ApplicationTargetableRole {
     pub role_name: String,
     pub valid_until: NaiveDate,
@@ -31,6 +41,9 @@ pub struct ApplicationTargetableRole {
     pub payment_link: Option<String>,
     pub approved_email_template: Option<String>,
     pub rejected_email_template: Option<String>,
+    /// Attributes the applicant must (or may) provide on the application
+    /// form for this role. Order is the display order in the UI.
+    pub form_attributes: Vec<AttributeName>,
 }
 
 // --- Command port: create, update, delete ---
@@ -101,6 +114,7 @@ pub trait TargetableRolePort: Send + Sync {
         valid_until: NaiveDate,
     ) -> Result<ApplicationTargetableRole, RepositoryError>;
 
+    #[allow(clippy::too_many_arguments)]
     async fn create_targetable_role(
         &self,
         role_name: String,
@@ -109,13 +123,19 @@ pub trait TargetableRolePort: Send + Sync {
         payment_link: Option<String>,
         approved_email_template: Option<String>,
         rejected_email_template: Option<String>,
+        form_attributes: Vec<AttributeName>,
     ) -> Result<(), RepositoryError>;
 
+    /// Replace every mutable column on the targetable role. Service callers
+    /// resolve patches against the existing row and pass the resulting
+    /// fully-specified value here, so the repo never needs to know about
+    /// "leave unchanged" — it always writes all columns. `form_attributes`
+    /// is rewritten with replace-all semantics.
     async fn update_targetable_role(
         &self,
         role_name: String,
         valid_until: NaiveDate,
-        active: Option<bool>,
+        update: UpdateTargetableRoleResolved,
     ) -> Result<(), RepositoryError>;
 
     async fn delete_targetable_role(

@@ -135,7 +135,14 @@ def _assign_service_account_roles(
     )
     available_by_name = {r["name"]: r for r in available_roles}
 
-    desired_roles = ["manage-users", "view-users", "manage-realm", "view-realm"]
+    desired_roles = [
+        "manage-users",
+        "view-users",
+        "manage-realm",
+        "view-realm",
+        "manage-clients",
+        "view-clients",
+    ]
     roles_to_assign = [
         available_by_name[name] for name in desired_roles if name in available_by_name
     ]

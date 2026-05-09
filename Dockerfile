@@ -1,5 +1,5 @@
 # Stage 1: Frontend build
-FROM node:20-bookworm-slim AS frontend
+FROM node:22-bookworm-slim AS frontend
 RUN corepack enable
 WORKDIR /frontend
 COPY frontend/package.json frontend/pnpm-lock.yaml ./

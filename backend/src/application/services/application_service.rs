@@ -2,15 +2,17 @@ use std::sync::Arc;
 
 use crate::application::ports::application_repository_port::{
     ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole, ApplicationWithMember,
-    TargetableRolePort,
+    TargetableRolePort, UpdateTargetableRoleResolved,
 };
 use crate::domain::application::{
     Application, ApplicationAction, ApplicationStatus, ApplicationTransition, NewApplication,
     TransitionError,
 };
+use crate::domain::{AttributeName, AttributeValue, Patch, PersonId};
 use chrono::NaiveDate;
 use uuid::Uuid;
 
+use crate::application::services::attribute_service::AttributeService;
 use crate::application::services::notification_service::NotificationService;
 
 use super::{
@@ -27,6 +29,9 @@ pub struct CreateApplicationParams {
     pub optional_roles: Option<Vec<String>>,
     pub application_text: Option<String>,
     pub frontend_url: String,
+    /// Attribute values submitted via the application form. Each pair must
+    /// reference a name in the targetable role's `form_attributes` list.
+    pub attributes: Vec<(AttributeName, AttributeValue)>,
 }
 
 pub struct CreateApplicationResult {
@@ -34,11 +39,25 @@ pub struct CreateApplicationResult {
     pub redirect_to: String,
 }
 
+/// Service-level patch for `update_targetable_role`. Each field carries
+/// explicit leave/set (or leave/clear/set for nullable fields) intent so
+/// concurrent admins editing different fields don't clobber each other.
+#[derive(Debug, Clone, Default)]
+pub struct UpdateTargetableRolePatch {
+    pub active: Option<bool>,
+    pub optional_roles: Patch<Vec<String>>,
+    pub payment_link: Patch<String>,
+    pub approved_email_template: Patch<String>,
+    pub rejected_email_template: Patch<String>,
+    pub form_attributes: Option<Vec<AttributeName>>,
+}
+
 pub struct ApplicationService {
     pub application_commands: Arc<dyn ApplicationCommandPort>,
     pub application_queries: Arc<dyn ApplicationQueryPort>,
     pub targetable_roles: Arc<dyn TargetableRolePort>,
     pub role_service: RoleService,
+    pub attribute_service: Arc<AttributeService>,
     pub audit_log: AuditLogService,
     pub notification_service: NotificationService,
 }
@@ -49,6 +68,7 @@ impl ApplicationService {
         application_queries: Arc<dyn ApplicationQueryPort>,
         targetable_roles: Arc<dyn TargetableRolePort>,
         role_service: RoleService,
+        attribute_service: Arc<AttributeService>,
         audit_log: AuditLogService,
         notification_service: NotificationService,
     ) -> Self {
@@ -57,6 +77,7 @@ impl ApplicationService {
             application_queries,
             targetable_roles,
             role_service,
+            attribute_service,
             audit_log,
             notification_service,
         }
@@ -86,6 +107,18 @@ impl ApplicationService {
             return Err(E::NotActive);
         }
 
+        // Validate every submitted attribute name is on this role's form
+        // allowlist BEFORE we persist anything. Otherwise a hostile client
+        // could write arbitrary attributes by stuffing the request body.
+        for (name, _) in &params.attributes {
+            if !targetable_role.form_attributes.iter().any(|a| a == name) {
+                return Err(E::Constraint(format!(
+                    "attribute {:?} is not on the application form for this role",
+                    name.as_str()
+                )));
+            }
+        }
+
         let requires_payment =
             targetable_role.payment_link.is_some() && params.stripe_payment_id.is_none();
 
@@ -104,6 +137,20 @@ impl ApplicationService {
             .create(&new_application)
             .await
             .map_err(E::from)?;
+
+        // Persist submitted attributes via the attribute service; bypasses
+        // editable_by because the form is its own authorization context.
+        // Per-attribute failures abort the rest — attributes are part of
+        // the application contract, so silently dropping one would be a
+        // data-correctness regression. The application row is left in
+        // place: rejecting the whole request would force a redo even
+        // though the upstream payment link is already wired to the new
+        // application_id.
+        for (name, value) in params.attributes {
+            self.attribute_service
+                .set_via_application_form(PersonId(params.user_id), &name, value, actor_user_id)
+                .await?;
+        }
 
         let redirect_to = match targetable_role.payment_link {
             Some(link) => format!(
@@ -362,8 +409,17 @@ impl ApplicationService {
         payment_link: Option<String>,
         approved_email_template: Option<String>,
         rejected_email_template: Option<String>,
+        form_attributes: Vec<AttributeName>,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
+        // Validate that every form attribute name actually exists in the
+        // catalog before persisting the targetable role. Otherwise the
+        // join-table FK violation surfaces as a generic database error
+        // and the admin gets no useful feedback.
+        self.validate_form_attributes_exist(&form_attributes)
+            .await?;
+
+        let attr_count = form_attributes.len();
         self.targetable_roles
             .create_targetable_role(
                 role_name.clone(),
@@ -372,17 +428,24 @@ impl ApplicationService {
                 payment_link,
                 approved_email_template,
                 rejected_email_template,
+                form_attributes,
             )
             .await
             .map_err(E::from)?;
 
-        self.audit_log.log(
-            actor_user_id,
-            "targetable_role.create",
-            "targetable_role",
-            &format!("{}:{}", role_name, valid_until),
-            Some(serde_json::json!({ "role_name": role_name, "valid_until": valid_until.to_string() })),
-        ).await;
+        self.audit_log
+            .log(
+                actor_user_id,
+                "targetable_role.create",
+                "targetable_role",
+                &format!("{}:{}", role_name, valid_until),
+                Some(serde_json::json!({
+                    "role_name": role_name,
+                    "valid_until": valid_until.to_string(),
+                    "form_attributes_count": attr_count,
+                })),
+            )
+            .await;
 
         Ok(())
     }
@@ -400,11 +463,38 @@ impl ApplicationService {
         &self,
         role_name: String,
         valid_until: chrono::NaiveDate,
-        active: Option<bool>,
+        patch: UpdateTargetableRolePatch,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
+        if let Some(attrs) = &patch.form_attributes {
+            self.validate_form_attributes_exist(attrs).await?;
+        }
+
+        // Fetch the existing row so we can resolve Patch::Leave fields
+        // against current values; the repo writes all columns.
+        let existing = self
+            .targetable_roles
+            .fetch_targetable_role(role_name.clone(), valid_until)
+            .await
+            .map_err(E::from)?;
+
+        let resolved = UpdateTargetableRoleResolved {
+            active: patch.active.unwrap_or(existing.active),
+            optional_roles: patch.optional_roles.apply(existing.optional_roles),
+            payment_link: patch.payment_link.apply(existing.payment_link),
+            approved_email_template: patch
+                .approved_email_template
+                .apply(existing.approved_email_template),
+            rejected_email_template: patch
+                .rejected_email_template
+                .apply(existing.rejected_email_template),
+            form_attributes: patch.form_attributes.unwrap_or(existing.form_attributes),
+        };
+
+        let attrs_count = resolved.form_attributes.len();
+        let active = resolved.active;
         self.targetable_roles
-            .update_targetable_role(role_name.clone(), valid_until, active)
+            .update_targetable_role(role_name.clone(), valid_until, resolved)
             .await
             .map_err(E::from)?;
 
@@ -414,10 +504,26 @@ impl ApplicationService {
                 "targetable_role.update",
                 "targetable_role",
                 &format!("{}:{}", role_name, valid_until),
-                Some(serde_json::json!({ "role_name": role_name, "active": active })),
+                Some(serde_json::json!({
+                    "role_name": role_name,
+                    "active": active,
+                    "form_attributes_count": attrs_count,
+                })),
             )
             .await;
 
+        Ok(())
+    }
+
+    async fn validate_form_attributes_exist(&self, names: &[AttributeName]) -> ServiceResult<()> {
+        for name in names {
+            if self.attribute_service.get_definition(name).await?.is_none() {
+                return Err(E::Constraint(format!(
+                    "attribute {:?} does not exist",
+                    name.as_str()
+                )));
+            }
+        }
         Ok(())
     }
 

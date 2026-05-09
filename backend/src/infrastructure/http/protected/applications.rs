@@ -12,6 +12,7 @@ use crate::{
     application::services::{
         application_service::CreateApplicationParams, authentication_service::AuthenticatedUser,
     },
+    domain::{AttributeName, AttributeValue},
     infrastructure::http::{
         dto::application::{
             ApplicationDTO, ApplicationTargetableRoleDTO, CreateApplicationRequestDTO,
@@ -112,6 +113,17 @@ async fn post_application(
     req.validate().map_err(|_| ApiError::BadRequest)?;
     let user_id = user_info.user_id;
 
+    let attributes = req
+        .attributes
+        .unwrap_or_default()
+        .into_iter()
+        .map(|kv| {
+            let name = AttributeName::new(kv.name).map_err(|_| ApiError::BadRequest)?;
+            let value = AttributeValue::new(kv.value).map_err(|_| ApiError::BadRequest)?;
+            Ok::<_, ApiError>((name, value))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
     let result = state
         .application_service
         .create_application(
@@ -123,6 +135,7 @@ async fn post_application(
                 optional_roles: req.optional_roles,
                 application_text: req.application_text,
                 frontend_url: state.config.frontend_url.clone(),
+                attributes,
             },
             Some(user_id),
         )

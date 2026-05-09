@@ -8,8 +8,17 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useGetMeMember, useUpdateMember } from "@/lib/api";
+import {
+  useDeleteMyAttribute,
+  useGetMeMember,
+  useGetMyAttributes,
+  useSetMyAttribute,
+  useUpdateMember,
+} from "@/lib/api";
 import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
+import { describeError } from "@/lib/utils";
+import { toast } from "sonner";
+import AttributesSection from "../attributes/AttributesSection";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -82,7 +91,13 @@ const ProfileEdit = () => {
       },
       {
         onSuccess: () => {
+          toast.success(t("profile.edit.saved"));
           navigate("/home");
+        },
+        onError: (e) => {
+          toast.error(`${t("profile.edit.save_failed")}: ${describeError(e)}`, {
+            duration: 10000,
+          });
         },
       },
     );
@@ -202,10 +217,48 @@ const ProfileEdit = () => {
           </form>
         </Form>
       </Card>
+      <UserAttributesCard />
       <div className="max-w-lg w-full">
         <MarketingPreferences />
       </div>
     </main>
+  );
+};
+
+const UserAttributesCard = () => {
+  const { t } = useTranslation();
+  const { data: attributes, isLoading } = useGetMyAttributes();
+  const setMutation = useSetMyAttribute();
+  const deleteMutation = useDeleteMyAttribute();
+
+  if (!isLoading && (!attributes || attributes.length === 0)) {
+    return null;
+  }
+
+  return (
+    <Card className="p-10 space-y-4 h-fit max-w-lg w-full">
+      <AttributesSection
+        heading={t("profile.attributes.title")}
+        emptyMessage={t("profile.attributes.empty")}
+        attributes={attributes}
+        isLoading={isLoading}
+        onSet={(input) =>
+          setMutation.mutate(input, {
+            onSuccess: () => toast.success(`Saved ${input.name}`),
+            onError: (e) =>
+              toast.error(`Failed to save ${input.name}: ${describeError(e)}`),
+          })
+        }
+        onDelete={(name) =>
+          deleteMutation.mutate(name, {
+            onSuccess: () => toast.success(`Cleared ${name}`),
+            onError: (e) =>
+              toast.error(`Failed to clear ${name}: ${describeError(e)}`),
+          })
+        }
+        isMutating={setMutation.isPending || deleteMutation.isPending}
+      />
+    </Card>
   );
 };
 

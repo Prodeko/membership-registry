@@ -58,6 +58,14 @@ const Header = () => {
               <Link to="/role-groups">Groups</Link>
             </NavigationMenuLink>
           </NavigationMenuItem>
+          <NavigationMenuItem>
+            <NavigationMenuLink
+              asChild
+              className={navigationMenuTriggerStyle()}
+            >
+              <Link to="/attributes">Attributes</Link>
+            </NavigationMenuLink>
+          </NavigationMenuItem>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
             <Link to="/logs">Logs</Link>
           </NavigationMenuLink>

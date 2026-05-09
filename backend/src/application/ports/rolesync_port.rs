@@ -1,7 +1,6 @@
 use crate::domain::RoleName;
 
-pub struct IdpSubject(pub String);
-pub struct IdpGroupId(pub String);
+pub use crate::domain::{IdpGroupId, IdpSubject};
 
 #[derive(Debug)]
 pub enum RoleSyncError {

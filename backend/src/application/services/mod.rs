@@ -1,4 +1,5 @@
 pub mod application_service;
+pub mod attribute_service;
 pub mod audit_log_service;
 pub mod authentication_service;
 pub mod errors;

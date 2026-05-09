@@ -7,7 +7,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use super::config::KeycloakConfig;
 
@@ -116,23 +116,49 @@ pub struct KeycloakClient {
     jwks: Arc<RwLock<Option<CachedJwks>>>,
     service_token: Arc<RwLock<Option<CachedToken>>>,
     role_id_cache: Cache<String, String>,
+    /// Per-subject mutex serializing the GET-merge-PUT flow against
+    /// `/admin/realms/{realm}/users/{id}`. KC has no ETag/version on the
+    /// user resource, so two concurrent attribute writes for the same
+    /// subject would race: GET-A → GET-B → PUT-A → PUT-B silently drops
+    /// A's change. The mutex serializes per-subject; different subjects
+    /// proceed in parallel.
+    user_attribute_locks: Cache<String, Arc<Mutex<()>>>,
 }
 
 impl KeycloakClient {
+    // Builder failure here is a startup-only event (TLS/system init); the
+    // previous `unwrap_or_default()` silently produced a timeout-less default
+    // client. Surface the failure loudly instead — the registry can't run
+    // without a working HTTP client to Keycloak.
+    #[allow(clippy::expect_used)]
     pub fn new(cfg: KeycloakConfig) -> Self {
+        let http = Client::builder()
+            .timeout(Duration::from_secs(30))
+            .build()
+            .expect("failed to build Keycloak HTTP client");
         Self {
             cfg,
-            http: Client::builder()
-                .timeout(Duration::from_secs(30))
-                .build()
-                .unwrap_or_default(),
+            http,
             jwks: Default::default(),
             service_token: Default::default(),
             role_id_cache: Cache::builder()
                 .max_capacity(100)
                 .time_to_live(Duration::from_secs(3600))
                 .build(),
+            user_attribute_locks: Cache::builder()
+                .max_capacity(10_000)
+                .time_to_idle(Duration::from_secs(300))
+                .build(),
         }
+    }
+
+    /// Acquire a per-subject mutex covering the user-attribute GET-merge-PUT
+    /// flow. Concurrent writes for the same subject serialize; different
+    /// subjects don't block each other.
+    async fn user_attribute_lock(&self, subject: &str) -> Arc<Mutex<()>> {
+        self.user_attribute_locks
+            .get_with(subject.to_string(), async { Arc::new(Mutex::new(())) })
+            .await
     }
 
     pub fn config(&self) -> &KeycloakConfig {
@@ -415,11 +441,23 @@ impl KeycloakClient {
     // User update (admin API)
     // -----------------------------------------------------------------------
 
+    /// Set the given attributes on a Keycloak user, preserving every other
+    /// attribute the user already has.
+    ///
+    /// The GET-merge-PUT pattern is load-bearing: KC's `PUT /users/{id}`
+    /// replaces the entire `attributes` map wholesale, so we have to read the
+    /// current user, merge the requested keys in, and write the merged
+    /// representation back. `AttributeSyncPort::set_user_attribute` depends
+    /// on this preserve-other-keys contract; replacing the GET with a plain
+    /// PUT will silently wipe attributes managed elsewhere.
     pub async fn update_user_attributes(
         &self,
         subject: &str,
         attributes: serde_json::Value,
     ) -> Result<(), KeycloakError> {
+        let lock = self.user_attribute_lock(subject).await;
+        let _guard = lock.lock().await;
+
         let token = self.get_service_token().await?;
         let url = self.admin_url(&format!("users/{}", encode_path(subject)));
 
@@ -1111,6 +1149,323 @@ impl KeycloakClient {
             )));
         }
 
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // User attribute (single-key, used by the registry-attributes feature)
+    // -----------------------------------------------------------------------
+
+    /// Clear a single user attribute by removing its key from the user's
+    /// attributes map. Other attributes are preserved.
+    pub async fn clear_user_attribute(
+        &self,
+        subject: &str,
+        attribute: &str,
+    ) -> Result<(), KeycloakError> {
+        let lock = self.user_attribute_lock(subject).await;
+        let _guard = lock.lock().await;
+
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!("users/{}", encode_path(subject)));
+
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("Get user request failed: {e}")))?;
+
+        if response.status() == reqwest::StatusCode::NOT_FOUND {
+            return Err(KeycloakError::NotFound);
+        }
+        if !response.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "Get user returned status {}",
+                response.status()
+            )));
+        }
+
+        let mut user: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| KeycloakError::BadResponse(format!("User parse error: {e}")))?;
+
+        if let Some(obj) = user.as_object_mut() {
+            if let Some(attrs) = obj.get_mut("attributes").and_then(|a| a.as_object_mut()) {
+                attrs.remove(attribute);
+            }
+        }
+
+        let put = self
+            .http
+            .put(&url)
+            .bearer_auth(&token)
+            .json(&user)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("Update user failed: {e}")))?;
+
+        if !put.status().is_success() {
+            let status = put.status();
+            return Err(KeycloakError::Unavailable(format!(
+                "Update user returned status {status}"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Page through every realm user and collect, for each one, the values
+    /// of the requested attribute keys. Returns one `(subject_id, attrs)`
+    /// tuple per user that has at least one of the requested attributes set;
+    /// users with none of them are omitted.
+    ///
+    /// KC's `q=key:value` search doesn't support wildcards, so we can't
+    /// server-side filter for "users that have this attribute set". We list
+    /// everything (paginated, `briefRepresentation=false` so attributes
+    /// come along) and filter client-side.
+    pub async fn list_users_with_attributes(
+        &self,
+        attributes: &[String],
+    ) -> Result<Vec<(String, std::collections::HashMap<String, Vec<String>>)>, KeycloakError> {
+        if attributes.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("users");
+        let mut out: Vec<(String, std::collections::HashMap<String, Vec<String>>)> = Vec::new();
+        let mut first: usize = 0;
+        let page: usize = 100;
+
+        loop {
+            let resp = self
+                .http
+                .get(&url)
+                .bearer_auth(&token)
+                .query(&[
+                    ("first", first.to_string()),
+                    ("max", page.to_string()),
+                    ("briefRepresentation", "false".to_string()),
+                ])
+                .send()
+                .await
+                .map_err(|e| {
+                    tracing::error!("User listing request failed: {e:?}");
+                    KeycloakError::Unavailable(format!("User listing failed: {e}"))
+                })?;
+
+            if !resp.status().is_success() {
+                let status = resp.status();
+                let body = resp.text().await.unwrap_or_default();
+                tracing::error!("User listing returned {status}: {body}");
+                return Err(KeycloakError::Unavailable(format!(
+                    "User listing returned status {status}"
+                )));
+            }
+
+            let users: Vec<serde_json::Value> = resp
+                .json()
+                .await
+                .map_err(|e| KeycloakError::BadResponse(format!("User listing parse: {e}")))?;
+            let len = users.len();
+
+            for u in users {
+                let Some(id) = u.get("id").and_then(|v| v.as_str()) else {
+                    continue;
+                };
+                let attrs_json = u.get("attributes");
+                let mut found: std::collections::HashMap<String, Vec<String>> =
+                    std::collections::HashMap::new();
+                for key in attributes {
+                    if let Some(arr) = attrs_json
+                        .and_then(|a| a.get(key))
+                        .and_then(|v| v.as_array())
+                    {
+                        let values: Vec<String> = arr
+                            .iter()
+                            .filter_map(|v| v.as_str().map(String::from))
+                            .collect();
+                        if !values.is_empty() {
+                            found.insert(key.clone(), values);
+                        }
+                    }
+                }
+                if !found.is_empty() {
+                    out.push((id.to_string(), found));
+                }
+            }
+
+            if len < page {
+                break;
+            }
+            first += page;
+        }
+
+        Ok(out)
+    }
+
+    // -----------------------------------------------------------------------
+    // Client scopes & protocol mappers (registry-attributes feature)
+    // -----------------------------------------------------------------------
+
+    /// Find a client scope by name. Returns its ID, or None if not found.
+    pub async fn find_client_scope_id(
+        &self,
+        scope_name: &str,
+    ) -> Result<Option<String>, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("client-scopes");
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("List scopes request failed: {e:?}");
+                KeycloakError::Unavailable(format!("List scopes failed: {e}"))
+            })?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            tracing::error!("List client-scopes returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "List scopes returned {status}"
+            )));
+        }
+        let scopes: Vec<serde_json::Value> = resp
+            .json()
+            .await
+            .map_err(|e| KeycloakError::BadResponse(format!("Scope parse error: {e}")))?;
+        Ok(scopes.into_iter().find_map(|s| {
+            if s.get("name").and_then(|n| n.as_str()) == Some(scope_name) {
+                s.get("id").and_then(|i| i.as_str()).map(|s| s.to_string())
+            } else {
+                None
+            }
+        }))
+    }
+
+    /// Create a User Attribute protocol mapper inside a client scope.
+    /// Returns Ok if the mapper already exists (HTTP 409).
+    pub async fn create_attribute_mapper(
+        &self,
+        scope_id: &str,
+        attribute_name: &str,
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "client-scopes/{}/protocol-mappers/models",
+            encode_path(scope_id)
+        ));
+        let body = serde_json::json!({
+            "name": attribute_name,
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-usermodel-attribute-mapper",
+            "config": {
+                "user.attribute": attribute_name,
+                "claim.name": attribute_name,
+                "jsonType.label": "String",
+                "multivalued": "false",
+                "userinfo.token.claim": "true",
+                "id.token.claim": "true",
+                "access.token.claim": "true",
+            }
+        });
+        let resp = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("Create mapper failed: {e}")))?;
+        if resp.status() == reqwest::StatusCode::CONFLICT {
+            return Ok(());
+        }
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            tracing::error!("Create attribute mapper returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "Create mapper returned status {status}"
+            )));
+        }
+        Ok(())
+    }
+
+    /// Find a protocol mapper by name inside a client scope. Returns its ID.
+    pub async fn find_attribute_mapper_id(
+        &self,
+        scope_id: &str,
+        attribute_name: &str,
+    ) -> Result<Option<String>, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "client-scopes/{}/protocol-mappers/models",
+            encode_path(scope_id)
+        ));
+        let resp = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| {
+                tracing::error!("List mappers request failed: {e:?}");
+                KeycloakError::Unavailable(format!("List mappers failed: {e}"))
+            })?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            tracing::error!("List protocol-mappers returned {status}: {body}");
+            return Err(KeycloakError::Unavailable(format!(
+                "List mappers returned {status}"
+            )));
+        }
+        let mappers: Vec<serde_json::Value> = resp
+            .json()
+            .await
+            .map_err(|e| KeycloakError::BadResponse(format!("Mappers parse error: {e}")))?;
+        Ok(mappers.into_iter().find_map(|m| {
+            if m.get("name").and_then(|n| n.as_str()) == Some(attribute_name) {
+                m.get("id").and_then(|i| i.as_str()).map(|s| s.to_string())
+            } else {
+                None
+            }
+        }))
+    }
+
+    /// Delete a protocol mapper from a client scope. Idempotent (404 = ok).
+    pub async fn delete_attribute_mapper(
+        &self,
+        scope_id: &str,
+        mapper_id: &str,
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "client-scopes/{}/protocol-mappers/models/{}",
+            encode_path(scope_id),
+            encode_path(mapper_id)
+        ));
+        let resp = self
+            .http
+            .delete(&url)
+            .bearer_auth(&token)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(format!("Delete mapper failed: {e}")))?;
+        if resp.status() == reqwest::StatusCode::NOT_FOUND {
+            return Ok(());
+        }
+        if !resp.status().is_success() {
+            let status = resp.status();
+            return Err(KeycloakError::Unavailable(format!(
+                "Delete mapper returned status {status}"
+            )));
+        }
         Ok(())
     }
 }

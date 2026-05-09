@@ -8,8 +8,13 @@ use uuid::Uuid;
 use crate::application::ports::{
     application_repository_port::{
         ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole,
-        ApplicationWithMember, TargetableRolePort,
+        ApplicationWithMember, TargetableRolePort, UpdateTargetableRoleResolved,
     },
+    attribute_bootstrap_port::AttributeBootstrapPort,
+    attribute_repository_port::{
+        AttributeRepositoryPort, CreateAttributeDefinition, UpdateAttributeDefinition,
+    },
+    attribute_sync_port::{AttributeSyncError, AttributeSyncPort},
     audit_log_repository_port::{
         AuditLogEntryWithActor, AuditLogQueryParams, AuditLogRepositoryPort, NewAuditLogEntry,
     },
@@ -31,8 +36,9 @@ use crate::application::ports::{
     user_admin_port::{IdpUser, UserAdminError, UserAdminPort},
 };
 use crate::domain::{
-    Application, ApplicationId, ApplicationStatus, EmailTemplate, EmailTemplateTranslation,
-    MarketingTag, NewApplication, NewPerson, Person, Role, RoleName, UpdatePersonData,
+    Application, ApplicationId, ApplicationStatus, AttributeDefinition, AttributeName,
+    AttributeValue, EmailTemplate, EmailTemplateTranslation, MarketingTag, MemberAttribute,
+    NewApplication, NewPerson, Person, PersonId, Role, RoleName, UpdatePersonData,
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
@@ -76,8 +82,8 @@ mock! {
     impl TargetableRolePort for TargetableRolePort {
         async fn fetch_all_targetable_roles(&self) -> Result<Vec<ApplicationTargetableRole>, RepositoryError>;
         async fn fetch_targetable_role(&self, role_name: String, valid_until: NaiveDate) -> Result<ApplicationTargetableRole, RepositoryError>;
-        async fn create_targetable_role(&self, role_name: String, valid_until: NaiveDate, active: Option<bool>, payment_link: Option<String>, approved_email_template: Option<String>, rejected_email_template: Option<String>) -> Result<(), RepositoryError>;
-        async fn update_targetable_role(&self, role_name: String, valid_until: NaiveDate, active: Option<bool>) -> Result<(), RepositoryError>;
+        async fn create_targetable_role(&self, role_name: String, valid_until: NaiveDate, active: Option<bool>, payment_link: Option<String>, approved_email_template: Option<String>, rejected_email_template: Option<String>, form_attributes: Vec<AttributeName>) -> Result<(), RepositoryError>;
+        async fn update_targetable_role(&self, role_name: String, valid_until: NaiveDate, update: UpdateTargetableRoleResolved) -> Result<(), RepositoryError>;
         async fn delete_targetable_role(&self, role_name: String, valid_until: NaiveDate) -> Result<(), RepositoryError>;
     }
 }
@@ -147,6 +153,7 @@ mock! {
     impl AuthProviderRepositoryPort for AuthProviderRepo {
         async fn find_by_provider(&self, provider_name: &str, provider_user_id: &str) -> Result<Option<AuthProviderMapping>, AuthProviderRepoError>;
         async fn find_by_user_id(&self, user_id: &Uuid) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError>;
+        async fn find_by_user_ids(&self, user_ids: &[Uuid]) -> Result<Vec<AuthProviderMapping>, AuthProviderRepoError>;
         async fn create(&self, user_id: &Uuid, provider_name: &str, provider_user_id: &str) -> Result<AuthProviderMapping, AuthProviderRepoError>;
         async fn delete(&self, user_id: &Uuid, provider_name: &str) -> Result<bool, AuthProviderRepoError>;
         async fn count_by_user_id(&self, user_id: &Uuid) -> Result<usize, AuthProviderRepoError>;
@@ -248,6 +255,40 @@ mock! {
     }
 }
 
+// --- AttributeRepositoryPort ---
+
+mock! {
+    pub AttributeRepositoryPort {}
+
+    #[async_trait::async_trait]
+    impl AttributeRepositoryPort for AttributeRepositoryPort {
+        async fn create_definition(&self, input: CreateAttributeDefinition) -> Result<AttributeDefinition, RepositoryError>;
+        async fn update_definition(&self, name: &AttributeName, input: UpdateAttributeDefinition) -> Result<AttributeDefinition, RepositoryError>;
+        async fn delete_definition(&self, name: &AttributeName) -> Result<(), RepositoryError>;
+        async fn fetch_definition(&self, name: &AttributeName) -> Result<Option<AttributeDefinition>, RepositoryError>;
+        async fn fetch_all_definitions(&self) -> Result<Vec<AttributeDefinition>, RepositoryError>;
+        async fn upsert_member_value(&self, user_id: &PersonId, name: &AttributeName, value: &AttributeValue) -> Result<(), RepositoryError>;
+        async fn delete_member_value(&self, user_id: &PersonId, name: &AttributeName) -> Result<(), RepositoryError>;
+        async fn fetch_member_values(&self, user_id: &PersonId) -> Result<Vec<MemberAttribute>, RepositoryError>;
+        async fn fetch_all_values_for(&self, name: &AttributeName) -> Result<Vec<(PersonId, AttributeValue)>, RepositoryError>;
+    }
+}
+
+// --- AttributeSyncPort ---
+
+mock! {
+    pub AttributeSyncPort {}
+
+    #[async_trait::async_trait]
+    impl AttributeSyncPort for AttributeSyncPort {
+        async fn add_mapper_to_scope(&self, attr: &AttributeName) -> Result<(), AttributeSyncError>;
+        async fn remove_mapper_from_scope(&self, attr: &AttributeName) -> Result<(), AttributeSyncError>;
+        async fn set_user_attribute(&self, subject: &IdpSubject, attr: &AttributeName, value: &AttributeValue) -> Result<(), AttributeSyncError>;
+        async fn clear_user_attribute(&self, subject: &IdpSubject, attr: &AttributeName) -> Result<(), AttributeSyncError>;
+        async fn list_users_with_attributes(&self, attrs: &[AttributeName]) -> Result<Vec<(IdpSubject, std::collections::HashMap<String, Vec<AttributeValue>>)>, AttributeSyncError>;
+    }
+}
+
 // --- AuditLogRepositoryPort ---
 
 mock! {
@@ -278,6 +319,25 @@ mock! {
             require_verify_email: bool,
         ) -> Result<(), UserAdminError>;
     }
+}
+
+// --- AttributeBootstrapPort ---
+
+mock! {
+    pub AttributeBootstrap {}
+
+    #[async_trait::async_trait]
+    impl AttributeBootstrapPort for AttributeBootstrap {
+        async fn apply_defaults_for_new_user(&self, user_id: PersonId);
+    }
+}
+
+/// `AttributeBootstrapPort` whose `apply_defaults_for_new_user` is a no-op.
+/// Use in member service tests that don't care about default propagation.
+pub fn noop_attribute_bootstrap() -> Arc<dyn AttributeBootstrapPort> {
+    let mut mock = MockAttributeBootstrap::new();
+    mock.expect_apply_defaults_for_new_user().returning(|_| ());
+    Arc::new(mock)
 }
 
 // --- Helpers ---

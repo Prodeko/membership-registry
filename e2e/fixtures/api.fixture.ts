@@ -129,6 +129,7 @@ export class AdminApiHelper {
     opts?: {
       approved_email_template?: string;
       rejected_email_template?: string;
+      form_attributes?: string[];
     },
   ): Promise<void> {
     const resp = await this.request(
@@ -140,6 +141,7 @@ export class AdminApiHelper {
         payment_link: paymentLink ?? null,
         approved_email_template: opts?.approved_email_template ?? null,
         rejected_email_template: opts?.rejected_email_template ?? null,
+        form_attributes: opts?.form_attributes ?? [],
       },
     );
     if (!resp.ok)
@@ -197,6 +199,43 @@ export class AdminApiHelper {
     if (!resp.ok && resp.status !== 404) {
       throw new Error(
         `Delete targetable role failed: ${resp.status} ${await resp.text()}`,
+      );
+    }
+  }
+
+  async createAttributeDefinition(input: {
+    name: string;
+    description?: string | null;
+    allowed_values?: string[] | null;
+    default_value?: string | null;
+    sync_to_keycloak?: boolean;
+    editable_by?: "admin" | "user" | "both";
+  }): Promise<void> {
+    const resp = await this.request("POST", "/admin/attributes", {
+      name: input.name,
+      description: input.description ?? null,
+      allowed_values: input.allowed_values ?? null,
+      default_value: input.default_value ?? null,
+      // Default to internal (no SSO) so tests don't need a Keycloak mapper
+      // round trip.
+      sync_to_keycloak: input.sync_to_keycloak ?? false,
+      editable_by: input.editable_by ?? "admin",
+    });
+    if (!resp.ok && resp.status !== 409) {
+      throw new Error(
+        `Create attribute failed: ${resp.status} ${await resp.text()}`,
+      );
+    }
+  }
+
+  async deleteAttributeDefinition(name: string): Promise<void> {
+    const resp = await this.request(
+      "DELETE",
+      `/admin/attributes/${encodeURIComponent(name)}`,
+    );
+    if (!resp.ok && resp.status !== 404) {
+      throw new Error(
+        `Delete attribute failed: ${resp.status} ${await resp.text()}`,
       );
     }
   }

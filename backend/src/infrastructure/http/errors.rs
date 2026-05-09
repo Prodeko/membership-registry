@@ -39,7 +39,23 @@ impl IntoResponse for ApiError {
 
 impl IntoResponse for ServiceError {
     fn into_response(self) -> Response {
-        tracing::error!("ServiceError: {:?}", self);
+        // Server-side and external-system errors stay at error!; client-driven
+        // 4xx variants log at debug! so production logs aren't drowned in
+        // routine validation failures.
+        match &self {
+            ServiceError::DatabaseError(_)
+            | ServiceError::IdpError
+            | ServiceError::Misconfigured(_)
+            | ServiceError::PartialSync(_)
+            | ServiceError::ProviderUserDeleted(_)
+            | ServiceError::ExportFailed
+            | ServiceError::MarketingSyncFailed(_) => {
+                tracing::error!("ServiceError: {self:?}");
+            }
+            _ => {
+                tracing::debug!("ServiceError: {self:?}");
+            }
+        }
 
         match self {
             ServiceError::AlreadyExists => {
@@ -71,6 +87,11 @@ impl IntoResponse for ServiceError {
             ServiceError::IdpError => {
                 (StatusCode::BAD_GATEWAY, "Identity provider error").into_response()
             }
+            ServiceError::Misconfigured(msg) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, msg).into_response()
+            }
+            ServiceError::PartialSync(msg) => (StatusCode::BAD_GATEWAY, msg).into_response(),
+            ServiceError::ProviderUserDeleted(msg) => (StatusCode::GONE, msg).into_response(),
             ServiceError::TokenExpired => {
                 (StatusCode::UNAUTHORIZED, "Token expired").into_response()
             }
@@ -118,6 +139,15 @@ impl From<ServiceError> for ApiError {
             ServiceError::DatabaseError(_) => ApiError::InternalServerError,
             ServiceError::NotActive => ApiError::BadRequest,
             ServiceError::IdpError => ApiError::ServiceError(ServiceError::IdpError),
+            ServiceError::Misconfigured(msg) => {
+                ApiError::ServiceError(ServiceError::Misconfigured(msg))
+            }
+            ServiceError::PartialSync(msg) => {
+                ApiError::ServiceError(ServiceError::PartialSync(msg))
+            }
+            ServiceError::ProviderUserDeleted(msg) => {
+                ApiError::ServiceError(ServiceError::ProviderUserDeleted(msg))
+            }
             ServiceError::TokenExpired => ApiError::Unauthorized,
             ServiceError::InvalidIdpUserId => ApiError::BadRequest,
             ServiceError::UserNotFound => ApiError::NotFound,

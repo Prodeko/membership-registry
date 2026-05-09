@@ -1,0 +1,79 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO AttributeDefinition (name, description, allowed_values, default_value, sync_to_keycloak, editable_by)\n               VALUES ($1, $2, $3, $4, $5, $6)\n               RETURNING name, description, allowed_values, default_value,\n                         sync_to_keycloak,\n                         editable_by AS \"editable_by: EditableByDAO\"",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "description",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "allowed_values",
+        "type_info": "TextArray"
+      },
+      {
+        "ordinal": 3,
+        "name": "default_value",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "sync_to_keycloak",
+        "type_info": "Bool"
+      },
+      {
+        "ordinal": 5,
+        "name": "editable_by: EditableByDAO",
+        "type_info": {
+          "Custom": {
+            "name": "attribute_editable_by",
+            "kind": {
+              "Enum": [
+                "admin",
+                "user",
+                "both"
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "TextArray",
+        "Text",
+        "Bool",
+        {
+          "Custom": {
+            "name": "attribute_editable_by",
+            "kind": {
+              "Enum": [
+                "admin",
+                "user",
+                "both"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "6e8ed4bffd9c79233a94db34068e3455632864ace40c88529a3d3a1aee4bccff"
+}

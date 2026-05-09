@@ -1,4 +1,14 @@
 export type { AddManyRolesBody } from "./AddManyRolesBody";
+export type { AttributeDefinition } from "./AttributeDefinition";
+export type { AttributeSyncStatus } from "./AttributeSyncStatus";
+export type { CreateAttributeDefinition } from "./CreateAttributeDefinition";
+export type { DriftEntry } from "./DriftEntry";
+export type { EditableBy } from "./EditableBy";
+export type { MemberAttribute } from "./MemberAttribute";
+export type { SetMemberAttribute } from "./SetMemberAttribute";
+export type { SyncMissingAttributesSummary } from "./SyncMissingAttributesSummary";
+export type { SyncMissingFailure } from "./SyncMissingFailure";
+export type { UpdateAttributeDefinition } from "./UpdateAttributeDefinition";
 export type { AuditLogEntry } from "./AuditLogEntry";
 export type { AuditLogEntryWithActor } from "./AuditLogEntryWithActor";
 export type { AuditLogQueryParams } from "./AuditLogQueryParams";

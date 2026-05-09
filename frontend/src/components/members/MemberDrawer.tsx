@@ -2,18 +2,22 @@ import {
   QueryKey,
   useAddMultipleRolesToMembers,
   useAssignRoleGroup,
+  useDeleteMemberAttribute,
   useGetMember,
+  useGetMemberAttributes,
   useGetMemberRoleGroups,
   useGetMemberRoles,
   useGetRoleGroups,
   useGetRoles,
   useRemoveMemberRole,
   useRemoveRoleGroupAssignment,
+  useSetMemberAttribute,
   useUpdateMember,
 } from "@/lib/api";
+import AttributesSection from "../attributes/AttributesSection";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -33,7 +37,8 @@ import {
   FormMessage,
 } from "../ui/form";
 import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, describeError } from "@/lib/utils";
+import { toast } from "sonner";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -123,6 +128,8 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   const { data: memberGroupMemberships } = useGetMemberRoleGroups(userId);
   const { data: allRoles } = useGetRoles();
   const { data: allGroups } = useGetRoleGroups();
+  const { data: memberAttributes, isLoading: isAttributesLoading } =
+    useGetMemberAttributes(userId);
 
   // ── mutations ──
   const { mutateAsync: updateMember } = useUpdateMember();
@@ -130,6 +137,8 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   const { mutateAsync: removeGroup } = useRemoveRoleGroupAssignment();
   const { mutateAsync: addRoles } = useAddMultipleRolesToMembers();
   const { mutateAsync: removeRole } = useRemoveMemberRole();
+  const { mutateAsync: setAttribute } = useSetMemberAttribute(userId);
+  const { mutateAsync: deleteAttribute } = useDeleteMemberAttribute(userId);
 
   // ── local staged state ──
   const [editingProfile, setEditingProfile] = useState(false);
@@ -147,6 +156,11 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   const [roleDateEdits, setRoleDateEdits] = useState<
     Record<string, { validFrom: string; validUntil: string }>
   >({}); // key = `${roleName}::${validFrom}`
+  // Pending attribute changes; key = attribute name, value = "" means clear,
+  // non-empty string means set. Flushed on Save.
+  const [attributeEdits, setAttributeEdits] = useState<Record<string, string>>(
+    {},
+  );
 
   // ── UI state ──
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
@@ -182,12 +196,12 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   });
 
   // ── close handler with animation ──
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setIsClosing(true);
     setTimeout(() => {
       onClose();
     }, 250);
-  };
+  }, [onClose]);
 
   // ── close on Escape ──
   useEffect(() => {
@@ -218,6 +232,16 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       (r) => !roleRemovals.has(removalKey(r.role_name, r.valid_from)),
     );
   }, [memberRoles, roleRemovals]);
+
+  // Attributes with pending edits overlaid on the server values.
+  const displayedAttributes = useMemo(() => {
+    if (!memberAttributes) return undefined;
+    return memberAttributes.map((a) => {
+      const edited = attributeEdits[a.name];
+      if (edited === undefined) return a;
+      return { ...a, value: edited === "" ? null : edited };
+    });
+  }, [memberAttributes, attributeEdits]);
 
   // All group memberships including staged additions
   const allGroupMemberships = useMemo(() => {
@@ -399,8 +423,10 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
 
   const handleSave = async () => {
     setIsSaving(true);
+    let stepLabel = "starting";
     try {
       // 1. Profile
+      stepLabel = "profile";
       if (editingProfile) {
         const vals = form.getValues();
         await updateMember({
@@ -418,12 +444,17 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       }
 
       // 2. Remove groups
+      stepLabel = "groups";
       for (const key of groupRemovals) {
         const [groupId, validFrom] = key.split("::");
         await removeGroup({ groupId, userId, validFrom });
       }
 
       // 3. Update group dates (delete + re-add)
+      // The remove+add sequence is not atomic. If the re-add fails after the
+      // remove has succeeded, the group membership has been deleted; the user
+      // sees a "groups" failure and retrying will try to re-delete a row that
+      // no longer exists. Substep labels make the partial state visible.
       for (const [groupId, dates] of Object.entries(groupDateEdits)) {
         const original = memberGroupMemberships?.find(
           (gm) => gm.group_id === groupId,
@@ -431,11 +462,13 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
         if (!original) continue;
         if (groupRemovals.has(removalKey(groupId, original.valid_from)))
           continue; // already removed
+        stepLabel = `groups: removing ${groupId}`;
         await removeGroup({
           groupId,
           userId,
           validFrom: original.valid_from,
         });
+        stepLabel = `groups: re-adding ${groupId} with new dates`;
         await assignGroup({
           groupId,
           userId,
@@ -459,16 +492,21 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       }
 
       // 5. Remove roles
+      stepLabel = "roles";
       for (const key of roleRemovals) {
         const [roleName, validFrom] = key.split("::");
         await removeRole({ userId, roleName, validFrom });
       }
 
-      // 6. Update role dates (delete + re-add)
+      // 6. Update role dates (delete + re-add) — same partial-state risk as
+      // the group date update path; label substeps so a failure between
+      // remove and re-add is visible.
       for (const [key, dates] of Object.entries(roleDateEdits)) {
         const [roleName, originalFrom] = key.split("::");
         if (roleRemovals.has(removalKey(roleName, originalFrom))) continue;
+        stepLabel = `roles: removing ${roleName}`;
         await removeRole({ userId, roleName, validFrom: originalFrom });
+        stepLabel = `roles: re-adding ${roleName} with new dates`;
         await addRoles({
           userIds: [userId],
           roleNames: [roleName],
@@ -493,7 +531,22 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
         });
       }
 
-      // 8. Invalidate
+      // 8. Attribute edits — set non-empty, delete empty.
+      stepLabel = "attributes";
+      const originalAttrValues = new Map(
+        (memberAttributes ?? []).map((a) => [a.name, a.value ?? ""]),
+      );
+      for (const [name, value] of Object.entries(attributeEdits)) {
+        const original = originalAttrValues.get(name) ?? "";
+        if (value === original) continue;
+        if (value === "") {
+          await deleteAttribute(name);
+        } else {
+          await setAttribute({ name, value });
+        }
+      }
+
+      // 9. Invalidate
       await queryClient.invalidateQueries({ queryKey: [QueryKey.MEMBER] });
       await queryClient.invalidateQueries({
         queryKey: [QueryKey.MEMBER_ROLES],
@@ -504,12 +557,32 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       await queryClient.invalidateQueries({
         queryKey: [QueryKey.MEMBERS_WITH_ROLES],
       });
+      await queryClient.invalidateQueries({
+        queryKey: [QueryKey.MEMBER_ATTRIBUTES, userId],
+      });
 
       handleClose();
+    } catch (e) {
+      console.error("MemberDrawer save failed at step:", stepLabel, e);
+      toast.error(`Save failed at ${stepLabel}: ${describeError(e)}`, {
+        duration: 10000,
+      });
+      // Don't close — leave the drawer open with current state so the user
+      // can see what changed and retry.
     } finally {
       setIsSaving(false);
     }
   };
+
+  const hasAttributeEdits = useMemo(() => {
+    if (!memberAttributes) return Object.keys(attributeEdits).length > 0;
+    const original = new Map(
+      memberAttributes.map((a) => [a.name, a.value ?? ""]),
+    );
+    return Object.entries(attributeEdits).some(
+      ([name, value]) => (original.get(name) ?? "") !== value,
+    );
+  }, [attributeEdits, memberAttributes]);
 
   const hasChanges =
     editingProfile ||
@@ -518,7 +591,8 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
     Object.keys(groupDateEdits).length > 0 ||
     roleAdditions.length > 0 ||
     roleRemovals.size > 0 ||
-    Object.keys(roleDateEdits).length > 0;
+    Object.keys(roleDateEdits).length > 0 ||
+    hasAttributeEdits;
 
   if (!member) return null;
 
@@ -1058,6 +1132,29 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
                 );
               })}
             </div>
+          </section>
+
+          {/* ── Attributes ── */}
+          <div className="h-px bg-border" />
+          <section>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+              Attributes
+            </p>
+            <AttributesSection
+              attributes={displayedAttributes}
+              isLoading={isAttributesLoading}
+              onSet={(input) =>
+                setAttributeEdits((prev) => ({
+                  ...prev,
+                  [input.name]: input.value,
+                }))
+              }
+              onDelete={(name) =>
+                setAttributeEdits((prev) => ({ ...prev, [name]: "" }))
+              }
+              heading=""
+              emptyMessage="No attributes defined yet. Configure them in the Attributes admin page."
+            />
           </section>
 
           {/* ── Effective Roles ── */}
