@@ -451,6 +451,10 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       }
 
       // 3. Update group dates (delete + re-add)
+      // The remove+add sequence is not atomic. If the re-add fails after the
+      // remove has succeeded, the group membership has been deleted; the user
+      // sees a "groups" failure and retrying will try to re-delete a row that
+      // no longer exists. Substep labels make the partial state visible.
       for (const [groupId, dates] of Object.entries(groupDateEdits)) {
         const original = memberGroupMemberships?.find(
           (gm) => gm.group_id === groupId,
@@ -458,11 +462,13 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
         if (!original) continue;
         if (groupRemovals.has(removalKey(groupId, original.valid_from)))
           continue; // already removed
+        stepLabel = `groups: removing ${groupId}`;
         await removeGroup({
           groupId,
           userId,
           validFrom: original.valid_from,
         });
+        stepLabel = `groups: re-adding ${groupId} with new dates`;
         await assignGroup({
           groupId,
           userId,
@@ -492,11 +498,15 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
         await removeRole({ userId, roleName, validFrom });
       }
 
-      // 6. Update role dates (delete + re-add)
+      // 6. Update role dates (delete + re-add) — same partial-state risk as
+      // the group date update path; label substeps so a failure between
+      // remove and re-add is visible.
       for (const [key, dates] of Object.entries(roleDateEdits)) {
         const [roleName, originalFrom] = key.split("::");
         if (roleRemovals.has(removalKey(roleName, originalFrom))) continue;
+        stepLabel = `roles: removing ${roleName}`;
         await removeRole({ userId, roleName, validFrom: originalFrom });
+        stepLabel = `roles: re-adding ${roleName} with new dates`;
         await addRoles({
           userIds: [userId],
           roleNames: [roleName],
