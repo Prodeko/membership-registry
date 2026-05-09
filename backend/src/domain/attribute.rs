@@ -1,0 +1,195 @@
+use crate::domain::PersonId;
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct AttributeName(String);
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum InvalidAttributeName {
+    Empty,
+    InvalidChars,
+    EdgeHyphen,
+}
+
+impl AttributeName {
+    pub fn new(s: impl Into<String>) -> Result<Self, InvalidAttributeName> {
+        let s = s.into();
+        if s.is_empty() {
+            return Err(InvalidAttributeName::Empty);
+        }
+        if !s
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+        {
+            return Err(InvalidAttributeName::InvalidChars);
+        }
+        if s.starts_with('-') || s.ends_with('-') {
+            return Err(InvalidAttributeName::EdgeHyphen);
+        }
+        Ok(Self(s))
+    }
+
+    /// Construct from a trusted source (e.g. database) without validation.
+    pub fn new_unchecked(s: String) -> Self {
+        Self(s)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttributeValue(String);
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum InvalidAttributeValue {
+    Empty,
+}
+
+impl AttributeValue {
+    pub fn new(s: impl Into<String>) -> Result<Self, InvalidAttributeValue> {
+        let s = s.into();
+        if s.is_empty() {
+            return Err(InvalidAttributeValue::Empty);
+        }
+        Ok(Self(s))
+    }
+
+    pub fn new_unchecked(s: String) -> Self {
+        Self(s)
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> String {
+        self.0
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EditableBy {
+    Admin,
+    User,
+    Both,
+}
+
+impl EditableBy {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Admin => "admin",
+            Self::User => "user",
+            Self::Both => "both",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Result<Self, ()> {
+        match s {
+            "admin" => Ok(Self::Admin),
+            "user" => Ok(Self::User),
+            "both" => Ok(Self::Both),
+            _ => Err(()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttributeDefinition {
+    pub name: AttributeName,
+    pub description: Option<String>,
+    pub allowed_values: Option<Vec<String>>,
+    pub sync_to_keycloak: bool,
+    pub editable_by: EditableBy,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum AttributeValidationError {
+    NotInAllowedValues,
+}
+
+impl AttributeDefinition {
+    pub fn validate(&self, value: &AttributeValue) -> Result<(), AttributeValidationError> {
+        match &self.allowed_values {
+            None => Ok(()),
+            Some(allowed) if allowed.iter().any(|v| v == value.as_str()) => Ok(()),
+            Some(_) => Err(AttributeValidationError::NotInAllowedValues),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberAttribute {
+    pub user_id: PersonId,
+    pub name: AttributeName,
+    pub value: AttributeValue,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn attribute_name_accepts_kebab_case() {
+        assert!(AttributeName::new("xq-year").is_ok());
+        assert!(AttributeName::new("membership-type").is_ok());
+        assert!(AttributeName::new("a").is_ok());
+    }
+
+    #[test]
+    fn attribute_name_rejects_invalid() {
+        for s in ["", " ", "Xq-Year", "xq year", "xq_year", "-x", "x-"] {
+            assert!(
+                AttributeName::new(s).is_err(),
+                "expected {s:?} to be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn attribute_value_rejects_empty() {
+        assert!(AttributeValue::new("").is_err());
+        assert!(AttributeValue::new("IV").is_ok());
+    }
+
+    #[test]
+    fn editable_by_string_roundtrip() {
+        for v in [EditableBy::Admin, EditableBy::User, EditableBy::Both] {
+            assert_eq!(EditableBy::from_str(v.as_str()).unwrap(), v);
+        }
+        assert!(EditableBy::from_str("nope").is_err());
+    }
+
+    #[test]
+    fn definition_validate_accepts_when_no_allowed_values() {
+        let def = AttributeDefinition {
+            name: AttributeName::new("note").unwrap(),
+            description: None,
+            allowed_values: None,
+            sync_to_keycloak: false,
+            editable_by: EditableBy::Admin,
+        };
+        let v = AttributeValue::new("anything").unwrap();
+        assert!(def.validate(&v).is_ok());
+    }
+
+    #[test]
+    fn definition_validate_enforces_enum() {
+        let def = AttributeDefinition {
+            name: AttributeName::new("xq-year").unwrap(),
+            description: None,
+            allowed_values: Some(vec!["I".into(), "II".into(), "IV".into()]),
+            sync_to_keycloak: true,
+            editable_by: EditableBy::Admin,
+        };
+        assert!(def.validate(&AttributeValue::new("IV").unwrap()).is_ok());
+        assert_eq!(
+            def.validate(&AttributeValue::new("V").unwrap()),
+            Err(AttributeValidationError::NotInAllowedValues)
+        );
+    }
+}
