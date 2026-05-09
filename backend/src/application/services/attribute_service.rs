@@ -357,6 +357,44 @@ impl AttributeService {
         // fails the mapper stays put and the next attempt is a clean retry.
         self.repo.delete_definition(name).await?;
 
+        // Clear the attribute key from every KC user that has it set, so
+        // re-creating an attribute with the same name later doesn't resurface
+        // stale values in JWTs. Best-effort: failures are tracked but don't
+        // gate the mapper removal — the mapper is the load-bearing piece.
+        let mut user_clear_failures: Vec<String> = Vec::new();
+        if existing.sync_to_keycloak() {
+            match self
+                .sync
+                .list_users_with_attributes(std::slice::from_ref(name))
+                .await
+            {
+                Ok(users) => {
+                    for (subject, attrs) in users {
+                        if !attrs.contains_key(name.as_str()) {
+                            continue;
+                        }
+                        if let Err(e) = self.sync.clear_user_attribute(&subject, name).await {
+                            tracing::error!(
+                                attribute = %name.as_str(),
+                                subject = %subject.0,
+                                "Failed to clear attribute from KC user during delete: {e:?}"
+                            );
+                            user_clear_failures.push(subject.0);
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(
+                        attribute = %name.as_str(),
+                        "list_users_with_attributes failed during delete cleanup: {e:?}"
+                    );
+                    // Surface as a soft signal: we couldn't enumerate users,
+                    // so we don't know which ones still hold the attribute.
+                    user_clear_failures.push("(could not enumerate KC users)".to_string());
+                }
+            }
+        }
+
         if existing.sync_to_keycloak() {
             if let Err(e) = self.sync.remove_mapper_from_scope(name).await {
                 tracing::error!(
@@ -379,10 +417,22 @@ impl AttributeService {
                 "attribute_definition.delete",
                 "attribute_definition",
                 name.as_str(),
-                None,
+                Some(serde_json::json!({
+                    "kc_user_clear_failed": user_clear_failures,
+                })),
             )
             .await;
         self.invalidate_sync_cache();
+
+        if !user_clear_failures.is_empty() {
+            return Err(ServiceError::PartialSync(format!(
+                "Attribute `{}` deleted; failed to clear value from {} Keycloak user(s): {}. \
+                 The mapper is removed so JWTs are unaffected, but stale data remains on user records.",
+                name.as_str(),
+                user_clear_failures.len(),
+                user_clear_failures.join(", ")
+            )));
+        }
         Ok(())
     }
 
