@@ -112,10 +112,12 @@ impl AttributeSyncPort for KeycloakAttributeSyncAdapter {
         for (subject, attr_map) in raw {
             let mut typed: HashMap<String, AttributeValue> = HashMap::with_capacity(attr_map.len());
             for (k, v) in attr_map {
-                let value = AttributeValue::new(v).map_err(|_| {
-                    AttributeSyncError::Unexpected("empty attribute value from KC".into())
-                })?;
-                typed.insert(k, value);
+                // KC-observed values bypass domain validation: KC may hold
+                // values written before stricter rules existed (e.g. edge
+                // whitespace, legacy data). Drift detection still works —
+                // any divergence from the registry's stricter values shows
+                // up as a ValueMismatch, which is the right signal.
+                typed.insert(k, AttributeValue::new_unchecked(v));
             }
             out.push((IdpSubject(subject), typed));
         }

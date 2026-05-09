@@ -50,6 +50,11 @@ pub enum InvalidAttributeValue {
     Empty,
     TooLong,
     ControlChar,
+    /// Whitespace-only, or leading/trailing whitespace. KC stores values
+    /// verbatim and echoes them back, so accepting `"IV "` would silently
+    /// mismatch any `allowed_values` entry of `"IV"`. We reject rather than
+    /// trim — silent normalization breaks parse-don't-validate.
+    Whitespace,
 }
 
 /// Keycloak's practical attribute value limit. Postgres has no length
@@ -68,6 +73,9 @@ impl AttributeValue {
         }
         if s.chars().any(|c| c.is_control()) {
             return Err(InvalidAttributeValue::ControlChar);
+        }
+        if s.trim().is_empty() || s.trim().len() != s.len() {
+            return Err(InvalidAttributeValue::Whitespace);
         }
         Ok(Self(s))
     }
@@ -277,6 +285,30 @@ mod tests {
         assert_eq!(AttributeValue::new(s), Err(InvalidAttributeValue::TooLong));
         let s = "a".repeat(ATTRIBUTE_VALUE_MAX_LEN);
         assert!(AttributeValue::new(s).is_ok());
+    }
+
+    #[test]
+    fn attribute_value_rejects_whitespace_only() {
+        for s in [" ", "   ", "\u{00A0}", " \u{00A0} "] {
+            assert_eq!(
+                AttributeValue::new(s),
+                Err(InvalidAttributeValue::Whitespace),
+                "expected {s:?} to be rejected as whitespace-only"
+            );
+        }
+    }
+
+    #[test]
+    fn attribute_value_rejects_leading_or_trailing_whitespace() {
+        for s in [" IV", "IV ", " IV "] {
+            assert_eq!(
+                AttributeValue::new(s),
+                Err(InvalidAttributeValue::Whitespace),
+                "expected {s:?} to be rejected for edge whitespace"
+            );
+        }
+        // Internal whitespace is preserved verbatim — only edges are rejected.
+        assert!(AttributeValue::new("käytäntö ässät").is_ok());
     }
 
     #[test]
