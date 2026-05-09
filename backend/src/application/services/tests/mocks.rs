@@ -10,6 +10,10 @@ use crate::application::ports::{
         ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole,
         ApplicationWithMember, TargetableRolePort,
     },
+    attribute_repository_port::{
+        AttributeRepositoryPort, CreateAttributeDefinition, UpdateAttributeDefinition,
+    },
+    attribute_sync_port::{AttributeSyncError, AttributeSyncPort},
     audit_log_repository_port::{
         AuditLogEntryWithActor, AuditLogQueryParams, AuditLogRepositoryPort, NewAuditLogEntry,
     },
@@ -31,8 +35,9 @@ use crate::application::ports::{
     user_admin_port::{IdpUser, UserAdminError, UserAdminPort},
 };
 use crate::domain::{
-    Application, ApplicationId, ApplicationStatus, EmailTemplate, EmailTemplateTranslation,
-    MarketingTag, NewApplication, NewPerson, Person, Role, RoleName, UpdatePersonData,
+    Application, ApplicationId, ApplicationStatus, AttributeDefinition, AttributeName,
+    AttributeValue, EmailTemplate, EmailTemplateTranslation, MarketingTag, MemberAttribute,
+    NewApplication, NewPerson, Person, PersonId, Role, RoleName, UpdatePersonData,
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
@@ -245,6 +250,40 @@ mock! {
 
     impl TemplateRendererPort for TemplateRendererPort {
         fn render<'a>(&self, template: &str, variables: &[(&'a str, &'a str)]) -> String;
+    }
+}
+
+// --- AttributeRepositoryPort ---
+
+mock! {
+    pub AttributeRepositoryPort {}
+
+    #[async_trait::async_trait]
+    impl AttributeRepositoryPort for AttributeRepositoryPort {
+        async fn create_definition(&self, input: CreateAttributeDefinition) -> Result<AttributeDefinition, RepositoryError>;
+        async fn update_definition(&self, name: &AttributeName, input: UpdateAttributeDefinition) -> Result<AttributeDefinition, RepositoryError>;
+        async fn delete_definition(&self, name: &AttributeName) -> Result<(), RepositoryError>;
+        async fn fetch_definition(&self, name: &AttributeName) -> Result<Option<AttributeDefinition>, RepositoryError>;
+        async fn fetch_all_definitions(&self) -> Result<Vec<AttributeDefinition>, RepositoryError>;
+        async fn upsert_member_value(&self, user_id: &PersonId, name: &AttributeName, value: &AttributeValue) -> Result<(), RepositoryError>;
+        async fn delete_member_value(&self, user_id: &PersonId, name: &AttributeName) -> Result<(), RepositoryError>;
+        async fn fetch_member_values(&self, user_id: &PersonId) -> Result<Vec<MemberAttribute>, RepositoryError>;
+        async fn fetch_all_values_for(&self, name: &AttributeName) -> Result<Vec<(PersonId, AttributeValue)>, RepositoryError>;
+    }
+}
+
+// --- AttributeSyncPort ---
+
+mock! {
+    pub AttributeSyncPort {}
+
+    #[async_trait::async_trait]
+    impl AttributeSyncPort for AttributeSyncPort {
+        async fn add_mapper_to_scope(&self, attr: &AttributeName) -> Result<(), AttributeSyncError>;
+        async fn remove_mapper_from_scope(&self, attr: &AttributeName) -> Result<(), AttributeSyncError>;
+        async fn set_user_attribute(&self, subject: &IdpSubject, attr: &AttributeName, value: &AttributeValue) -> Result<(), AttributeSyncError>;
+        async fn clear_user_attribute(&self, subject: &IdpSubject, attr: &AttributeName) -> Result<(), AttributeSyncError>;
+        async fn list_users_with_attributes(&self, attrs: &[AttributeName]) -> Result<Vec<(IdpSubject, std::collections::HashMap<String, AttributeValue>)>, AttributeSyncError>;
     }
 }
 
