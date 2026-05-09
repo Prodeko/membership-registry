@@ -415,6 +415,15 @@ impl KeycloakClient {
     // User update (admin API)
     // -----------------------------------------------------------------------
 
+    /// Set the given attributes on a Keycloak user, preserving every other
+    /// attribute the user already has.
+    ///
+    /// The GET-merge-PUT pattern is load-bearing: KC's `PUT /users/{id}`
+    /// replaces the entire `attributes` map wholesale, so we have to read the
+    /// current user, merge the requested keys in, and write the merged
+    /// representation back. `AttributeSyncPort::set_user_attribute` depends
+    /// on this preserve-other-keys contract; replacing the GET with a plain
+    /// PUT will silently wipe attributes managed elsewhere.
     pub async fn update_user_attributes(
         &self,
         subject: &str,
