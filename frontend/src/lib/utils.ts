@@ -1,8 +1,28 @@
 import { Option } from "@/components/ui/multiple-selector";
 import { type ClassValue, clsx } from "clsx";
+import { AxiosError } from "axios";
 import React from "react";
 import { useEffect } from "react";
 import { twMerge } from "tailwind-merge";
+
+/// Best-effort human description of an axios/fetch error for toasts.
+export function describeError(err: unknown): string {
+  if (err instanceof AxiosError) {
+    const data = err.response?.data;
+    if (typeof data === "string" && data.trim().length > 0) return data;
+    if (
+      data &&
+      typeof data === "object" &&
+      "message" in data &&
+      typeof (data as { message: unknown }).message === "string"
+    ) {
+      return (data as { message: string }).message;
+    }
+    return err.message;
+  }
+  if (err instanceof Error) return err.message;
+  return "Unknown error";
+}
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

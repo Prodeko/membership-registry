@@ -16,6 +16,7 @@ import {
   useUpdateMember,
 } from "@/lib/api";
 import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
+import { describeError } from "@/lib/utils";
 import { toast } from "sonner";
 import AttributesSection from "../attributes/AttributesSection";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -238,11 +239,17 @@ const UserAttributesCard = () => {
         onSet={(input) =>
           setMutation.mutate(input, {
             onSuccess: () => toast.success(`Saved ${input.name}`),
+            onError: (e) =>
+              toast.error(
+                `Failed to save ${input.name}: ${describeError(e)}`,
+              ),
           })
         }
         onDelete={(name) =>
           deleteMutation.mutate(name, {
             onSuccess: () => toast.success(`Cleared ${name}`),
+            onError: (e) =>
+              toast.error(`Failed to clear ${name}: ${describeError(e)}`),
           })
         }
         isMutating={setMutation.isPending || deleteMutation.isPending}

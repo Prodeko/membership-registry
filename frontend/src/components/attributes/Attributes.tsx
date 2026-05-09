@@ -1,3 +1,4 @@
+import { describeError } from "@/lib/utils";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -41,6 +42,9 @@ const Attributes = () => {
         toast.success(`Attribute ${body.name} created`);
         setCreateOpen(false);
       },
+      onError: (e) => {
+        toast.error(`Failed to create ${body.name}: ${describeError(e)}`);
+      },
     });
   };
 
@@ -51,6 +55,9 @@ const Attributes = () => {
         onSuccess: () => {
           toast.success(`Attribute ${name} updated`);
           setEditing(null);
+        },
+        onError: (e) => {
+          toast.error(`Failed to update ${name}: ${describeError(e)}`);
         },
       },
     );
@@ -63,6 +70,9 @@ const Attributes = () => {
     if (!confirmed) return;
     deleteMutation.mutate(def.name, {
       onSuccess: () => toast.success(`Attribute ${def.name} deleted`),
+      onError: (e) => {
+        toast.error(`Failed to delete ${def.name}: ${describeError(e)}`);
+      },
     });
   };
 
@@ -219,6 +229,9 @@ const SyncStatusPanel = () => {
           `Synced ${summary.applied}, ${summary.failed} failed.\n${sample}${more}`,
           { duration: 10000 },
         );
+      },
+      onError: (e) => {
+        toast.error(`Sync failed: ${describeError(e)}`, { duration: 10000 });
       },
     });
   };

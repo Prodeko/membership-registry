@@ -37,7 +37,8 @@ import {
   FormMessage,
 } from "../ui/form";
 import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { cn, describeError } from "@/lib/utils";
+import { toast } from "sonner";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -422,8 +423,10 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
 
   const handleSave = async () => {
     setIsSaving(true);
+    let stepLabel = "starting";
     try {
       // 1. Profile
+      stepLabel = "profile";
       if (editingProfile) {
         const vals = form.getValues();
         await updateMember({
@@ -441,6 +444,7 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       }
 
       // 2. Remove groups
+      stepLabel = "groups";
       for (const key of groupRemovals) {
         const [groupId, validFrom] = key.split("::");
         await removeGroup({ groupId, userId, validFrom });
@@ -482,6 +486,7 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       }
 
       // 5. Remove roles
+      stepLabel = "roles";
       for (const key of roleRemovals) {
         const [roleName, validFrom] = key.split("::");
         await removeRole({ userId, roleName, validFrom });
@@ -517,6 +522,7 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       }
 
       // 8. Attribute edits — set non-empty, delete empty.
+      stepLabel = "attributes";
       const originalAttrValues = new Map(
         (memberAttributes ?? []).map((a) => [a.name, a.value ?? ""]),
       );
@@ -546,6 +552,13 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       });
 
       handleClose();
+    } catch (e) {
+      console.error("MemberDrawer save failed at step:", stepLabel, e);
+      toast.error(`Save failed at ${stepLabel}: ${describeError(e)}`, {
+        duration: 10000,
+      });
+      // Don't close — leave the drawer open with current state so the user
+      // can see what changed and retry.
     } finally {
       setIsSaving(false);
     }
