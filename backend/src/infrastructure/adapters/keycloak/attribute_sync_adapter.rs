@@ -30,6 +30,7 @@ impl KeycloakAttributeSyncAdapter {
 fn map_kc_err(e: KeycloakError) -> AttributeSyncError {
     match e {
         KeycloakError::Unavailable(_) => AttributeSyncError::Unavailable,
+        KeycloakError::NotFound => AttributeSyncError::UserNotFound,
         other => AttributeSyncError::Unexpected(format!("{other:?}")),
     }
 }

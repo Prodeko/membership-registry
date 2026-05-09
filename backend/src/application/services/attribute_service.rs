@@ -76,7 +76,14 @@ impl KcPushOutcome {
                     .to_string(),
             ));
         }
-        let providers: Vec<String> = self.failed.iter().map(|(s, _)| s.clone()).collect();
+        let providers: Vec<String> = self
+            .failed
+            .iter()
+            .map(|(s, e)| match e {
+                AttributeSyncError::UserNotFound => format!("{s} (KC user missing)"),
+                _ => s.clone(),
+            })
+            .collect();
         Err(ServiceError::PartialSync(format!(
             "Attribute `{}` saved locally; Keycloak push failed for {} provider(s): {}",
             name.as_str(),
@@ -755,6 +762,7 @@ fn map_sync_err(e: AttributeSyncError) -> ServiceError {
             "Keycloak client scope `registry-attributes` is missing — add it to the realm config"
                 .to_string(),
         ),
+        AttributeSyncError::UserNotFound => ServiceError::UserNotFound,
         AttributeSyncError::Unexpected(s) => {
             tracing::error!("Keycloak attribute sync unexpected error: {s}");
             ServiceError::IdpError

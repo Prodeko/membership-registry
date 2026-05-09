@@ -6,7 +6,12 @@ use crate::domain::{AttributeName, AttributeValue};
 #[derive(Debug)]
 pub enum AttributeSyncError {
     Unavailable,
+    /// The realm is missing the registry-attributes client scope. This is a
+    /// configuration error, not transient.
     ScopeMissing,
+    /// The targeted KC user is gone from the realm — likely deleted out of
+    /// band. The caller should not treat this the same as a transient outage.
+    UserNotFound,
     Unexpected(String),
 }
 
