@@ -1,5 +1,4 @@
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::application::ports::attribute_repository_port::{
     AttributeRepositoryPort, CreateAttributeDefinition, UpdateAttributeDefinition,
@@ -170,7 +169,7 @@ impl AttributeRepositoryPort for AttributeRepo {
 
     async fn upsert_member_value(
         &self,
-        user_id: &Uuid,
+        user_id: &PersonId,
         name: &AttributeName,
         value: &AttributeValue,
     ) -> Result<(), RepositoryError> {
@@ -179,7 +178,7 @@ impl AttributeRepositoryPort for AttributeRepo {
                VALUES ($1, $2, $3)
                ON CONFLICT (user_id, attribute_name) DO UPDATE
                  SET value = EXCLUDED.value, updated_at = NOW()"#,
-            user_id,
+            user_id.0,
             name.as_str(),
             value.as_str(),
         )
@@ -190,12 +189,12 @@ impl AttributeRepositoryPort for AttributeRepo {
 
     async fn delete_member_value(
         &self,
-        user_id: &Uuid,
+        user_id: &PersonId,
         name: &AttributeName,
     ) -> Result<(), RepositoryError> {
         sqlx::query!(
             "DELETE FROM MemberAttribute WHERE user_id = $1 AND attribute_name = $2",
-            user_id,
+            user_id.0,
             name.as_str(),
         )
         .execute(&self.pool)
@@ -205,14 +204,14 @@ impl AttributeRepositoryPort for AttributeRepo {
 
     async fn fetch_member_values(
         &self,
-        user_id: &Uuid,
+        user_id: &PersonId,
     ) -> Result<Vec<MemberAttribute>, RepositoryError> {
         let rows = sqlx::query!(
             r#"SELECT user_id, attribute_name, value
                FROM MemberAttribute
                WHERE user_id = $1
                ORDER BY attribute_name"#,
-            user_id,
+            user_id.0,
         )
         .fetch_all(&self.pool)
         .await?;
@@ -229,7 +228,7 @@ impl AttributeRepositoryPort for AttributeRepo {
     async fn fetch_all_values_for(
         &self,
         name: &AttributeName,
-    ) -> Result<Vec<(Uuid, AttributeValue)>, RepositoryError> {
+    ) -> Result<Vec<(PersonId, AttributeValue)>, RepositoryError> {
         let rows = sqlx::query!(
             "SELECT user_id, value FROM MemberAttribute WHERE attribute_name = $1",
             name.as_str(),
@@ -238,7 +237,7 @@ impl AttributeRepositoryPort for AttributeRepo {
         .await?;
         Ok(rows
             .into_iter()
-            .map(|r| (r.user_id, AttributeValue::new_unchecked(r.value)))
+            .map(|r| (PersonId(r.user_id), AttributeValue::new_unchecked(r.value)))
             .collect())
     }
 }

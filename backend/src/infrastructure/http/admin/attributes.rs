@@ -17,7 +17,7 @@ use crate::{
             authentication_service::AuthenticatedUser,
         },
     },
-    domain::{AttributeName, AttributeValue, Patch},
+    domain::{AttributeName, AttributeValue, Patch, PersonId},
     infrastructure::http::{
         dto::attribute::{
             editable_for_admin, parse_allowed_values, AttributeDefinitionDTO,
@@ -192,7 +192,7 @@ async fn get_member_attributes_admin(
     let defs = state.attribute_service.list_definitions().await?;
     let values: HashMap<String, String> = state
         .attribute_service
-        .fetch_for_member(user_id)
+        .fetch_for_member(PersonId(user_id))
         .await?
         .into_iter()
         .map(|a| (a.name.into_inner(), a.value.into_inner()))
@@ -225,7 +225,7 @@ async fn set_member_attribute_admin(
     let v = AttributeValue::new(body.value).map_err(|_| ApiError::BadRequest)?;
     state
         .attribute_service
-        .set_as_admin(user_id, &n, v, actor_id)
+        .set_as_admin(PersonId(user_id), &n, v, actor_id)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -240,7 +240,7 @@ async fn clear_member_attribute_admin(
     let n = parse_name(name)?;
     state
         .attribute_service
-        .clear_as_admin(user_id, &n, actor_id)
+        .clear_as_admin(PersonId(user_id), &n, actor_id)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }

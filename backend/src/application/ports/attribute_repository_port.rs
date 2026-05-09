@@ -1,8 +1,6 @@
-use uuid::Uuid;
-
 use super::repository_error::RepositoryError;
 use crate::domain::{
-    AttributeDefinition, AttributeName, AttributeValue, EditableBy, MemberAttribute,
+    AttributeDefinition, AttributeName, AttributeValue, EditableBy, MemberAttribute, PersonId,
 };
 
 #[derive(Debug, Clone)]
@@ -50,25 +48,25 @@ pub trait AttributeRepositoryPort: Send + Sync {
 
     async fn upsert_member_value(
         &self,
-        user_id: &Uuid,
+        user_id: &PersonId,
         name: &AttributeName,
         value: &AttributeValue,
     ) -> Result<(), RepositoryError>;
 
     async fn delete_member_value(
         &self,
-        user_id: &Uuid,
+        user_id: &PersonId,
         name: &AttributeName,
     ) -> Result<(), RepositoryError>;
 
     async fn fetch_member_values(
         &self,
-        user_id: &Uuid,
+        user_id: &PersonId,
     ) -> Result<Vec<MemberAttribute>, RepositoryError>;
 
     /// All (user_id, value) pairs for a given attribute. Used by drift detection.
     async fn fetch_all_values_for(
         &self,
         name: &AttributeName,
-    ) -> Result<Vec<(Uuid, AttributeValue)>, RepositoryError>;
+    ) -> Result<Vec<(PersonId, AttributeValue)>, RepositoryError>;
 }

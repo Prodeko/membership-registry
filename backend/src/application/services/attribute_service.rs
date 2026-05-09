@@ -152,7 +152,7 @@ impl AttributeService {
                 if !allowed_set.contains(val.as_str()) {
                     return Err(ServiceError::Constraint(format!(
                         "user {} has value {:?} which is not in allowed_values",
-                        uid,
+                        uid.0,
                         val.as_str()
                     )));
                 }
@@ -248,7 +248,7 @@ impl AttributeService {
     /// definition is `editable_by = User`.
     pub async fn set_as_admin(
         &self,
-        user_id: Uuid,
+        user_id: PersonId,
         name: &AttributeName,
         value: AttributeValue,
         actor_user_id: Option<Uuid>,
@@ -268,7 +268,7 @@ impl AttributeService {
     /// Set a member's own value. Rejects if `editable_by = Admin`.
     pub async fn set_as_self(
         &self,
-        user_id: Uuid,
+        user_id: PersonId,
         name: &AttributeName,
         value: AttributeValue,
     ) -> ServiceResult<()> {
@@ -280,13 +280,13 @@ impl AttributeService {
         if def.editable_by() == EditableBy::Admin {
             return Err(ServiceError::Forbidden);
         }
-        self.set_inner(&def, user_id, &value, Some(user_id), "self")
-            .await
+        let actor = Some(user_id.0);
+        self.set_inner(&def, user_id, &value, actor, "self").await
     }
 
     pub async fn clear_as_admin(
         &self,
-        user_id: Uuid,
+        user_id: PersonId,
         name: &AttributeName,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
@@ -302,7 +302,11 @@ impl AttributeService {
             .await
     }
 
-    pub async fn clear_as_self(&self, user_id: Uuid, name: &AttributeName) -> ServiceResult<()> {
+    pub async fn clear_as_self(
+        &self,
+        user_id: PersonId,
+        name: &AttributeName,
+    ) -> ServiceResult<()> {
         let def = self
             .repo
             .fetch_definition(name)
@@ -311,17 +315,21 @@ impl AttributeService {
         if def.editable_by() == EditableBy::Admin {
             return Err(ServiceError::Forbidden);
         }
-        self.clear_inner(&def, user_id, Some(user_id), "self").await
+        let actor = Some(user_id.0);
+        self.clear_inner(&def, user_id, actor, "self").await
     }
 
-    pub async fn fetch_for_member(&self, user_id: Uuid) -> ServiceResult<Vec<MemberAttribute>> {
+    pub async fn fetch_for_member(
+        &self,
+        user_id: PersonId,
+    ) -> ServiceResult<Vec<MemberAttribute>> {
         Ok(self.repo.fetch_member_values(&user_id).await?)
     }
 
     async fn set_inner(
         &self,
         def: &AttributeDefinition,
-        user_id: Uuid,
+        user_id: PersonId,
         value: &AttributeValue,
         actor_user_id: Option<Uuid>,
         actor_kind: &'static str,
@@ -336,7 +344,7 @@ impl AttributeService {
         if def.sync_to_keycloak() {
             let providers = self
                 .auth_provider_repo
-                .find_by_user_id(&user_id)
+                .find_by_user_id(&user_id.0)
                 .await
                 .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
             for p in &providers {
@@ -356,7 +364,7 @@ impl AttributeService {
                 actor_user_id,
                 "member_attribute.set",
                 "member_attribute",
-                &format!("{}:{}", user_id, def.name().as_str()),
+                &format!("{}:{}", user_id.0, def.name().as_str()),
                 Some(serde_json::json!({
                     "actor_kind": actor_kind,
                     "value": value.as_str(),
@@ -371,14 +379,14 @@ impl AttributeService {
     async fn clear_inner(
         &self,
         def: &AttributeDefinition,
-        user_id: Uuid,
+        user_id: PersonId,
         actor_user_id: Option<Uuid>,
         actor_kind: &'static str,
     ) -> ServiceResult<()> {
         if def.sync_to_keycloak() {
             let providers = self
                 .auth_provider_repo
-                .find_by_user_id(&user_id)
+                .find_by_user_id(&user_id.0)
                 .await
                 .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
             for p in &providers {
@@ -396,7 +404,7 @@ impl AttributeService {
                 actor_user_id,
                 "member_attribute.clear",
                 "member_attribute",
-                &format!("{}:{}", user_id, def.name().as_str()),
+                &format!("{}:{}", user_id.0, def.name().as_str()),
                 Some(serde_json::json!({ "actor_kind": actor_kind })),
             )
             .await;
@@ -447,16 +455,16 @@ impl AttributeService {
             let registry_rows = self.repo.fetch_all_values_for(def.name()).await?;
 
             // Map registry user_ids → IdP subjects for diffing.
-            let mut registry_by_kc: HashMap<String, (Uuid, AttributeValue)> = HashMap::new();
+            let mut registry_by_kc: HashMap<String, (PersonId, AttributeValue)> = HashMap::new();
             for (uid, val) in &registry_rows {
                 let providers = self
                     .auth_provider_repo
-                    .find_by_user_id(uid)
+                    .find_by_user_id(&uid.0)
                     .await
                     .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
                 for p in providers {
                     registry_by_kc
-                        .insert(p.provider_user_id.clone(), (*uid, val.clone()));
+                        .insert(p.provider_user_id.clone(), (uid.clone(), val.clone()));
                 }
             }
 
@@ -466,13 +474,13 @@ impl AttributeService {
                     .and_then(|attrs| attrs.get(def.name().as_str()));
                 match kc_val {
                     None => entries.push(DriftEntry::RegistryOnly {
-                        user_id: PersonId(*uid),
+                        user_id: uid.clone(),
                         idp_subject: IdpSubject(kc_id.clone()),
                         attribute: def.name().clone(),
                         value: reg_val.clone(),
                     }),
                     Some(v) if v != reg_val => entries.push(DriftEntry::ValueMismatch {
-                        user_id: PersonId(*uid),
+                        user_id: uid.clone(),
                         idp_subject: IdpSubject(kc_id.clone()),
                         attribute: def.name().clone(),
                         registry_value: reg_val.clone(),
@@ -516,7 +524,7 @@ impl AttributeService {
                     registry_value: value,
                     ..
                 } => {
-                    if self.push_one(user_id.0, attribute, value).await {
+                    if self.push_one(user_id, attribute, value).await {
                         applied += 1;
                     } else {
                         failed += 1;
@@ -534,8 +542,13 @@ impl AttributeService {
         Ok(SyncMissingAttributesSummary { applied, failed })
     }
 
-    async fn push_one(&self, user_id: Uuid, name: &AttributeName, value: &AttributeValue) -> bool {
-        let providers = match self.auth_provider_repo.find_by_user_id(&user_id).await {
+    async fn push_one(
+        &self,
+        user_id: &PersonId,
+        name: &AttributeName,
+        value: &AttributeValue,
+    ) -> bool {
+        let providers = match self.auth_provider_repo.find_by_user_id(&user_id.0).await {
             Ok(ps) => ps,
             Err(_) => return false,
         };

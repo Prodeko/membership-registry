@@ -10,7 +10,7 @@ use axum::{
 
 use crate::{
     application::services::authentication_service::AuthenticatedUser,
-    domain::{AttributeName, AttributeValue},
+    domain::{AttributeName, AttributeValue, PersonId},
     infrastructure::http::{
         dto::attribute::{editable_for_self, MemberAttributeDTO, SetMemberAttributeDTO},
         errors::{ApiError, ApiResult},
@@ -38,7 +38,7 @@ async fn get_my_attributes(
     let defs = state.attribute_service.list_definitions().await?;
     let values: HashMap<String, String> = state
         .attribute_service
-        .fetch_for_member(user.user_id)
+        .fetch_for_member(PersonId(user.user_id))
         .await?
         .into_iter()
         .map(|a| (a.name.into_inner(), a.value.into_inner()))
@@ -70,7 +70,7 @@ async fn set_my_attribute(
     let v = AttributeValue::new(body.value).map_err(|_| ApiError::BadRequest)?;
     state
         .attribute_service
-        .set_as_self(user.user_id, &n, v)
+        .set_as_self(PersonId(user.user_id), &n, v)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
@@ -85,7 +85,7 @@ async fn clear_my_attribute(
     let n = AttributeName::new(name).map_err(|_| ApiError::BadRequest)?;
     state
         .attribute_service
-        .clear_as_self(user.user_id, &n)
+        .clear_as_self(PersonId(user.user_id), &n)
         .await?;
     Ok(StatusCode::NO_CONTENT)
 }
