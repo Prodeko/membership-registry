@@ -8,8 +8,16 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useGetMeMember, useUpdateMember } from "@/lib/api";
+import {
+  useDeleteMyAttribute,
+  useGetMeMember,
+  useGetMyAttributes,
+  useSetMyAttribute,
+  useUpdateMember,
+} from "@/lib/api";
 import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
+import { toast } from "sonner";
+import AttributesSection from "../attributes/AttributesSection";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
@@ -202,10 +210,43 @@ const ProfileEdit = () => {
           </form>
         </Form>
       </Card>
+      <UserAttributesCard />
       <div className="max-w-lg w-full">
         <MarketingPreferences />
       </div>
     </main>
+  );
+};
+
+const UserAttributesCard = () => {
+  const { data: attributes, isLoading } = useGetMyAttributes();
+  const setMutation = useSetMyAttribute();
+  const deleteMutation = useDeleteMyAttribute();
+
+  if (!isLoading && (!attributes || attributes.length === 0)) {
+    return null;
+  }
+
+  return (
+    <Card className="p-10 space-y-4 h-fit max-w-lg w-full">
+      <AttributesSection
+        heading="Additional info"
+        attributes={attributes}
+        isLoading={isLoading}
+        onSet={(input) =>
+          setMutation.mutate(input, {
+            onSuccess: () =>
+              toast.success(`Saved ${input.name}`),
+          })
+        }
+        onDelete={(name) =>
+          deleteMutation.mutate(name, {
+            onSuccess: () => toast.success(`Cleared ${name}`),
+          })
+        }
+        isMutating={setMutation.isPending || deleteMutation.isPending}
+      />
+    </Card>
   );
 };
 

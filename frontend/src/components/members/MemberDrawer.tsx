@@ -2,18 +2,23 @@ import {
   QueryKey,
   useAddMultipleRolesToMembers,
   useAssignRoleGroup,
+  useDeleteMemberAttribute,
   useGetMember,
+  useGetMemberAttributes,
   useGetMemberRoleGroups,
   useGetMemberRoles,
   useGetRoleGroups,
   useGetRoles,
   useRemoveMemberRole,
   useRemoveRoleGroupAssignment,
+  useSetMemberAttribute,
   useUpdateMember,
 } from "@/lib/api";
+import AttributesSection from "../attributes/AttributesSection";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -123,6 +128,8 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   const { data: memberGroupMemberships } = useGetMemberRoleGroups(userId);
   const { data: allRoles } = useGetRoles();
   const { data: allGroups } = useGetRoleGroups();
+  const { data: memberAttributes, isLoading: isAttributesLoading } =
+    useGetMemberAttributes(userId);
 
   // ── mutations ──
   const { mutateAsync: updateMember } = useUpdateMember();
@@ -130,6 +137,8 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   const { mutateAsync: removeGroup } = useRemoveRoleGroupAssignment();
   const { mutateAsync: addRoles } = useAddMultipleRolesToMembers();
   const { mutateAsync: removeRole } = useRemoveMemberRole();
+  const setAttribute = useSetMemberAttribute(userId);
+  const deleteAttribute = useDeleteMemberAttribute(userId);
 
   // ── local staged state ──
   const [editingProfile, setEditingProfile] = useState(false);
@@ -1058,6 +1067,32 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
                 );
               })}
             </div>
+          </section>
+
+          {/* ── Attributes ── */}
+          <div className="h-px bg-border" />
+          <section>
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">
+              Attributes
+            </p>
+            <AttributesSection
+              attributes={memberAttributes}
+              isLoading={isAttributesLoading}
+              onSet={(input) =>
+                setAttribute.mutate(input, {
+                  onSuccess: () =>
+                    toast.success(`Set ${input.name} = ${input.value}`),
+                })
+              }
+              onDelete={(name) =>
+                deleteAttribute.mutate(name, {
+                  onSuccess: () => toast.success(`Cleared ${name}`),
+                })
+              }
+              isMutating={setAttribute.isPending || deleteAttribute.isPending}
+              heading=""
+              emptyMessage="No attributes defined yet. Configure them in the Attributes admin page."
+            />
           </section>
 
           {/* ── Effective Roles ── */}
