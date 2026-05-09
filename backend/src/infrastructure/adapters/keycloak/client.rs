@@ -7,7 +7,7 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use super::config::KeycloakConfig;
 
@@ -116,6 +116,13 @@ pub struct KeycloakClient {
     jwks: Arc<RwLock<Option<CachedJwks>>>,
     service_token: Arc<RwLock<Option<CachedToken>>>,
     role_id_cache: Cache<String, String>,
+    /// Per-subject mutex serializing the GET-merge-PUT flow against
+    /// `/admin/realms/{realm}/users/{id}`. KC has no ETag/version on the
+    /// user resource, so two concurrent attribute writes for the same
+    /// subject would race: GET-A → GET-B → PUT-A → PUT-B silently drops
+    /// A's change. The mutex serializes per-subject; different subjects
+    /// proceed in parallel.
+    user_attribute_locks: Cache<String, Arc<Mutex<()>>>,
 }
 
 impl KeycloakClient {
@@ -138,7 +145,20 @@ impl KeycloakClient {
                 .max_capacity(100)
                 .time_to_live(Duration::from_secs(3600))
                 .build(),
+            user_attribute_locks: Cache::builder()
+                .max_capacity(10_000)
+                .time_to_idle(Duration::from_secs(300))
+                .build(),
         }
+    }
+
+    /// Acquire a per-subject mutex covering the user-attribute GET-merge-PUT
+    /// flow. Concurrent writes for the same subject serialize; different
+    /// subjects don't block each other.
+    async fn user_attribute_lock(&self, subject: &str) -> Arc<Mutex<()>> {
+        self.user_attribute_locks
+            .get_with(subject.to_string(), async { Arc::new(Mutex::new(())) })
+            .await
     }
 
     pub fn config(&self) -> &KeycloakConfig {
@@ -435,6 +455,9 @@ impl KeycloakClient {
         subject: &str,
         attributes: serde_json::Value,
     ) -> Result<(), KeycloakError> {
+        let lock = self.user_attribute_lock(subject).await;
+        let _guard = lock.lock().await;
+
         let token = self.get_service_token().await?;
         let url = self.admin_url(&format!("users/{}", encode_path(subject)));
 
@@ -1140,6 +1163,9 @@ impl KeycloakClient {
         subject: &str,
         attribute: &str,
     ) -> Result<(), KeycloakError> {
+        let lock = self.user_attribute_lock(subject).await;
+        let _guard = lock.lock().await;
+
         let token = self.get_service_token().await?;
         let url = self.admin_url(&format!("users/{}", encode_path(subject)));
 
