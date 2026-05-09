@@ -122,16 +122,35 @@ impl AttributeService {
         input: CreateAttributeDefinition,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<AttributeDefinition> {
-        if input.sync_to_keycloak {
-            self.sync
-                .add_mapper_to_scope(&input.name)
-                .await
-                .map_err(map_sync_err)?;
-        }
         let name_str = input.name.as_str().to_string();
         let editable_by = input.editable_by;
         let sync_flag = input.sync_to_keycloak;
+
+        // DB first; KC mapper add is the side-effect that gets rolled back
+        // on failure.
         let created = self.repo.create_definition(input).await?;
+
+        if sync_flag {
+            if let Err(e) = self.sync.add_mapper_to_scope(created.name()).await {
+                // Roll the row back so the registry doesn't claim
+                // sync_to_keycloak=true with no mapper. If even the rollback
+                // fails the system is now inconsistent — log loudly and
+                // return PartialSync so the admin notices.
+                if let Err(del_err) = self.repo.delete_definition(created.name()).await {
+                    tracing::error!(
+                        attribute = %name_str,
+                        original_error = ?e,
+                        compensating_delete_error = ?del_err,
+                        "Inconsistent state: KC mapper add failed AND compensating DB delete failed"
+                    );
+                    return Err(ServiceError::PartialSync(format!(
+                        "Attribute `{name_str}` row exists but KC mapper add failed; \
+                         compensating delete also failed. Manual cleanup required."
+                    )));
+                }
+                return Err(map_sync_err(e));
+            }
+        }
 
         self.audit_log
             .log(
@@ -194,20 +213,7 @@ impl AttributeService {
             }
         }
 
-        // Sync-to-keycloak transitions: add or remove the mapper.
-        if sync_to_keycloak && !existing.sync_to_keycloak() {
-            self.sync
-                .add_mapper_to_scope(name)
-                .await
-                .map_err(map_sync_err)?;
-        }
-        if !sync_to_keycloak && existing.sync_to_keycloak() {
-            self.sync
-                .remove_mapper_from_scope(name)
-                .await
-                .map_err(map_sync_err)?;
-        }
-
+        // DB first.
         let resolved = UpdateAttributeDefinition {
             description,
             allowed_values,
@@ -215,6 +221,29 @@ impl AttributeService {
             editable_by,
         };
         let updated = self.repo.update_definition(name, resolved).await?;
+
+        // Then any mapper transition. On failure the registry is ahead;
+        // surface PartialSync so the admin sees the divergence.
+        let mapper_transition = if sync_to_keycloak && !existing.sync_to_keycloak() {
+            Some(self.sync.add_mapper_to_scope(name).await)
+        } else if !sync_to_keycloak && existing.sync_to_keycloak() {
+            Some(self.sync.remove_mapper_from_scope(name).await)
+        } else {
+            None
+        };
+        if let Some(Err(e)) = mapper_transition {
+            tracing::error!(
+                attribute = %name.as_str(),
+                "Keycloak mapper transition failed after DB update: {e:?}"
+            );
+            return match e {
+                AttributeSyncError::ScopeMissing => Err(map_sync_err(e)),
+                _ => Err(ServiceError::PartialSync(format!(
+                    "Attribute `{}` row updated; Keycloak mapper transition failed.",
+                    name.as_str()
+                ))),
+            };
+        }
 
         self.audit_log
             .log(
@@ -244,13 +273,26 @@ impl AttributeService {
             .await?
             .ok_or(ServiceError::NotFound)?;
 
-        if existing.sync_to_keycloak() {
-            self.sync
-                .remove_mapper_from_scope(name)
-                .await
-                .map_err(map_sync_err)?;
-        }
+        // DB first. The registry is the source of truth; if the row delete
+        // fails the mapper stays put and the next attempt is a clean retry.
         self.repo.delete_definition(name).await?;
+
+        if existing.sync_to_keycloak() {
+            if let Err(e) = self.sync.remove_mapper_from_scope(name).await {
+                tracing::error!(
+                    attribute = %name.as_str(),
+                    "Keycloak mapper remove failed after DB delete: {e:?}"
+                );
+                return match e {
+                    AttributeSyncError::ScopeMissing => Err(map_sync_err(e)),
+                    _ => Err(ServiceError::PartialSync(format!(
+                        "Attribute `{}` row deleted; Keycloak mapper still present. \
+                         Manual cleanup may be required.",
+                        name.as_str()
+                    ))),
+                };
+            }
+        }
         self.audit_log
             .log(
                 actor_user_id,
