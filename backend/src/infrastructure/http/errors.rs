@@ -39,7 +39,22 @@ impl IntoResponse for ApiError {
 
 impl IntoResponse for ServiceError {
     fn into_response(self) -> Response {
-        tracing::error!("ServiceError: {:?}", self);
+        // Server-side and external-system errors stay at error!; client-driven
+        // 4xx variants log at debug! so production logs aren't drowned in
+        // routine validation failures.
+        match &self {
+            ServiceError::DatabaseError(_)
+            | ServiceError::IdpError
+            | ServiceError::Misconfigured(_)
+            | ServiceError::PartialSync(_)
+            | ServiceError::ExportFailed
+            | ServiceError::MarketingSyncFailed(_) => {
+                tracing::error!("ServiceError: {self:?}");
+            }
+            _ => {
+                tracing::debug!("ServiceError: {self:?}");
+            }
+        }
 
         match self {
             ServiceError::AlreadyExists => {
