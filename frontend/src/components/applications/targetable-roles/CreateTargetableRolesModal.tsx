@@ -1,6 +1,7 @@
 import {
   QueryKey,
   useCreateTargetableRole,
+  useGetAttributeDefinitions,
   useGetEmailTemplates,
   useGetRoles,
 } from "@/lib/api";
@@ -28,6 +29,7 @@ import { Link } from "react-router-dom";
 import { stringsToOptions } from "@/lib/utils";
 import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 const CreateTargetableRolesModal = () => {
   const [selectedRole, setSelectedRole] = useState<string>("");
@@ -38,8 +40,10 @@ const CreateTargetableRolesModal = () => {
   const [approvedTemplate, setApprovedTemplate] = useState<string>("");
   const [rejectedTemplate, setRejectedTemplate] = useState<string>("");
   const [, setSelectedRoles] = useState<string[]>([]);
+  const [formAttributes, setFormAttributes] = useState<string[]>([]);
   const { data: roles } = useGetRoles();
   const { data: emailTemplates } = useGetEmailTemplates();
+  const { data: attributeDefs } = useGetAttributeDefinitions();
 
   const { mutate: createTargetableRole } = useCreateTargetableRole();
 
@@ -55,6 +59,7 @@ const CreateTargetableRolesModal = () => {
           payment_link: selectedPaymentLink || null,
           approved_email_template: approvedTemplate || null,
           rejected_email_template: rejectedTemplate || null,
+          form_attributes: formAttributes,
         },
         {
           onSuccess: () => {
@@ -69,6 +74,12 @@ const CreateTargetableRolesModal = () => {
 
   const onRoleChange = (selectedRoles: Option[]) => {
     setSelectedRoles(selectedRoles.map((r) => r.value));
+  };
+
+  const onFormAttributesChange = (selected: Option[]) => {
+    // MultipleSelector preserves user-selection order — that's the order
+    // applicants will see fields rendered in, so persist it as-is.
+    setFormAttributes(selected.map((s) => s.value));
   };
 
   return (
@@ -144,6 +155,19 @@ const CreateTargetableRolesModal = () => {
           onChange={onRoleChange}
           placeholder="Optional roles"
         />
+        <div className="space-y-1">
+          <Label>Application form attributes</Label>
+          <MultipleSelector
+            options={stringsToOptions(
+              attributeDefs?.map((d) => d.name) ?? [],
+            )}
+            onChange={onFormAttributesChange}
+            placeholder="Attributes shown on the application form"
+          />
+          <p className="text-xs text-muted-foreground">
+            Order is preserved as the applicant&apos;s field order.
+          </p>
+        </div>
         <DialogClose asChild>
           <Button onClick={handleSubmit}>Create</Button>
         </DialogClose>

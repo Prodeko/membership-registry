@@ -10,17 +10,20 @@ import {
 import {
   useCreateApplication,
   useGetMeMember,
+  useGetMyAttributes,
   useGetTargetableRoles,
   useGetUserApplications,
 } from "@/lib/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import { z } from "zod";
 import RenderMemberData from "../members/RenderMemberData";
 import { Card } from "../ui/card";
+import { Input } from "../ui/input";
+import { Label } from "../ui/label";
 import {
   Select,
   SelectContent,
@@ -57,13 +60,47 @@ const ApplicationForm = () => {
   const { data: targetableRoles, isLoading: isRolesLoading } =
     useGetTargetableRoles();
   const { data: applications } = useGetUserApplications();
+  const { data: memberAttributes } = useGetMyAttributes();
   const { mutateAsync: createApplication } = useCreateApplication();
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
+  const [attributeValues, setAttributeValues] = useState<
+    Record<string, string>
+  >({});
+
+  const selectedRole = form.watch("role_name");
+  const selectedTargetable = useMemo(
+    () => targetableRoles?.find((r) => r.role_name === selectedRole),
+    [targetableRoles, selectedRole],
+  );
+
+  // Look each form attribute up against the user's attribute catalog so we
+  // can render the right input shape (free-text vs allowed_values dropdown)
+  // and pull description copy. Falls back to a plain text input if the
+  // catalog hasn't loaded yet.
+  const formAttributeDefs = useMemo(() => {
+    const names = selectedTargetable?.form_attributes ?? [];
+    return names.map((name) => {
+      const def = memberAttributes?.find((a) => a.name === name);
+      return {
+        name,
+        description: def?.description ?? null,
+        allowed_values: def?.allowed_values ?? null,
+        currentValue: def?.value ?? "",
+      };
+    });
+  }, [selectedTargetable, memberAttributes]);
 
   const onSubmit = async (values: FormValues) => {
     if (!currentMember) {
       throw new Error("Current member not found");
     }
+
+    const submittedAttributes = formAttributeDefs
+      .map(({ name, currentValue }) => ({
+        name,
+        value: attributeValues[name] ?? currentValue ?? "",
+      }))
+      .filter((kv) => kv.value.length > 0);
 
     try {
       const data = await createApplication({
@@ -72,6 +109,8 @@ const ApplicationForm = () => {
         application_text: values.application_text,
         stripe_payment_id: null,
         optional_roles: null,
+        attributes:
+          submittedAttributes.length > 0 ? submittedAttributes : undefined,
       });
 
       const redirectUrl = new URL(data.redirect_to);
@@ -189,6 +228,52 @@ const ApplicationForm = () => {
                 </FormItem>
               )}
             />
+            {formAttributeDefs.length > 0 && (
+              <div className="space-y-3">
+                {formAttributeDefs.map((attr) => {
+                  const value =
+                    attributeValues[attr.name] ?? attr.currentValue ?? "";
+                  const set = (v: string) =>
+                    setAttributeValues((prev) => ({
+                      ...prev,
+                      [attr.name]: v,
+                    }));
+                  const id = `application-attr-${attr.name}`;
+                  return (
+                    <div key={attr.name} className="space-y-1">
+                      <Label htmlFor={id} className="font-mono text-sm">
+                        {attr.name}
+                      </Label>
+                      {attr.description && (
+                        <p className="text-xs text-muted-foreground">
+                          {attr.description}
+                        </p>
+                      )}
+                      {attr.allowed_values && attr.allowed_values.length > 0 ? (
+                        <Select value={value} onValueChange={set}>
+                          <SelectTrigger id={id} className="w-64">
+                            <SelectValue placeholder="(select)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {attr.allowed_values.map((v) => (
+                              <SelectItem key={v} value={v}>
+                                {v}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          id={id}
+                          value={value}
+                          onChange={(e) => set(e.target.value)}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <FormField
               control={form.control}
               name="application_text"
