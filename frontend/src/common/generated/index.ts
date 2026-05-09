@@ -2,6 +2,7 @@ export type { AddManyRolesBody } from "./AddManyRolesBody";
 export type { AttributeDefinition } from "./AttributeDefinition";
 export type { AttributeSyncStatus } from "./AttributeSyncStatus";
 export type { CreateAttributeDefinition } from "./CreateAttributeDefinition";
+export type { EditableBy } from "./EditableBy";
 export type { KeycloakOnly } from "./KeycloakOnly";
 export type { MemberAttribute } from "./MemberAttribute";
 export type { RegistryOnly } from "./RegistryOnly";

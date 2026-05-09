@@ -3,6 +3,35 @@ use ts_rs::TS;
 
 use crate::domain::{AttributeDefinition, EditableBy};
 
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, PartialEq, Eq)]
+#[ts(export, rename = "EditableBy")]
+#[serde(rename_all = "lowercase")]
+pub enum EditableByDTO {
+    Admin,
+    User,
+    Both,
+}
+
+impl From<EditableBy> for EditableByDTO {
+    fn from(v: EditableBy) -> Self {
+        match v {
+            EditableBy::Admin => Self::Admin,
+            EditableBy::User => Self::User,
+            EditableBy::Both => Self::Both,
+        }
+    }
+}
+
+impl From<EditableByDTO> for EditableBy {
+    fn from(v: EditableByDTO) -> Self {
+        match v {
+            EditableByDTO::Admin => Self::Admin,
+            EditableByDTO::User => Self::User,
+            EditableByDTO::Both => Self::Both,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, rename = "AttributeDefinition")]
 pub struct AttributeDefinitionDTO {
@@ -10,7 +39,7 @@ pub struct AttributeDefinitionDTO {
     pub description: Option<String>,
     pub allowed_values: Option<Vec<String>>,
     pub sync_to_keycloak: bool,
-    pub editable_by: String,
+    pub editable_by: EditableByDTO,
 }
 
 impl From<AttributeDefinition> for AttributeDefinitionDTO {
@@ -20,7 +49,7 @@ impl From<AttributeDefinition> for AttributeDefinitionDTO {
             description: d.description,
             allowed_values: d.allowed_values,
             sync_to_keycloak: d.sync_to_keycloak,
-            editable_by: d.editable_by.as_str().to_string(),
+            editable_by: d.editable_by.into(),
         }
     }
 }
@@ -32,7 +61,7 @@ pub struct CreateAttributeDefinitionDTO {
     pub description: Option<String>,
     pub allowed_values: Option<Vec<String>>,
     pub sync_to_keycloak: bool,
-    pub editable_by: String,
+    pub editable_by: EditableByDTO,
 }
 
 #[derive(Debug, Deserialize, TS)]
@@ -41,7 +70,7 @@ pub struct UpdateAttributeDefinitionDTO {
     pub description: Option<String>,
     pub allowed_values: Option<Vec<String>>,
     pub sync_to_keycloak: bool,
-    pub editable_by: String,
+    pub editable_by: EditableByDTO,
 }
 
 #[derive(Debug, Serialize, TS)]

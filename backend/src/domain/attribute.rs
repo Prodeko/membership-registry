@@ -87,15 +87,6 @@ impl EditableBy {
             Self::Both => "both",
         }
     }
-
-    pub fn from_str(s: &str) -> Result<Self, ()> {
-        match s {
-            "admin" => Ok(Self::Admin),
-            "user" => Ok(Self::User),
-            "both" => Ok(Self::Both),
-            _ => Err(()),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,14 +145,6 @@ mod tests {
     fn attribute_value_rejects_empty() {
         assert!(AttributeValue::new("").is_err());
         assert!(AttributeValue::new("IV").is_ok());
-    }
-
-    #[test]
-    fn editable_by_string_roundtrip() {
-        for v in [EditableBy::Admin, EditableBy::User, EditableBy::Both] {
-            assert_eq!(EditableBy::from_str(v.as_str()).unwrap(), v);
-        }
-        assert!(EditableBy::from_str("nope").is_err());
     }
 
     #[test]

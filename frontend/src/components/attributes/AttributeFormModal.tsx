@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   AttributeDefinition,
   CreateAttributeDefinition,
+  EditableBy,
   UpdateAttributeDefinition,
 } from "@/common/types";
 import { Button } from "../ui/button";
@@ -55,8 +56,8 @@ const AttributeFormModal = ({
   const [syncToKeycloak, setSyncToKeycloak] = useState(
     initial?.sync_to_keycloak ?? true,
   );
-  const [editableBy, setEditableBy] = useState<"admin" | "user" | "both">(
-    (initial?.editable_by as "admin" | "user" | "both") ?? "admin",
+  const [editableBy, setEditableBy] = useState<EditableBy>(
+    initial?.editable_by ?? "admin",
   );
   const [nameError, setNameError] = useState<string | null>(null);
 
@@ -66,9 +67,7 @@ const AttributeFormModal = ({
       setDescription(initial?.description ?? "");
       setAllowedValuesText(initial?.allowed_values?.join(", ") ?? "");
       setSyncToKeycloak(initial?.sync_to_keycloak ?? true);
-      setEditableBy(
-        (initial?.editable_by as "admin" | "user" | "both") ?? "admin",
-      );
+      setEditableBy(initial?.editable_by ?? "admin");
       setNameError(null);
     }
   }, [open, initial]);
@@ -177,9 +176,7 @@ const AttributeFormModal = ({
             <Label htmlFor="attr-editable">Editable by</Label>
             <Select
               value={editableBy}
-              onValueChange={(v) =>
-                setEditableBy(v as "admin" | "user" | "both")
-              }
+              onValueChange={(v) => setEditableBy(v as EditableBy)}
             >
               <SelectTrigger id="attr-editable">
                 <SelectValue />

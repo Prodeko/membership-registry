@@ -17,7 +17,7 @@ use crate::{
             authentication_service::AuthenticatedUser,
         },
     },
-    domain::{AttributeName, AttributeValue, EditableBy},
+    domain::{AttributeName, AttributeValue},
     infrastructure::http::{
         dto::attribute::{
             editable_for_admin, AttributeDefinitionDTO, CreateAttributeDefinitionDTO,
@@ -45,10 +45,6 @@ pub fn router(state: AppState) -> Router<AppState> {
 
 fn parse_name(s: String) -> ApiResult<AttributeName> {
     AttributeName::new(s).map_err(|_| ApiError::BadRequest)
-}
-
-fn parse_editable_by(s: &str) -> ApiResult<EditableBy> {
-    EditableBy::from_str(s).map_err(|_| ApiError::BadRequest)
 }
 
 #[debug_handler]
@@ -81,7 +77,6 @@ async fn create_definition(
 ) -> ApiResult<Json<AttributeDefinitionDTO>> {
     let actor_id = user_info.map(|u| u.user_id);
     let name = parse_name(body.name)?;
-    let editable_by = parse_editable_by(&body.editable_by)?;
     let created = state
         .attribute_service
         .create_definition(
@@ -90,7 +85,7 @@ async fn create_definition(
                 description: body.description,
                 allowed_values: body.allowed_values,
                 sync_to_keycloak: body.sync_to_keycloak,
-                editable_by,
+                editable_by: body.editable_by.into(),
             },
             actor_id,
         )
@@ -107,7 +102,6 @@ async fn update_definition(
 ) -> ApiResult<Json<AttributeDefinitionDTO>> {
     let actor_id = user_info.map(|u| u.user_id);
     let n = parse_name(name)?;
-    let editable_by = parse_editable_by(&body.editable_by)?;
     let updated = state
         .attribute_service
         .update_definition(
@@ -116,7 +110,7 @@ async fn update_definition(
                 description: body.description,
                 allowed_values: body.allowed_values,
                 sync_to_keycloak: body.sync_to_keycloak,
-                editable_by,
+                editable_by: body.editable_by.into(),
             },
             actor_id,
         )

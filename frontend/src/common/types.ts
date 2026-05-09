@@ -11,6 +11,7 @@ export type {
   AuthenticatedUser,
   CreateApplicationRequest,
   CreateAttributeDefinition,
+  EditableBy,
   MemberAttribute,
   SetMemberAttribute,
   SyncMissingAttributesSummary,
