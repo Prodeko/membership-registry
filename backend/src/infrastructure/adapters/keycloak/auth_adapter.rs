@@ -37,6 +37,7 @@ impl AuthPort for KeycloakAuthAdapter {
             email: claims.email,
             given_name: claims.given_name,
             family_name: claims.family_name,
+            roles: claims.realm_access.roles,
         })
     }
 

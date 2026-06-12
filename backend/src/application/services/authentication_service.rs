@@ -12,7 +12,6 @@ use crate::application::ports::{
     auth_provider_repo_port::{
         AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort,
     },
-    rolesync_port::{IdpSubject, RoleSyncError, RoleSyncPort},
 };
 use crate::domain::RoleName;
 
@@ -30,6 +29,11 @@ pub struct AuthenticatedUser {
     pub email: String,
     pub provider_name: String,
     pub provider_user_id: String,
+    // Effective realm roles from the access token (includes group-inherited roles).
+    // Internal only — not serialized to API responses, mirroring `access_token`.
+    #[serde(skip_serializing)]
+    #[ts(skip)]
+    pub roles: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -63,44 +67,30 @@ impl From<AuthProviderRepoError> for AuthServiceError {
     }
 }
 
-impl From<RoleSyncError> for AuthServiceError {
-    fn from(_: RoleSyncError) -> Self {
-        Self::IdpError
-    }
-}
-
 #[derive(Clone)]
 pub struct AuthenticationService {
     auth: Arc<dyn AuthPort>,
     provider_repo: Arc<dyn AuthProviderRepositoryPort>,
-    role_sync: Arc<dyn RoleSyncPort>,
     admin_role_name: RoleName,
     audit_log: AuditLogService,
     token_cache: Cache<String, AuthenticatedUser>,
-    admin_cache: Cache<Uuid, bool>,
 }
 
 impl AuthenticationService {
     pub fn new(
         auth: Arc<dyn AuthPort>,
         provider_repo: Arc<dyn AuthProviderRepositoryPort>,
-        role_sync: Arc<dyn RoleSyncPort>,
         admin_role_name: RoleName,
         audit_log: AuditLogService,
     ) -> Self {
         Self {
             auth,
             provider_repo,
-            role_sync,
             admin_role_name,
             audit_log,
             token_cache: Cache::builder()
                 .max_capacity(1000)
                 .time_to_live(Duration::from_secs(300))
-                .build(),
-            admin_cache: Cache::builder()
-                .max_capacity(1000)
-                .time_to_live(Duration::from_secs(60))
                 .build(),
         }
     }
@@ -182,6 +172,7 @@ impl AuthenticationService {
             email,
             provider_name,
             provider_user_id,
+            roles: identity.roles,
         };
 
         self.token_cache.insert(access_token, user.clone()).await;
@@ -195,36 +186,15 @@ impl AuthenticationService {
         Ok(self.auth.refresh(refresh_token).await?)
     }
 
-    pub async fn is_admin(&self, user_id: Uuid) -> Result<bool, AuthServiceError> {
-        if let Some(cached) = self.admin_cache.get(&user_id).await {
-            return Ok(cached);
-        }
+    /// Whether the authenticated identity holds the admin realm role.
+    ///
+    /// Roles come from the access token's `realm_access.roles` claim, which
+    /// Keycloak computes as the full effective set — including roles inherited
+    /// via group membership — so group-granted admin access is honored here.
+    pub fn is_admin(&self, user: &AuthenticatedUser) -> bool {
+        // Log roles to console for debugging
 
-        let providers = self.provider_repo.find_by_user_id(&user_id).await?;
-
-        if providers.is_empty() {
-            return Ok(false);
-        }
-
-        let mut is_admin = false;
-        for provider in providers {
-            if let Ok(has_role) = self
-                .role_sync
-                .has_role(
-                    &IdpSubject(provider.provider_user_id),
-                    &self.admin_role_name,
-                )
-                .await
-            {
-                if has_role {
-                    is_admin = true;
-                    break;
-                }
-            }
-        }
-
-        self.admin_cache.insert(user_id, is_admin).await;
-        Ok(is_admin)
+        user.roles.iter().any(|r| r == &self.admin_role_name.0)
     }
 
     pub async fn unlink_provider(

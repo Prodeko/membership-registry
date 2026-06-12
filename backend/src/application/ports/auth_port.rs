@@ -4,6 +4,8 @@ pub struct VerifiedIdentity {
     pub email: Option<String>,
     pub given_name: Option<String>,
     pub family_name: Option<String>,
+    /// Effective realm roles from the token (includes group-inherited roles).
+    pub roles: Vec<String>,
 }
 
 #[derive(Debug)]

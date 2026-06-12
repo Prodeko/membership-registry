@@ -6,10 +6,9 @@ use uuid::Uuid;
 use crate::application::ports::{
     auth_port::{AuthError, VerifiedIdentity},
     auth_provider_repo_port::AuthProviderMapping,
-    rolesync_port::RoleSyncError,
 };
 use crate::application::services::authentication_service::{
-    AuthServiceError, AuthenticationService,
+    AuthServiceError, AuthenticatedUser, AuthenticationService,
 };
 use crate::domain::RoleName;
 
@@ -21,6 +20,20 @@ fn build_identity() -> VerifiedIdentity {
         email: Some("user@example.com".to_string()),
         given_name: Some("Test".to_string()),
         family_name: Some("User".to_string()),
+        roles: vec![],
+    }
+}
+
+fn build_user(roles: Vec<String>) -> AuthenticatedUser {
+    AuthenticatedUser {
+        user_id: Uuid::new_v4(),
+        access_token: "token".to_string(),
+        first_name: "Test".to_string(),
+        last_name: "User".to_string(),
+        email: "user@example.com".to_string(),
+        provider_name: "keycloak".to_string(),
+        provider_user_id: "kc-subject-123".to_string(),
+        roles,
     }
 }
 
@@ -33,15 +46,10 @@ fn build_mapping(user_id: Uuid) -> AuthProviderMapping {
     }
 }
 
-fn build_service(
-    auth: MockAuthPort,
-    provider_repo: MockAuthProviderRepo,
-    role_sync: MockRoleSyncPort,
-) -> AuthenticationService {
+fn build_service(auth: MockAuthPort, provider_repo: MockAuthProviderRepo) -> AuthenticationService {
     AuthenticationService::new(
         Arc::new(auth),
         Arc::new(provider_repo),
-        Arc::new(role_sync),
         RoleName("admin".to_string()),
         noop_audit_log(),
     )
@@ -53,7 +61,6 @@ fn build_service(
 async fn validate_token_existing_provider() {
     let mut auth = MockAuthPort::new();
     let mut provider_repo = MockAuthProviderRepo::new();
-    let role_sync = MockRoleSyncPort::new();
 
     let user_id = Uuid::new_v4();
 
@@ -64,7 +71,7 @@ async fn validate_token_existing_provider() {
         .expect_find_by_provider()
         .returning(move |_, _| Ok(Some(build_mapping(user_id))));
 
-    let svc = build_service(auth, provider_repo, role_sync);
+    let svc = build_service(auth, provider_repo);
     let result = svc.validate_token("token-abc".to_string()).await;
 
     assert!(result.is_ok());
@@ -77,7 +84,6 @@ async fn validate_token_existing_provider() {
 async fn validate_token_cache_hit_skips_verify() {
     let mut auth = MockAuthPort::new();
     let mut provider_repo = MockAuthProviderRepo::new();
-    let role_sync = MockRoleSyncPort::new();
 
     let user_id = Uuid::new_v4();
 
@@ -90,7 +96,7 @@ async fn validate_token_cache_hit_skips_verify() {
         .times(1)
         .returning(move |_, _| Ok(Some(build_mapping(user_id))));
 
-    let svc = build_service(auth, provider_repo, role_sync);
+    let svc = build_service(auth, provider_repo);
 
     let _ = svc.validate_token("token-abc".to_string()).await.unwrap();
     let result = svc.validate_token("token-abc".to_string()).await;
@@ -102,7 +108,6 @@ async fn validate_token_cache_hit_skips_verify() {
 async fn validate_token_new_provider_creates_mapping() {
     let mut auth = MockAuthPort::new();
     let mut provider_repo = MockAuthProviderRepo::new();
-    let role_sync = MockRoleSyncPort::new();
 
     auth.expect_verify_access_token()
         .returning(|_| Ok(build_identity()));
@@ -120,7 +125,7 @@ async fn validate_token_new_provider_creates_mapping() {
         })
     });
 
-    let svc = build_service(auth, provider_repo, role_sync);
+    let svc = build_service(auth, provider_repo);
     let result = svc.validate_token("new-token".to_string()).await;
 
     assert!(result.is_ok());
@@ -130,12 +135,11 @@ async fn validate_token_new_provider_creates_mapping() {
 async fn validate_token_expired() {
     let mut auth = MockAuthPort::new();
     let provider_repo = MockAuthProviderRepo::new();
-    let role_sync = MockRoleSyncPort::new();
 
     auth.expect_verify_access_token()
         .returning(|_| Err(AuthError::TokenExpired));
 
-    let svc = build_service(auth, provider_repo, role_sync);
+    let svc = build_service(auth, provider_repo);
     let result = svc.validate_token("expired".to_string()).await;
 
     assert!(matches!(result, Err(AuthServiceError::TokenExpired)));
@@ -145,12 +149,11 @@ async fn validate_token_expired() {
 async fn validate_token_unauthorized() {
     let mut auth = MockAuthPort::new();
     let provider_repo = MockAuthProviderRepo::new();
-    let role_sync = MockRoleSyncPort::new();
 
     auth.expect_verify_access_token()
         .returning(|_| Err(AuthError::Unauthorized));
 
-    let svc = build_service(auth, provider_repo, role_sync);
+    let svc = build_service(auth, provider_repo);
     let result = svc.validate_token("bad".to_string()).await;
 
     assert!(matches!(result, Err(AuthServiceError::Unauthorized)));
@@ -158,77 +161,36 @@ async fn validate_token_unauthorized() {
 
 // --- is_admin ---
 
-#[tokio::test]
-async fn is_admin_has_role() {
-    let auth = MockAuthPort::new();
-    let mut provider_repo = MockAuthProviderRepo::new();
-    let mut role_sync = MockRoleSyncPort::new();
-
-    let user_id = Uuid::new_v4();
-
-    provider_repo
-        .expect_find_by_user_id()
-        .returning(move |_| Ok(vec![build_mapping(user_id)]));
-
-    role_sync.expect_has_role().returning(|_, _| Ok(true));
-
-    let svc = build_service(auth, provider_repo, role_sync);
-    assert!(svc.is_admin(user_id).await.unwrap());
+#[test]
+fn is_admin_has_role() {
+    let svc = build_service(MockAuthPort::new(), MockAuthProviderRepo::new());
+    let user = build_user(vec!["admin".to_string()]);
+    assert!(svc.is_admin(&user));
 }
 
-#[tokio::test]
-async fn is_admin_no_role() {
-    let auth = MockAuthPort::new();
-    let mut provider_repo = MockAuthProviderRepo::new();
-    let mut role_sync = MockRoleSyncPort::new();
-
-    let user_id = Uuid::new_v4();
-
-    provider_repo
-        .expect_find_by_user_id()
-        .returning(move |_| Ok(vec![build_mapping(user_id)]));
-
-    role_sync.expect_has_role().returning(|_, _| Ok(false));
-
-    let svc = build_service(auth, provider_repo, role_sync);
-    assert!(!svc.is_admin(user_id).await.unwrap());
+#[test]
+fn is_admin_no_role() {
+    let svc = build_service(MockAuthPort::new(), MockAuthProviderRepo::new());
+    let user = build_user(vec!["membership".to_string()]);
+    assert!(!svc.is_admin(&user));
 }
 
-#[tokio::test]
-async fn is_admin_no_providers() {
-    let auth = MockAuthPort::new();
-    let mut provider_repo = MockAuthProviderRepo::new();
-    let role_sync = MockRoleSyncPort::new();
-
-    provider_repo
-        .expect_find_by_user_id()
-        .returning(|_| Ok(vec![]));
-
-    let svc = build_service(auth, provider_repo, role_sync);
-    assert!(!svc.is_admin(Uuid::new_v4()).await.unwrap());
+#[test]
+fn is_admin_empty_roles() {
+    let svc = build_service(MockAuthPort::new(), MockAuthProviderRepo::new());
+    let user = build_user(vec![]);
+    assert!(!svc.is_admin(&user));
 }
 
-#[tokio::test]
-async fn is_admin_caches_result() {
-    let auth = MockAuthPort::new();
-    let mut provider_repo = MockAuthProviderRepo::new();
-    let mut role_sync = MockRoleSyncPort::new();
-
-    let user_id = Uuid::new_v4();
-
-    provider_repo
-        .expect_find_by_user_id()
-        .times(1)
-        .returning(move |_| Ok(vec![build_mapping(user_id)]));
-
-    role_sync
-        .expect_has_role()
-        .times(1)
-        .returning(|_, _| Ok(true));
-
-    let svc = build_service(auth, provider_repo, role_sync);
-    assert!(svc.is_admin(user_id).await.unwrap());
-    assert!(svc.is_admin(user_id).await.unwrap());
+#[test]
+fn is_admin_among_multiple_roles() {
+    let svc = build_service(MockAuthPort::new(), MockAuthProviderRepo::new());
+    let user = build_user(vec![
+        "membership".to_string(),
+        "admin".to_string(),
+        "prodeko-external-member".to_string(),
+    ]);
+    assert!(svc.is_admin(&user));
 }
 
 // --- unlink_provider ---
@@ -237,14 +199,13 @@ async fn is_admin_caches_result() {
 async fn unlink_provider_success() {
     let auth = MockAuthPort::new();
     let mut provider_repo = MockAuthProviderRepo::new();
-    let role_sync = MockRoleSyncPort::new();
 
     let user_id = Uuid::new_v4();
 
     provider_repo.expect_count_by_user_id().returning(|_| Ok(2));
     provider_repo.expect_delete().returning(|_, _| Ok(true));
 
-    let svc = build_service(auth, provider_repo, role_sync);
+    let svc = build_service(auth, provider_repo);
     assert!(svc.unlink_provider(user_id, "keycloak").await.is_ok());
 }
 
@@ -252,11 +213,10 @@ async fn unlink_provider_success() {
 async fn unlink_provider_last_provider() {
     let auth = MockAuthPort::new();
     let mut provider_repo = MockAuthProviderRepo::new();
-    let role_sync = MockRoleSyncPort::new();
 
     provider_repo.expect_count_by_user_id().returning(|_| Ok(1));
 
-    let svc = build_service(auth, provider_repo, role_sync);
+    let svc = build_service(auth, provider_repo);
     let result = svc.unlink_provider(Uuid::new_v4(), "keycloak").await;
 
     assert!(matches!(
@@ -269,12 +229,11 @@ async fn unlink_provider_last_provider() {
 async fn unlink_provider_not_found() {
     let auth = MockAuthPort::new();
     let mut provider_repo = MockAuthProviderRepo::new();
-    let role_sync = MockRoleSyncPort::new();
 
     provider_repo.expect_count_by_user_id().returning(|_| Ok(2));
     provider_repo.expect_delete().returning(|_, _| Ok(false));
 
-    let svc = build_service(auth, provider_repo, role_sync);
+    let svc = build_service(auth, provider_repo);
     let result = svc.unlink_provider(Uuid::new_v4(), "keycloak").await;
 
     assert!(matches!(result, Err(AuthServiceError::ProviderNotFound)));

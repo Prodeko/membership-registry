@@ -68,6 +68,12 @@ struct CachedToken {
 // DTOs
 // ---------------------------------------------------------------------------
 
+#[derive(Debug, Deserialize, Default)]
+pub struct RealmAccessDTO {
+    #[serde(default)]
+    pub roles: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct KeycloakClaimsDTO {
     pub sub: String,
@@ -75,6 +81,10 @@ pub struct KeycloakClaimsDTO {
     pub given_name: Option<String>,
     pub family_name: Option<String>,
     pub azp: Option<String>,
+    // Effective realm roles computed by Keycloak (direct + group + parent-group +
+    // composite). Default keeps decoding tolerant if the claim is ever absent.
+    #[serde(default)]
+    pub realm_access: RealmAccessDTO,
 }
 
 #[derive(Debug, Deserialize)]
