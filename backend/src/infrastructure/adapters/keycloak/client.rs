@@ -536,6 +536,14 @@ impl KeycloakClient {
         email: Option<&str>,
         require_verify_email: bool,
     ) -> Result<(), KeycloakError> {
+        // Serialize against concurrent attribute/locale writes for the same
+        // subject: profile and attribute writers both GET-merge-PUT the same KC
+        // user document, so without this lock a concurrent attribute PUT can
+        // read the pre-edit user and overwrite the email change. Same per-subject
+        // lock used by `update_user_attributes`/`clear_user_attribute`.
+        let lock = self.user_attribute_lock(subject).await;
+        let _guard = lock.lock().await;
+
         let token = self.get_service_token().await?;
         let url = self.admin_url(&format!("users/{}", encode_path(subject)));
 
