@@ -186,6 +186,11 @@ impl AuthenticationService {
         Ok(self.auth.refresh(refresh_token).await?)
     }
 
+    /// Ends the user's Keycloak SSO session (back-channel logout).
+    pub async fn logout(&self, refresh_token: &str) -> Result<(), AuthServiceError> {
+        Ok(self.auth.end_session(refresh_token).await?)
+    }
+
     /// Whether the authenticated identity holds the admin realm role.
     ///
     /// Roles come from the access token's `realm_access.roles` claim, which

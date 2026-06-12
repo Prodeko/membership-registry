@@ -57,3 +57,11 @@ pub fn set_oauth_state_cookie(jar: &CookieJar, state: &str) -> CookieJar {
 pub fn remove_oauth_state_cookie(jar: &CookieJar) -> CookieJar {
     jar.clone().remove(Cookie::build("oauth_state").path("/"))
 }
+
+pub fn remove_session_cookie(jar: &CookieJar) -> CookieJar {
+    jar.clone().remove(Cookie::build("access_token").path("/"))
+}
+
+pub fn remove_refresh_token_cookie(jar: &CookieJar) -> CookieJar {
+    jar.clone().remove(Cookie::build("refresh_token").path("/"))
+}

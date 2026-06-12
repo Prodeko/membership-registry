@@ -49,4 +49,9 @@ impl AuthPort for KeycloakAuthAdapter {
             refresh_token: resp.refresh_token,
         })
     }
+
+    async fn end_session(&self, refresh_token: &str) -> Result<(), AuthError> {
+        self.client.end_session(refresh_token).await?;
+        Ok(())
+    }
 }

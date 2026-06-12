@@ -338,6 +338,37 @@ impl KeycloakClient {
         })
     }
 
+    /// Back-channel logout: ends the user's SSO session at Keycloak by
+    /// invalidating the refresh token. Best-effort — caller logs failures.
+    pub async fn end_session(&self, refresh_token: &str) -> Result<(), KeycloakError> {
+        let url = self.oidc_url("logout");
+
+        let mut form = vec![
+            ("client_id", self.cfg.client_id.as_str()),
+            ("refresh_token", refresh_token),
+        ];
+
+        let secret_owned;
+        if let Some(ref secret) = self.cfg.client_secret {
+            secret_owned = secret.clone();
+            form.push(("client_secret", &secret_owned));
+        }
+
+        let response = self.http.post(&url).form(&form).send().await.map_err(|e| {
+            tracing::error!("Logout request failed: {e:?}");
+            KeycloakError::Unavailable(format!("Logout request failed: {e}"))
+        })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::warn!("Keycloak logout returned {status}: {body}");
+            return Err(KeycloakError::Unauthorized);
+        }
+
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Service token (client_credentials grant)
     // -----------------------------------------------------------------------
