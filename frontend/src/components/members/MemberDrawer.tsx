@@ -214,7 +214,9 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
 
   // ── computed ──
   const initials = member
-    ? (member.first_name[0] + member.last_name[0]).toUpperCase()
+    ? (
+        (member.first_name?.[0] ?? "") + (member.last_name?.[0] ?? "")
+      ).toUpperCase() || "??"
     : "??";
 
   const removalKey = (a: string, b: string) => `${a}::${b}`;
@@ -314,6 +316,7 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
         user_id: userId,
       })),
     ].forEach((gm) => {
+      if (validityStatus(gm.valid_from, gm.valid_until) !== "active") return;
       const group = allGroups?.find((g) => g.id === gm.group_id);
       if (!group) return;
       group.role_names.forEach((r) => {
@@ -334,6 +337,7 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
         pending_renewal_id: null,
       })),
     ].forEach((r) => {
+      if (validityStatus(r.valid_from, r.valid_until) !== "active") return;
       if (!map[r.role_name])
         map[r.role_name] = { fromGroups: [], fromDirect: false };
       map[r.role_name].fromDirect = true;

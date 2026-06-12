@@ -14,30 +14,19 @@ import MultipleSelector, { Option } from "../ui/multiple-selector";
 import { getColumns } from "./columns";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
 import { TooltipProvider } from "../ui/tooltip";
 import BulkCommandDock from "./BulkCommandDock";
 import MemberDrawer from "./MemberDrawer";
 import { MemberWithRoles } from "@/common/types";
 
-type KcFilter = "all" | "sync" | "mismatch" | "unknown";
-
 type FilterState = {
   roles: Option[];
-  kcFilter: KcFilter;
   validFrom: Date;
   validUntil: Date;
 };
 
 const defaultFilterState: FilterState = {
   roles: [],
-  kcFilter: "all",
   validFrom: defaultFrom,
   validUntil: defaultTo,
 };
@@ -73,7 +62,6 @@ const Members: React.FC = () => {
   const hasPendingChanges =
     JSON.stringify(draft.roles.map((r) => r.value).sort()) !==
       JSON.stringify(applied.roles.map((r) => r.value).sort()) ||
-    draft.kcFilter !== applied.kcFilter ||
     draft.validFrom.getTime() !== applied.validFrom.getTime() ||
     draft.validUntil.getTime() !== applied.validUntil.getTime();
 
@@ -116,6 +104,7 @@ const Members: React.FC = () => {
           modelName="members"
           columns={columns}
           useFetchData={useGetAllMembersWithRoles}
+          useCount={useGetMembersCount}
           searchColumn="first_name"
           initialColumnVisibility={{
             user_id: false,
@@ -136,28 +125,6 @@ const Members: React.FC = () => {
                   placeholder="All roles"
                   className="w-48 bg-background"
                 />
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">
-                  KC Status
-                </span>
-                <Select
-                  value={draft.kcFilter}
-                  onValueChange={(v) =>
-                    setDraft((d) => ({ ...d, kcFilter: v as KcFilter }))
-                  }
-                >
-                  <SelectTrigger className="h-8 w-32 text-xs">
-                    <SelectValue placeholder="All" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="sync">In sync</SelectItem>
-                    <SelectItem value="mismatch">Mismatch</SelectItem>
-                    <SelectItem value="unknown">Unknown</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
               <div className="flex items-center gap-2">
@@ -204,8 +171,12 @@ const Members: React.FC = () => {
             const next: FilterState = {
               ...defaultFilterState,
               roles: stringsToOptions(filters?.roles ?? []),
-              validFrom: filters?.valid_from ?? defaultFrom,
-              validUntil: filters?.valid_until ?? defaultTo,
+              validFrom: filters?.valid_from
+                ? new Date(filters.valid_from as string)
+                : defaultFrom,
+              validUntil: filters?.valid_until
+                ? new Date(filters.valid_until as string)
+                : defaultTo,
             };
             setDraft(next);
             setApplied(next);
