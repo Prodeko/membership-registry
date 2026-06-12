@@ -194,7 +194,6 @@ impl Services {
         let authentication_service = AuthenticationService::new(
             Arc::clone(&auth_adapter),
             Arc::clone(&auth_provider_repo),
-            Arc::clone(&role_sync),
             RoleName(keycloak_cfg.admin_role_name),
             audit_log_service.clone(),
         );

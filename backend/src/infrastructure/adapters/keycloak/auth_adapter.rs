@@ -37,6 +37,7 @@ impl AuthPort for KeycloakAuthAdapter {
             email: claims.email,
             given_name: claims.given_name,
             family_name: claims.family_name,
+            roles: claims.realm_access.roles,
         })
     }
 
@@ -47,5 +48,10 @@ impl AuthPort for KeycloakAuthAdapter {
             access_token: resp.access_token,
             refresh_token: resp.refresh_token,
         })
+    }
+
+    async fn end_session(&self, refresh_token: &str) -> Result<(), AuthError> {
+        self.client.end_session(refresh_token).await?;
+        Ok(())
     }
 }

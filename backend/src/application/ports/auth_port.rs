@@ -4,6 +4,8 @@ pub struct VerifiedIdentity {
     pub email: Option<String>,
     pub given_name: Option<String>,
     pub family_name: Option<String>,
+    /// Effective realm roles from the token (includes group-inherited roles).
+    pub roles: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -24,4 +26,5 @@ pub struct RefreshedTokens {
 pub trait AuthPort: Send + Sync {
     async fn verify_access_token(&self, access_token: &str) -> Result<VerifiedIdentity, AuthError>;
     async fn refresh(&self, refresh_token: &str) -> Result<RefreshedTokens, AuthError>;
+    async fn end_session(&self, refresh_token: &str) -> Result<(), AuthError>;
 }

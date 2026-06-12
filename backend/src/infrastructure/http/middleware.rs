@@ -106,17 +106,10 @@ pub async fn check_permission(
         return StatusCode::UNAUTHORIZED.into_response();
     };
 
-    match state
-        .authentication_service
-        .is_admin(userinfo.user_id)
-        .await
-    {
-        Ok(true) => next.run(req).await,
-        Ok(false) => StatusCode::FORBIDDEN.into_response(),
-        Err(e) => {
-            tracing::error!("Error checking admin status: {e:?}");
-            StatusCode::INTERNAL_SERVER_ERROR.into_response()
-        }
+    if state.authentication_service.is_admin(&userinfo) {
+        next.run(req).await
+    } else {
+        StatusCode::FORBIDDEN.into_response()
     }
 }
 
@@ -129,17 +122,7 @@ pub async fn check_member_access(
 ) -> Response<Body> {
     match userinfo {
         Some(userinfo) => {
-            let is_admin = match state
-                .authentication_service
-                .is_admin(userinfo.user_id)
-                .await
-            {
-                Ok(val) => val,
-                Err(e) => {
-                    tracing::error!("Error checking admin status: {e:?}");
-                    return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-                }
-            };
+            let is_admin = state.authentication_service.is_admin(&userinfo);
 
             tracing::debug!("Is admin: {}", is_admin);
 

@@ -68,6 +68,12 @@ struct CachedToken {
 // DTOs
 // ---------------------------------------------------------------------------
 
+#[derive(Debug, Deserialize, Default)]
+pub struct RealmAccessDTO {
+    #[serde(default)]
+    pub roles: Vec<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct KeycloakClaimsDTO {
     pub sub: String,
@@ -75,6 +81,10 @@ pub struct KeycloakClaimsDTO {
     pub given_name: Option<String>,
     pub family_name: Option<String>,
     pub azp: Option<String>,
+    // Effective realm roles computed by Keycloak (direct + group + parent-group +
+    // composite). Default keeps decoding tolerant if the claim is ever absent.
+    #[serde(default)]
+    pub realm_access: RealmAccessDTO,
 }
 
 #[derive(Debug, Deserialize)]
@@ -328,6 +338,37 @@ impl KeycloakClient {
         })
     }
 
+    /// Back-channel logout: ends the user's SSO session at Keycloak by
+    /// invalidating the refresh token. Best-effort — caller logs failures.
+    pub async fn end_session(&self, refresh_token: &str) -> Result<(), KeycloakError> {
+        let url = self.oidc_url("logout");
+
+        let mut form = vec![
+            ("client_id", self.cfg.client_id.as_str()),
+            ("refresh_token", refresh_token),
+        ];
+
+        let secret_owned;
+        if let Some(ref secret) = self.cfg.client_secret {
+            secret_owned = secret.clone();
+            form.push(("client_secret", &secret_owned));
+        }
+
+        let response = self.http.post(&url).form(&form).send().await.map_err(|e| {
+            tracing::error!("Logout request failed: {e:?}");
+            KeycloakError::Unavailable(format!("Logout request failed: {e}"))
+        })?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let body = response.text().await.unwrap_or_default();
+            tracing::warn!("Keycloak logout returned {status}: {body}");
+            return Err(KeycloakError::Unauthorized);
+        }
+
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Service token (client_credentials grant)
     // -----------------------------------------------------------------------
@@ -536,6 +577,14 @@ impl KeycloakClient {
         email: Option<&str>,
         require_verify_email: bool,
     ) -> Result<(), KeycloakError> {
+        // Serialize against concurrent attribute/locale writes for the same
+        // subject: profile and attribute writers both GET-merge-PUT the same KC
+        // user document, so without this lock a concurrent attribute PUT can
+        // read the pre-edit user and overwrite the email change. Same per-subject
+        // lock used by `update_user_attributes`/`clear_user_attribute`.
+        let lock = self.user_attribute_lock(subject).await;
+        let _guard = lock.lock().await;
+
         let token = self.get_service_token().await?;
         let url = self.admin_url(&format!("users/{}", encode_path(subject)));
 

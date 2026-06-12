@@ -12,7 +12,8 @@ use serde::Serialize;
 use crate::application::services::authentication_service::AuthServiceError;
 use crate::domain::{Email, NewPerson, PersonId};
 use crate::helpers::{
-    remove_oauth_state_cookie, set_oauth_state_cookie, set_refresh_token_cookie, set_session_cookie,
+    remove_oauth_state_cookie, remove_refresh_token_cookie, remove_session_cookie,
+    set_oauth_state_cookie, set_refresh_token_cookie, set_session_cookie,
 };
 
 use super::AppState;
@@ -44,8 +45,15 @@ async fn login(State(state): State<AppState>, jar: CookieJar) -> (CookieJar, Red
 }
 
 async fn logout(State(state): State<AppState>, jar: CookieJar) -> (CookieJar, Json<String>) {
-    let jar = set_session_cookie(&jar, "");
-    let jar = set_refresh_token_cookie(&jar, "");
+    // End the Keycloak SSO session so the user isn't silently re-authenticated on the
+    // next login redirect. Best-effort: always clear cookies even if Keycloak fails.
+    if let Some(rt) = jar.get("refresh_token") {
+        if let Err(e) = state.authentication_service.logout(rt.value()).await {
+            tracing::warn!("Keycloak logout failed (continuing): {e:?}");
+        }
+    }
+    let jar = remove_session_cookie(&jar);
+    let jar = remove_refresh_token_cookie(&jar);
     (jar, Json("Logged out".to_string()))
 }
 

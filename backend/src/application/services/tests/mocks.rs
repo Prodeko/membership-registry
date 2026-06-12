@@ -141,6 +141,7 @@ mock! {
     impl AuthPort for AuthPort {
         async fn verify_access_token(&self, access_token: &str) -> Result<VerifiedIdentity, AuthError>;
         async fn refresh(&self, refresh_token: &str) -> Result<RefreshedTokens, AuthError>;
+        async fn end_session(&self, refresh_token: &str) -> Result<(), AuthError>;
     }
 }
 
