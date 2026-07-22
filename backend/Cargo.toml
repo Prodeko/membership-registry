@@ -66,5 +66,5 @@ tokio-cron-scheduler = "0.15.1"
 chrono-tz = "0.10.4"
 
 [dev-dependencies]
-mockall = "0.14"
+mockall = "0.15"
 wiremock = "0.6"
