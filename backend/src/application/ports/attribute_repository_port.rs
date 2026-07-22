@@ -66,7 +66,7 @@ pub trait AttributeRepositoryPort: Send + Sync {
         user_id: &PersonId,
     ) -> Result<Vec<MemberAttribute>, RepositoryError>;
 
-    /// All (user_id, value) pairs for a given attribute. Used by drift detection.
+    /// All (user_id, value) pairs for a given attribute.
     async fn fetch_all_values_for(
         &self,
         name: &AttributeName,

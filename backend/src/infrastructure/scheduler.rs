@@ -74,9 +74,9 @@ async fn run_renewals(renewal_service: &RenewalService) {
 }
 
 /// Starts a cron scheduler with the single admin pending-application digest
-/// job. Separate from the naive 24h loop above: the digest must fire at a
-/// fixed local time, not at a startup-relative offset. Returns the running
-/// scheduler; the caller shuts it down on exit.
+/// job. Separate from `run_scheduler`'s naive 24h loop: the digest must fire
+/// at a fixed local time, not at a startup-relative offset. Returns the
+/// running scheduler; the caller shuts it down on exit.
 pub async fn start_application_digest_job(
     digest_service: ApplicationDigestService,
     cron_expr: &str,
@@ -98,4 +98,68 @@ pub async fn start_application_digest_job(
     sched.start().await?;
     tracing::info!(cron = cron_expr, "Application digest scheduler started");
     Ok(sched)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    use envconfig::Envconfig;
+
+    use super::*;
+    use crate::application::services::tests::mocks::{
+        MockApplicationQueryPort, MockAttributeRepositoryPort, MockRoleRepositoryPort,
+    };
+    use crate::config::Config;
+
+    fn digest_service() -> ApplicationDigestService {
+        ApplicationDigestService::new(
+            Arc::new(MockApplicationQueryPort::new()),
+            Arc::new(MockAttributeRepositoryPort::new()),
+            Arc::new(MockRoleRepositoryPort::new()),
+            None,
+            "http://localhost".to_string(),
+        )
+    }
+
+    /// The default `Config` produces via envconfig when APPLICATION_DIGEST_CRON
+    /// is unset — the exact value production falls back to.
+    fn default_cron_from_config() -> String {
+        let required = [
+            ("PORT", "8080"),
+            ("DATABASE_URL", "postgres://unused"),
+            ("FRONTEND_URL", "http://localhost"),
+            ("KEYCLOAK_URL", "http://localhost"),
+            ("KEYCLOAK_REALM", "realm"),
+            ("KEYCLOAK_CLIENT_ID", "client"),
+            ("KEYCLOAK_CLIENT_SECRET", "secret"),
+            ("OAUTH_REDIRECT_URL", "http://localhost"),
+            ("KEYCLOAK_ADMIN_CLIENT_ID", "admin-client"),
+            ("KEYCLOAK_ADMIN_CLIENT_SECRET", "secret"),
+            ("STRIPE_ENDPOINT_SECRET", "secret"),
+        ];
+        let env: HashMap<String, String> = required
+            .iter()
+            .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+            .collect();
+        Config::init_from_hashmap(&env)
+            .unwrap()
+            .application_digest_cron
+    }
+
+    #[tokio::test]
+    async fn default_cron_expression_starts_the_scheduler() {
+        let mut sched = start_application_digest_job(digest_service(), &default_cron_from_config())
+            .await
+            .expect("the default APPLICATION_DIGEST_CRON must be a valid 6-field cron expression");
+        sched.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn malformed_cron_expression_is_an_error_not_a_panic() {
+        let result = start_application_digest_job(digest_service(), "not a cron").await;
+        assert!(result.is_err());
+    }
 }

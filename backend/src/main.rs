@@ -51,7 +51,6 @@ use application::{
     },
 };
 use config::Config;
-use domain::RoleName;
 use helpers::create_pg_pool;
 use infrastructure::{
     adapters::{
@@ -196,7 +195,7 @@ impl Services {
         let authentication_service = AuthenticationService::new(
             Arc::clone(&auth_adapter),
             Arc::clone(&auth_provider_repo),
-            RoleName(keycloak_cfg.admin_role_name),
+            domain::well_known::admin_role_name(),
             audit_log_service.clone(),
         );
         let email_port = build_email_port(&config);
@@ -280,6 +279,7 @@ impl Services {
         let application_digest_service = ApplicationDigestService::new(
             Arc::clone(&application_queries),
             Arc::clone(&attribute_repo),
+            Arc::clone(&role_repo),
             email_port,
             config.frontend_url.clone(),
         );
@@ -388,7 +388,9 @@ async fn main() {
 
     serve(config, services, cancel.clone()).await;
 
-    digest_scheduler.shutdown().await.ok();
+    if let Err(e) = digest_scheduler.shutdown().await {
+        tracing::warn!("Application digest scheduler shutdown failed: {e:?}");
+    }
 
     scheduler_handle.await.ok();
 }
