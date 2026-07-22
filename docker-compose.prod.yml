@@ -62,6 +62,9 @@ services:
       KEYCLOAK_ADMIN_CLIENT_ID: membership-registry-m2m
       KEYCLOAK_ADMIN_CLIENT_SECRET: dev-secret-membership-registry-m2m
       STRIPE_ENDPOINT_SECRET: whsec_test
+      # Daily admin digest of pending applications, 07:00 Europe/Helsinki
+      # (6-field cron, seconds first).
+      APPLICATION_DIGEST_CRON: "0 0 7 * * *"
       RUST_LOG: debug
     depends_on:
       postgres:

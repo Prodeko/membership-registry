@@ -179,7 +179,7 @@ impl AttributeDefinition {
         sync_to_keycloak: bool,
         editable_by: EditableBy,
     ) -> Self {
-        let allowed_values = allowed_values.and_then(|v| if v.is_empty() { None } else { Some(v) });
+        let allowed_values = allowed_values.filter(|v| !v.is_empty());
         Self {
             name,
             description,

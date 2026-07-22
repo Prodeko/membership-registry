@@ -1,3 +1,4 @@
+pub mod application_digest_service;
 pub mod application_service;
 pub mod attribute_service;
 pub mod audit_log_service;
@@ -16,4 +17,4 @@ pub mod template_admin_service;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests;
+pub(crate) mod tests;

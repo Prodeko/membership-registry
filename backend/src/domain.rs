@@ -8,6 +8,7 @@ pub mod person;
 pub mod role;
 pub mod role_group;
 pub mod role_renewal;
+pub mod well_known;
 
 pub use application::*;
 pub use attribute::*;

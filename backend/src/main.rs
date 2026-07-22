@@ -40,6 +40,7 @@ use application::{
         user_admin_port::UserAdminPort,
     },
     services::{
+        application_digest_service::ApplicationDigestService,
         application_service::ApplicationService, attribute_service::AttributeService,
         audit_log_service::AuditLogService, authentication_service::AuthenticationService,
         export_service::ExportService, marketing_service::MarketingService,
@@ -50,7 +51,6 @@ use application::{
     },
 };
 use config::Config;
-use domain::RoleName;
 use helpers::create_pg_pool;
 use infrastructure::{
     adapters::{
@@ -68,7 +68,7 @@ use infrastructure::{
     },
     http::serve,
     repositories::PostgresRepo,
-    scheduler::run_scheduler,
+    scheduler::{run_scheduler, start_application_digest_job},
 };
 
 pub struct Services {
@@ -83,6 +83,7 @@ pub struct Services {
     pub audit_log_service: AuditLogService,
     pub template_admin_service: TemplateAdminService,
     pub notification_service: NotificationService,
+    pub application_digest_service: ApplicationDigestService,
     pub marketing_tag_admin_service: MarketingTagAdminService,
     pub marketing_service: Option<Arc<MarketingService>>,
     pub payment_webhook: StripeWebhookAdapter,
@@ -172,7 +173,7 @@ impl Services {
             client_secret: Some(config.keycloak_client_secret.clone()),
             admin_client_id: config.keycloak_admin_client_id.clone(),
             admin_client_secret: config.keycloak_admin_client_secret.clone(),
-            admin_role_name: "admin".to_string(),
+            admin_role_name: domain::well_known::ADMIN_ROLE_NAME.to_string(),
         };
 
         let keycloak_client = KeycloakClient::new(keycloak_cfg.clone());
@@ -194,7 +195,7 @@ impl Services {
         let authentication_service = AuthenticationService::new(
             Arc::clone(&auth_adapter),
             Arc::clone(&auth_provider_repo),
-            RoleName(keycloak_cfg.admin_role_name),
+            domain::well_known::admin_role_name(),
             audit_log_service.clone(),
         );
         let email_port = build_email_port(&config);
@@ -208,7 +209,7 @@ impl Services {
             audit_log_service.clone(),
         );
         let notification_service =
-            NotificationService::new(email_port, Arc::clone(&template_repo), renderer);
+            NotificationService::new(email_port.clone(), Arc::clone(&template_repo), renderer);
 
         let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member);
         let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role);
@@ -268,12 +269,19 @@ impl Services {
         );
         let application_service = ApplicationService::new(
             application_commands,
-            application_queries,
+            Arc::clone(&application_queries),
             targetable_roles,
             role_service.clone(),
             Arc::clone(&attribute_service),
             audit_log_service.clone(),
             notification_service.clone(),
+        );
+        let application_digest_service = ApplicationDigestService::new(
+            Arc::clone(&application_queries),
+            Arc::clone(&attribute_repo),
+            Arc::clone(&role_repo),
+            email_port,
+            config.frontend_url.clone(),
         );
 
         let renewal_repo: Arc<dyn RoleRenewalRepositoryPort> = Arc::new(repo.role_renewal);
@@ -304,6 +312,7 @@ impl Services {
             audit_log_service,
             template_admin_service,
             notification_service,
+            application_digest_service,
             marketing_tag_admin_service,
             marketing_service,
             payment_webhook,
@@ -370,7 +379,18 @@ async fn main() {
         cancel.clone(),
     ));
 
+    let mut digest_scheduler = start_application_digest_job(
+        services.application_digest_service.clone(),
+        &config.application_digest_cron,
+    )
+    .await
+    .expect("Failed to start application digest scheduler — check APPLICATION_DIGEST_CRON");
+
     serve(config, services, cancel.clone()).await;
+
+    if let Err(e) = digest_scheduler.shutdown().await {
+        tracing::warn!("Application digest scheduler shutdown failed: {e:?}");
+    }
 
     scheduler_handle.await.ok();
 }
