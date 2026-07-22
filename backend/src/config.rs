@@ -17,6 +17,11 @@ pub struct Config {
     #[validate(length(min = 1, max = 1024))]
     pub frontend_url: String,
 
+    /// 6-field cron expression (seconds first) for the daily admin digest of
+    /// pending applications, evaluated in Europe/Helsinki.
+    #[envconfig(from = "APPLICATION_DIGEST_CRON", default = "0 0 7 * * *")]
+    pub application_digest_cron: String,
+
     #[envconfig(from = "KEYCLOAK_URL")]
     #[validate(length(min = 1, max = 1024))]
     pub keycloak_url: String,
