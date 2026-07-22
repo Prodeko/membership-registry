@@ -67,9 +67,13 @@ async fn no_pending_applications_sends_nothing() {
 #[tokio::test]
 async fn no_recipients_sends_nothing() {
     let mut queries = MockApplicationQueryPort::new();
-    queries
-        .expect_fetch_with_user_filtered()
-        .returning(|_, _| Ok(vec![pending_app("Testi Hakija", "testi@example.com", "member")]));
+    queries.expect_fetch_with_user_filtered().returning(|_, _| {
+        Ok(vec![pending_app(
+            "Testi Hakija",
+            "testi@example.com",
+            "member",
+        )])
+    });
     let mut attributes = MockAttributeRepositoryPort::new();
     attributes
         .expect_fetch_all_values_for()
@@ -87,9 +91,7 @@ async fn happy_path_sends_digest_to_each_recipient() {
     let mut queries = MockApplicationQueryPort::new();
     queries
         .expect_fetch_with_user_filtered()
-        .withf(|status, search| {
-            *status == Some(ApplicationStatus::Pending) && search.is_none()
-        })
+        .withf(|status, search| *status == Some(ApplicationStatus::Pending) && search.is_none())
         .returning(|_, _| {
             Ok(vec![
                 pending_app("Testi Hakija", "testi@example.com", "member"),
@@ -123,9 +125,13 @@ async fn happy_path_sends_digest_to_each_recipient() {
 #[tokio::test]
 async fn single_application_uses_singular_subject() {
     let mut queries = MockApplicationQueryPort::new();
-    queries
-        .expect_fetch_with_user_filtered()
-        .returning(|_, _| Ok(vec![pending_app("Testi Hakija", "testi@example.com", "member")]));
+    queries.expect_fetch_with_user_filtered().returning(|_, _| {
+        Ok(vec![pending_app(
+            "Testi Hakija",
+            "testi@example.com",
+            "member",
+        )])
+    });
     let mut attributes = MockAttributeRepositoryPort::new();
     attributes
         .expect_fetch_all_values_for()
@@ -145,9 +151,13 @@ async fn single_application_uses_singular_subject() {
 #[tokio::test]
 async fn duplicate_recipient_addresses_get_one_copy() {
     let mut queries = MockApplicationQueryPort::new();
-    queries
-        .expect_fetch_with_user_filtered()
-        .returning(|_, _| Ok(vec![pending_app("Testi Hakija", "testi@example.com", "member")]));
+    queries.expect_fetch_with_user_filtered().returning(|_, _| {
+        Ok(vec![pending_app(
+            "Testi Hakija",
+            "testi@example.com",
+            "member",
+        )])
+    });
     let mut attributes = MockAttributeRepositoryPort::new();
     attributes.expect_fetch_all_values_for().returning(|_| {
         Ok(vec![
@@ -170,25 +180,26 @@ async fn duplicate_recipient_addresses_get_one_copy() {
 #[tokio::test]
 async fn send_failure_does_not_stop_remaining_recipients() {
     let mut queries = MockApplicationQueryPort::new();
-    queries
-        .expect_fetch_with_user_filtered()
-        .returning(|_, _| Ok(vec![pending_app("Testi Hakija", "testi@example.com", "member")]));
+    queries.expect_fetch_with_user_filtered().returning(|_, _| {
+        Ok(vec![pending_app(
+            "Testi Hakija",
+            "testi@example.com",
+            "member",
+        )])
+    });
     let mut attributes = MockAttributeRepositoryPort::new();
     attributes
         .expect_fetch_all_values_for()
         .returning(|_| Ok(vec![recipient("a@prodeko.org"), recipient("b@prodeko.org")]));
     let mut email = MockEmailPort::new();
     // Recipients are iterated in sorted order: a@... first, b@... second.
-    email
-        .expect_send_email()
-        .times(2)
-        .returning(|to, _, _| {
-            if to == "a@prodeko.org" {
-                Err(EmailError::SendFailed("boom".to_string()))
-            } else {
-                Ok(())
-            }
-        });
+    email.expect_send_email().times(2).returning(|to, _, _| {
+        if to == "a@prodeko.org" {
+            Err(EmailError::SendFailed("boom".to_string()))
+        } else {
+            Ok(())
+        }
+    });
 
     service(queries, attributes, Some(email))
         .send_pending_digest()
@@ -229,9 +240,7 @@ async fn html_in_applicant_fields_is_escaped() {
     email
         .expect_send_email()
         .times(1)
-        .withf(|_, _, body| {
-            !body.contains("<script>") && body.contains("&lt;script&gt;")
-        })
+        .withf(|_, _, body| !body.contains("<script>") && body.contains("&lt;script&gt;"))
         .returning(|_, _, _| Ok(()));
 
     service(queries, attributes, Some(email))
@@ -242,14 +251,20 @@ async fn html_in_applicant_fields_is_escaped() {
 #[tokio::test]
 async fn missing_email_port_logs_instead_of_sending() {
     let mut queries = MockApplicationQueryPort::new();
-    queries
-        .expect_fetch_with_user_filtered()
-        .returning(|_, _| Ok(vec![pending_app("Testi Hakija", "testi@example.com", "member")]));
+    queries.expect_fetch_with_user_filtered().returning(|_, _| {
+        Ok(vec![pending_app(
+            "Testi Hakija",
+            "testi@example.com",
+            "member",
+        )])
+    });
     let mut attributes = MockAttributeRepositoryPort::new();
     attributes
         .expect_fetch_all_values_for()
         .returning(|_| Ok(vec![recipient("a@prodeko.org")]));
 
     // No email port: must not panic, just log.
-    service(queries, attributes, None).send_pending_digest().await;
+    service(queries, attributes, None)
+        .send_pending_digest()
+        .await;
 }

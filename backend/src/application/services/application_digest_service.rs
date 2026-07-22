@@ -57,9 +57,7 @@ impl ApplicationDigestService {
         let attr_name = match AttributeName::new(ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE) {
             Ok(name) => name,
             Err(e) => {
-                tracing::error!(
-                    "Application digest: well-known attribute name is invalid: {e:?}"
-                );
+                tracing::error!("Application digest: well-known attribute name is invalid: {e:?}");
                 return;
             }
         };
