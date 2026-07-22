@@ -1,5 +1,6 @@
 mod idp_roles;
 mod mocks;
+mod test_application_digest_service;
 mod test_application_service;
 mod test_attribute_service;
 mod test_authentication_service;
