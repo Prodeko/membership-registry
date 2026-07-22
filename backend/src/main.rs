@@ -172,7 +172,7 @@ impl Services {
             client_secret: Some(config.keycloak_client_secret.clone()),
             admin_client_id: config.keycloak_admin_client_id.clone(),
             admin_client_secret: config.keycloak_admin_client_secret.clone(),
-            admin_role_name: "admin".to_string(),
+            admin_role_name: domain::well_known::ADMIN_ROLE_NAME.to_string(),
         };
 
         let keycloak_client = KeycloakClient::new(keycloak_cfg.clone());
