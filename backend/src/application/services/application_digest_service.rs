@@ -13,9 +13,10 @@ use crate::domain::well_known::{
 use crate::domain::ApplicationStatus;
 
 /// Sends admins a daily digest email listing membership applications that
-/// await a decision. Recipients are members who hold the `admin` role and
-/// have the `admin-notifications-email` attribute set; the digest goes to
-/// the attribute's value. Scheduled by
+/// await admin action: pending ones awaiting a decision and unpaid ones the
+/// admin may reject to clear out. Recipients are members who hold the
+/// `admin` role and have the `admin-notifications-email` attribute set; the
+/// digest goes to the attribute's value. Scheduled by
 /// `scheduler::start_application_digest_job` — every failure is logged and
 /// swallowed so the job never aborts.
 #[derive(Clone)]
@@ -45,27 +46,23 @@ impl ApplicationDigestService {
     }
 
     pub async fn send_pending_digest(&self) {
-        let pending = match self
-            .application_queries
-            .fetch_with_user_filtered(Some(ApplicationStatus::Pending), None)
-            .await
-        {
-            Ok(apps) => apps,
-            Err(e) => {
-                tracing::error!("Application digest: failed to fetch pending applications: {e:?}");
-                return;
-            }
+        let Some(mut applications) = self.fetch_by_status(ApplicationStatus::Pending).await else {
+            return;
         };
-        if pending.is_empty() {
-            tracing::debug!("Application digest: no pending applications, skipping");
+        let Some(unpaid) = self.fetch_by_status(ApplicationStatus::Unpaid).await else {
+            return;
+        };
+        applications.extend(unpaid);
+        if applications.is_empty() {
+            tracing::debug!("Application digest: no applications awaiting action, skipping");
             return;
         }
 
-        let Some(addresses) = self.resolve_recipients(pending.len()).await else {
+        let Some(addresses) = self.resolve_recipients(applications.len()).await else {
             return;
         };
 
-        let digest = build_digest(&pending, &self.frontend_url);
+        let digest = build_digest(&applications, &self.frontend_url);
 
         let Some(port) = &self.email_port else {
             tracing::warn!(
@@ -95,11 +92,30 @@ impl ApplicationDigestService {
         }
     }
 
+    async fn fetch_by_status(
+        &self,
+        status: ApplicationStatus,
+    ) -> Option<Vec<ApplicationWithMember>> {
+        match self
+            .application_queries
+            .fetch_with_user_filtered(Some(status), None)
+            .await
+        {
+            Ok(apps) => Some(apps),
+            Err(e) => {
+                tracing::error!(
+                    "Application digest: failed to fetch {status:?} applications: {e:?}"
+                );
+                None
+            }
+        }
+    }
+
     /// Resolves digest recipient addresses: members holding the
     /// notifications attribute, restricted to those who also hold the admin
     /// role so the attribute alone cannot subscribe anyone to applicant
     /// data. Returns `None` when there is no one to send to.
-    async fn resolve_recipients(&self, pending_count: usize) -> Option<BTreeSet<String>> {
+    async fn resolve_recipients(&self, application_count: usize) -> Option<BTreeSet<String>> {
         let holders = match self
             .attribute_repo
             .fetch_all_values_for(&admin_notifications_email_attribute())
@@ -113,8 +129,8 @@ impl ApplicationDigestService {
         };
         if holders.is_empty() {
             tracing::info!(
-                "Application digest: {pending_count} pending application(s) but no members \
-                 have the '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' attribute set"
+                "Application digest: {application_count} application(s) awaiting action but no \
+                 members have the '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' attribute set"
             );
             return None;
         }
@@ -148,8 +164,9 @@ impl ApplicationDigestService {
             .collect();
         if addresses.is_empty() {
             tracing::info!(
-                "Application digest: {pending_count} pending application(s) but no '{ADMIN_ROLE_NAME}' \
-                 members have the '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' attribute set"
+                "Application digest: {application_count} application(s) awaiting action but no \
+                 '{ADMIN_ROLE_NAME}' members have the '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' \
+                 attribute set"
             );
             return None;
         }
@@ -164,7 +181,7 @@ struct DigestEmail {
 
 fn build_digest(applications: &[ApplicationWithMember], frontend_url: &str) -> DigestEmail {
     let subject = format!(
-        "{} pending membership application{}",
+        "{} membership application{} awaiting action",
         applications.len(),
         if applications.len() == 1 { "" } else { "s" }
     );
@@ -172,10 +189,11 @@ fn build_digest(applications: &[ApplicationWithMember], frontend_url: &str) -> D
         .iter()
         .map(|app| {
             format!(
-                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
+                "<tr><td>{}</td><td>{}</td><td>{}</td><td>{}</td><td>{}</td></tr>",
                 html_escape(app.full_name.as_deref().unwrap_or("-")),
                 html_escape(app.email.as_deref().unwrap_or("-")),
                 html_escape(&app.role_name),
+                status_label(&app.status),
                 // Submission date in the same timezone the digest fires in.
                 app.created_at
                     .with_timezone(&chrono_tz::Europe::Helsinki)
@@ -184,12 +202,21 @@ fn build_digest(applications: &[ApplicationWithMember], frontend_url: &str) -> D
         })
         .collect();
     let body = format!(
-        "<p>The following membership applications are awaiting a decision:</p>\
+        "<p>The following membership applications are awaiting action:</p>\
          <table border=\"1\" cellpadding=\"6\" cellspacing=\"0\">\
-         <tr><th>Name</th><th>Email</th><th>Role</th><th>Submitted</th></tr>{rows}</table>\
+         <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Submitted</th></tr>{rows}</table>\
          <p><a href=\"{frontend_url}/applications\">Open the applications view</a></p>"
     );
     DigestEmail { subject, body }
+}
+
+fn status_label(status: &ApplicationStatus) -> &'static str {
+    match status {
+        ApplicationStatus::Unpaid => "Unpaid",
+        ApplicationStatus::Pending => "Pending",
+        ApplicationStatus::Approved => "Approved",
+        ApplicationStatus::Rejected => "Rejected",
+    }
 }
 
 fn html_escape(s: &str) -> String {
