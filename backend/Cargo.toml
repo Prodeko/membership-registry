@@ -37,7 +37,7 @@ reqwest = { version = "0.12.28", default-features = false, features = ["json", "
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
 serde_with = "3.20.0"
-sqlx = { version = "0.8", features = [
+sqlx = { version = "0.9", features = [
     "postgres",
     "runtime-tokio",
     "macros",
@@ -49,7 +49,7 @@ ts-rs = { version = "12", features = ["chrono-impl", "uuid-impl"] }
 tokio = { version = "1.52.3", features = ["full"] }
 tokio-util = { version = "0.7.18", features = ["io"] }
 tower = "0.5.3"
-tower-http = { version = "0.6.11", features = [
+tower-http = { version = "0.7.0", features = [
     "fs",
     "cors",
     "trace",
@@ -66,5 +66,5 @@ tokio-cron-scheduler = "0.15.1"
 chrono-tz = "0.10.4"
 
 [dev-dependencies]
-mockall = "0.14"
+mockall = "0.15"
 wiremock = "0.6"

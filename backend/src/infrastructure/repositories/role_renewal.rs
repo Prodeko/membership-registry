@@ -192,7 +192,7 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
             "#
         );
 
-        let rows = sqlx::query_as::<_, PendingNotificationDAO>(&query)
+        let rows = sqlx::query_as::<_, PendingNotificationDAO>(sqlx::AssertSqlSafe(query))
             .bind(role_name)
             .bind(days)
             .fetch_all(&self.pool)
