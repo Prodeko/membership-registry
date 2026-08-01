@@ -28,6 +28,31 @@ fn pending_app(full_name: &str, email: &str, role_name: &str) -> ApplicationWith
     }
 }
 
+fn unpaid_app(full_name: &str, email: &str, role_name: &str) -> ApplicationWithMember {
+    ApplicationWithMember {
+        status: ApplicationStatus::Unpaid,
+        ..pending_app(full_name, email, role_name)
+    }
+}
+
+/// Query mock returning `pending` for the Pending fetch and `unpaid` for the
+/// Unpaid fetch.
+fn queries_returning(
+    pending: Vec<ApplicationWithMember>,
+    unpaid: Vec<ApplicationWithMember>,
+) -> MockApplicationQueryPort {
+    let mut queries = MockApplicationQueryPort::new();
+    queries
+        .expect_fetch_with_user_filtered()
+        .withf(|status, search| *status == Some(ApplicationStatus::Pending) && search.is_none())
+        .returning(move |_, _| Ok(pending.clone()));
+    queries
+        .expect_fetch_with_user_filtered()
+        .withf(|status, search| *status == Some(ApplicationStatus::Unpaid) && search.is_none())
+        .returning(move |_, _| Ok(unpaid.clone()));
+    queries
+}
+
 fn holder(id: &PersonId, address: &str) -> (PersonId, AttributeValue) {
     (id.clone(), AttributeValue::new(address).unwrap())
 }
@@ -118,16 +143,13 @@ async fn no_attribute_holders_sends_nothing() {
 
 #[tokio::test]
 async fn happy_path_sends_digest_to_each_recipient() {
-    let mut queries = MockApplicationQueryPort::new();
-    queries
-        .expect_fetch_with_user_filtered()
-        .withf(|status, search| *status == Some(ApplicationStatus::Pending) && search.is_none())
-        .returning(|_, _| {
-            Ok(vec![
-                pending_app("Testi Hakija", "testi@example.com", "member"),
-                pending_app("Toinen Hakija", "toinen@example.com", "alumni"),
-            ])
-        });
+    let queries = queries_returning(
+        vec![
+            pending_app("Testi Hakija", "testi@example.com", "member"),
+            pending_app("Toinen Hakija", "toinen@example.com", "alumni"),
+        ],
+        vec![],
+    );
     let (id_a, id_b) = (PersonId(Uuid::new_v4()), PersonId(Uuid::new_v4()));
     let holders = vec![
         holder(&id_a, "a@prodeko.org"),
@@ -144,7 +166,7 @@ async fn happy_path_sends_digest_to_each_recipient() {
         .times(2)
         .withf(|to, subject, body| {
             (to == "a@prodeko.org" || to == "b@prodeko.org")
-                && subject == "2 pending membership applications"
+                && subject == "2 membership applications awaiting action"
                 && body.contains("Testi Hakija")
                 && body.contains("toinen@example.com")
                 && body.contains("alumni")
@@ -158,15 +180,15 @@ async fn happy_path_sends_digest_to_each_recipient() {
 }
 
 #[tokio::test]
-async fn single_application_uses_singular_subject() {
-    let mut queries = MockApplicationQueryPort::new();
-    queries.expect_fetch_with_user_filtered().returning(|_, _| {
-        Ok(vec![pending_app(
-            "Testi Hakija",
-            "testi@example.com",
+async fn unpaid_only_applications_trigger_digest() {
+    let queries = queries_returning(
+        vec![],
+        vec![unpaid_app(
+            "Maksamaton Hakija",
+            "unpaid@example.com",
             "member",
-        )])
-    });
+        )],
+    );
     let id = PersonId(Uuid::new_v4());
     let holders = vec![holder(&id, "a@prodeko.org")];
     let mut attributes = MockAttributeRepositoryPort::new();
@@ -177,7 +199,73 @@ async fn single_application_uses_singular_subject() {
     email
         .expect_send_email()
         .times(1)
-        .withf(|_, subject, _| subject == "1 pending membership application")
+        .withf(|_, subject, body| {
+            subject == "1 membership application awaiting action"
+                && body.contains("Maksamaton Hakija")
+                && body.contains("Unpaid")
+        })
+        .returning(|_, _, _| Ok(()));
+
+    service(queries, attributes, admins_of(&[id]), Some(email))
+        .send_pending_digest()
+        .await;
+}
+
+#[tokio::test]
+async fn mixed_statuses_render_status_column_pending_first() {
+    let queries = queries_returning(
+        vec![pending_app(
+            "Odottava Hakija",
+            "pending@example.com",
+            "member",
+        )],
+        vec![unpaid_app(
+            "Maksamaton Hakija",
+            "unpaid@example.com",
+            "alumni",
+        )],
+    );
+    let id = PersonId(Uuid::new_v4());
+    let holders = vec![holder(&id, "a@prodeko.org")];
+    let mut attributes = MockAttributeRepositoryPort::new();
+    attributes
+        .expect_fetch_all_values_for()
+        .returning(move |_| Ok(holders.clone()));
+    let mut email = MockEmailPort::new();
+    email
+        .expect_send_email()
+        .times(1)
+        .withf(|_, subject, body| {
+            subject == "2 membership applications awaiting action"
+                && body.contains("<th>Status</th>")
+                && body.contains("Pending")
+                && body.contains("Unpaid")
+                && body.find("Odottava Hakija") < body.find("Maksamaton Hakija")
+        })
+        .returning(|_, _, _| Ok(()));
+
+    service(queries, attributes, admins_of(&[id]), Some(email))
+        .send_pending_digest()
+        .await;
+}
+
+#[tokio::test]
+async fn single_application_uses_singular_subject() {
+    let queries = queries_returning(
+        vec![pending_app("Testi Hakija", "testi@example.com", "member")],
+        vec![],
+    );
+    let id = PersonId(Uuid::new_v4());
+    let holders = vec![holder(&id, "a@prodeko.org")];
+    let mut attributes = MockAttributeRepositoryPort::new();
+    attributes
+        .expect_fetch_all_values_for()
+        .returning(move |_| Ok(holders.clone()));
+    let mut email = MockEmailPort::new();
+    email
+        .expect_send_email()
+        .times(1)
+        .withf(|_, subject, _| subject == "1 membership application awaiting action")
         .returning(|_, _, _| Ok(()));
 
     service(queries, attributes, admins_of(&[id]), Some(email))
@@ -310,6 +398,33 @@ async fn pending_fetch_error_is_swallowed() {
     let mut queries = MockApplicationQueryPort::new();
     queries
         .expect_fetch_with_user_filtered()
+        .returning(|_, _| Err(RepositoryError::Unexpected("db down".to_string())));
+    let mut attributes = MockAttributeRepositoryPort::new();
+    attributes.expect_fetch_all_values_for().never();
+    let mut email = MockEmailPort::new();
+    email.expect_send_email().never();
+
+    service(queries, attributes, roles_never(), Some(email))
+        .send_pending_digest()
+        .await;
+}
+
+#[tokio::test]
+async fn unpaid_fetch_error_is_swallowed() {
+    let mut queries = MockApplicationQueryPort::new();
+    queries
+        .expect_fetch_with_user_filtered()
+        .withf(|status, _| *status == Some(ApplicationStatus::Pending))
+        .returning(|_, _| {
+            Ok(vec![pending_app(
+                "Testi Hakija",
+                "testi@example.com",
+                "member",
+            )])
+        });
+    queries
+        .expect_fetch_with_user_filtered()
+        .withf(|status, _| *status == Some(ApplicationStatus::Unpaid))
         .returning(|_, _| Err(RepositoryError::Unexpected("db down".to_string())));
     let mut attributes = MockAttributeRepositoryPort::new();
     attributes.expect_fetch_all_values_for().never();

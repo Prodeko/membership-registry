@@ -6,7 +6,7 @@ use crate::domain::{Application, ApplicationId, ApplicationStatus, AttributeName
 
 // --- Read models ---
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ApplicationWithMember {
     pub application_id: ApplicationId,
     pub user_id: Uuid,
