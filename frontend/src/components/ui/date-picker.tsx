@@ -38,7 +38,6 @@ export function DatePicker({title, onSelect}: {title: string, onSelect: (date: D
             setDate(d)
             onSelect(d)
           }}
-          initialFocus
         />
       </PopoverContent>
     </Popover>

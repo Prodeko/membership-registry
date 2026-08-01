@@ -5,7 +5,7 @@ import {
   NavigationMenuLink,
 } from "@radix-ui/react-navigation-menu";
 import { Separator } from "../ui/separator";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { navigationMenuTriggerStyle } from "../ui/navigation-menu";
 import {
   DropdownMenu,

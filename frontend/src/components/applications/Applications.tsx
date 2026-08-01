@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { capitalizeFirstLetter } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { buttonVariants } from "../ui/button";
 
 const Applications = () => {

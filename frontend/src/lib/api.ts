@@ -43,7 +43,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios, { AxiosError, AxiosResponse } from "axios";
 import { downloadCsv, getDateAsString } from "./utils";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 export enum QueryKey {
   MEMBERS_WITH_ROLES = "members_with_roles",

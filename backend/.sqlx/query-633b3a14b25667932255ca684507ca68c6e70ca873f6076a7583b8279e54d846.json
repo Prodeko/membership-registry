@@ -6,37 +6,79 @@
       {
         "ordinal": 0,
         "name": "user_id",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rolemember",
+            "name": "user_id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "role_name",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rolemember",
+            "name": "role_name"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "valid_from",
-        "type_info": "Date"
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rolemember",
+            "name": "valid_from"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "valid_until",
-        "type_info": "Date"
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rolemember",
+            "name": "valid_until"
+          }
+        }
       },
       {
         "ordinal": 4,
         "name": "renewable",
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "role",
+            "name": "renewable"
+          }
+        }
       },
       {
         "ordinal": 5,
         "name": "renewal_payment_link",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "role",
+            "name": "renewal_payment_link"
+          }
+        }
       },
       {
         "ordinal": 6,
         "name": "pending_renewal_id?",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rolerenewal",
+            "name": "renewal_id"
+          }
+        }
       }
     ],
     "parameters": {
@@ -51,7 +93,7 @@
       true,
       false,
       true,
-      false
+      true
     ]
   },
   "hash": "633b3a14b25667932255ca684507ca68c6e70ca873f6076a7583b8279e54d846"

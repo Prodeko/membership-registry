@@ -6,7 +6,13 @@
       {
         "ordinal": 0,
         "name": "role_name",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rolegrouprole",
+            "name": "role_name"
+          }
+        }
       }
     ],
     "parameters": {

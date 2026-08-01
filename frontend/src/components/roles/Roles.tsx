@@ -2,7 +2,7 @@ import { useCleanupExpiredRoles, useGetRolesStats } from "@/lib/api";
 import { DataTable } from "../ui/data-table";
 import { columns } from "./columns";
 import CreateRoleModal from "./CreateRoleModal";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Button, buttonVariants } from "../ui/button";
 import {
   Tooltip,

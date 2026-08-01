@@ -4,7 +4,7 @@ import {
   useGetApplication,
   useSetApplicationStatus,
 } from "@/lib/api";
-import { useNavigate, useParams, Link } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import RoleBadge from "../ui/role-badge";

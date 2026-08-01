@@ -6,37 +6,79 @@
       {
         "ordinal": 0,
         "name": "role_name",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "applicationtargetablerole",
+            "name": "role_name"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "valid_until",
-        "type_info": "Date"
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "applicationtargetablerole",
+            "name": "valid_until"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "active",
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "applicationtargetablerole",
+            "name": "active"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "payment_link",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "applicationtargetablerole",
+            "name": "payment_link"
+          }
+        }
       },
       {
         "ordinal": 4,
         "name": "optional_roles",
-        "type_info": "TextArray"
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "applicationtargetablerole",
+            "name": "optional_roles"
+          }
+        }
       },
       {
         "ordinal": 5,
         "name": "approved_email_template",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "applicationtargetablerole",
+            "name": "approved_email_template"
+          }
+        }
       },
       {
         "ordinal": 6,
         "name": "rejected_email_template",
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "applicationtargetablerole",
+            "name": "rejected_email_template"
+          }
+        }
       }
     ],
     "parameters": {

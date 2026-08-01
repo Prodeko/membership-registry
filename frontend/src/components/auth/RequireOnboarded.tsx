@@ -1,7 +1,7 @@
 import { useGetMeMember } from "@/lib/api";
 import { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { Navigate } from "react-router-dom";
+import { Navigate } from "react-router";
 
 const RequireOnboarded = ({ children }: { children: ReactNode }) => {
   const { t } = useTranslation();

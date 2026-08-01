@@ -9,7 +9,7 @@ ARG VITE_API_BASE_URL=/api
 RUN pnpm run build
 
 # Stage 2: Backend build
-FROM rust:1.92-bookworm AS backend
+FROM rust:1.94-bookworm AS backend
 WORKDIR /app
 COPY backend/Cargo.toml backend/Cargo.lock ./
 RUN mkdir src && echo 'fn main(){}' > src/main.rs && cargo build --release && rm -rf src

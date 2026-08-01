@@ -4,7 +4,7 @@ import {
   Link,
   useParams,
   useRouteError,
-} from "react-router-dom";
+} from "react-router";
 
 interface ErrorDetails {
   title: string;
