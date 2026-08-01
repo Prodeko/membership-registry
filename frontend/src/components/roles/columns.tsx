@@ -4,7 +4,7 @@ import {
   File as FileIcon,
   MoreHorizontal,
 } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
 import { DataTableColumnHeader } from "../ui/column-header";

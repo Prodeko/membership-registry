@@ -4,7 +4,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { RouterProvider, createBrowserRouter } from "react-router-dom";
+import { RouterProvider, createBrowserRouter } from "react-router";
 import { AxiosError } from "axios";
 import { toast } from "sonner";
 import ApplicationForm from "./components/application-form/ApplicationForm";

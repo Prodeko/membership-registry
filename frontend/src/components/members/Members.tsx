@@ -7,7 +7,7 @@ import {
 import { defaultFrom, defaultTo, stringsToOptions } from "@/lib/utils";
 import React from "react";
 import { RowSelectionState } from "@tanstack/react-table";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { DataTable } from "../ui/data-table";
 import { DateRangePicker } from "../ui/date-range-picker";
 import MultipleSelector, { Option } from "../ui/multiple-selector";

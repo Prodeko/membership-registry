@@ -1,6 +1,6 @@
 import { useOauthCallback } from "@/lib/api";
 import { useEffect } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation } from "react-router";
 
 const Callback = () => {
   const location = useLocation();

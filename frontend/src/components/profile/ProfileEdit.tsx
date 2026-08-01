@@ -22,7 +22,7 @@ import AttributesSection from "../attributes/AttributesSection";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { z } from "zod";
 import MarketingPreferences from "./MarketingPreferences";
 import { Card } from "../ui/card";

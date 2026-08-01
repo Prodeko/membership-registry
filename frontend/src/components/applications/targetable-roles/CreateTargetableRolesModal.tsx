@@ -25,7 +25,7 @@ import {
   SelectValue,
 } from "../../ui/select";
 import { Button } from "../../ui/button";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { stringsToOptions } from "@/lib/utils";
 import MultipleSelector, { Option } from "@/components/ui/multiple-selector";
 import { Input } from "@/components/ui/input";

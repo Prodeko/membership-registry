@@ -27,7 +27,7 @@ import {
   DollarSign as DollarSignIcon,
 } from "lucide-react";
 import { Button } from "../ui/button";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { capitalizeFirstLetter } from "@/lib/utils";
 
 export const columns: ColumnDef<ApplicationWithMember>[] = [

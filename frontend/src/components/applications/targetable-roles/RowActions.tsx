@@ -19,7 +19,7 @@ import {
   Trash as TrashIcon,
 } from "lucide-react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import EditTargetableRolesModal from "./EditTargetableRolesModal";
 
 const RowActions = ({ role }: { role: ApplicationTargetableRole }) => {
