@@ -104,6 +104,7 @@ mock! {
         async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), RepositoryError>;
         async fn fetch_members_with_roles(&self, params: MembersWithRolesParams) -> Result<Vec<MemberWithRoles>, RepositoryError>;
         async fn count_members_with_roles(&self, params: MembersWithRolesParams) -> Result<i64, RepositoryError>;
+        async fn fetch_by_email(&self, email: &str) -> Result<Option<Person>, RepositoryError>;
         async fn set_email_notifications_by_email(&self, email: &str, value: bool) -> Result<u64, RepositoryError>;
     }
 }

@@ -60,6 +60,76 @@ fn fake_updated_person(user_id: Uuid, email: &str) -> Person {
 }
 
 #[tokio::test]
+async fn find_by_email_returns_member_when_present() {
+    let user_id = Uuid::new_v4();
+    let mut member_repo = MockMemberRepositoryPort::new();
+    member_repo
+        .expect_fetch_by_email()
+        .withf(|e| e == "old@example.com")
+        .returning(move |_| Ok(Some(fake_existing_person(user_id))));
+
+    let svc = MemberService::new(
+        Arc::new(member_repo),
+        Arc::new(MockUserAdminPort::new()),
+        Arc::new(MockAuthProviderRepo::new()),
+        noop_audit_log(),
+        None,
+        noop_attribute_bootstrap(),
+    );
+
+    let found = svc.find_by_email("old@example.com").await.unwrap();
+    assert_eq!(found.unwrap().id.0, user_id);
+}
+
+#[tokio::test]
+async fn provision_member_creates_person_and_links_subject() {
+    use crate::application::ports::auth_provider_repo_port::AuthProviderMapping;
+    use chrono::Utc;
+
+    let user_id = Uuid::new_v4();
+    let subject = user_id.to_string();
+
+    let mut member_repo = MockMemberRepositoryPort::new();
+    member_repo
+        .expect_create()
+        .returning(move |_| Ok(fake_created_person(user_id)));
+
+    let mut auth_repo = MockAuthProviderRepo::new();
+    // create_member spawns a fire-and-forget locale sync that reads providers.
+    auth_repo
+        .expect_find_by_user_id()
+        .returning(|_| Ok(vec![]));
+    auth_repo
+        .expect_create()
+        .withf(move |uid, provider, puid| {
+            *uid == user_id && provider == "keycloak" && puid == subject
+        })
+        .returning(|uid, provider, puid| {
+            Ok(AuthProviderMapping {
+                user_id: *uid,
+                provider_name: provider.to_string(),
+                provider_user_id: puid.to_string(),
+                linked_at: Utc::now(),
+            })
+        });
+
+    let svc = MemberService::new(
+        Arc::new(member_repo),
+        Arc::new(MockUserAdminPort::new()),
+        Arc::new(auth_repo),
+        noop_audit_log(),
+        None,
+        noop_attribute_bootstrap(),
+    );
+
+    let person = svc
+        .provision_member(new_person(user_id), &user_id.to_string(), None)
+        .await
+        .unwrap();
+    assert_eq!(person.id.0, user_id);
+}
+
+#[tokio::test]
 async fn update_member_syncs_profile_to_keycloak_and_requires_verify_on_email_change() {
     let user_id = Uuid::new_v4();
 
