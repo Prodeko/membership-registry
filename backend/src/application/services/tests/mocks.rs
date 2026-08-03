@@ -320,6 +320,18 @@ mock! {
             email: Option<String>,
             require_verify_email: bool,
         ) -> Result<(), UserAdminError>;
+        async fn create_user(
+            &self,
+            email: &str,
+            first_name: &str,
+            last_name: &str,
+        ) -> Result<String, UserAdminError>;
+        async fn find_by_email(&self, email: &str) -> Result<Option<String>, UserAdminError>;
+        async fn send_required_actions_email(
+            &self,
+            subject: &str,
+            actions: &[String],
+        ) -> Result<(), UserAdminError>;
     }
 }
 

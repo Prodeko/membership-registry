@@ -657,6 +657,107 @@ impl KeycloakClient {
         Ok(())
     }
 
+    pub async fn create_user(
+        &self,
+        email: &str,
+        first_name: &str,
+        last_name: &str,
+    ) -> Result<String, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("users");
+        let body = serde_json::json!({
+            "email": email,
+            "firstName": first_name,
+            "lastName": last_name,
+            "enabled": true,
+            "emailVerified": false,
+        });
+        let response = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(e.to_string()))?;
+
+        if response.status() == reqwest::StatusCode::CONFLICT {
+            return Err(KeycloakError::Unavailable(
+                "user already exists in Keycloak".into(),
+            ));
+        }
+        if !response.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "create_user failed: {}",
+                response.status()
+            )));
+        }
+
+        // The new user's id is the last path segment of the Location header.
+        let location = response
+            .headers()
+            .get("Location")
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| KeycloakError::BadResponse("missing Location header".into()))?;
+        let subject = location
+            .rsplit('/')
+            .next()
+            .ok_or_else(|| KeycloakError::BadResponse("malformed Location header".into()))?
+            .to_string();
+        Ok(subject)
+    }
+
+    pub async fn find_user_by_email(&self, email: &str) -> Result<Option<String>, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("users");
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .query(&[("email", email), ("exact", "true")])
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(e.to_string()))?;
+        if !response.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "find_user_by_email failed: {}",
+                response.status()
+            )));
+        }
+        let users: Vec<KeycloakUserDTO> = response
+            .json()
+            .await
+            .map_err(|e| KeycloakError::BadResponse(e.to_string()))?;
+        Ok(users.into_iter().next().map(|u| u.id))
+    }
+
+    pub async fn send_actions_email(
+        &self,
+        subject: &str,
+        actions: &[String],
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "users/{}/execute-actions-email",
+            encode_path(subject)
+        ));
+        let response = self
+            .http
+            .put(&url)
+            .bearer_auth(&token)
+            .json(actions)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(e.to_string()))?;
+        if !response.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "execute-actions-email failed: {}",
+                response.status()
+            )));
+        }
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Role management (admin API)
     // -----------------------------------------------------------------------
