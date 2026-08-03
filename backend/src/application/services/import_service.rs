@@ -7,7 +7,11 @@ use crate::application::services::attribute_service::AttributeService;
 use crate::application::services::errors::ServiceResult;
 use crate::application::services::member_service::MemberService;
 use crate::application::services::role_service::RoleService;
-use crate::domain::{AttributeDefinition, AttributeName, AttributeValue, EditableBy, Email};
+use crate::domain::{
+    AttributeDefinition, AttributeName, AttributeValue, EditableBy, Email, NewPerson, Person,
+    PersonId, UpdatePersonData,
+};
+use uuid::Uuid;
 
 const KNOWN_MEMBER_COLUMNS: &[&str] = &[
     "email",
@@ -110,6 +114,73 @@ pub(crate) fn parse_bool(s: &str) -> Result<bool, ()> {
         "true" | "1" | "yes" => Ok(true),
         "false" | "0" | "no" => Ok(false),
         _ => Err(()),
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RowOutcome {
+    Created,
+    Updated,
+    Skipped(String),
+    Failed(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberResultRow {
+    pub line: usize,
+    pub email: String,
+    pub outcome: RowOutcome,
+    pub warning: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MemberImportReport {
+    pub fatal_error: Option<String>,
+    pub rows: Vec<MemberResultRow>,
+}
+
+impl MemberImportReport {
+    pub fn count(&self, want: &RowOutcome) -> usize {
+        self.rows.iter().filter(|r| &r.outcome == want).count()
+    }
+}
+
+fn build_new_person(cols: &MemberColumns, rec: &[String], id: Uuid) -> Result<NewPerson, String> {
+    let email = Email::new(rec[cols.email].trim().to_string())
+        .map_err(|e| format!("invalid email: {e}"))?;
+    let present = |idx: Option<usize>| cell(idx, rec).map(str::trim).filter(|s| !s.is_empty());
+    Ok(NewPerson {
+        id: PersonId(id),
+        email,
+        first_name: present(cols.first_name).unwrap_or("").to_string(),
+        last_name: present(cols.last_name).unwrap_or("").to_string(),
+        home_municipality: present(cols.home_municipality).map(String::from),
+        email_notifications: present(cols.email_notifications)
+            .map(|s| parse_bool(s).unwrap_or(true))
+            .unwrap_or(true),
+        language: present(cols.language).unwrap_or("fi").to_string(),
+    })
+}
+
+fn build_update_data(cols: &MemberColumns, rec: &[String], current: &Person) -> UpdatePersonData {
+    let present = |idx: Option<usize>| cell(idx, rec).map(str::trim).filter(|s| !s.is_empty());
+    UpdatePersonData {
+        first_name: present(cols.first_name)
+            .map(String::from)
+            .unwrap_or_else(|| current.first_name.clone()),
+        last_name: present(cols.last_name)
+            .map(String::from)
+            .unwrap_or_else(|| current.last_name.clone()),
+        home_municipality: present(cols.home_municipality)
+            .map(String::from)
+            .or_else(|| current.home_municipality.clone()),
+        email_notifications: present(cols.email_notifications)
+            .and_then(|s| parse_bool(s).ok())
+            .unwrap_or(current.email_notifications),
+        language: present(cols.language)
+            .map(String::from)
+            .unwrap_or_else(|| current.language.clone()),
+        email: None, // email is the match key; import never changes it
     }
 }
 
@@ -243,5 +314,186 @@ impl ImportService {
             }
             Ok(RowAction::Create)
         }
+    }
+
+    pub async fn apply_members(
+        &self,
+        bytes: &[u8],
+        send_invites: bool,
+        actor: Option<Uuid>,
+    ) -> ServiceResult<MemberImportReport> {
+        let parsed = match self.parser.parse(bytes) {
+            Ok(p) => p,
+            Err(TabularParseError::Malformed(m)) => {
+                return Ok(MemberImportReport {
+                    fatal_error: Some(format!("Could not parse CSV: {m}")),
+                    rows: vec![],
+                });
+            }
+        };
+        let defs = self.attribute_service.list_definitions().await?;
+        let cols = match resolve_member_columns(&parsed.headers, &defs) {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(MemberImportReport {
+                    fatal_error: Some(e),
+                    rows: vec![],
+                });
+            }
+        };
+
+        let mut rows = Vec::new();
+        let mut seen = HashSet::new();
+        for (i, rec) in parsed.records.iter().enumerate() {
+            let email = rec[cols.email].trim().to_string();
+            let (outcome, warning) =
+                match self.classify_member_row(&cols, &defs, rec, &mut seen).await {
+                    Err(reason) => (RowOutcome::Skipped(reason), None),
+                    Ok(RowAction::Create) => {
+                        self.apply_create(&cols, rec, send_invites, actor).await
+                    }
+                    Ok(RowAction::Update) => self.apply_update(&cols, rec, actor).await,
+                };
+            rows.push(MemberResultRow {
+                line: i + 1,
+                email,
+                outcome,
+                warning,
+            });
+        }
+        Ok(MemberImportReport {
+            fatal_error: None,
+            rows,
+        })
+    }
+
+    async fn apply_create(
+        &self,
+        cols: &MemberColumns,
+        rec: &[String],
+        send_invites: bool,
+        actor: Option<Uuid>,
+    ) -> (RowOutcome, Option<String>) {
+        let raw_email = rec[cols.email].trim();
+        let first = cell(cols.first_name, rec).unwrap_or("").trim();
+        let last = cell(cols.last_name, rec).unwrap_or("").trim();
+
+        let subject = match self.user_admin.find_by_email(raw_email).await {
+            Ok(Some(s)) => s,
+            Ok(None) => match self.user_admin.create_user(raw_email, first, last).await {
+                Ok(s) => s,
+                Err(e) => {
+                    return (
+                        RowOutcome::Failed(format!("keycloak create failed: {e:?}")),
+                        None,
+                    );
+                }
+            },
+            Err(e) => {
+                return (
+                    RowOutcome::Failed(format!("keycloak lookup failed: {e:?}")),
+                    None,
+                );
+            }
+        };
+        let id = match Uuid::parse_str(&subject) {
+            Ok(u) => u,
+            Err(_) => {
+                return (
+                    RowOutcome::Failed("keycloak subject is not a uuid".into()),
+                    None,
+                );
+            }
+        };
+        let new_person = match build_new_person(cols, rec, id) {
+            Ok(p) => p,
+            Err(e) => return (RowOutcome::Failed(e), None),
+        };
+        if let Err(e) = self
+            .member_service
+            .provision_member(new_person, &subject, actor)
+            .await
+        {
+            return (RowOutcome::Failed(format!("provision failed: {e:?}")), None);
+        }
+        if let Err(e) = self.apply_attributes(PersonId(id), cols, rec, actor).await {
+            return (RowOutcome::Failed(e), None);
+        }
+
+        let mut warning = None;
+        if send_invites {
+            let actions = vec!["UPDATE_PASSWORD".to_string(), "VERIFY_EMAIL".to_string()];
+            if let Err(e) = self
+                .user_admin
+                .send_required_actions_email(&subject, &actions)
+                .await
+            {
+                warning = Some(format!("invite email failed: {e:?}"));
+            }
+        }
+        (RowOutcome::Created, warning)
+    }
+
+    async fn apply_update(
+        &self,
+        cols: &MemberColumns,
+        rec: &[String],
+        actor: Option<Uuid>,
+    ) -> (RowOutcome, Option<String>) {
+        let raw_email = rec[cols.email].trim();
+        let current = match self.member_service.find_by_email(raw_email).await {
+            Ok(Some(p)) => p,
+            Ok(None) => {
+                return (
+                    RowOutcome::Failed("member disappeared before update".into()),
+                    None,
+                );
+            }
+            Err(e) => return (RowOutcome::Failed(format!("lookup failed: {e:?}")), None),
+        };
+        let data = build_update_data(cols, rec, &current);
+        if let Err(e) = self
+            .member_service
+            .update_member(current.id.0, data, actor)
+            .await
+        {
+            return (RowOutcome::Failed(format!("update failed: {e:?}")), None);
+        }
+        if let Err(e) = self
+            .apply_attributes(current.id.clone(), cols, rec, actor)
+            .await
+        {
+            return (RowOutcome::Failed(e), None);
+        }
+        (RowOutcome::Updated, None)
+    }
+
+    async fn apply_attributes(
+        &self,
+        user_id: PersonId,
+        cols: &MemberColumns,
+        rec: &[String],
+        actor: Option<Uuid>,
+    ) -> Result<(), String> {
+        for (idx, name) in &cols.attributes {
+            let value = &rec[*idx];
+            if value.is_empty() {
+                continue;
+            }
+            if value == "null" {
+                self.attribute_service
+                    .clear_as_admin(user_id.clone(), name, actor)
+                    .await
+                    .map_err(|e| format!("clear '{}' failed: {e:?}", name.as_str()))?;
+            } else {
+                let parsed = AttributeValue::new(value.clone())
+                    .map_err(|e| format!("invalid value for '{}': {e:?}", name.as_str()))?;
+                self.attribute_service
+                    .set_as_admin(user_id.clone(), name, parsed, actor)
+                    .await
+                    .map_err(|e| format!("set '{}' failed: {e:?}", name.as_str()))?;
+            }
+        }
+        Ok(())
     }
 }

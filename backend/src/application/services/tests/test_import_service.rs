@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::application::ports::auth_provider_repo_port::AuthProviderRepositoryPort;
+use crate::application::ports::auth_provider_repo_port::{
+    AuthProviderMapping, AuthProviderRepositoryPort,
+};
 use crate::application::ports::user_admin_port::UserAdminPort;
 use crate::application::services::attribute_service::AttributeService;
 use crate::application::services::import_service::{ImportService, RowAction};
@@ -126,4 +128,147 @@ async fn preview_flags_bad_attribute_value_and_missing_names() {
     assert!(preview.rows[0].result.is_err());
     assert!(preview.rows[1].result.is_err());
     assert_eq!(preview.error_count(), 2);
+}
+
+fn writable_import_service(
+    member_repo: MockMemberRepositoryPort,
+    attribute_repo: MockAttributeRepositoryPort,
+    user_admin: MockUserAdminPort,
+    auth_provider: MockAuthProviderRepo,
+) -> ImportService {
+    let user_admin: Arc<dyn UserAdminPort> = Arc::new(user_admin);
+    let auth_provider: Arc<dyn AuthProviderRepositoryPort> = Arc::new(auth_provider);
+    let member_service = MemberService::new(
+        Arc::new(member_repo),
+        Arc::clone(&user_admin),
+        Arc::clone(&auth_provider),
+        noop_audit_log(),
+        None,
+        noop_attribute_bootstrap(),
+    );
+    let attribute_service = Arc::new(AttributeService::new(
+        Arc::new(attribute_repo),
+        Arc::new(MockAttributeSyncPort::new()),
+        Arc::clone(&auth_provider),
+        noop_audit_log(),
+    ));
+    let role_service = RoleService::new(
+        Arc::new(MockRoleRepositoryPort::new()),
+        member_service.clone(),
+        Arc::new(MockRoleSyncPort::new()),
+        Arc::clone(&auth_provider),
+        noop_audit_log(),
+    );
+    ImportService::new(
+        Arc::new(CsvParseAdapter),
+        member_service,
+        attribute_service,
+        role_service,
+        user_admin,
+    )
+}
+
+#[tokio::test]
+async fn apply_creates_new_member() {
+    use crate::application::services::import_service::RowOutcome;
+    let id = Uuid::new_v4();
+    let subject = id.to_string();
+
+    let mut attr = MockAttributeRepositoryPort::new();
+    attr.expect_fetch_all_definitions()
+        .returning(|| Ok(vec![]))
+        .times(1..);
+
+    let mut members = MockMemberRepositoryPort::new();
+    members
+        .expect_fetch_by_email()
+        .returning(|_| Ok(None))
+        .times(1..);
+    members
+        .expect_create()
+        .returning(move |_| Ok(person("new@x.com")))
+        .times(1..);
+
+    let mut user_admin = MockUserAdminPort::new();
+    let subj = subject.clone();
+    user_admin.expect_find_by_email().returning(|_| Ok(None));
+    user_admin
+        .expect_create_user()
+        .returning(move |_, _, _| Ok(subj.clone()));
+
+    let mut auth = MockAuthProviderRepo::new();
+    // provision_member links the subject
+    auth.expect_create().returning(|uid, provider, puid| {
+        Ok(AuthProviderMapping {
+            user_id: *uid,
+            provider_name: provider.to_string(),
+            provider_user_id: puid.to_string(),
+            linked_at: chrono::Utc::now(),
+        })
+    });
+    // create_member's fire-and-forget locale sync: return no providers so it doesn't spawn
+    auth.expect_find_by_user_id()
+        .returning(|_| Ok(vec![]))
+        .times(0..);
+
+    let svc = writable_import_service(members, attr, user_admin, auth);
+    let csv = b"email,first_name,last_name\nnew@x.com,New,User\n";
+    let report = svc.apply_members(csv, false, None).await.unwrap();
+
+    assert_eq!(report.fatal_error, None);
+    assert_eq!(report.rows[0].outcome, RowOutcome::Created);
+}
+
+#[tokio::test]
+async fn apply_isolates_bad_rows() {
+    use crate::application::services::import_service::RowOutcome;
+    let mut attr = MockAttributeRepositoryPort::new();
+    attr.expect_fetch_all_definitions()
+        .returning(|| Ok(vec![]))
+        .times(1..);
+
+    let mut members = MockMemberRepositoryPort::new();
+    members
+        .expect_fetch_by_email()
+        .returning(|_| Ok(None))
+        .times(0..);
+    members
+        .expect_create()
+        .returning(|_| Ok(person("ok@x.com")))
+        .times(0..);
+
+    let mut user_admin = MockUserAdminPort::new();
+    user_admin
+        .expect_find_by_email()
+        .returning(|_| Ok(None))
+        .times(0..);
+    let s = Uuid::new_v4().to_string();
+    user_admin
+        .expect_create_user()
+        .returning(move |_, _, _| Ok(s.clone()))
+        .times(0..);
+
+    let mut auth = MockAuthProviderRepo::new();
+    auth.expect_create()
+        .returning(|uid, p, puid| {
+            Ok(AuthProviderMapping {
+                user_id: *uid,
+                provider_name: p.into(),
+                provider_user_id: puid.into(),
+                linked_at: chrono::Utc::now(),
+            })
+        })
+        .times(0..);
+    auth.expect_find_by_user_id()
+        .returning(|_| Ok(vec![]))
+        .times(0..);
+
+    let svc = writable_import_service(members, attr, user_admin, auth);
+    // row 1 has an invalid email → Skipped; row 2 is a valid create → Created
+    let csv = b"email,first_name,last_name\nnotanemail,A,B\nok@x.com,O,K\n";
+    let report = svc.apply_members(csv, false, None).await.unwrap();
+
+    assert!(matches!(report.rows[0].outcome, RowOutcome::Skipped(_)));
+    assert_eq!(report.rows[1].outcome, RowOutcome::Created);
+    assert_eq!(report.count(&RowOutcome::Created), 1);
 }
