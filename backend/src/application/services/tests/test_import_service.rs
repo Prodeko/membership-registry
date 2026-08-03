@@ -272,3 +272,86 @@ async fn apply_isolates_bad_rows() {
     assert_eq!(report.rows[1].outcome, RowOutcome::Created);
     assert_eq!(report.count(&RowOutcome::Created), 1);
 }
+
+fn roles_import_service(
+    member_repo: MockMemberRepositoryPort,
+    role_repo: MockRoleRepositoryPort,
+    role_sync: MockRoleSyncPort,
+    auth_provider: MockAuthProviderRepo,
+) -> ImportService {
+    let user_admin: Arc<dyn UserAdminPort> = Arc::new(MockUserAdminPort::new());
+    let auth_provider: Arc<dyn AuthProviderRepositoryPort> = Arc::new(auth_provider);
+    let member_service = MemberService::new(
+        Arc::new(member_repo),
+        Arc::clone(&user_admin),
+        Arc::clone(&auth_provider),
+        noop_audit_log(),
+        None,
+        noop_attribute_bootstrap(),
+    );
+    let attribute_service = Arc::new(AttributeService::new(
+        Arc::new(MockAttributeRepositoryPort::new()),
+        Arc::new(MockAttributeSyncPort::new()),
+        Arc::clone(&auth_provider),
+        noop_audit_log(),
+    ));
+    let role_service = RoleService::new(
+        Arc::new(role_repo),
+        member_service.clone(),
+        Arc::new(role_sync),
+        Arc::clone(&auth_provider),
+        noop_audit_log(),
+    );
+    ImportService::new(
+        Arc::new(CsvParseAdapter),
+        member_service,
+        attribute_service,
+        role_service,
+        user_admin,
+    )
+}
+
+#[tokio::test]
+async fn preview_roles_flags_unknown_member_and_role() {
+    use crate::domain::{Role, RoleName};
+
+    let mut members = MockMemberRepositoryPort::new();
+    members
+        .expect_fetch_by_email()
+        .returning(|email| Ok((email == "known@x.com").then(|| person("known@x.com"))))
+        .times(1..);
+
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo
+        .expect_fetch_all()
+        .returning(|| {
+            Ok(vec![Role {
+                name: RoleName("member".into()),
+                color: None,
+                description: None,
+                renewable: false,
+                renewal_payment_link: None,
+                renewal_period_months: None,
+                renewal_email_template: None,
+                renewal_notification_days: vec![],
+            }])
+        })
+        .times(1..);
+    role_repo
+        .expect_fetch_roles_by_member()
+        .returning(|_| Ok(vec![]))
+        .times(0..);
+
+    let svc = roles_import_service(
+        members,
+        role_repo,
+        MockRoleSyncPort::new(),
+        MockAuthProviderRepo::new(),
+    );
+    let csv = b"email,role_name,valid_from\nknown@x.com,member,2026-01-01\nknown@x.com,ghost,2026-01-01\nnobody@x.com,member,2026-01-01\n";
+    let preview = svc.preview_roles(csv).await.unwrap();
+
+    assert_eq!(preview.rows[0].result, Ok(RowAction::Create)); // known member, known role, no existing row
+    assert!(preview.rows[1].result.is_err()); // unknown role
+    assert!(preview.rows[2].result.is_err()); // unknown member
+}

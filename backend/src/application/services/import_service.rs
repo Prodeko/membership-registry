@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use chrono::NaiveDate;
+
 use crate::application::ports::tabular_parse_port::{TabularParseError, TabularParsePort};
 use crate::application::ports::user_admin_port::UserAdminPort;
 use crate::application::services::attribute_service::AttributeService;
@@ -495,5 +497,257 @@ impl ImportService {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RolePreviewRow {
+    pub line: usize,
+    pub email: String,
+    pub role_name: String,
+    pub result: Result<RowAction, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoleImportPreview {
+    pub fatal_error: Option<String>,
+    pub rows: Vec<RolePreviewRow>,
+}
+
+impl RoleImportPreview {
+    pub fn create_count(&self) -> usize {
+        self.rows
+            .iter()
+            .filter(|r| r.result == Ok(RowAction::Create))
+            .count()
+    }
+    pub fn update_count(&self) -> usize {
+        self.rows
+            .iter()
+            .filter(|r| r.result == Ok(RowAction::Update))
+            .count()
+    }
+    pub fn error_count(&self) -> usize {
+        self.rows.iter().filter(|r| r.result.is_err()).count()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoleResultRow {
+    pub line: usize,
+    pub email: String,
+    pub role_name: String,
+    pub outcome: RowOutcome,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RoleImportReport {
+    pub fatal_error: Option<String>,
+    pub rows: Vec<RoleResultRow>,
+}
+
+impl RoleImportReport {
+    pub fn count(&self, want: &RowOutcome) -> usize {
+        self.rows.iter().filter(|r| &r.outcome == want).count()
+    }
+}
+
+struct RoleColumns {
+    email: usize,
+    role_name: usize,
+    valid_from: usize,
+    valid_until: Option<usize>,
+}
+
+fn resolve_role_columns(headers: &[String]) -> Result<RoleColumns, String> {
+    let idx = |n: &str| headers.iter().position(|h| h.eq_ignore_ascii_case(n));
+    Ok(RoleColumns {
+        email: idx("email").ok_or_else(|| "missing required column: email".to_string())?,
+        role_name: idx("role_name")
+            .ok_or_else(|| "missing required column: role_name".to_string())?,
+        valid_from: idx("valid_from")
+            .ok_or_else(|| "missing required column: valid_from".to_string())?,
+        valid_until: idx("valid_until"),
+    })
+}
+
+struct RoleRowData {
+    user_id: Uuid,
+    role_name: String,
+    valid_from: NaiveDate,
+    valid_until: Option<NaiveDate>,
+}
+
+impl ImportService {
+    pub async fn preview_roles(&self, bytes: &[u8]) -> ServiceResult<RoleImportPreview> {
+        let parsed = match self.parser.parse(bytes) {
+            Ok(p) => p,
+            Err(TabularParseError::Malformed(m)) => {
+                return Ok(RoleImportPreview {
+                    fatal_error: Some(format!("Could not parse CSV: {m}")),
+                    rows: vec![],
+                });
+            }
+        };
+        let cols = match resolve_role_columns(&parsed.headers) {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(RoleImportPreview {
+                    fatal_error: Some(e),
+                    rows: vec![],
+                });
+            }
+        };
+        let role_names = self.role_name_set().await?;
+
+        let mut rows = Vec::new();
+        for (i, rec) in parsed.records.iter().enumerate() {
+            let email = rec[cols.email].trim().to_string();
+            let role_name = rec[cols.role_name].trim().to_string();
+            let result = match self.parse_role_row(&cols, rec, &role_names).await {
+                Ok(data) => self.classify_role_row(&data).await,
+                Err(e) => Err(e),
+            };
+            rows.push(RolePreviewRow {
+                line: i + 1,
+                email,
+                role_name,
+                result,
+            });
+        }
+        Ok(RoleImportPreview {
+            fatal_error: None,
+            rows,
+        })
+    }
+
+    pub async fn apply_roles(
+        &self,
+        bytes: &[u8],
+        actor: Option<Uuid>,
+    ) -> ServiceResult<RoleImportReport> {
+        let parsed = match self.parser.parse(bytes) {
+            Ok(p) => p,
+            Err(TabularParseError::Malformed(m)) => {
+                return Ok(RoleImportReport {
+                    fatal_error: Some(format!("Could not parse CSV: {m}")),
+                    rows: vec![],
+                });
+            }
+        };
+        let cols = match resolve_role_columns(&parsed.headers) {
+            Ok(c) => c,
+            Err(e) => {
+                return Ok(RoleImportReport {
+                    fatal_error: Some(e),
+                    rows: vec![],
+                });
+            }
+        };
+        let role_names = self.role_name_set().await?;
+
+        let mut rows = Vec::new();
+        for (i, rec) in parsed.records.iter().enumerate() {
+            let email = rec[cols.email].trim().to_string();
+            let role_name = rec[cols.role_name].trim().to_string();
+            let outcome = match self.parse_role_row(&cols, rec, &role_names).await {
+                Err(e) => RowOutcome::Skipped(e),
+                Ok(data) => {
+                    let action = self.classify_role_row(&data).await;
+                    match self
+                        .role_service
+                        .upsert_role_member(
+                            data.user_id,
+                            &data.role_name,
+                            data.valid_from,
+                            data.valid_until,
+                            actor,
+                        )
+                        .await
+                    {
+                        Ok(()) => match action {
+                            Ok(RowAction::Update) => RowOutcome::Updated,
+                            _ => RowOutcome::Created,
+                        },
+                        Err(e) => RowOutcome::Failed(format!("assign failed: {e:?}")),
+                    }
+                }
+            };
+            rows.push(RoleResultRow {
+                line: i + 1,
+                email,
+                role_name,
+                outcome,
+            });
+        }
+        Ok(RoleImportReport {
+            fatal_error: None,
+            rows,
+        })
+    }
+
+    async fn role_name_set(&self) -> ServiceResult<HashSet<String>> {
+        let roles = self.role_service.get_all_roles().await?;
+        Ok(roles.into_iter().map(|r| r.name.0).collect())
+    }
+
+    async fn parse_role_row(
+        &self,
+        cols: &RoleColumns,
+        rec: &[String],
+        role_names: &HashSet<String>,
+    ) -> Result<RoleRowData, String> {
+        let email = rec[cols.email].trim();
+        let member = self
+            .member_service
+            .find_by_email(email)
+            .await
+            .map_err(|e| format!("lookup failed: {e:?}"))?
+            .ok_or_else(|| "no member with this email".to_string())?;
+
+        let role_name = rec[cols.role_name].trim().to_string();
+        if !role_names.contains(&role_name) {
+            return Err(format!("unknown role '{role_name}'"));
+        }
+
+        let valid_from = NaiveDate::parse_from_str(rec[cols.valid_from].trim(), "%Y-%m-%d")
+            .map_err(|_| "valid_from must be YYYY-MM-DD".to_string())?;
+        let valid_until = match cell(cols.valid_until, rec)
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+        {
+            Some(s) => Some(
+                NaiveDate::parse_from_str(s, "%Y-%m-%d")
+                    .map_err(|_| "valid_until must be YYYY-MM-DD".to_string())?,
+            ),
+            None => None,
+        };
+        if let Some(vu) = valid_until {
+            if vu < valid_from {
+                return Err("valid_until is before valid_from".into());
+            }
+        }
+        Ok(RoleRowData {
+            user_id: member.id.0,
+            role_name,
+            valid_from,
+            valid_until,
+        })
+    }
+
+    async fn classify_role_row(&self, data: &RoleRowData) -> Result<RowAction, String> {
+        let existing = self
+            .role_service
+            .get_member_roles(data.user_id)
+            .await
+            .map_err(|e| format!("lookup failed: {e:?}"))?;
+        let is_update = existing
+            .iter()
+            .any(|m| m.role_name.0 == data.role_name && m.valid_from == data.valid_from);
+        Ok(if is_update {
+            RowAction::Update
+        } else {
+            RowAction::Create
+        })
     }
 }

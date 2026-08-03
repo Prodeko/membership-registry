@@ -53,6 +53,16 @@ pub trait RoleRepositoryPort: Send + Sync {
         valid_until: Option<NaiveDate>,
     ) -> Result<(), RepositoryError>;
 
+    /// Insert a role membership, or overwrite `valid_until` when a row already
+    /// exists for `(user_id, role_name, valid_from)`.
+    async fn upsert_role_member(
+        &self,
+        user_id: &Uuid,
+        role_name: &str,
+        valid_from: NaiveDate,
+        valid_until: Option<NaiveDate>,
+    ) -> Result<(), RepositoryError>;
+
     async fn create_role_members_batch(
         &self,
         user_ids: &[Uuid],

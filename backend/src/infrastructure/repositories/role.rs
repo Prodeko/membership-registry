@@ -183,6 +183,30 @@ impl RoleRepositoryPort for RoleRepo {
         Ok(())
     }
 
+    async fn upsert_role_member(
+        &self,
+        user_id: &Uuid,
+        role_name: &str,
+        valid_from: NaiveDate,
+        valid_until: Option<NaiveDate>,
+    ) -> Result<(), RepositoryError> {
+        sqlx::query!(
+            r#"
+          INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (user_id, role_name, valid_from)
+          DO UPDATE SET valid_until = EXCLUDED.valid_until
+          "#,
+            user_id,
+            role_name,
+            valid_from,
+            valid_until
+        )
+        .execute(&self.pool)
+        .await?;
+        Ok(())
+    }
+
     async fn create_role_members_batch(
         &self,
         user_ids: &[Uuid],

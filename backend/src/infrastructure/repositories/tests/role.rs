@@ -100,6 +100,40 @@ mod test_role {
     }
 
     #[tokio::test]
+    async fn upsert_role_member_overwrites_valid_until() {
+        let (repo, db_url) = setup_test_db().await;
+
+        let uid = _get_user_id();
+        let vf = NaiveDate::from_ymd_opt(2026, 1, 1).unwrap();
+
+        repo.role
+            .upsert_role_member(&uid, ROLE_NAME, vf, None)
+            .await
+            .unwrap();
+        repo.role
+            .upsert_role_member(
+                &uid,
+                ROLE_NAME,
+                vf,
+                Some(NaiveDate::from_ymd_opt(2026, 12, 31).unwrap()),
+            )
+            .await
+            .unwrap();
+
+        let roles = repo.role.fetch_roles_by_member(&uid).await.unwrap();
+        let m = roles
+            .iter()
+            .find(|r| r.role_name.0 == ROLE_NAME && r.valid_from == vf)
+            .unwrap();
+        assert_eq!(
+            m.valid_until,
+            Some(NaiveDate::from_ymd_opt(2026, 12, 31).unwrap())
+        );
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    #[tokio::test]
     async fn test_fetch_role_by_member() {
         let (repo, db_url) = setup_test_db().await;
 
