@@ -20,6 +20,7 @@ pub mod ports {
     pub mod role_repository_port;
     pub mod rolesync_port;
     pub mod saved_filter_repository_port;
+    pub mod tabular_parse_port;
     pub mod template_renderer_port;
     pub mod template_repository_port;
     pub mod user_admin_port;
