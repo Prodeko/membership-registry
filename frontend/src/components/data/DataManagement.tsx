@@ -14,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "../ui/card";
+import MemberImportPanel from "./MemberImportPanel";
 import SyncRolesCard from "./SyncRolesCard";
 
 type Tab = "export" | "import" | "sync";
@@ -99,9 +100,9 @@ const DataManagement = () => {
         </div>
       )}
       {activeTab === "import" && (
-        <p className="text-muted-foreground">
-          Import functionality coming soon.
-        </p>
+        <div className="grid grid-cols-1 gap-4">
+          <MemberImportPanel />
+        </div>
       )}
       {activeTab === "sync" && <SyncRolesCard />}
     </div>
