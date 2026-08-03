@@ -21,7 +21,8 @@ use crate::{
         services::{
             application_service::ApplicationService, attribute_service::AttributeService,
             audit_log_service::AuditLogService, authentication_service::AuthenticationService,
-            export_service::ExportService, marketing_service::MarketingService,
+            export_service::ExportService, import_service::ImportService,
+            marketing_service::MarketingService,
             marketing_tag_admin_service::MarketingTagAdminService, member_service::MemberService,
             notification_service::NotificationService, renewal_service::RenewalService,
             role_group_service::RoleGroupService, role_service::RoleService,
@@ -59,6 +60,7 @@ pub struct AppState {
     pub marketing_service: Option<Arc<MarketingService>>,
     pub payment_webhook: Arc<dyn PaymentWebhookPort>,
     pub export_service: Arc<ExportService>,
+    pub import_service: Arc<ImportService>,
     pub oauth2_client:
         BasicClient<EndpointSet, EndpointNotSet, EndpointNotSet, EndpointNotSet, EndpointSet>,
     pub oauth2_http_client: reqwest::Client,
@@ -111,6 +113,7 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
         marketing_service: services.marketing_service,
         payment_webhook: Arc::new(services.payment_webhook),
         export_service: Arc::new(services.export_service),
+        import_service: Arc::new(services.import_service),
         oauth2_client,
         oauth2_http_client,
     };

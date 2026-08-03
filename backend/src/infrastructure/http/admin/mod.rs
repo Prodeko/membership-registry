@@ -8,6 +8,7 @@ mod applications;
 mod attributes;
 mod audit_logs;
 mod email_templates;
+mod import;
 mod marketing_tags;
 mod members;
 mod role_groups;
@@ -28,6 +29,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .nest("/audit-logs", audit_logs::router(state.clone()))
         .nest("/email-templates", email_templates::router(state.clone()))
         .nest("/marketing-tags", marketing_tags::router(state.clone()))
+        .nest("/import", import::router(state.clone()))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             check_permission,

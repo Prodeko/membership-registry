@@ -43,7 +43,8 @@ use application::{
         application_digest_service::ApplicationDigestService,
         application_service::ApplicationService, attribute_service::AttributeService,
         audit_log_service::AuditLogService, authentication_service::AuthenticationService,
-        export_service::ExportService, marketing_service::MarketingService,
+        export_service::ExportService, import_service::ImportService,
+        marketing_service::MarketingService,
         marketing_tag_admin_service::MarketingTagAdminService, member_service::MemberService,
         notification_service::NotificationService, renewal_service::RenewalService,
         role_group_service::RoleGroupService, role_service::RoleService,
@@ -56,6 +57,7 @@ use infrastructure::{
     adapters::{
         ammonia_sanitizer::AmmoniaSanitizer,
         csv_adapter::CsvAdapter,
+        csv_parse_adapter::CsvParseAdapter,
         keycloak::{
             KeycloakAttributeSyncAdapter, KeycloakAuthAdapter, KeycloakClient, KeycloakConfig,
             KeycloakRoleSyncAdapter, KeycloakUserAdminAdapter,
@@ -88,6 +90,7 @@ pub struct Services {
     pub marketing_service: Option<Arc<MarketingService>>,
     pub payment_webhook: StripeWebhookAdapter,
     pub export_service: ExportService,
+    pub import_service: ImportService,
 }
 
 const DEFAULT_FROM_EMAIL: &str = "noreply@prodeko.org";
@@ -300,6 +303,14 @@ impl Services {
         let payment_webhook = StripeWebhookAdapter::new(config.stripe_endpoint_secret.clone());
         let export_service = ExportService::new(Arc::new(CsvAdapter));
 
+        let import_service = ImportService::new(
+            Arc::new(CsvParseAdapter),
+            member_service.clone(),
+            Arc::clone(&attribute_service),
+            role_service.clone(),
+            Arc::clone(&user_admin),
+        );
+
         Self {
             member_service,
             application_service,
@@ -317,6 +328,7 @@ impl Services {
             marketing_service,
             payment_webhook,
             export_service,
+            import_service,
         }
     }
 }
