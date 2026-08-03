@@ -1310,3 +1310,134 @@ export const useDeleteMyAttribute = () => {
     },
   });
 };
+
+export interface ImportPreviewRow {
+  line: number;
+  email: string;
+  action?: "create" | "update";
+  error?: string | null;
+}
+export interface MemberImportPreview {
+  fatal_error?: string | null;
+  create_count: number;
+  update_count: number;
+  error_count: number;
+  rows: ImportPreviewRow[];
+}
+export interface ImportResultRow {
+  line: number;
+  email: string;
+  outcome: string;
+  detail?: string | null;
+  warning?: string | null;
+}
+export interface MemberImportReport {
+  fatal_error?: string | null;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  rows: ImportResultRow[];
+}
+
+export interface RoleImportPreviewRow {
+  line: number;
+  email: string;
+  role_name: string;
+  action?: "create" | "update";
+  error?: string | null;
+}
+export interface RoleImportPreview {
+  fatal_error?: string | null;
+  create_count: number;
+  update_count: number;
+  error_count: number;
+  rows: RoleImportPreviewRow[];
+}
+export interface RoleImportResultRow {
+  line: number;
+  email: string;
+  role_name: string;
+  outcome: string;
+  detail?: string | null;
+}
+export interface RoleImportReport {
+  fatal_error?: string | null;
+  created: number;
+  updated: number;
+  skipped: number;
+  failed: number;
+  rows: RoleImportResultRow[];
+}
+
+const multipart = { headers: { "Content-Type": "multipart/form-data" } };
+
+export const usePreviewMemberImport = () =>
+  useMutation<MemberImportPreview, Error, File>({
+    mutationFn: async (file) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await admin_axios_client.post<MemberImportPreview>(
+        "/import/members/preview",
+        fd,
+        multipart,
+      );
+      return res.data;
+    },
+  });
+
+export const useApplyMemberImport = () => {
+  const queryClient = useQueryClient();
+  return useMutation<
+    MemberImportReport,
+    Error,
+    { file: File; sendInvites: boolean }
+  >({
+    mutationFn: async ({ file, sendInvites }) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await admin_axios_client.post<MemberImportReport>(
+        `/import/members?send_invites=${sendInvites}`,
+        fd,
+        multipart,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
+};
+
+export const usePreviewRoleImport = () =>
+  useMutation<RoleImportPreview, Error, File>({
+    mutationFn: async (file) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await admin_axios_client.post<RoleImportPreview>(
+        "/import/roles/preview",
+        fd,
+        multipart,
+      );
+      return res.data;
+    },
+  });
+
+export const useApplyRoleImport = () => {
+  const queryClient = useQueryClient();
+  return useMutation<RoleImportReport, Error, File>({
+    mutationFn: async (file) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await admin_axios_client.post<RoleImportReport>(
+        "/import/roles",
+        fd,
+        multipart,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
+};
