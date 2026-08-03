@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::services::authentication_service::AuthenticatedUser;
 use crate::application::services::import_service::{
-    MemberImportPreview, MemberImportReport, RowAction, RowOutcome,
+    MemberImportPreview, MemberImportReport, RoleImportPreview, RoleImportReport, RowAction,
+    RowOutcome,
 };
 use crate::infrastructure::http::errors::{ApiError, ApiResult};
 use crate::infrastructure::http::AppState;
@@ -162,9 +163,124 @@ async fn apply_members(
     Ok(Json(report.into()))
 }
 
+#[derive(Debug, Serialize)]
+struct RolePreviewRowDTO {
+    line: usize,
+    email: String,
+    role_name: String,
+    action: Option<String>,
+    error: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct RoleImportPreviewDTO {
+    fatal_error: Option<String>,
+    create_count: usize,
+    update_count: usize,
+    error_count: usize,
+    rows: Vec<RolePreviewRowDTO>,
+}
+
+impl From<RoleImportPreview> for RoleImportPreviewDTO {
+    fn from(p: RoleImportPreview) -> Self {
+        let rows = p
+            .rows
+            .iter()
+            .map(|r| RolePreviewRowDTO {
+                line: r.line,
+                email: r.email.clone(),
+                role_name: r.role_name.clone(),
+                action: match &r.result {
+                    Ok(RowAction::Create) => Some("create".into()),
+                    Ok(RowAction::Update) => Some("update".into()),
+                    Err(_) => None,
+                },
+                error: r.result.as_ref().err().cloned(),
+            })
+            .collect();
+        Self {
+            create_count: p.create_count(),
+            update_count: p.update_count(),
+            error_count: p.error_count(),
+            fatal_error: p.fatal_error,
+            rows,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct RoleResultRowDTO {
+    line: usize,
+    email: String,
+    role_name: String,
+    outcome: String,
+    detail: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct RoleImportReportDTO {
+    fatal_error: Option<String>,
+    created: usize,
+    updated: usize,
+    skipped: usize,
+    failed: usize,
+    rows: Vec<RoleResultRowDTO>,
+}
+
+impl From<RoleImportReport> for RoleImportReportDTO {
+    fn from(rep: RoleImportReport) -> Self {
+        let rows: Vec<RoleResultRowDTO> = rep
+            .rows
+            .iter()
+            .map(|r| {
+                let (outcome, detail) = outcome_parts(&r.outcome);
+                RoleResultRowDTO {
+                    line: r.line,
+                    email: r.email.clone(),
+                    role_name: r.role_name.clone(),
+                    outcome: outcome.to_string(),
+                    detail,
+                }
+            })
+            .collect();
+        Self {
+            created: rep.count(&RowOutcome::Created),
+            updated: rep.count(&RowOutcome::Updated),
+            skipped: rows.iter().filter(|r| r.outcome == "skipped").count(),
+            failed: rows.iter().filter(|r| r.outcome == "failed").count(),
+            fatal_error: rep.fatal_error,
+            rows,
+        }
+    }
+}
+
+#[debug_handler]
+async fn preview_roles(
+    State(state): State<AppState>,
+    multipart: Multipart,
+) -> ApiResult<Json<RoleImportPreviewDTO>> {
+    let bytes = read_csv(multipart).await?;
+    let preview = state.import_service.preview_roles(&bytes).await?;
+    Ok(Json(preview.into()))
+}
+
+#[debug_handler]
+async fn apply_roles(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+    multipart: Multipart,
+) -> ApiResult<Json<RoleImportReportDTO>> {
+    let actor = user_info.map(|u| u.user_id);
+    let bytes = read_csv(multipart).await?;
+    let report = state.import_service.apply_roles(&bytes, actor).await?;
+    Ok(Json(report.into()))
+}
+
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/members/preview", post(preview_members))
         .route("/members", post(apply_members))
+        .route("/roles/preview", post(preview_roles))
+        .route("/roles", post(apply_roles))
         .with_state(state)
 }
