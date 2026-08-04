@@ -62,7 +62,8 @@ export default function MemberImportPanel() {
     );
   };
 
-  const canApply = !!preview && !preview.fatal_error && !applyMutation.isPending;
+  const canApply =
+    !!preview && !preview.fatal_error && !applyMutation.isPending;
 
   return (
     <Card>
@@ -70,9 +71,10 @@ export default function MemberImportPanel() {
         <CardTitle>Import members</CardTitle>
         <CardDescription>
           Columns: email (required), first_name, last_name, home_municipality,
-          language, email_notifications, plus any attribute key as its own column.
-          Existing members (matched by email) are updated; unknown emails create a
-          Keycloak account. Set an attribute cell to <code>null</code> to clear it.
+          language, email_notifications, plus any attribute key as its own
+          column. Existing members (matched by email) are updated; unknown
+          emails create a Keycloak account. Set an attribute cell to{" "}
+          <code>null</code> to clear it.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -94,7 +96,10 @@ export default function MemberImportPanel() {
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={runPreview} disabled={!file || previewMutation.isPending}>
+          <Button
+            onClick={runPreview}
+            disabled={!file || previewMutation.isPending}
+          >
             {previewMutation.isPending ? "Checking..." : "Preview"}
           </Button>
           <Button onClick={runApply} disabled={!canApply}>
@@ -153,7 +158,13 @@ function reportToCsv(report: MemberImportReport): string {
   const header = "line,email,outcome,detail,warning";
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
   const lines = report.rows.map((r) =>
-    [r.line, esc(r.email), r.outcome, esc(r.detail ?? ""), esc(r.warning ?? "")].join(","),
+    [
+      r.line,
+      esc(r.email),
+      r.outcome,
+      esc(r.detail ?? ""),
+      esc(r.warning ?? ""),
+    ].join(","),
   );
   return [header, ...lines].join("\n");
 }

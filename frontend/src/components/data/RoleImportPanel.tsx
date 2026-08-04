@@ -56,7 +56,8 @@ export default function RoleImportPanel() {
     });
   };
 
-  const canApply = !!preview && !preview.fatal_error && !applyMutation.isPending;
+  const canApply =
+    !!preview && !preview.fatal_error && !applyMutation.isPending;
 
   return (
     <Card>
@@ -75,7 +76,10 @@ export default function RoleImportPanel() {
           onChange={(e) => onFile(e.target.files?.[0] ?? null)}
         />
         <div className="flex gap-2">
-          <Button onClick={runPreview} disabled={!file || previewMutation.isPending}>
+          <Button
+            onClick={runPreview}
+            disabled={!file || previewMutation.isPending}
+          >
             {previewMutation.isPending ? "Checking..." : "Preview"}
           </Button>
           <Button onClick={runApply} disabled={!canApply}>
@@ -136,7 +140,13 @@ function roleReportToCsv(report: RoleImportReport): string {
   const header = "line,email,role_name,outcome,detail";
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
   const lines = report.rows.map((r) =>
-    [r.line, esc(r.email), esc(r.role_name), r.outcome, esc(r.detail ?? "")].join(","),
+    [
+      r.line,
+      esc(r.email),
+      esc(r.role_name),
+      r.outcome,
+      esc(r.detail ?? ""),
+    ].join(","),
   );
   return [header, ...lines].join("\n");
 }
@@ -183,7 +193,9 @@ function RoleReportTable({ report }: { report: RoleImportReport }) {
                 <td className="px-3 py-2">{r.email}</td>
                 <td className="px-3 py-2">{r.role_name}</td>
                 <td className="px-3 py-2">{r.outcome}</td>
-                <td className="px-3 py-2 text-muted-foreground">{r.detail ?? ""}</td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {r.detail ?? ""}
+                </td>
               </tr>
             ))}
           </tbody>
