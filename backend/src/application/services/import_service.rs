@@ -348,14 +348,14 @@ impl ImportService {
         let mut seen = HashSet::new();
         for (i, rec) in parsed.records.iter().enumerate() {
             let email = rec[cols.email].trim().to_string();
-            let (outcome, warning) =
-                match self.classify_member_row(&cols, &defs, rec, &mut seen).await {
-                    Err(reason) => (RowOutcome::Skipped(reason), None),
-                    Ok(RowAction::Create) => {
-                        self.apply_create(&cols, rec, send_invites, actor).await
-                    }
-                    Ok(RowAction::Update) => self.apply_update(&cols, rec, actor).await,
-                };
+            let (outcome, warning) = match self
+                .classify_member_row(&cols, &defs, rec, &mut seen)
+                .await
+            {
+                Err(reason) => (RowOutcome::Skipped(reason), None),
+                Ok(RowAction::Create) => self.apply_create(&cols, rec, send_invites, actor).await,
+                Ok(RowAction::Update) => self.apply_update(&cols, rec, actor).await,
+            };
             rows.push(MemberResultRow {
                 line: i + 1,
                 email,

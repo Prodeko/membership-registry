@@ -20,7 +20,11 @@ fn def(name: &str, allowed: Option<Vec<&str>>, editable: EditableBy) -> Attribut
     AttributeDefinition::new(
         AttributeName::new(name).unwrap(),
         None,
-        allowed.map(|v| v.into_iter().map(|s| AttributeValue::new(s).unwrap()).collect()),
+        allowed.map(|v| {
+            v.into_iter()
+                .map(|s| AttributeValue::new(s).unwrap())
+                .collect()
+        }),
         None,
         false,
         editable,
@@ -105,7 +109,11 @@ async fn preview_classifies_create_and_update() {
 async fn preview_rejects_unknown_column() {
     let mut attr = MockAttributeRepositoryPort::new();
     attr.expect_fetch_all_definitions().returning(|| Ok(vec![]));
-    let svc = import_service(MockMemberRepositoryPort::new(), attr, MockUserAdminPort::new());
+    let svc = import_service(
+        MockMemberRepositoryPort::new(),
+        attr,
+        MockUserAdminPort::new(),
+    );
 
     let csv = b"email,mystery\na@x.com,foo\n";
     let preview = svc.preview_members(csv).await.unwrap();
@@ -115,8 +123,13 @@ async fn preview_rejects_unknown_column() {
 #[tokio::test]
 async fn preview_flags_bad_attribute_value_and_missing_names() {
     let mut attr = MockAttributeRepositoryPort::new();
-    attr.expect_fetch_all_definitions()
-        .returning(|| Ok(vec![def("xq-year", Some(vec!["I", "II"]), EditableBy::Admin)]));
+    attr.expect_fetch_all_definitions().returning(|| {
+        Ok(vec![def(
+            "xq-year",
+            Some(vec!["I", "II"]),
+            EditableBy::Admin,
+        )])
+    });
     let mut members = MockMemberRepositoryPort::new();
     members.expect_fetch_by_email().returning(|_| Ok(None));
 

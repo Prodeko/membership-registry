@@ -96,9 +96,7 @@ async fn provision_member_creates_person_and_links_subject() {
 
     let mut auth_repo = MockAuthProviderRepo::new();
     // create_member spawns a fire-and-forget locale sync that reads providers.
-    auth_repo
-        .expect_find_by_user_id()
-        .returning(|_| Ok(vec![]));
+    auth_repo.expect_find_by_user_id().returning(|_| Ok(vec![]));
     auth_repo
         .expect_create()
         .withf(move |uid, provider, puid| {

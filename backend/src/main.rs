@@ -44,11 +44,11 @@ use application::{
         application_service::ApplicationService, attribute_service::AttributeService,
         audit_log_service::AuditLogService, authentication_service::AuthenticationService,
         export_service::ExportService, import_service::ImportService,
-        marketing_service::MarketingService,
-        marketing_tag_admin_service::MarketingTagAdminService, member_service::MemberService,
-        notification_service::NotificationService, renewal_service::RenewalService,
-        role_group_service::RoleGroupService, role_service::RoleService,
-        saved_filter::SavedFilterService, template_admin_service::TemplateAdminService,
+        marketing_service::MarketingService, marketing_tag_admin_service::MarketingTagAdminService,
+        member_service::MemberService, notification_service::NotificationService,
+        renewal_service::RenewalService, role_group_service::RoleGroupService,
+        role_service::RoleService, saved_filter::SavedFilterService,
+        template_admin_service::TemplateAdminService,
     },
 };
 use config::Config;
