@@ -47,6 +47,9 @@ const Role = () => {
   const [renewalPaymentLink, setRenewalPaymentLink] = React.useState("");
   const [renewalPeriodMonths, setRenewalPeriodMonths] = React.useState("12");
   const [renewalEmailTemplate, setRenewalEmailTemplate] = React.useState("");
+  const [renewalWindowDays, setRenewalWindowDays] = React.useState("30");
+  const [gracePeriodDays, setGracePeriodDays] = React.useState("0");
+  const [notificationDays, setNotificationDays] = React.useState("30, 7, 1");
   const [initialized, setInitialized] = React.useState(false);
 
   React.useEffect(() => {
@@ -55,6 +58,9 @@ const Role = () => {
       setRenewalPaymentLink(role.renewal_payment_link ?? "");
       setRenewalPeriodMonths(role.renewal_period_months?.toString() ?? "12");
       setRenewalEmailTemplate(role.renewal_email_template ?? "");
+      setRenewalWindowDays(role.renewal_window_days.toString());
+      setGracePeriodDays(role.grace_period_days.toString());
+      setNotificationDays(role.renewal_notification_days.join(", "));
       setInitialized(true);
     }
   }, [role, initialized]);
@@ -88,9 +94,12 @@ const Role = () => {
             ? parseInt(renewalPeriodMonths) || null
             : null,
           renewal_email_template: renewalEmailTemplate || null,
-          renewal_notification_days: role.renewal_notification_days,
-          renewal_window_days: role.renewal_window_days,
-          grace_period_days: role.grace_period_days,
+          renewal_notification_days: notificationDays
+            .split(",")
+            .map((s) => parseInt(s.trim(), 10))
+            .filter((n) => Number.isFinite(n) && n > 0),
+          renewal_window_days: parseInt(renewalWindowDays, 10) || 30,
+          grace_period_days: parseInt(gracePeriodDays, 10) || 0,
         },
       },
       {
@@ -190,9 +199,56 @@ const Role = () => {
                 </p>
               </div>
 
-              <div className="text-sm text-muted-foreground">
-                Notifications sent at:{" "}
-                {role.renewal_notification_days.join(", ")} days before expiry
+              <div className="space-y-2">
+                <Label htmlFor="renewal-window-days">
+                  Renewal window (days before expiry)
+                </Label>
+                <Input
+                  id="renewal-window-days"
+                  data-testid="renewal-window-days"
+                  type="number"
+                  min={1}
+                  value={renewalWindowDays}
+                  onChange={(e) => setRenewalWindowDays(e.target.value)}
+                  className="w-32"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Members see the renewal prompt and can pay starting this many
+                  days before their membership expires.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="grace-period-days">Grace period (days)</Label>
+                <Input
+                  id="grace-period-days"
+                  data-testid="grace-period-days"
+                  type="number"
+                  min={0}
+                  value={gracePeriodDays}
+                  onChange={(e) => setGracePeriodDays(e.target.value)}
+                  className="w-32"
+                />
+                <p className="text-xs text-muted-foreground">
+                  How long after expiry renewal stays open.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notification-days">
+                  Reminder emails (days before expiry)
+                </Label>
+                <Input
+                  id="notification-days"
+                  data-testid="notification-days"
+                  value={notificationDays}
+                  onChange={(e) => setNotificationDays(e.target.value)}
+                  placeholder="30, 7, 1"
+                  className="w-64"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Comma-separated day offsets, e.g. 30, 7, 1.
+                </p>
               </div>
             </div>
           )}
