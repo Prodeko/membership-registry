@@ -50,7 +50,7 @@ export default function RoleImportPanel() {
         if (r.fatal_error) toast.error(r.fatal_error);
         else
           toast.success(
-            `Assigned: ${r.created} created, ${r.updated} updated, ${r.skipped + r.failed} problems`,
+            `Assigned: ${r.created} created, ${r.updated} updated, ${r.unchanged} unchanged, ${r.skipped + r.failed} problems`,
           );
       },
     });
@@ -102,7 +102,7 @@ function RolePreviewTable({ preview }: { preview: RoleImportPreview }) {
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
         {preview.create_count} create · {preview.update_count} update ·{" "}
-        {preview.error_count} error
+        {preview.unchanged_count} unchanged · {preview.error_count} error
       </p>
       <div className="border rounded-md max-h-96 overflow-y-auto">
         <table className="w-full text-sm">
@@ -112,6 +112,7 @@ function RolePreviewTable({ preview }: { preview: RoleImportPreview }) {
               <th className="px-3 py-2 font-medium">Email</th>
               <th className="px-3 py-2 font-medium">Role</th>
               <th className="px-3 py-2 font-medium">Action</th>
+              <th className="px-3 py-2 font-medium">Changes</th>
             </tr>
           </thead>
           <tbody>
@@ -127,6 +128,11 @@ function RolePreviewTable({ preview }: { preview: RoleImportPreview }) {
                     r.action
                   )}
                 </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  {r.changes.map((c) => (
+                    <div key={c}>{c}</div>
+                  ))}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -137,7 +143,7 @@ function RolePreviewTable({ preview }: { preview: RoleImportPreview }) {
 }
 
 function roleReportToCsv(report: RoleImportReport): string {
-  const header = "line,email,role_name,outcome,detail";
+  const header = "line,email,role_name,outcome,detail,changes";
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
   const lines = report.rows.map((r) =>
     [
@@ -146,6 +152,7 @@ function roleReportToCsv(report: RoleImportReport): string {
       esc(r.role_name),
       r.outcome,
       esc(r.detail ?? ""),
+      esc(r.changes.join("; ")),
     ].join(","),
   );
   return [header, ...lines].join("\n");
@@ -159,8 +166,9 @@ function RoleReportTable({ report }: { report: RoleImportReport }) {
     <div className="space-y-2">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {report.created} created · {report.updated} updated · {report.skipped}{" "}
-          skipped · {report.failed} failed
+          {report.created} created · {report.updated} updated ·{" "}
+          {report.unchanged} unchanged · {report.skipped} skipped ·{" "}
+          {report.failed} failed
         </p>
         <Button
           variant="outline"
@@ -195,6 +203,9 @@ function RoleReportTable({ report }: { report: RoleImportReport }) {
                 <td className="px-3 py-2">{r.outcome}</td>
                 <td className="px-3 py-2 text-muted-foreground">
                   {r.detail ?? ""}
+                  {r.changes.map((c) => (
+                    <div key={c}>{c}</div>
+                  ))}
                 </td>
               </tr>
             ))}

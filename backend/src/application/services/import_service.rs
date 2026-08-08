@@ -28,6 +28,7 @@ const KNOWN_MEMBER_COLUMNS: &[&str] = &[
 pub enum RowAction {
     Create,
     Update,
+    Unchanged,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -35,6 +36,8 @@ pub struct MemberPreviewRow {
     pub line: usize,
     pub email: String,
     pub result: Result<RowAction, String>,
+    /// Human-readable `field: old → new` entries; non-empty only for updates.
+    pub changes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -56,6 +59,12 @@ impl MemberImportPreview {
         self.rows
             .iter()
             .filter(|r| r.result == Ok(RowAction::Update))
+            .count()
+    }
+    pub fn unchanged_count(&self) -> usize {
+        self.rows
+            .iter()
+            .filter(|r| r.result == Ok(RowAction::Unchanged))
             .count()
     }
     pub fn error_count(&self) -> usize {
@@ -123,6 +132,7 @@ pub(crate) fn parse_bool(s: &str) -> Result<bool, ()> {
 pub enum RowOutcome {
     Created,
     Updated,
+    Unchanged,
     Skipped(String),
     Failed(String),
 }
@@ -133,6 +143,8 @@ pub struct MemberResultRow {
     pub email: String,
     pub outcome: RowOutcome,
     pub warning: Option<String>,
+    /// Human-readable `field: old → new` entries; non-empty only for updates.
+    pub changes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -237,11 +249,16 @@ impl ImportService {
         let mut seen: HashSet<String> = HashSet::new();
         for (i, rec) in parsed.records.iter().enumerate() {
             let email = rec[cols.email].trim().to_string();
-            let result = self.classify_member_row(&cols, &defs, rec, &mut seen).await;
+            let (result, changes) =
+                match self.classify_member_row(&cols, &defs, rec, &mut seen).await {
+                    Ok((action, changes)) => (Ok(action), changes),
+                    Err(e) => (Err(e), vec![]),
+                };
             rows.push(MemberPreviewRow {
                 line: i + 1,
                 email,
                 result,
+                changes,
             });
         }
         Ok(MemberImportPreview {
@@ -256,7 +273,7 @@ impl ImportService {
         defs: &[AttributeDefinition],
         rec: &[String],
         seen: &mut HashSet<String>,
-    ) -> Result<RowAction, String> {
+    ) -> Result<(RowAction, Vec<String>), String> {
         let raw_email = rec[cols.email].trim();
         Email::new(raw_email.to_string()).map_err(|e| format!("invalid email: {e}"))?;
         if !seen.insert(raw_email.to_ascii_lowercase()) {
@@ -297,8 +314,13 @@ impl ImportService {
             .await
             .map_err(|e| format!("lookup failed: {e:?}"))?;
 
-        if existing.is_some() {
-            Ok(RowAction::Update)
+        if let Some(current) = existing {
+            let changes = self.member_changes(cols, rec, &current).await?;
+            if changes.is_empty() {
+                Ok((RowAction::Unchanged, changes))
+            } else {
+                Ok((RowAction::Update, changes))
+            }
         } else {
             if cell(cols.first_name, rec)
                 .map(str::trim)
@@ -314,8 +336,84 @@ impl ImportService {
             {
                 return Err("last_name required for new member".into());
             }
-            Ok(RowAction::Create)
+            Ok((RowAction::Create, vec![]))
         }
+    }
+
+    /// `field: old → new` entries for everything an update row would modify.
+    /// Empty cells never count as changes (they keep the current value).
+    async fn member_changes(
+        &self,
+        cols: &MemberColumns,
+        rec: &[String],
+        current: &Person,
+    ) -> Result<Vec<String>, String> {
+        const EMPTY: &str = "(empty)";
+        let present = |idx: Option<usize>| cell(idx, rec).map(str::trim).filter(|s| !s.is_empty());
+        let mut changes = Vec::new();
+
+        let mut field = |name: &str, incoming: Option<&str>, current: Option<&str>| {
+            if let Some(new) = incoming {
+                if Some(new) != current {
+                    changes.push(format!("{name}: {} → {new}", current.unwrap_or(EMPTY)));
+                }
+            }
+        };
+        field(
+            "first_name",
+            present(cols.first_name),
+            Some(&current.first_name),
+        );
+        field(
+            "last_name",
+            present(cols.last_name),
+            Some(&current.last_name),
+        );
+        field(
+            "home_municipality",
+            present(cols.home_municipality),
+            current.home_municipality.as_deref(),
+        );
+        field("language", present(cols.language), Some(&current.language));
+
+        if let Some(new) = present(cols.email_notifications).and_then(|s| parse_bool(s).ok()) {
+            if new != current.email_notifications {
+                changes.push(format!(
+                    "email_notifications: {} → {new}",
+                    current.email_notifications
+                ));
+            }
+        }
+
+        if !cols.attributes.is_empty() {
+            let current_values = self
+                .attribute_service
+                .fetch_for_member(current.id.clone())
+                .await
+                .map_err(|e| format!("attribute lookup failed: {e:?}"))?;
+            for (idx, name) in &cols.attributes {
+                let value = rec[*idx].as_str();
+                if value.is_empty() {
+                    continue;
+                }
+                let old = current_values
+                    .iter()
+                    .find(|a| &a.name == name)
+                    .map(|a| a.value.as_str());
+                if value == "null" {
+                    if let Some(old) = old {
+                        changes.push(format!("{}: {old} → (cleared)", name.as_str()));
+                    }
+                } else if old != Some(value) {
+                    changes.push(format!(
+                        "{}: {} → {value}",
+                        name.as_str(),
+                        old.unwrap_or(EMPTY)
+                    ));
+                }
+            }
+        }
+        Ok(changes)
     }
 
     pub async fn apply_members(
@@ -348,19 +446,26 @@ impl ImportService {
         let mut seen = HashSet::new();
         for (i, rec) in parsed.records.iter().enumerate() {
             let email = rec[cols.email].trim().to_string();
-            let (outcome, warning) = match self
-                .classify_member_row(&cols, &defs, rec, &mut seen)
-                .await
-            {
-                Err(reason) => (RowOutcome::Skipped(reason), None),
-                Ok(RowAction::Create) => self.apply_create(&cols, rec, send_invites, actor).await,
-                Ok(RowAction::Update) => self.apply_update(&cols, rec, actor).await,
-            };
+            let (outcome, warning, changes) =
+                match self.classify_member_row(&cols, &defs, rec, &mut seen).await {
+                    Err(reason) => (RowOutcome::Skipped(reason), None, vec![]),
+                    Ok((RowAction::Create, _)) => {
+                        let (outcome, warning) =
+                            self.apply_create(&cols, rec, send_invites, actor).await;
+                        (outcome, warning, vec![])
+                    }
+                    Ok((RowAction::Update, changes)) => {
+                        let (outcome, warning) = self.apply_update(&cols, rec, actor).await;
+                        (outcome, warning, changes)
+                    }
+                    Ok((RowAction::Unchanged, _)) => (RowOutcome::Unchanged, None, vec![]),
+                };
             rows.push(MemberResultRow {
                 line: i + 1,
                 email,
                 outcome,
                 warning,
+                changes,
             });
         }
         Ok(MemberImportReport {
@@ -506,6 +611,8 @@ pub struct RolePreviewRow {
     pub email: String,
     pub role_name: String,
     pub result: Result<RowAction, String>,
+    /// Human-readable `field: old → new` entries; non-empty only for updates.
+    pub changes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -527,6 +634,12 @@ impl RoleImportPreview {
             .filter(|r| r.result == Ok(RowAction::Update))
             .count()
     }
+    pub fn unchanged_count(&self) -> usize {
+        self.rows
+            .iter()
+            .filter(|r| r.result == Ok(RowAction::Unchanged))
+            .count()
+    }
     pub fn error_count(&self) -> usize {
         self.rows.iter().filter(|r| r.result.is_err()).count()
     }
@@ -538,6 +651,8 @@ pub struct RoleResultRow {
     pub email: String,
     pub role_name: String,
     pub outcome: RowOutcome,
+    /// Human-readable `field: old → new` entries; non-empty only for updates.
+    pub changes: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -604,15 +719,19 @@ impl ImportService {
         for (i, rec) in parsed.records.iter().enumerate() {
             let email = rec[cols.email].trim().to_string();
             let role_name = rec[cols.role_name].trim().to_string();
-            let result = match self.parse_role_row(&cols, rec, &role_names).await {
-                Ok(data) => self.classify_role_row(&data).await,
-                Err(e) => Err(e),
+            let (result, changes) = match self.parse_role_row(&cols, rec, &role_names).await {
+                Ok(data) => match self.classify_role_row(&data).await {
+                    Ok((action, changes)) => (Ok(action), changes),
+                    Err(e) => (Err(e), vec![]),
+                },
+                Err(e) => (Err(e), vec![]),
             };
             rows.push(RolePreviewRow {
                 line: i + 1,
                 email,
                 role_name,
                 result,
+                changes,
             });
         }
         Ok(RoleImportPreview {
@@ -650,11 +769,12 @@ impl ImportService {
         for (i, rec) in parsed.records.iter().enumerate() {
             let email = rec[cols.email].trim().to_string();
             let role_name = rec[cols.role_name].trim().to_string();
-            let outcome = match self.parse_role_row(&cols, rec, &role_names).await {
-                Err(e) => RowOutcome::Skipped(e),
-                Ok(data) => {
-                    let action = self.classify_role_row(&data).await;
-                    match self
+            let (outcome, changes) = match self.parse_role_row(&cols, rec, &role_names).await {
+                Err(e) => (RowOutcome::Skipped(e), vec![]),
+                Ok(data) => match self.classify_role_row(&data).await {
+                    Err(e) => (RowOutcome::Skipped(e), vec![]),
+                    Ok((RowAction::Unchanged, _)) => (RowOutcome::Unchanged, vec![]),
+                    Ok((action, changes)) => match self
                         .role_service
                         .upsert_role_member(
                             data.user_id,
@@ -666,18 +786,19 @@ impl ImportService {
                         .await
                     {
                         Ok(()) => match action {
-                            Ok(RowAction::Update) => RowOutcome::Updated,
-                            _ => RowOutcome::Created,
+                            RowAction::Update => (RowOutcome::Updated, changes),
+                            _ => (RowOutcome::Created, vec![]),
                         },
-                        Err(e) => RowOutcome::Failed(format!("assign failed: {e:?}")),
-                    }
-                }
+                        Err(e) => (RowOutcome::Failed(format!("assign failed: {e:?}")), vec![]),
+                    },
+                },
             };
             rows.push(RoleResultRow {
                 line: i + 1,
                 email,
                 role_name,
                 outcome,
+                changes,
             });
         }
         Ok(RoleImportReport {
@@ -735,19 +856,35 @@ impl ImportService {
         })
     }
 
-    async fn classify_role_row(&self, data: &RoleRowData) -> Result<RowAction, String> {
+    async fn classify_role_row(
+        &self,
+        data: &RoleRowData,
+    ) -> Result<(RowAction, Vec<String>), String> {
         let existing = self
             .role_service
             .get_member_roles(data.user_id)
             .await
             .map_err(|e| format!("lookup failed: {e:?}"))?;
-        let is_update = existing
+        let Some(current) = existing
             .iter()
-            .any(|m| m.role_name.0 == data.role_name && m.valid_from == data.valid_from);
-        Ok(if is_update {
-            RowAction::Update
-        } else {
-            RowAction::Create
-        })
+            .find(|m| m.role_name.0 == data.role_name && m.valid_from == data.valid_from)
+        else {
+            return Ok((RowAction::Create, vec![]));
+        };
+        if current.valid_until == data.valid_until {
+            return Ok((RowAction::Unchanged, vec![]));
+        }
+        let fmt = |d: Option<NaiveDate>| {
+            d.map(|d| d.to_string())
+                .unwrap_or_else(|| "(empty)".to_string())
+        };
+        Ok((
+            RowAction::Update,
+            vec![format!(
+                "valid_until: {} → {}",
+                fmt(current.valid_until),
+                fmt(data.valid_until)
+            )],
+        ))
     }
 }

@@ -1314,13 +1314,15 @@ export const useDeleteMyAttribute = () => {
 export interface ImportPreviewRow {
   line: number;
   email: string;
-  action?: "create" | "update";
+  action?: "create" | "update" | "unchanged";
   error?: string | null;
+  changes: string[];
 }
 export interface MemberImportPreview {
   fatal_error?: string | null;
   create_count: number;
   update_count: number;
+  unchanged_count: number;
   error_count: number;
   rows: ImportPreviewRow[];
 }
@@ -1330,11 +1332,13 @@ export interface ImportResultRow {
   outcome: string;
   detail?: string | null;
   warning?: string | null;
+  changes: string[];
 }
 export interface MemberImportReport {
   fatal_error?: string | null;
   created: number;
   updated: number;
+  unchanged: number;
   skipped: number;
   failed: number;
   rows: ImportResultRow[];
@@ -1344,13 +1348,15 @@ export interface RoleImportPreviewRow {
   line: number;
   email: string;
   role_name: string;
-  action?: "create" | "update";
+  action?: "create" | "update" | "unchanged";
   error?: string | null;
+  changes: string[];
 }
 export interface RoleImportPreview {
   fatal_error?: string | null;
   create_count: number;
   update_count: number;
+  unchanged_count: number;
   error_count: number;
   rows: RoleImportPreviewRow[];
 }
@@ -1360,11 +1366,13 @@ export interface RoleImportResultRow {
   role_name: string;
   outcome: string;
   detail?: string | null;
+  changes: string[];
 }
 export interface RoleImportReport {
   fatal_error?: string | null;
   created: number;
   updated: number;
+  unchanged: number;
   skipped: number;
   failed: number;
   rows: RoleImportResultRow[];

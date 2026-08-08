@@ -26,6 +26,7 @@ struct PreviewRowDTO {
     email: String,
     action: Option<String>,
     error: Option<String>,
+    changes: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -33,8 +34,18 @@ struct MemberImportPreviewDTO {
     fatal_error: Option<String>,
     create_count: usize,
     update_count: usize,
+    unchanged_count: usize,
     error_count: usize,
     rows: Vec<PreviewRowDTO>,
+}
+
+fn action_str(result: &Result<RowAction, String>) -> Option<String> {
+    match result {
+        Ok(RowAction::Create) => Some("create".into()),
+        Ok(RowAction::Update) => Some("update".into()),
+        Ok(RowAction::Unchanged) => Some("unchanged".into()),
+        Err(_) => None,
+    }
 }
 
 impl From<MemberImportPreview> for MemberImportPreviewDTO {
@@ -45,17 +56,15 @@ impl From<MemberImportPreview> for MemberImportPreviewDTO {
             .map(|r| PreviewRowDTO {
                 line: r.line,
                 email: r.email.clone(),
-                action: match &r.result {
-                    Ok(RowAction::Create) => Some("create".into()),
-                    Ok(RowAction::Update) => Some("update".into()),
-                    Err(_) => None,
-                },
+                action: action_str(&r.result),
                 error: r.result.as_ref().err().cloned(),
+                changes: r.changes.clone(),
             })
             .collect();
         Self {
             create_count: p.create_count(),
             update_count: p.update_count(),
+            unchanged_count: p.unchanged_count(),
             error_count: p.error_count(),
             fatal_error: p.fatal_error,
             rows,
@@ -70,6 +79,7 @@ struct ResultRowDTO {
     outcome: String,
     detail: Option<String>,
     warning: Option<String>,
+    changes: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -77,6 +87,7 @@ struct MemberImportReportDTO {
     fatal_error: Option<String>,
     created: usize,
     updated: usize,
+    unchanged: usize,
     skipped: usize,
     failed: usize,
     rows: Vec<ResultRowDTO>,
@@ -86,6 +97,7 @@ fn outcome_parts(o: &RowOutcome) -> (&'static str, Option<String>) {
     match o {
         RowOutcome::Created => ("created", None),
         RowOutcome::Updated => ("updated", None),
+        RowOutcome::Unchanged => ("unchanged", None),
         RowOutcome::Skipped(r) => ("skipped", Some(r.clone())),
         RowOutcome::Failed(r) => ("failed", Some(r.clone())),
     }
@@ -104,12 +116,14 @@ impl From<MemberImportReport> for MemberImportReportDTO {
                     outcome: outcome.to_string(),
                     detail,
                     warning: r.warning.clone(),
+                    changes: r.changes.clone(),
                 }
             })
             .collect();
         Self {
             created: rep.count(&RowOutcome::Created),
             updated: rep.count(&RowOutcome::Updated),
+            unchanged: rep.count(&RowOutcome::Unchanged),
             skipped: rows.iter().filter(|r| r.outcome == "skipped").count(),
             failed: rows.iter().filter(|r| r.outcome == "failed").count(),
             fatal_error: rep.fatal_error,
@@ -170,6 +184,7 @@ struct RolePreviewRowDTO {
     role_name: String,
     action: Option<String>,
     error: Option<String>,
+    changes: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -177,6 +192,7 @@ struct RoleImportPreviewDTO {
     fatal_error: Option<String>,
     create_count: usize,
     update_count: usize,
+    unchanged_count: usize,
     error_count: usize,
     rows: Vec<RolePreviewRowDTO>,
 }
@@ -190,17 +206,15 @@ impl From<RoleImportPreview> for RoleImportPreviewDTO {
                 line: r.line,
                 email: r.email.clone(),
                 role_name: r.role_name.clone(),
-                action: match &r.result {
-                    Ok(RowAction::Create) => Some("create".into()),
-                    Ok(RowAction::Update) => Some("update".into()),
-                    Err(_) => None,
-                },
+                action: action_str(&r.result),
                 error: r.result.as_ref().err().cloned(),
+                changes: r.changes.clone(),
             })
             .collect();
         Self {
             create_count: p.create_count(),
             update_count: p.update_count(),
+            unchanged_count: p.unchanged_count(),
             error_count: p.error_count(),
             fatal_error: p.fatal_error,
             rows,
@@ -215,6 +229,7 @@ struct RoleResultRowDTO {
     role_name: String,
     outcome: String,
     detail: Option<String>,
+    changes: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -222,6 +237,7 @@ struct RoleImportReportDTO {
     fatal_error: Option<String>,
     created: usize,
     updated: usize,
+    unchanged: usize,
     skipped: usize,
     failed: usize,
     rows: Vec<RoleResultRowDTO>,
@@ -240,12 +256,14 @@ impl From<RoleImportReport> for RoleImportReportDTO {
                     role_name: r.role_name.clone(),
                     outcome: outcome.to_string(),
                     detail,
+                    changes: r.changes.clone(),
                 }
             })
             .collect();
         Self {
             created: rep.count(&RowOutcome::Created),
             updated: rep.count(&RowOutcome::Updated),
+            unchanged: rep.count(&RowOutcome::Unchanged),
             skipped: rows.iter().filter(|r| r.outcome == "skipped").count(),
             failed: rows.iter().filter(|r| r.outcome == "failed").count(),
             fatal_error: rep.fatal_error,
