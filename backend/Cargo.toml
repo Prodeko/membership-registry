@@ -6,12 +6,8 @@ edition = "2021"
 
 [dependencies]
 ammonia = "4"
-async-stripe = { version = "0.41.0", default-features = false, features = [
-    "runtime-tokio-hyper-rustls-webpki",
-    "full",
-    "webhook-events",
-    "uuid",
-    "stream",
+async-stripe-webhook = { version = "1.0.0-rc.8", features = [
+    "async-stripe-checkout",
 ] }
 async-trait = "0.1.89"
 axum = { version = "0.8.9", features = ["tokio", "macros", "multipart"] }
