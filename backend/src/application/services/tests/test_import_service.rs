@@ -208,7 +208,7 @@ async fn apply_creates_new_member() {
     user_admin.expect_find_by_email().returning(|_| Ok(None));
     user_admin
         .expect_create_user()
-        .returning(move |_, _, _| Ok(subj.clone()));
+        .returning(move |_, _, _, _| Ok(subj.clone()));
 
     let mut auth = MockAuthProviderRepo::new();
     // provision_member links the subject
@@ -259,7 +259,7 @@ async fn apply_isolates_bad_rows() {
     let s = Uuid::new_v4().to_string();
     user_admin
         .expect_create_user()
-        .returning(move |_, _, _| Ok(s.clone()))
+        .returning(move |_, _, _, _| Ok(s.clone()))
         .times(0..);
 
     let mut auth = MockAuthProviderRepo::new();
@@ -520,6 +520,218 @@ async fn preview_roles_distinguishes_unchanged_and_changed_valid_until() {
     );
     assert_eq!(preview.unchanged_count(), 1);
     assert_eq!(preview.update_count(), 1);
+}
+
+#[tokio::test]
+async fn preview_attributes_classifies_create_update_unchanged_and_errors() {
+    let mut attr = MockAttributeRepositoryPort::new();
+    attr.expect_fetch_all_definitions().returning(|| {
+        Ok(vec![
+            def("guild", Some(vec!["prodeko", "athene"]), EditableBy::Admin),
+            def("year", None, EditableBy::Admin),
+        ])
+    });
+    let svc = import_service(
+        MockMemberRepositoryPort::new(),
+        attr,
+        MockUserAdminPort::new(),
+    );
+
+    let csv = b"name,description,allowed_values,default_value,editable_by,sync_to_keycloak\n\
+year,,,,admin,false\n\
+guild,,prodeko|athene|tik,,,\n\
+shirt-size,Shirt size,S|M|L,M,user,false\n\
+bad-editable,,,,wizard,\n";
+    let preview = svc.preview_attributes(csv).await.unwrap();
+
+    assert_eq!(preview.fatal_error, None);
+    assert_eq!(preview.rows[0].result, Ok(RowAction::Unchanged));
+    assert_eq!(preview.rows[1].result, Ok(RowAction::Update));
+    assert_eq!(
+        preview.rows[1].changes,
+        vec!["allowed_values: prodeko|athene → prodeko|athene|tik".to_string()]
+    );
+    assert_eq!(preview.rows[2].result, Ok(RowAction::Create));
+    assert!(preview.rows[3].result.is_err());
+    assert_eq!(preview.create_count(), 1);
+    assert_eq!(preview.update_count(), 1);
+    assert_eq!(preview.unchanged_count(), 1);
+    assert_eq!(preview.error_count(), 1);
+}
+
+#[tokio::test]
+async fn apply_attributes_writes_creates_and_updates_only() {
+    use crate::application::services::import_service::RowOutcome;
+    let mut attr = MockAttributeRepositoryPort::new();
+    attr.expect_fetch_all_definitions()
+        .returning(|| {
+            Ok(vec![
+                def("guild", Some(vec!["prodeko", "athene"]), EditableBy::Admin),
+                def("year", None, EditableBy::Admin),
+            ])
+        })
+        .times(1..);
+    attr.expect_create_definition()
+        .withf(|input| input.name.as_str() == "shirt-size")
+        .returning(|input| {
+            Ok(AttributeDefinition::new(
+                input.name,
+                input.description,
+                input.allowed_values,
+                input.default_value,
+                input.sync_to_keycloak,
+                input.editable_by,
+            )
+            .unwrap())
+        })
+        .times(1);
+    attr.expect_fetch_definition()
+        .returning(|_| {
+            Ok(Some(def(
+                "guild",
+                Some(vec!["prodeko", "athene"]),
+                EditableBy::Admin,
+            )))
+        })
+        .times(1..);
+    attr.expect_fetch_all_values_for()
+        .returning(|_| Ok(vec![]))
+        .times(0..);
+    attr.expect_update_definition()
+        .withf(|name, input| {
+            name.as_str() == "guild" && input.allowed_values.as_ref().is_some_and(|v| v.len() == 3)
+        })
+        .returning(|_, _| {
+            Ok(def(
+                "guild",
+                Some(vec!["prodeko", "athene", "tik"]),
+                EditableBy::Admin,
+            ))
+        })
+        .times(1);
+
+    let svc = import_service(
+        MockMemberRepositoryPort::new(),
+        attr,
+        MockUserAdminPort::new(),
+    );
+    // update, create, duplicate-in-file, unchanged
+    let csv = b"name,allowed_values,default_value,editable_by\n\
+guild,prodeko|athene|tik,,\n\
+shirt-size,S|M|L,M,user\n\
+guild,prodeko,,\n\
+year,,,\n";
+    let report = svc.apply_attributes_import(csv, None).await.unwrap();
+
+    assert_eq!(report.rows[0].outcome, RowOutcome::Updated);
+    assert_eq!(
+        report.rows[0].changes,
+        vec!["allowed_values: prodeko|athene → prodeko|athene|tik".to_string()]
+    );
+    assert_eq!(report.rows[1].outcome, RowOutcome::Created);
+    assert!(matches!(report.rows[2].outcome, RowOutcome::Skipped(_)));
+    assert_eq!(report.rows[3].outcome, RowOutcome::Unchanged);
+    assert_eq!(report.count(&RowOutcome::Created), 1);
+    assert_eq!(report.count(&RowOutcome::Updated), 1);
+    assert_eq!(report.count(&RowOutcome::Unchanged), 1);
+}
+
+#[tokio::test]
+async fn apply_create_uses_csv_language_as_keycloak_locale() {
+    use crate::application::services::import_service::RowOutcome;
+    let mut attr = MockAttributeRepositoryPort::new();
+    attr.expect_fetch_all_definitions()
+        .returning(|| Ok(vec![]))
+        .times(1..);
+
+    let mut members = MockMemberRepositoryPort::new();
+    members.expect_fetch_by_email().returning(|_| Ok(None));
+    members
+        .expect_create()
+        .returning(|_| Ok(person("x@x.com")))
+        .times(2);
+
+    let mut user_admin = MockUserAdminPort::new();
+    user_admin.expect_find_by_email().returning(|_| Ok(None));
+    user_admin
+        .expect_create_user()
+        .withf(|email, _, _, locale| match email {
+            "en@x.com" => locale == "en",
+            "fi@x.com" => locale == "fi",
+            _ => false,
+        })
+        .returning(|_, _, _, _| Ok(Uuid::new_v4().to_string()))
+        .times(2);
+
+    let mut auth = MockAuthProviderRepo::new();
+    auth.expect_create().returning(|uid, p, puid| {
+        Ok(AuthProviderMapping {
+            user_id: *uid,
+            provider_name: p.into(),
+            provider_user_id: puid.into(),
+            linked_at: chrono::Utc::now(),
+        })
+    });
+    auth.expect_find_by_user_id()
+        .returning(|_| Ok(vec![]))
+        .times(0..);
+
+    let svc = writable_import_service(members, attr, user_admin, auth);
+    // row 1 asks for English; row 2 has an empty language cell → fi
+    let csv = b"email,first_name,last_name,language\nen@x.com,A,B,en\nfi@x.com,C,D,\n";
+    let report = svc.apply_members(csv, false, None).await.unwrap();
+
+    assert_eq!(report.count(&RowOutcome::Created), 2);
+}
+
+#[tokio::test]
+async fn apply_create_syncs_locale_when_keycloak_user_already_exists() {
+    use crate::application::services::import_service::RowOutcome;
+    let subject = Uuid::new_v4().to_string();
+
+    let mut attr = MockAttributeRepositoryPort::new();
+    attr.expect_fetch_all_definitions()
+        .returning(|| Ok(vec![]))
+        .times(1..);
+
+    let mut members = MockMemberRepositoryPort::new();
+    members.expect_fetch_by_email().returning(|_| Ok(None));
+    members
+        .expect_create()
+        .returning(|_| Ok(person("en@x.com")))
+        .times(1);
+
+    let mut user_admin = MockUserAdminPort::new();
+    let subj = subject.clone();
+    user_admin
+        .expect_find_by_email()
+        .returning(move |_| Ok(Some(subj.clone())));
+    user_admin.expect_create_user().times(0);
+    let subj = subject.clone();
+    user_admin
+        .expect_update_user_locale()
+        .withf(move |s, locale| s == subj && locale == "en")
+        .returning(|_, _| Ok(()))
+        .times(1);
+
+    let mut auth = MockAuthProviderRepo::new();
+    auth.expect_create().returning(|uid, p, puid| {
+        Ok(AuthProviderMapping {
+            user_id: *uid,
+            provider_name: p.into(),
+            provider_user_id: puid.into(),
+            linked_at: chrono::Utc::now(),
+        })
+    });
+    auth.expect_find_by_user_id()
+        .returning(|_| Ok(vec![]))
+        .times(0..);
+
+    let svc = writable_import_service(members, attr, user_admin, auth);
+    let csv = b"email,first_name,last_name,language\nen@x.com,A,B,en\n";
+    let report = svc.apply_members(csv, false, None).await.unwrap();
+
+    assert_eq!(report.count(&RowOutcome::Created), 1);
 }
 
 #[tokio::test]

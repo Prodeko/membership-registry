@@ -30,13 +30,15 @@ pub trait UserAdminPort: Send + Sync {
     ) -> Result<(), UserAdminError>;
 
     /// Create a Keycloak user with `enabled = true`, `emailVerified = false`,
-    /// and no credentials. Returns the new subject parsed from the `Location`
-    /// header of the 201 response.
+    /// no credentials, and the given `locale` attribute (drives the language
+    /// of Keycloak-sent emails). Returns the new subject parsed from the
+    /// `Location` header of the 201 response.
     async fn create_user(
         &self,
         email: &str,
         first_name: &str,
         last_name: &str,
+        locale: &str,
     ) -> Result<String, UserAdminError>;
 
     /// Exact-match lookup by email. Returns the subject, or `None`.

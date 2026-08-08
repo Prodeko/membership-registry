@@ -1378,6 +1378,38 @@ export interface RoleImportReport {
   rows: RoleImportResultRow[];
 }
 
+export interface AttributeImportPreviewRow {
+  line: number;
+  name: string;
+  action?: "create" | "update" | "unchanged";
+  error?: string | null;
+  changes: string[];
+}
+export interface AttributeImportPreview {
+  fatal_error?: string | null;
+  create_count: number;
+  update_count: number;
+  unchanged_count: number;
+  error_count: number;
+  rows: AttributeImportPreviewRow[];
+}
+export interface AttributeImportResultRow {
+  line: number;
+  name: string;
+  outcome: string;
+  detail?: string | null;
+  changes: string[];
+}
+export interface AttributeImportReport {
+  fatal_error?: string | null;
+  created: number;
+  updated: number;
+  unchanged: number;
+  skipped: number;
+  failed: number;
+  rows: AttributeImportResultRow[];
+}
+
 const multipart = { headers: { "Content-Type": "multipart/form-data" } };
 
 export const usePreviewMemberImport = () =>
@@ -1406,6 +1438,39 @@ export const useApplyMemberImport = () => {
       fd.append("file", file);
       const res = await admin_axios_client.post<MemberImportReport>(
         `/import/members?send_invites=${sendInvites}`,
+        fd,
+        multipart,
+      );
+      return res.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+    },
+  });
+};
+
+export const usePreviewAttributeImport = () =>
+  useMutation<AttributeImportPreview, Error, File>({
+    mutationFn: async (file) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await admin_axios_client.post<AttributeImportPreview>(
+        "/import/attributes/preview",
+        fd,
+        multipart,
+      );
+      return res.data;
+    },
+  });
+
+export const useApplyAttributeImport = () => {
+  const queryClient = useQueryClient();
+  return useMutation<AttributeImportReport, Error, File>({
+    mutationFn: async (file) => {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await admin_axios_client.post<AttributeImportReport>(
+        "/import/attributes",
         fd,
         multipart,
       );

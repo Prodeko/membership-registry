@@ -70,10 +70,11 @@ impl UserAdminPort for KeycloakUserAdminAdapter {
         email: &str,
         first_name: &str,
         last_name: &str,
+        locale: &str,
     ) -> Result<String, UserAdminError> {
         Ok(self
             .client
-            .create_user(email, first_name, last_name)
+            .create_user(email, first_name, last_name, locale)
             .await?)
     }
 

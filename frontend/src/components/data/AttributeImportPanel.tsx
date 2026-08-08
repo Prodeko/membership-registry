@@ -8,25 +8,22 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { downloadCsv } from "@/lib/utils";
 import {
-  useApplyMemberImport,
-  usePreviewMemberImport,
-  type MemberImportPreview,
-  type MemberImportReport,
+  useApplyAttributeImport,
+  usePreviewAttributeImport,
+  type AttributeImportPreview,
+  type AttributeImportReport,
 } from "@/lib/api";
 
-export default function MemberImportPanel() {
+export default function AttributeImportPanel() {
   const [file, setFile] = useState<File | null>(null);
-  const [sendInvites, setSendInvites] = useState(false);
-  const [preview, setPreview] = useState<MemberImportPreview | null>(null);
-  const [report, setReport] = useState<MemberImportReport | null>(null);
+  const [preview, setPreview] = useState<AttributeImportPreview | null>(null);
+  const [report, setReport] = useState<AttributeImportReport | null>(null);
 
-  const previewMutation = usePreviewMemberImport();
-  const applyMutation = useApplyMemberImport();
+  const previewMutation = usePreviewAttributeImport();
+  const applyMutation = useApplyAttributeImport();
 
   const onFile = (f: File | null) => {
     setFile(f);
@@ -47,19 +44,16 @@ export default function MemberImportPanel() {
 
   const runApply = () => {
     if (!file) return;
-    applyMutation.mutate(
-      { file, sendInvites },
-      {
-        onSuccess: (r) => {
-          setReport(r);
-          if (r.fatal_error) toast.error(r.fatal_error);
-          else
-            toast.success(
-              `Imported: ${r.created} created, ${r.updated} updated, ${r.unchanged} unchanged, ${r.skipped + r.failed} problems`,
-            );
-        },
+    applyMutation.mutate(file, {
+      onSuccess: (r) => {
+        setReport(r);
+        if (r.fatal_error) toast.error(r.fatal_error);
+        else
+          toast.success(
+            `Imported: ${r.created} created, ${r.updated} updated, ${r.unchanged} unchanged, ${r.skipped + r.failed} problems`,
+          );
       },
-    );
+    });
   };
 
   const canApply =
@@ -68,14 +62,14 @@ export default function MemberImportPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Import members</CardTitle>
+        <CardTitle>Import attribute definitions</CardTitle>
         <CardDescription>
-          Columns: email (required), first_name, last_name, home_municipality,
-          language, email_notifications, plus any attribute key as its own
-          column. Existing members (matched by email) are updated; unknown
-          emails create a Keycloak account. Set an attribute cell to{" "}
-          <code>null</code> to clear it. language (fi/en, default fi) also picks
-          the invite email language.
+          Columns: name (required), description, allowed_values (separated by{" "}
+          <code>|</code>), default_value, editable_by (admin/user/both),
+          sync_to_keycloak (true/false). Existing definitions (matched by name)
+          are updated; empty cells keep the current value, <code>null</code>{" "}
+          clears it. New definitions default to editable_by=admin,
+          sync_to_keycloak=false.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -84,18 +78,6 @@ export default function MemberImportPanel() {
           accept=".csv"
           onChange={(e) => onFile(e.target.files?.[0] ?? null)}
         />
-
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="send-invites"
-            checked={sendInvites}
-            onCheckedChange={(v) => setSendInvites(!!v)}
-          />
-          <Label htmlFor="send-invites">
-            Send set-password invite to new accounts
-          </Label>
-        </div>
-
         <div className="flex gap-2">
           <Button
             onClick={runPreview}
@@ -108,14 +90,18 @@ export default function MemberImportPanel() {
           </Button>
         </div>
 
-        {preview && !report && <MemberPreviewTable preview={preview} />}
-        {report && <MemberReportTable report={report} />}
+        {preview && !report && <AttributePreviewTable preview={preview} />}
+        {report && <AttributeReportTable report={report} />}
       </CardContent>
     </Card>
   );
 }
 
-function MemberPreviewTable({ preview }: { preview: MemberImportPreview }) {
+function AttributePreviewTable({
+  preview,
+}: {
+  preview: AttributeImportPreview;
+}) {
   if (preview.fatal_error) {
     return <p className="text-destructive">{preview.fatal_error}</p>;
   }
@@ -130,7 +116,7 @@ function MemberPreviewTable({ preview }: { preview: MemberImportPreview }) {
           <thead className="bg-muted text-left">
             <tr>
               <th className="px-3 py-2 font-medium">#</th>
-              <th className="px-3 py-2 font-medium">Email</th>
+              <th className="px-3 py-2 font-medium">Name</th>
               <th className="px-3 py-2 font-medium">Action</th>
               <th className="px-3 py-2 font-medium">Changes</th>
             </tr>
@@ -139,7 +125,7 @@ function MemberPreviewTable({ preview }: { preview: MemberImportPreview }) {
             {preview.rows.map((r) => (
               <tr key={r.line} className="border-t">
                 <td className="px-3 py-2">{r.line}</td>
-                <td className="px-3 py-2">{r.email}</td>
+                <td className="px-3 py-2">{r.name}</td>
                 <td className="px-3 py-2">
                   {r.error ? (
                     <span className="text-destructive">{r.error}</span>
@@ -161,23 +147,22 @@ function MemberPreviewTable({ preview }: { preview: MemberImportPreview }) {
   );
 }
 
-function reportToCsv(report: MemberImportReport): string {
-  const header = "line,email,outcome,detail,warning,changes";
+function attributeReportToCsv(report: AttributeImportReport): string {
+  const header = "line,name,outcome,detail,changes";
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
   const lines = report.rows.map((r) =>
     [
       r.line,
-      esc(r.email),
+      esc(r.name),
       r.outcome,
       esc(r.detail ?? ""),
-      esc(r.warning ?? ""),
       esc(r.changes.join("; ")),
     ].join(","),
   );
   return [header, ...lines].join("\n");
 }
 
-function MemberReportTable({ report }: { report: MemberImportReport }) {
+function AttributeReportTable({ report }: { report: AttributeImportReport }) {
   if (report.fatal_error) {
     return <p className="text-destructive">{report.fatal_error}</p>;
   }
@@ -194,8 +179,8 @@ function MemberReportTable({ report }: { report: MemberImportReport }) {
           size="sm"
           onClick={() =>
             downloadCsv(
-              reportToCsv(report),
-              `member_import_report_${new Date().toISOString()}.csv`,
+              attributeReportToCsv(report),
+              `attribute_import_report_${new Date().toISOString()}.csv`,
             )
           }
         >
@@ -207,7 +192,7 @@ function MemberReportTable({ report }: { report: MemberImportReport }) {
           <thead className="bg-muted text-left">
             <tr>
               <th className="px-3 py-2 font-medium">#</th>
-              <th className="px-3 py-2 font-medium">Email</th>
+              <th className="px-3 py-2 font-medium">Name</th>
               <th className="px-3 py-2 font-medium">Outcome</th>
               <th className="px-3 py-2 font-medium">Detail</th>
             </tr>
@@ -216,10 +201,10 @@ function MemberReportTable({ report }: { report: MemberImportReport }) {
             {report.rows.map((r) => (
               <tr key={r.line} className="border-t">
                 <td className="px-3 py-2">{r.line}</td>
-                <td className="px-3 py-2">{r.email}</td>
+                <td className="px-3 py-2">{r.name}</td>
                 <td className="px-3 py-2">{r.outcome}</td>
                 <td className="px-3 py-2 text-muted-foreground">
-                  {r.detail ?? r.warning ?? ""}
+                  {r.detail ?? ""}
                   {r.changes.map((c) => (
                     <div key={c}>{c}</div>
                   ))}

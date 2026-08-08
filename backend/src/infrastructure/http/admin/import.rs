@@ -8,8 +8,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::application::services::authentication_service::AuthenticatedUser;
 use crate::application::services::import_service::{
-    MemberImportPreview, MemberImportReport, RoleImportPreview, RoleImportReport, RowAction,
-    RowOutcome,
+    AttributeImportPreview, AttributeImportReport, MemberImportPreview, MemberImportReport,
+    RoleImportPreview, RoleImportReport, RowAction, RowOutcome,
 };
 use crate::infrastructure::http::errors::{ApiError, ApiResult};
 use crate::infrastructure::http::AppState;
@@ -294,11 +294,129 @@ async fn apply_roles(
     Ok(Json(report.into()))
 }
 
+#[derive(Debug, Serialize)]
+struct AttributePreviewRowDTO {
+    line: usize,
+    name: String,
+    action: Option<String>,
+    error: Option<String>,
+    changes: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct AttributeImportPreviewDTO {
+    fatal_error: Option<String>,
+    create_count: usize,
+    update_count: usize,
+    unchanged_count: usize,
+    error_count: usize,
+    rows: Vec<AttributePreviewRowDTO>,
+}
+
+impl From<AttributeImportPreview> for AttributeImportPreviewDTO {
+    fn from(p: AttributeImportPreview) -> Self {
+        let rows = p
+            .rows
+            .iter()
+            .map(|r| AttributePreviewRowDTO {
+                line: r.line,
+                name: r.name.clone(),
+                action: action_str(&r.result),
+                error: r.result.as_ref().err().cloned(),
+                changes: r.changes.clone(),
+            })
+            .collect();
+        Self {
+            create_count: p.create_count(),
+            update_count: p.update_count(),
+            unchanged_count: p.unchanged_count(),
+            error_count: p.error_count(),
+            fatal_error: p.fatal_error,
+            rows,
+        }
+    }
+}
+
+#[derive(Debug, Serialize)]
+struct AttributeResultRowDTO {
+    line: usize,
+    name: String,
+    outcome: String,
+    detail: Option<String>,
+    changes: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct AttributeImportReportDTO {
+    fatal_error: Option<String>,
+    created: usize,
+    updated: usize,
+    unchanged: usize,
+    skipped: usize,
+    failed: usize,
+    rows: Vec<AttributeResultRowDTO>,
+}
+
+impl From<AttributeImportReport> for AttributeImportReportDTO {
+    fn from(rep: AttributeImportReport) -> Self {
+        let rows: Vec<AttributeResultRowDTO> = rep
+            .rows
+            .iter()
+            .map(|r| {
+                let (outcome, detail) = outcome_parts(&r.outcome);
+                AttributeResultRowDTO {
+                    line: r.line,
+                    name: r.name.clone(),
+                    outcome: outcome.to_string(),
+                    detail,
+                    changes: r.changes.clone(),
+                }
+            })
+            .collect();
+        Self {
+            created: rep.count(&RowOutcome::Created),
+            updated: rep.count(&RowOutcome::Updated),
+            unchanged: rep.count(&RowOutcome::Unchanged),
+            skipped: rows.iter().filter(|r| r.outcome == "skipped").count(),
+            failed: rows.iter().filter(|r| r.outcome == "failed").count(),
+            fatal_error: rep.fatal_error,
+            rows,
+        }
+    }
+}
+
+#[debug_handler]
+async fn preview_attributes(
+    State(state): State<AppState>,
+    multipart: Multipart,
+) -> ApiResult<Json<AttributeImportPreviewDTO>> {
+    let bytes = read_csv(multipart).await?;
+    let preview = state.import_service.preview_attributes(&bytes).await?;
+    Ok(Json(preview.into()))
+}
+
+#[debug_handler]
+async fn apply_attributes(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+    multipart: Multipart,
+) -> ApiResult<Json<AttributeImportReportDTO>> {
+    let actor = user_info.map(|u| u.user_id);
+    let bytes = read_csv(multipart).await?;
+    let report = state
+        .import_service
+        .apply_attributes_import(&bytes, actor)
+        .await?;
+    Ok(Json(report.into()))
+}
+
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/members/preview", post(preview_members))
         .route("/members", post(apply_members))
         .route("/roles/preview", post(preview_roles))
         .route("/roles", post(apply_roles))
+        .route("/attributes/preview", post(preview_attributes))
+        .route("/attributes", post(apply_attributes))
         .with_state(state)
 }

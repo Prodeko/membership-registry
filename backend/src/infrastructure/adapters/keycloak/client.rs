@@ -662,11 +662,17 @@ impl KeycloakClient {
         email: &str,
         first_name: &str,
         last_name: &str,
+        locale: &str,
     ) -> Result<String, KeycloakError> {
         let token = self.get_service_token().await?;
         let url = self.admin_url("users");
-        // Created without credentials: the required actions are the only way
-        // the user can ever log in (via invite or forgot-password email).
+        // A random throwaway password (never revealed to anyone) marked
+        // `temporary` gives the account a credential, which the login flow
+        // requires before offering password entry / reset — without one the
+        // user would be hard-blocked unless they used the invite link. The
+        // locale attribute must be set atomically here — emails sent right
+        // after creation already depend on it.
+        let throwaway_password = uuid::Uuid::new_v4().to_string();
         let body = serde_json::json!({
             "email": email,
             "firstName": first_name,
@@ -674,6 +680,12 @@ impl KeycloakClient {
             "enabled": true,
             "emailVerified": false,
             "requiredActions": ["UPDATE_PASSWORD", "VERIFY_EMAIL"],
+            "attributes": { "locale": [locale] },
+            "credentials": [{
+                "type": "password",
+                "value": throwaway_password,
+                "temporary": true,
+            }],
         });
         let response = self
             .http
@@ -1629,6 +1641,23 @@ mod tests {
     use wiremock::matchers::{body_partial_json, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
+    /// Matches a user payload carrying a non-trivial temporary password
+    /// credential (the random value itself is unpredictable).
+    struct HasTempPasswordCredential;
+    impl wiremock::Match for HasTempPasswordCredential {
+        fn matches(&self, request: &wiremock::Request) -> bool {
+            let Ok(v) = serde_json::from_slice::<serde_json::Value>(&request.body) else {
+                return false;
+            };
+            let Some(c) = v["credentials"].get(0) else {
+                return false;
+            };
+            c["type"] == "password"
+                && c["temporary"] == true
+                && c["value"].as_str().is_some_and(|s| s.len() >= 16)
+        }
+    }
+
     #[tokio::test]
     async fn create_user_sends_required_actions() {
         let server = MockServer::start().await;
@@ -1640,13 +1669,16 @@ mod tests {
             })))
             .mount(&server)
             .await;
-        // Only matches when the payload carries the required actions; without
-        // them the request 404s and create_user errors.
+        // Only matches when the payload carries the required actions, the
+        // locale attribute, and a temporary password credential; otherwise
+        // the request 404s and create_user errors.
         Mock::given(method("POST"))
             .and(path("/admin/realms/test/users"))
             .and(body_partial_json(serde_json::json!({
-                "requiredActions": ["UPDATE_PASSWORD", "VERIFY_EMAIL"]
+                "requiredActions": ["UPDATE_PASSWORD", "VERIFY_EMAIL"],
+                "attributes": { "locale": ["en"] }
             })))
+            .and(HasTempPasswordCredential)
             .respond_with(ResponseTemplate::new(201).insert_header(
                 "Location",
                 format!("{}/admin/realms/test/users/abc-123", server.uri()).as_str(),
@@ -1664,7 +1696,7 @@ mod tests {
             admin_role_name: "admin".into(),
         });
 
-        let subject = client.create_user("a@x.com", "A", "B").await.unwrap();
+        let subject = client.create_user("a@x.com", "A", "B", "en").await.unwrap();
         assert_eq!(subject, "abc-123");
     }
 
