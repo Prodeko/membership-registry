@@ -268,6 +268,25 @@ mod test_role {
             .await
             .unwrap();
 
+        // Inside the window but renewal is not configured: not due
+        repo.role
+            .create(&Role {
+                name: RoleName("unconfigured".to_string()),
+                renewal_payment_link: None,
+                ..renewal_defaults.clone()
+            })
+            .await
+            .unwrap();
+        repo.role
+            .create_role_member(
+                &user,
+                "unconfigured",
+                today - chrono::Duration::days(355),
+                Some(today + chrono::Duration::days(10)),
+            )
+            .await
+            .unwrap();
+
         let memberships = repo.role.fetch_roles_by_member(&user).await.unwrap();
 
         let wide = memberships
@@ -285,6 +304,12 @@ mod test_role {
             .find(|m| m.role_name.0 == "no-grace")
             .unwrap();
         assert!(!no_grace.renewal_due);
+
+        let unconfigured = memberships
+            .iter()
+            .find(|m| m.role_name.0 == "unconfigured")
+            .unwrap();
+        assert!(!unconfigured.renewal_due);
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }

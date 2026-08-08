@@ -324,6 +324,8 @@ impl RoleRepositoryPort for RoleRepo {
           SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,
                  r.renewable,
                  COALESCE(r.renewable AND rm.valid_until IS NOT NULL
+                          AND r.renewal_payment_link IS NOT NULL
+                          AND COALESCE(r.renewal_period_months, 0) > 0
                           AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days
                                                AND rm.valid_until + r.grace_period_days,
                           FALSE) AS "renewal_due!",
@@ -362,6 +364,8 @@ impl RoleRepositoryPort for RoleRepo {
             SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,
                    r.renewable,
                    COALESCE(r.renewable AND rm.valid_until IS NOT NULL
+                            AND r.renewal_payment_link IS NOT NULL
+                            AND COALESCE(r.renewal_period_months, 0) > 0
                             AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days
                                                  AND rm.valid_until + r.grace_period_days,
                             FALSE) AS "renewal_due!",

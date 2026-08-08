@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,\n                   r.renewable,\n                   COALESCE(r.renewable AND rm.valid_until IS NOT NULL\n                            AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days\n                                                 AND rm.valid_until + r.grace_period_days,\n                            FALSE) AS \"renewal_due!\",\n                   rm.valid_until + r.grace_period_days AS \"renewal_deadline?\"\n            FROM RoleMember rm\n            JOIN Role r ON r.name = rm.role_name\n            WHERE rm.valid_until < CURRENT_DATE AND rm.keycloak_removed_at IS NULL\n            ",
+  "query": "\n            SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,\n                   r.renewable,\n                   COALESCE(r.renewable AND rm.valid_until IS NOT NULL\n                            AND r.renewal_payment_link IS NOT NULL\n                            AND COALESCE(r.renewal_period_months, 0) > 0\n                            AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days\n                                                 AND rm.valid_until + r.grace_period_days,\n                            FALSE) AS \"renewal_due!\",\n                   rm.valid_until + r.grace_period_days AS \"renewal_deadline?\"\n            FROM RoleMember rm\n            JOIN Role r ON r.name = rm.role_name\n            WHERE rm.valid_until < CURRENT_DATE AND rm.keycloak_removed_at IS NULL\n            ",
   "describe": {
     "columns": [
       {
@@ -84,5 +84,5 @@
       null
     ]
   },
-  "hash": "ca1ae78edaf400ff111b12907aaff9f58a901b3b8fdabe7070a65c2fec37bae1"
+  "hash": "b62f8becbab4aaa9df67260e6363a8045980c26fbb5f849691368b65c00eacb4"
 }
