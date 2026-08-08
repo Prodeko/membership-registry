@@ -210,4 +210,82 @@ mod test_role {
         assert!(roles.len() == 8);
         assert!(roles[0].name.0 == "root-users");
     }
+
+    #[tokio::test]
+    async fn renewal_due_respects_window_and_grace() {
+        let (repo, db_url) = setup_test_db().await;
+        let user = _get_user_id();
+        let today = chrono::Utc::now().date_naive();
+
+        let renewal_defaults = Role {
+            name: RoleName(String::new()),
+            color: None,
+            description: None,
+            renewable: true,
+            renewal_payment_link: Some("https://pay".to_string()),
+            renewal_period_months: Some(12),
+            renewal_email_template: None,
+            renewal_notification_days: vec![30, 7, 1],
+            renewal_window_days: 30,
+            grace_period_days: 0,
+        };
+
+        // Wide window: expiry 35 days out is already due
+        repo.role
+            .create(&Role {
+                name: RoleName("wide-window".to_string()),
+                renewal_window_days: 40,
+                grace_period_days: 30,
+                ..renewal_defaults.clone()
+            })
+            .await
+            .unwrap();
+        repo.role
+            .create_role_member(
+                &user,
+                "wide-window",
+                today - chrono::Duration::days(330),
+                Some(today + chrono::Duration::days(35)),
+            )
+            .await
+            .unwrap();
+
+        // Default window, expired 10 days ago, no grace: not due
+        repo.role
+            .create(&Role {
+                name: RoleName("no-grace".to_string()),
+                ..renewal_defaults.clone()
+            })
+            .await
+            .unwrap();
+        repo.role
+            .create_role_member(
+                &user,
+                "no-grace",
+                today - chrono::Duration::days(375),
+                Some(today - chrono::Duration::days(10)),
+            )
+            .await
+            .unwrap();
+
+        let memberships = repo.role.fetch_roles_by_member(&user).await.unwrap();
+
+        let wide = memberships
+            .iter()
+            .find(|m| m.role_name.0 == "wide-window")
+            .unwrap();
+        assert!(wide.renewal_due);
+        assert_eq!(
+            wide.renewal_deadline,
+            Some(today + chrono::Duration::days(35 + 30))
+        );
+
+        let no_grace = memberships
+            .iter()
+            .find(|m| m.role_name.0 == "no-grace")
+            .unwrap();
+        assert!(!no_grace.renewal_due);
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
 }

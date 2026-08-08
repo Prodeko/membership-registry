@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n          SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,\n                 r.renewable, r.renewal_payment_link,\n                 rr.renewal_id as \"pending_renewal_id?\"\n          FROM RoleMember rm\n          JOIN Role r ON r.name = rm.role_name\n          LEFT JOIN RoleRenewal rr\n            ON rr.user_id = rm.user_id\n            AND rr.role_name = rm.role_name\n            AND rr.old_valid_from = rm.valid_from\n            AND rr.status = 'pending'\n          WHERE rm.user_id = $1\n          ORDER BY rm.valid_from DESC\n          ",
+  "query": "\n            SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,\n                   r.renewable, r.renewal_payment_link,\n                   rr.renewal_id as \"pending_renewal_id?\",\n                   COALESCE(r.renewable AND rm.valid_until IS NOT NULL\n                            AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days\n                                                 AND rm.valid_until + r.grace_period_days,\n                            FALSE) AS \"renewal_due!\",\n                   rm.valid_until + r.grace_period_days AS \"renewal_deadline?\"\n            FROM RoleMember rm\n            JOIN Role r ON r.name = rm.role_name\n            LEFT JOIN RoleRenewal rr\n              ON rr.user_id = rm.user_id\n              AND rr.role_name = rm.role_name\n              AND rr.old_valid_from = rm.valid_from\n              AND rr.status = 'pending'\n            WHERE rm.valid_until < CURRENT_DATE AND rm.keycloak_removed_at IS NULL\n            ",
   "describe": {
     "columns": [
       {
@@ -79,12 +79,22 @@
             "name": "renewal_id"
           }
         }
+      },
+      {
+        "ordinal": 7,
+        "name": "renewal_due!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 8,
+        "name": "renewal_deadline?",
+        "type_info": "Date",
+        "origin": "Expression"
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -93,8 +103,10 @@
       true,
       false,
       true,
-      true
+      true,
+      null,
+      null
     ]
   },
-  "hash": "633b3a14b25667932255ca684507ca68c6e70ca873f6076a7583b8279e54d846"
+  "hash": "fe517051d9d9c1966952d708a40f8e7386f4b15ac712721ad4222fbe226bd9eb"
 }

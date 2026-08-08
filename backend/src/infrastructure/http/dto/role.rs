@@ -60,6 +60,8 @@ pub struct RoleMembershipDTO {
     pub renewable: bool,
     pub renewal_payment_link: Option<String>,
     pub pending_renewal_id: Option<uuid::Uuid>,
+    pub renewal_due: bool,
+    pub renewal_deadline: Option<chrono::NaiveDate>,
 }
 
 impl From<RoleMembership> for RoleMembershipDTO {
@@ -72,6 +74,8 @@ impl From<RoleMembership> for RoleMembershipDTO {
             renewable: rm.renewable,
             renewal_payment_link: rm.renewal_payment_link,
             pending_renewal_id: rm.pending_renewal_id,
+            renewal_due: rm.renewal_due,
+            renewal_deadline: rm.renewal_deadline,
         }
     }
 }

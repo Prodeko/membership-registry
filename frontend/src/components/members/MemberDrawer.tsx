@@ -282,6 +282,8 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
           renewable: false,
           renewal_payment_link: null,
           pending_renewal_id: null,
+          renewal_due: false,
+          renewal_deadline: null,
         });
       }
     });

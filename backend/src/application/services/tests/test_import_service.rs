@@ -467,6 +467,8 @@ fn membership(
         renewable: false,
         renewal_payment_link: None,
         pending_renewal_id: None,
+        renewal_due: false,
+        renewal_deadline: None,
     }
 }
 
