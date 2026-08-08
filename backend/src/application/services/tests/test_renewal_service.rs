@@ -37,8 +37,6 @@ fn membership(user_id: Uuid, days_until_expiry: i64) -> RoleMembership {
         valid_from: today - Duration::days(300),
         valid_until: Some(today + Duration::days(days_until_expiry)),
         renewable: true,
-        renewal_payment_link: Some("https://buy.stripe.com/test".to_string()),
-        pending_renewal_id: None,
         renewal_due: true,
         renewal_deadline: Some(today + Duration::days(days_until_expiry)),
     }

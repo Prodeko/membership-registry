@@ -58,8 +58,6 @@ pub struct RoleMembershipDTO {
     pub valid_from: chrono::NaiveDate,
     pub valid_until: Option<chrono::NaiveDate>,
     pub renewable: bool,
-    pub renewal_payment_link: Option<String>,
-    pub pending_renewal_id: Option<uuid::Uuid>,
     pub renewal_due: bool,
     pub renewal_deadline: Option<chrono::NaiveDate>,
 }
@@ -72,8 +70,6 @@ impl From<RoleMembership> for RoleMembershipDTO {
             valid_from: rm.valid_from,
             valid_until: rm.valid_until,
             renewable: rm.renewable,
-            renewal_payment_link: rm.renewal_payment_link,
-            pending_renewal_id: rm.pending_renewal_id,
             renewal_due: rm.renewal_due,
             renewal_deadline: rm.renewal_deadline,
         }

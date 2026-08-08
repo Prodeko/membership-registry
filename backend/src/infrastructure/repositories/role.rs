@@ -49,8 +49,6 @@ struct RoleMemberDAO {
     valid_from: NaiveDate,
     valid_until: Option<NaiveDate>,
     renewable: bool,
-    renewal_payment_link: Option<String>,
-    pending_renewal_id: Option<Uuid>,
     renewal_due: bool,
     renewal_deadline: Option<NaiveDate>,
 }
@@ -63,8 +61,6 @@ impl From<RoleMemberDAO> for RoleMembership {
             valid_from: row.valid_from,
             valid_until: row.valid_until,
             renewable: row.renewable,
-            renewal_payment_link: row.renewal_payment_link,
-            pending_renewal_id: row.pending_renewal_id,
             renewal_due: row.renewal_due,
             renewal_deadline: row.renewal_deadline,
         }
@@ -307,8 +303,7 @@ impl RoleRepositoryPort for RoleRepo {
             RoleMemberDAO,
             r#"
           SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,
-                 r.renewable, r.renewal_payment_link,
-                 rr.renewal_id as "pending_renewal_id?",
+                 r.renewable,
                  COALESCE(r.renewable AND rm.valid_until IS NOT NULL
                           AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days
                                                AND rm.valid_until + r.grace_period_days,
@@ -316,11 +311,6 @@ impl RoleRepositoryPort for RoleRepo {
                  rm.valid_until + r.grace_period_days AS "renewal_deadline?"
           FROM RoleMember rm
           JOIN Role r ON r.name = rm.role_name
-          LEFT JOIN RoleRenewal rr
-            ON rr.user_id = rm.user_id
-            AND rr.role_name = rm.role_name
-            AND rr.old_valid_from = rm.valid_from
-            AND rr.status = 'pending'
           WHERE rm.user_id = $1
           ORDER BY rm.valid_from DESC
           "#,
@@ -351,8 +341,7 @@ impl RoleRepositoryPort for RoleRepo {
             RoleMemberDAO,
             r#"
             SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,
-                   r.renewable, r.renewal_payment_link,
-                   rr.renewal_id as "pending_renewal_id?",
+                   r.renewable,
                    COALESCE(r.renewable AND rm.valid_until IS NOT NULL
                             AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days
                                                  AND rm.valid_until + r.grace_period_days,
@@ -360,11 +349,6 @@ impl RoleRepositoryPort for RoleRepo {
                    rm.valid_until + r.grace_period_days AS "renewal_deadline?"
             FROM RoleMember rm
             JOIN Role r ON r.name = rm.role_name
-            LEFT JOIN RoleRenewal rr
-              ON rr.user_id = rm.user_id
-              AND rr.role_name = rm.role_name
-              AND rr.old_valid_from = rm.valid_from
-              AND rr.status = 'pending'
             WHERE rm.valid_until < CURRENT_DATE AND rm.keycloak_removed_at IS NULL
             "#
         )

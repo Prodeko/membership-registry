@@ -1,0 +1,88 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,\n                   r.renewable,\n                   COALESCE(r.renewable AND rm.valid_until IS NOT NULL\n                            AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days\n                                                 AND rm.valid_until + r.grace_period_days,\n                            FALSE) AS \"renewal_due!\",\n                   rm.valid_until + r.grace_period_days AS \"renewal_deadline?\"\n            FROM RoleMember rm\n            JOIN Role r ON r.name = rm.role_name\n            WHERE rm.valid_until < CURRENT_DATE AND rm.keycloak_removed_at IS NULL\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rolemember",
+            "name": "user_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "role_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rolemember",
+            "name": "role_name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "valid_from",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rolemember",
+            "name": "valid_from"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "valid_until",
+        "type_info": "Date",
+        "origin": {
+          "Table": {
+            "table": "rolemember",
+            "name": "valid_until"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "renewable",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "role",
+            "name": "renewable"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "renewal_due!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 6,
+        "name": "renewal_deadline?",
+        "type_info": "Date",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      false,
+      null,
+      null
+    ]
+  },
+  "hash": "ca1ae78edaf400ff111b12907aaff9f58a901b3b8fdabe7070a65c2fec37bae1"
+}

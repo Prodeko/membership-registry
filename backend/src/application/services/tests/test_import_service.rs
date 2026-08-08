@@ -465,8 +465,6 @@ fn membership(
         valid_from: date(valid_from),
         valid_until: valid_until.map(date),
         renewable: false,
-        renewal_payment_link: None,
-        pending_renewal_id: None,
         renewal_due: false,
         renewal_deadline: None,
     }

@@ -11,8 +11,6 @@ pub struct RoleMembership {
     pub valid_from: NaiveDate,
     pub valid_until: Option<NaiveDate>,
     pub renewable: bool,
-    pub renewal_payment_link: Option<String>,
-    pub pending_renewal_id: Option<Uuid>,
     pub renewal_due: bool,
     pub renewal_deadline: Option<NaiveDate>,
 }

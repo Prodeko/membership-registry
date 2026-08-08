@@ -280,8 +280,6 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
           valid_until: ra.validUntil,
           user_id: userId,
           renewable: false,
-          renewal_payment_link: null,
-          pending_renewal_id: null,
           renewal_due: false,
           renewal_deadline: null,
         });
@@ -335,8 +333,6 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
         valid_until: ra.validUntil,
         user_id: userId,
         renewable: false,
-        renewal_payment_link: null,
-        pending_renewal_id: null,
       })),
     ].forEach((r) => {
       if (validityStatus(r.valid_from, r.valid_until) !== "active") return;
