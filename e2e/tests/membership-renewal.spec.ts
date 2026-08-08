@@ -236,4 +236,50 @@ test.describe("Membership renewal", () => {
     await home.waitForLoaded();
     await expect(home.renewalBanner(testRole.name)).toBeHidden();
   });
+
+  test("configured banner texts render with substituted year", async ({
+    page,
+    db,
+    adminApi,
+    testUser,
+    testRole,
+  }) => {
+    await loginViaKeycloak(page, testUser.email, testUser.password);
+    const member = await db.getMemberByEmail(testUser.email);
+    const userId = member!.user_id as string;
+
+    await adminApi.updateRole(testRole.name, {
+      renewable: true,
+      renewal_payment_link: RENEWAL_PAYMENT_LINK,
+      renewal_period_months: 12,
+      renewal_prompts: [
+        {
+          locale: "en",
+          title: "Membership fee for {year}",
+          body: "You have not paid the membership fee for {year}.",
+          button_label: "Pay membership fee",
+        },
+      ],
+    });
+    const validUntil = daysFromNow(15);
+    await adminApi.assignRole(userId, testRole.name, startOfYear(), validUntil);
+
+    // {year} = year of (valid_until + 1 day + 12 months)
+    const expectedYear =
+      new Date(new Date(validUntil).getTime() + 86_400_000).getFullYear() + 1;
+
+    await page.goto("/home");
+    const home = new HomePage(page);
+    await home.waitForLoaded();
+
+    const banner = home.renewalBanner(testRole.name);
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText(`Membership fee for ${expectedYear}`);
+    await expect(banner).toContainText(
+      `You have not paid the membership fee for ${expectedYear}.`,
+    );
+    await expect(
+      page.getByTestId(`renewal-banner-button-${testRole.name}`),
+    ).toHaveText("Pay membership fee");
+  });
 });
