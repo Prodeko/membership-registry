@@ -107,6 +107,7 @@ const UserHome = () => {
         renewalDeadline: latest.renewal_deadline
           ? new Date(latest.renewal_deadline)
           : null,
+        renewalPrompts: latest.renewal_prompts,
       };
     });
   })();
@@ -151,6 +152,7 @@ const UserHome = () => {
             roleName={role.roleName}
             validUntil={role.validUntil!}
             renewalDeadline={role.renewalDeadline}
+            prompts={role.renewalPrompts}
           />
         ))}
 

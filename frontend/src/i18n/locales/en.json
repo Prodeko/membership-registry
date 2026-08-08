@@ -45,10 +45,10 @@
       "no_expiry": "No expiry"
     },
     "renewal": {
-      "title": "Renew your {{role}} membership",
+      "title": "Membership renewal",
       "expires_text": "Your membership expires on {{date}}.",
       "expired_text": "Your membership expired on {{date}}. You can renew it until {{deadline}}.",
-      "renew_button": "Renew membership"
+      "renew_button": "Pay membership fee"
     },
     "profile": {
       "title": "Profile"

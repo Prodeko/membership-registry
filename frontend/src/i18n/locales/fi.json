@@ -45,10 +45,10 @@
       "no_expiry": "Ei päättymispäivää"
     },
     "renewal": {
-      "title": "Uusi {{role}}-jäsenyytesi",
+      "title": "Jäsenyyden uusiminen",
       "expires_text": "Jäsenyytesi päättyy {{date}}.",
       "expired_text": "Jäsenyytesi päättyi {{date}}. Voit uusia sen {{deadline}} asti.",
-      "renew_button": "Uusi jäsenyys"
+      "renew_button": "Maksa jäsenmaksu"
     },
     "profile": {
       "title": "Profiili"
