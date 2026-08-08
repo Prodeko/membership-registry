@@ -50,6 +50,8 @@ export class AdminApiHelper {
       renewal_payment_link?: string | null;
       renewal_period_months?: number | null;
       renewal_notification_days?: number[];
+      renewal_window_days?: number;
+      grace_period_days?: number;
     },
   ): Promise<void> {
     const resp = await this.request(
@@ -60,6 +62,8 @@ export class AdminApiHelper {
         renewal_payment_link: data.renewal_payment_link ?? null,
         renewal_period_months: data.renewal_period_months ?? null,
         renewal_notification_days: data.renewal_notification_days ?? [30, 7, 1],
+        renewal_window_days: data.renewal_window_days ?? 30,
+        grace_period_days: data.grace_period_days ?? 0,
       },
     );
     if (!resp.ok)

@@ -89,6 +89,8 @@ const Role = () => {
             : null,
           renewal_email_template: renewalEmailTemplate || null,
           renewal_notification_days: role.renewal_notification_days,
+          renewal_window_days: role.renewal_window_days,
+          grace_period_days: role.grace_period_days,
         },
       },
       {

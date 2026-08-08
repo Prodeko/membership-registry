@@ -29,6 +29,8 @@ mod test_role {
             renewal_period_months: None,
             renewal_email_template: None,
             renewal_notification_days: vec![30, 7, 1],
+            renewal_window_days: 30,
+            grace_period_days: 0,
         };
 
         let role = repo.role.create(&role_to_add).await;
@@ -65,6 +67,8 @@ mod test_role {
                 renewal_period_months: None,
                 renewal_email_template: None,
                 renewal_notification_days: vec![30, 7, 1],
+                renewal_window_days: 30,
+                grace_period_days: 0,
             })
             .await;
 

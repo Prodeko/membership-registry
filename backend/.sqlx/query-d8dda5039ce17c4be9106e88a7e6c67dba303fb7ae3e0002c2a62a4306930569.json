@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE Role SET color = $2, description = $3, renewable = $4,\n                renewal_payment_link = $5, renewal_period_months = $6,\n                renewal_email_template = $7, renewal_notification_days = $8\n            WHERE name = $1\n            RETURNING name, color, description, renewable, renewal_payment_link,\n                      renewal_period_months, renewal_email_template, renewal_notification_days",
+  "query": "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days FROM Role WHERE name = $1",
   "describe": {
     "columns": [
       {
@@ -90,18 +90,33 @@
             "name": "renewal_notification_days"
           }
         }
+      },
+      {
+        "ordinal": 8,
+        "name": "renewal_window_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "role",
+            "name": "renewal_window_days"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "grace_period_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "role",
+            "name": "grace_period_days"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
-        "Text",
-        "Bool",
-        "Text",
-        "Int4",
-        "Text",
-        "Int4Array"
+        "Text"
       ]
     },
     "nullable": [
@@ -112,8 +127,10 @@
       true,
       true,
       true,
+      false,
+      false,
       false
     ]
   },
-  "hash": "efa82db9173beb27ef960a6fa8443d5c0d9ec06a795aca25c6dc072af3f6308b"
+  "hash": "d8dda5039ce17c4be9106e88a7e6c67dba303fb7ae3e0002c2a62a4306930569"
 }

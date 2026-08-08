@@ -15,6 +15,8 @@ pub struct RoleDTO {
     pub renewal_period_months: Option<i32>,
     pub renewal_email_template: Option<String>,
     pub renewal_notification_days: Vec<i32>,
+    pub renewal_window_days: i32,
+    pub grace_period_days: i32,
 }
 
 impl From<Role> for RoleDTO {
@@ -28,6 +30,8 @@ impl From<Role> for RoleDTO {
             renewal_period_months: role.renewal_period_months,
             renewal_email_template: role.renewal_email_template,
             renewal_notification_days: role.renewal_notification_days,
+            renewal_window_days: role.renewal_window_days,
+            grace_period_days: role.grace_period_days,
         }
     }
 }
@@ -42,6 +46,8 @@ pub struct UpdateRoleDTO {
     pub renewal_period_months: Option<i32>,
     pub renewal_email_template: Option<String>,
     pub renewal_notification_days: Vec<i32>,
+    pub renewal_window_days: i32,
+    pub grace_period_days: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]

@@ -21,6 +21,8 @@ struct RoleDAO {
     renewal_period_months: Option<i32>,
     renewal_email_template: Option<String>,
     renewal_notification_days: Vec<i32>,
+    renewal_window_days: i32,
+    grace_period_days: i32,
 }
 
 impl From<RoleDAO> for Role {
@@ -34,6 +36,8 @@ impl From<RoleDAO> for Role {
             renewal_period_months: row.renewal_period_months,
             renewal_email_template: row.renewal_email_template,
             renewal_notification_days: row.renewal_notification_days,
+            renewal_window_days: row.renewal_window_days,
+            grace_period_days: row.grace_period_days,
         }
     }
 }
@@ -96,9 +100,9 @@ impl RoleRepositoryPort for RoleRepo {
     async fn create(&self, role: &Role) -> Result<Role, RepositoryError> {
         let row = sqlx::query_as!(
             RoleDAO,
-            r#"INSERT INTO Role (name, color, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days"#,
+            r#"INSERT INTO Role (name, color, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days"#,
             &role.name.0,
             role.color.as_deref(),
             role.renewable,
@@ -106,6 +110,8 @@ impl RoleRepositoryPort for RoleRepo {
             role.renewal_period_months,
             role.renewal_email_template.as_deref(),
             &role.renewal_notification_days,
+            role.renewal_window_days,
+            role.grace_period_days,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -117,10 +123,12 @@ impl RoleRepositoryPort for RoleRepo {
             RoleDAO,
             r#"UPDATE Role SET color = $2, description = $3, renewable = $4,
                 renewal_payment_link = $5, renewal_period_months = $6,
-                renewal_email_template = $7, renewal_notification_days = $8
+                renewal_email_template = $7, renewal_notification_days = $8,
+                renewal_window_days = $9, grace_period_days = $10
             WHERE name = $1
             RETURNING name, color, description, renewable, renewal_payment_link,
-                      renewal_period_months, renewal_email_template, renewal_notification_days"#,
+                      renewal_period_months, renewal_email_template, renewal_notification_days,
+                      renewal_window_days, grace_period_days"#,
             &role.name.0,
             role.color.as_deref(),
             role.description.as_deref(),
@@ -129,6 +137,8 @@ impl RoleRepositoryPort for RoleRepo {
             role.renewal_period_months,
             role.renewal_email_template.as_deref(),
             &role.renewal_notification_days,
+            role.renewal_window_days,
+            role.grace_period_days,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -136,7 +146,7 @@ impl RoleRepositoryPort for RoleRepo {
     }
 
     async fn fetch_all(&self) -> Result<Vec<Role>, RepositoryError> {
-        let rows = sqlx::query_as!(RoleDAO, "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days FROM Role")
+        let rows = sqlx::query_as!(RoleDAO, "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days FROM Role")
             .fetch_all(&self.pool)
             .await?;
         Ok(rows.into_iter().map(Into::into).collect())
@@ -145,7 +155,7 @@ impl RoleRepositoryPort for RoleRepo {
     async fn fetch_by_name(&self, role_name: &str) -> Result<Role, RepositoryError> {
         let row = sqlx::query_as!(
             RoleDAO,
-            "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days FROM Role WHERE name = $1",
+            "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days FROM Role WHERE name = $1",
             role_name,
         )
         .fetch_one(&self.pool)

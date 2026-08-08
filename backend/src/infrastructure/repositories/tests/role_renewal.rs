@@ -35,6 +35,8 @@ mod test_role_renewal {
                 renewal_period_months: Some(12),
                 renewal_email_template: None,
                 renewal_notification_days: vec![14],
+                renewal_window_days: 30,
+                grace_period_days: 0,
             })
             .await
             .unwrap();

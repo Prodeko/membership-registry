@@ -81,6 +81,10 @@ impl RoleService {
         new_role: &Role,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Role> {
+        new_role
+            .validate_renewal_config()
+            .map_err(ServiceError::Constraint)?;
+
         self.role_sync
             .create_role(&new_role.name)
             .await
@@ -111,6 +115,9 @@ impl RoleService {
         role: &Role,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Role> {
+        role.validate_renewal_config()
+            .map_err(ServiceError::Constraint)?;
+
         let updated = self
             .role_repo
             .update(role)
