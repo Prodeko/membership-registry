@@ -21,7 +21,6 @@ pub struct RoleRenewal {
     pub new_valid_until: NaiveDate,
     pub status: RenewalStatus,
     pub stripe_payment_id: Option<String>,
-    pub notified_30d: bool,
-    pub notified_7d: bool,
-    pub notified_1d: bool,
+    /// Day offsets (days before expiry) at which a reminder has been sent.
+    pub notified_days: Vec<i32>,
 }

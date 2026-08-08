@@ -60,10 +60,23 @@ impl RenewalService {
 
     /// Create RoleRenewal records for memberships approaching expiry.
     async fn create_renewal_records(&self) -> ServiceResult<()> {
-        // 30 days is the max notification window
+        let roles = self
+            .role_repo
+            .fetch_all()
+            .await
+            .map_err(ServiceError::from)?;
+
+        // Look ahead as far as the earliest configured reminder needs
+        let lookahead = roles
+            .iter()
+            .filter(|r| r.renewable)
+            .flat_map(|r| r.renewal_notification_days.iter().copied())
+            .max()
+            .unwrap_or(0);
+
         let expiring = self
             .renewal_repo
-            .find_expiring_renewable(30)
+            .find_expiring_renewable(lookahead)
             .await
             .map_err(ServiceError::from)?;
 
@@ -100,9 +113,7 @@ impl RenewalService {
                 new_valid_until,
                 status: RenewalStatus::Pending,
                 stripe_payment_id: None,
-                notified_30d: false,
-                notified_7d: false,
-                notified_1d: false,
+                notified_days: Vec::new(),
             };
 
             match self.renewal_repo.create(&renewal).await {

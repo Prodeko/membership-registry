@@ -39,10 +39,10 @@ pub trait RoleRenewalRepositoryPort: Send + Sync {
         days_ahead: i32,
     ) -> Result<Vec<RenewableExpiring>, RepositoryError>;
 
-    /// Find pending renewals that need notification for a specific milestone.
+    /// Find pending renewals that need notification for a specific day offset.
     /// Returns renewals where old_valid_until is between today and today + days,
-    /// the notification flag for that milestone is not yet set, and the member
-    /// has email notifications enabled.
+    /// that offset is not yet recorded as notified, and the member has email
+    /// notifications enabled.
     async fn find_pending_needing_notification(
         &self,
         role_name: &str,
@@ -73,10 +73,11 @@ pub trait RoleRenewalRepositoryPort: Send + Sync {
     /// Mark a renewal as expired.
     async fn mark_expired(&self, renewal_id: Uuid) -> Result<(), RepositoryError>;
 
-    /// Mark a specific notification milestone as sent.
-    /// Returns an error if the days value is not one of 30, 7, or 1.
+    /// Record that the reminder for the given day offset has been sent.
+    /// Appends the offset if it is not already recorded.
     async fn mark_notified(&self, renewal_id: Uuid, days: i32) -> Result<(), RepositoryError>;
 
-    /// Find all pending renewals that have passed their old_valid_until date.
+    /// Find all pending renewals whose old_valid_until plus the role's grace
+    /// period has passed.
     async fn find_overdue_pending(&self) -> Result<Vec<RoleRenewal>, RepositoryError>;
 }

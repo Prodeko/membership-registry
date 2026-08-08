@@ -21,9 +21,7 @@ struct RoleRenewalDAO {
     new_valid_until: NaiveDate,
     status: String,
     stripe_payment_id: Option<String>,
-    notified_30d: bool,
-    notified_7d: bool,
-    notified_1d: bool,
+    notified_days: Vec<i32>,
 }
 
 impl From<RoleRenewalDAO> for RoleRenewal {
@@ -43,9 +41,7 @@ impl From<RoleRenewalDAO> for RoleRenewal {
             new_valid_until: dao.new_valid_until,
             status,
             stripe_payment_id: dao.stripe_payment_id,
-            notified_30d: dao.notified_30d,
-            notified_7d: dao.notified_7d,
-            notified_1d: dao.notified_1d,
+            notified_days: dao.notified_days,
         }
     }
 }
@@ -159,18 +155,7 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
         role_name: &str,
         days: i32,
     ) -> Result<Vec<PendingNotification>, RepositoryError> {
-        let notified_column = match days {
-            30 => "rr.notified_30d",
-            7 => "rr.notified_7d",
-            1 => "rr.notified_1d",
-            _ => {
-                return Err(RepositoryError::Unexpected(format!(
-                    "Unsupported notification milestone: {days} days"
-                )))
-            }
-        };
-
-        let query = format!(
+        let rows = sqlx::query_as::<_, PendingNotificationDAO>(
             r#"
             SELECT
                 rr.renewal_id,
@@ -186,17 +171,15 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
             WHERE rr.role_name = $1
               AND rr.status = 'pending'
               AND rr.old_valid_until >= CURRENT_DATE
-              AND rr.old_valid_until <= CURRENT_DATE + ($2 || ' days')::interval
-              AND NOT {notified_column}
+              AND rr.old_valid_until - CURRENT_DATE <= $2
+              AND NOT ($2 = ANY(rr.notified_days))
               AND m.email_notifications = TRUE
-            "#
-        );
-
-        let rows = sqlx::query_as::<_, PendingNotificationDAO>(sqlx::AssertSqlSafe(query))
-            .bind(role_name)
-            .bind(days)
-            .fetch_all(&self.pool)
-            .await?;
+            "#,
+        )
+        .bind(role_name)
+        .bind(days)
+        .fetch_all(&self.pool)
+        .await?;
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
@@ -216,7 +199,7 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8::renewal_status)
             RETURNING renewal_id, user_id, role_name, old_valid_from, old_valid_until,
                       new_valid_from, new_valid_until, status::text, stripe_payment_id,
-                      notified_30d, notified_7d, notified_1d
+                      notified_days
             "#,
         )
         .bind(renewal.renewal_id)
@@ -237,7 +220,7 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
             r#"
             SELECT renewal_id, user_id, role_name, old_valid_from, old_valid_until,
                    new_valid_from, new_valid_until, status::text, stripe_payment_id,
-                   notified_30d, notified_7d, notified_1d
+                   notified_days
             FROM RoleRenewal
             WHERE renewal_id = $1
             "#,
@@ -258,7 +241,7 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
             r#"
             SELECT renewal_id, user_id, role_name, old_valid_from, old_valid_until,
                    new_valid_from, new_valid_until, status::text, stripe_payment_id,
-                   notified_30d, notified_7d, notified_1d
+                   notified_days
             FROM RoleRenewal
             WHERE user_id = $1 AND role_name = $2 AND old_valid_from = $3 AND status = 'pending'
             "#,
@@ -305,42 +288,30 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
     }
 
     async fn mark_notified(&self, renewal_id: Uuid, days: i32) -> Result<(), RepositoryError> {
-        match days {
-            30 => {
-                sqlx::query("UPDATE RoleRenewal SET notified_30d = TRUE WHERE renewal_id = $1")
-                    .bind(renewal_id)
-                    .execute(&self.pool)
-                    .await?;
-            }
-            7 => {
-                sqlx::query("UPDATE RoleRenewal SET notified_7d = TRUE WHERE renewal_id = $1")
-                    .bind(renewal_id)
-                    .execute(&self.pool)
-                    .await?;
-            }
-            1 => {
-                sqlx::query("UPDATE RoleRenewal SET notified_1d = TRUE WHERE renewal_id = $1")
-                    .bind(renewal_id)
-                    .execute(&self.pool)
-                    .await?;
-            }
-            _ => {
-                return Err(RepositoryError::Unexpected(format!(
-                    "Unsupported notification milestone: {days} days"
-                )));
-            }
-        }
+        sqlx::query(
+            r#"
+            UPDATE RoleRenewal
+            SET notified_days = array_append(notified_days, $2)
+            WHERE renewal_id = $1 AND NOT ($2 = ANY(notified_days))
+            "#,
+        )
+        .bind(renewal_id)
+        .bind(days)
+        .execute(&self.pool)
+        .await?;
         Ok(())
     }
 
     async fn find_overdue_pending(&self) -> Result<Vec<RoleRenewal>, RepositoryError> {
         let rows = sqlx::query_as::<_, RoleRenewalDAO>(
             r#"
-            SELECT renewal_id, user_id, role_name, old_valid_from, old_valid_until,
-                   new_valid_from, new_valid_until, status::text, stripe_payment_id,
-                   notified_30d, notified_7d, notified_1d
-            FROM RoleRenewal
-            WHERE status = 'pending' AND old_valid_until < CURRENT_DATE
+            SELECT rr.renewal_id, rr.user_id, rr.role_name, rr.old_valid_from,
+                   rr.old_valid_until, rr.new_valid_from, rr.new_valid_until,
+                   rr.status::text, rr.stripe_payment_id, rr.notified_days
+            FROM RoleRenewal rr
+            JOIN Role r ON r.name = rr.role_name
+            WHERE rr.status = 'pending'
+              AND rr.old_valid_until + r.grace_period_days < CURRENT_DATE
             "#,
         )
         .fetch_all(&self.pool)
