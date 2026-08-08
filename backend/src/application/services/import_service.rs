@@ -107,7 +107,7 @@ pub(crate) fn resolve_member_columns(
     })
 }
 
-pub(crate) fn cell<'a>(idx: Option<usize>, rec: &'a [String]) -> Option<&'a str> {
+pub(crate) fn cell(idx: Option<usize>, rec: &[String]) -> Option<&str> {
     idx.map(|i| rec[i].as_str())
 }
 

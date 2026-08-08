@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n          INSERT INTO RoleMember (user_id, role_name, valid_from, valid_until)\n          VALUES ($1, $2, $3, $4)\n          ON CONFLICT (user_id, role_name, valid_from)\n          DO UPDATE SET valid_until = EXCLUDED.valid_until\n          ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Date",
+        "Date"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4cbc048f7a8c1d489c2db3142ee13daf3deafa9e3fe1df8da1d0b2cdbdba8d46"
+}
