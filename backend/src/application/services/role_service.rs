@@ -355,12 +355,22 @@ impl RoleService {
             .map_err(ServiceError::from)
     }
 
-    pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<MemberRoleView>> {
-        let memberships = self
-            .role_repo
+    pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<RoleMembership>> {
+        self.role_repo
             .fetch_roles_by_member(&user_id)
             .await
-            .map_err(ServiceError::from)?;
+            .map_err(ServiceError::from)
+    }
+
+    /// Member-facing variant of [`Self::get_member_roles`]: each membership is
+    /// paired with the role's renewal banner prompts, rendered when renewal is
+    /// due. Costs two extra queries per distinct due role, so callers that only
+    /// need the membership rows should use [`Self::get_member_roles`].
+    pub async fn get_member_roles_with_prompts(
+        &self,
+        user_id: Uuid,
+    ) -> ServiceResult<Vec<MemberRoleView>> {
+        let memberships = self.get_member_roles(user_id).await?;
 
         let mut roles: HashMap<String, Role> = HashMap::new();
         let mut prompts: HashMap<String, Vec<RenewalPrompt>> = HashMap::new();

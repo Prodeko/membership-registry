@@ -88,7 +88,7 @@ async fn get_member_roles(
 ) -> ApiResult<Json<Vec<RoleMembershipDTO>>> {
     let roles: Vec<RoleMembershipDTO> = state
         .role_service
-        .get_member_roles(user_id)
+        .get_member_roles_with_prompts(user_id)
         .await?
         .into_iter()
         .map(RoleMembershipDTO::from)

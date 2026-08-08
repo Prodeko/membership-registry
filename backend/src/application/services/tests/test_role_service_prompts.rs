@@ -84,7 +84,7 @@ async fn renders_prompts_with_substituted_year_for_due_roles() {
 
     let svc = make_role_service(role_repo);
 
-    let views = svc.get_member_roles(user_id).await.unwrap();
+    let views = svc.get_member_roles_with_prompts(user_id).await.unwrap();
     assert_eq!(views.len(), 1);
     let prompts = &views[0].renewal_prompts;
     assert_eq!(prompts.len(), 1);
@@ -118,6 +118,6 @@ async fn non_due_roles_get_no_prompts_and_no_role_fetch() {
 
     let svc = make_role_service(role_repo);
 
-    let views = svc.get_member_roles(user_id).await.unwrap();
+    let views = svc.get_member_roles_with_prompts(user_id).await.unwrap();
     assert!(views[0].renewal_prompts.is_empty());
 }

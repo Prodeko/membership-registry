@@ -892,7 +892,6 @@ impl ImportService {
             .map_err(|e| format!("lookup failed: {e:?}"))?;
         let Some(current) = existing
             .iter()
-            .map(|v| &v.membership)
             .find(|m| m.role_name.0 == data.role_name && m.valid_from == data.valid_from)
         else {
             return Ok((RowAction::Create, vec![]));

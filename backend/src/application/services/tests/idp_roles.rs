@@ -181,8 +181,8 @@ mod test_idp_roles {
         // Verify the DB row was created
         let roles = role_service.get_member_roles(user_uuid()).await.unwrap();
         let has_new_role = roles.iter().any(|r| {
-            r.membership.role_name.0 == "prodeko-external-member"
-                && r.membership.valid_from == NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()
+            r.role_name.0 == "prodeko-external-member"
+                && r.valid_from == NaiveDate::from_ymd_opt(2026, 1, 1).unwrap()
         });
         assert!(has_new_role, "Expected new role membership in DB");
 
@@ -578,8 +578,8 @@ mod test_idp_roles {
         // Verify the DB row was deleted
         let roles = role_service.get_member_roles(user_uuid()).await.unwrap();
         let still_has_role = roles.iter().any(|r| {
-            r.membership.role_name.0 == "prodeko-external-member"
-                && r.membership.valid_from == NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()
+            r.role_name.0 == "prodeko-external-member"
+                && r.valid_from == NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()
         });
         assert!(!still_has_role, "Role membership should be removed from DB");
 
