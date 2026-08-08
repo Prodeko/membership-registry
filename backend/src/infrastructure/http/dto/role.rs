@@ -80,6 +80,12 @@ impl From<RoleMembership> for RoleMembershipDTO {
     }
 }
 
+#[derive(Debug, Serialize, TS)]
+#[ts(export, rename = "StartRenewalResponse")]
+pub struct StartRenewalResponseDTO {
+    pub payment_url: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, rename = "RoleStats")]
 pub struct RoleStatsDTO {

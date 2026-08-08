@@ -29,6 +29,9 @@ use crate::application::ports::{
     marketing_tag_repository_port::MarketingTagRepositoryPort,
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
     repository_error::RepositoryError,
+    role_renewal_repository_port::{
+        PendingNotification, RenewableExpiring, RoleRenewalRepositoryPort,
+    },
     role_repository_port::{RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams},
     rolesync_port::{IdpGroupId, IdpSubject, RoleSyncError, RoleSyncPort},
     template_renderer_port::TemplateRendererPort,
@@ -38,7 +41,7 @@ use crate::application::ports::{
 use crate::domain::{
     Application, ApplicationId, ApplicationStatus, AttributeDefinition, AttributeName,
     AttributeValue, EmailTemplate, EmailTemplateTranslation, MarketingTag, MemberAttribute,
-    NewApplication, NewPerson, Person, PersonId, Role, RoleName, UpdatePersonData,
+    NewApplication, NewPerson, Person, PersonId, Role, RoleName, RoleRenewal, UpdatePersonData,
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
@@ -131,6 +134,25 @@ mock! {
         async fn fetch_roles_with_stats(&self, params: RolesWithStatsParams) -> Result<Vec<RoleStats>, RepositoryError>;
         async fn fetch_expired_unsynced(&self) -> Result<Vec<RoleMembership>, RepositoryError>;
         async fn mark_keycloak_synced(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate) -> Result<(), RepositoryError>;
+    }
+}
+
+// --- RoleRenewalRepositoryPort ---
+
+mock! {
+    pub RoleRenewalRepositoryPort {}
+
+    #[async_trait::async_trait]
+    impl RoleRenewalRepositoryPort for RoleRenewalRepositoryPort {
+        async fn find_expiring_renewable(&self, days_ahead: i32) -> Result<Vec<RenewableExpiring>, RepositoryError>;
+        async fn find_pending_needing_notification(&self, role_name: &str, days: i32) -> Result<Vec<PendingNotification>, RepositoryError>;
+        async fn create(&self, renewal: &RoleRenewal) -> Result<RoleRenewal, RepositoryError>;
+        async fn find_by_id(&self, renewal_id: Uuid) -> Result<RoleRenewal, RepositoryError>;
+        async fn find_pending(&self, user_id: Uuid, role_name: &str, old_valid_from: NaiveDate) -> Result<Option<RoleRenewal>, RepositoryError>;
+        async fn mark_paid(&self, renewal_id: Uuid, stripe_payment_id: &str) -> Result<(), RepositoryError>;
+        async fn mark_expired(&self, renewal_id: Uuid) -> Result<(), RepositoryError>;
+        async fn mark_notified(&self, renewal_id: Uuid, days: i32) -> Result<(), RepositoryError>;
+        async fn find_overdue_pending(&self) -> Result<Vec<RoleRenewal>, RepositoryError>;
     }
 }
 

@@ -355,6 +355,112 @@ impl RenewalService {
 
         Ok(true)
     }
+
+    /// Get-or-create a pending renewal for the member's latest dated membership
+    /// of `role_name` and return the Stripe payment URL for it. Fails unless
+    /// the role's renewal window (or grace period) is currently open.
+    pub async fn start_member_renewal(
+        &self,
+        user_id: Uuid,
+        role_name: &str,
+    ) -> ServiceResult<String> {
+        let role = self
+            .role_repo
+            .fetch_by_name(role_name)
+            .await
+            .map_err(ServiceError::from)?;
+
+        let (payment_link, period_months) =
+            match (&role.renewal_payment_link, role.renewal_period_months) {
+                (Some(link), Some(m)) if role.renewable && m > 0 => (link.clone(), m),
+                _ => {
+                    return Err(ServiceError::Constraint(
+                        "Role is not configured for renewal".to_string(),
+                    ))
+                }
+            };
+
+        let memberships = self
+            .role_repo
+            .fetch_roles_by_member(&user_id)
+            .await
+            .map_err(ServiceError::from)?;
+        let membership = memberships
+            .iter()
+            .filter(|m| m.role_name.0 == role_name && m.valid_until.is_some())
+            .max_by_key(|m| m.valid_until)
+            .ok_or(ServiceError::NotFound)?;
+        let valid_until = match membership.valid_until {
+            Some(d) => d,
+            None => return Err(ServiceError::NotFound),
+        };
+
+        let today = chrono::Utc::now().date_naive();
+        if !role.renewal_is_open(valid_until, today) {
+            return Err(ServiceError::Constraint(
+                "Renewal window is not open".to_string(),
+            ));
+        }
+
+        if let Some(existing) = self
+            .renewal_repo
+            .find_pending(user_id, role_name, membership.valid_from)
+            .await
+            .map_err(ServiceError::from)?
+        {
+            return Ok(format!(
+                "{payment_link}?client_reference_id={}",
+                existing.renewal_id
+            ));
+        }
+
+        let new_valid_from = valid_until + chrono::Duration::days(1);
+        let renewal = RoleRenewal {
+            renewal_id: Uuid::new_v4(),
+            user_id,
+            role_name: RoleName(role_name.to_string()),
+            old_valid_from: membership.valid_from,
+            old_valid_until: valid_until,
+            new_valid_from,
+            new_valid_until: add_months(new_valid_from, period_months),
+            status: RenewalStatus::Pending,
+            stripe_payment_id: None,
+            notified_days: Vec::new(),
+        };
+
+        let created = match self.renewal_repo.create(&renewal).await {
+            Ok(r) => r,
+            // Unique pending index: a concurrent request won the race
+            Err(RepositoryError::Constraint(_)) => self
+                .renewal_repo
+                .find_pending(user_id, role_name, membership.valid_from)
+                .await
+                .map_err(ServiceError::from)?
+                .ok_or_else(|| {
+                    ServiceError::DatabaseError("pending renewal disappeared".to_string())
+                })?,
+            Err(e) => return Err(ServiceError::from(e)),
+        };
+
+        self.audit_log
+            .log(
+                Some(user_id),
+                "role_renewal.started",
+                "role_renewal",
+                &created.renewal_id.to_string(),
+                Some(serde_json::json!({
+                    "user_id": user_id,
+                    "role_name": role_name,
+                    "old_valid_until": valid_until.to_string(),
+                })),
+            )
+            .await;
+
+        Ok(format!(
+            "{payment_link}?client_reference_id={}",
+            created.renewal_id
+        ))
+    }
 }
 
 /// Add months to a date, clamping to the last day of the target month.

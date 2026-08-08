@@ -40,6 +40,7 @@ export type {
   RoleMember,
   RoleStats,
   SavedFilter,
+  StartRenewalResponse,
   SubscriptionState,
   TagPreferenceUpdate,
   UpdateMarketingTag,

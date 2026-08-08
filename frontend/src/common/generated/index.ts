@@ -57,6 +57,7 @@ export type { RoleMemberBody } from "./RoleMemberBody";
 export type { RoleStats } from "./RoleStats";
 export type { RolesWithStatsQuery } from "./RolesWithStatsQuery";
 export type { SavedFilter } from "./SavedFilter";
+export type { StartRenewalResponse } from "./StartRenewalResponse";
 export type { UnlinkProviderPath } from "./UnlinkProviderPath";
 export type { UpdateApplicationStatus } from "./UpdateApplicationStatus";
 export type { UpdateEmailTemplate } from "./UpdateEmailTemplate";

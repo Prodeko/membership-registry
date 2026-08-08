@@ -18,7 +18,7 @@ use crate::{
         dto::{
             marketing::{MarketingPreferencesDTO, MarketingPreferencesUpdateDTO},
             member::{MemberDTO, NewMemberDTO, UpdateMemberDTO},
-            role::RoleMembershipDTO,
+            role::{RoleMembershipDTO, StartRenewalResponseDTO},
         },
         errors::{ApiError, ApiResult},
         middleware::check_member_access,
@@ -42,6 +42,7 @@ pub fn router(state: AppState) -> Router<AppState> {
             "/me/marketing-preferences",
             get(get_marketing_preferences).post(update_marketing_preferences),
         )
+        .route("/me/roles/{role_name}/renewal", post(start_renewal))
 }
 
 #[debug_handler]
@@ -150,6 +151,20 @@ async fn post_member(
         .await?;
 
     Ok(Json(MemberDTO::from(person)))
+}
+
+#[debug_handler]
+async fn start_renewal(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+    Path((role_name,)): Path<(String,)>,
+) -> ApiResult<Json<StartRenewalResponseDTO>> {
+    let user = user_info.ok_or(ApiError::Unauthorized)?;
+    let payment_url = state
+        .renewal_service
+        .start_member_renewal(user.user_id, &role_name)
+        .await?;
+    Ok(Json(StartRenewalResponseDTO { payment_url }))
 }
 
 #[debug_handler]
