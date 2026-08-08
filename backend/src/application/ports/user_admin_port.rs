@@ -28,4 +28,27 @@ pub trait UserAdminPort: Send + Sync {
         email: Option<String>,
         require_verify_email: bool,
     ) -> Result<(), UserAdminError>;
+
+    /// Create a Keycloak user with `enabled = true`, `emailVerified = false`,
+    /// no credentials, and the given `locale` attribute (drives the language
+    /// of Keycloak-sent emails). Returns the new subject parsed from the
+    /// `Location` header of the 201 response.
+    async fn create_user(
+        &self,
+        email: &str,
+        first_name: &str,
+        last_name: &str,
+        locale: &str,
+    ) -> Result<String, UserAdminError>;
+
+    /// Exact-match lookup by email. Returns the subject, or `None`.
+    async fn find_by_email(&self, email: &str) -> Result<Option<String>, UserAdminError>;
+
+    /// Trigger Keycloak's execute-actions email (e.g. `UPDATE_PASSWORD`,
+    /// `VERIFY_EMAIL`) so the user sets a password and verifies their address.
+    async fn send_required_actions_email(
+        &self,
+        subject: &str,
+        actions: &[String],
+    ) -> Result<(), UserAdminError>;
 }

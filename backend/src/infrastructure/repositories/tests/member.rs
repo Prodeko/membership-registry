@@ -288,6 +288,35 @@ mod test_member {
     }
 
     #[tokio::test]
+    async fn fetch_by_email_is_case_insensitive() {
+        let (repo, db_url) = setup_test_db().await;
+        let id = Uuid::new_v4();
+        repo.member
+            .create(NewPerson {
+                id: PersonId(id),
+                email: Email::new_unchecked("Mixed@Case.com".into()),
+                first_name: "A".into(),
+                last_name: "B".into(),
+                home_municipality: None,
+                email_notifications: true,
+                language: "fi".into(),
+            })
+            .await
+            .unwrap();
+
+        let found = repo.member.fetch_by_email("mixed@case.com").await.unwrap();
+        assert_eq!(found.unwrap().id.0, id);
+        assert!(repo
+            .member
+            .fetch_by_email("nobody@x.com")
+            .await
+            .unwrap()
+            .is_none());
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    #[tokio::test]
     async fn test_delete_member() {
         let (repo, db_url) = setup_test_db().await;
         let user_id = Uuid::parse_str("3e1ab0ea-c56a-457f-961f-13938954bb2b").unwrap();

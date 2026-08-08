@@ -104,6 +104,7 @@ mock! {
         async fn delete_many(&self, ids: Vec<Uuid>) -> Result<(), RepositoryError>;
         async fn fetch_members_with_roles(&self, params: MembersWithRolesParams) -> Result<Vec<MemberWithRoles>, RepositoryError>;
         async fn count_members_with_roles(&self, params: MembersWithRolesParams) -> Result<i64, RepositoryError>;
+        async fn fetch_by_email(&self, email: &str) -> Result<Option<Person>, RepositoryError>;
         async fn set_email_notifications_by_email(&self, email: &str, value: bool) -> Result<u64, RepositoryError>;
     }
 }
@@ -121,6 +122,7 @@ mock! {
         async fn fetch_by_name(&self, role_name: &str) -> Result<Role, RepositoryError>;
         async fn delete(&self, role_name: &str) -> Result<(), RepositoryError>;
         async fn create_role_member(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate, valid_until: Option<NaiveDate>) -> Result<(), RepositoryError>;
+        async fn upsert_role_member(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate, valid_until: Option<NaiveDate>) -> Result<(), RepositoryError>;
         async fn create_role_members_batch(&self, user_ids: &[Uuid], role_names: &[String], valid_from: NaiveDate, valid_until: Option<NaiveDate>) -> Result<(), RepositoryError>;
         async fn update_valid_until(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate, new_valid_until: NaiveDate) -> Result<(), RepositoryError>;
         async fn delete_role_member(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate) -> Result<(), RepositoryError>;
@@ -318,6 +320,19 @@ mock! {
             last_name: &str,
             email: Option<String>,
             require_verify_email: bool,
+        ) -> Result<(), UserAdminError>;
+        async fn create_user(
+            &self,
+            email: &str,
+            first_name: &str,
+            last_name: &str,
+            locale: &str,
+        ) -> Result<String, UserAdminError>;
+        async fn find_by_email(&self, email: &str) -> Result<Option<String>, UserAdminError>;
+        async fn send_required_actions_email(
+            &self,
+            subject: &str,
+            actions: &[String],
         ) -> Result<(), UserAdminError>;
     }
 }

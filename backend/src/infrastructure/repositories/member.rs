@@ -188,6 +188,17 @@ impl MemberRepositoryPort for MemberRepo {
         Ok(())
     }
 
+    async fn fetch_by_email(&self, email: &str) -> Result<Option<Person>, RepositoryError> {
+        let row = sqlx::query_as!(
+            MemberDAO,
+            "SELECT * FROM member WHERE lower(email) = lower($1)",
+            email
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.map(Person::from))
+    }
+
     async fn set_email_notifications_by_email(
         &self,
         email: &str,

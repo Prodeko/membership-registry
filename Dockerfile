@@ -2,7 +2,7 @@
 FROM node:22-bookworm-slim AS frontend
 RUN corepack enable
 WORKDIR /frontend
-COPY frontend/package.json frontend/pnpm-lock.yaml ./
+COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY frontend/ .
 ARG VITE_API_BASE_URL=/api

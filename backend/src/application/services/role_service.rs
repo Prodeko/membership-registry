@@ -214,6 +214,55 @@ impl RoleService {
         Ok(())
     }
 
+    /// Upsert a role membership: (re-)assign the role in Keycloak, then insert
+    /// or overwrite the DB row keyed on (user_id, role_name, valid_from).
+    pub async fn upsert_role_member(
+        &self,
+        user_id: Uuid,
+        role_name: &str,
+        valid_from: chrono::NaiveDate,
+        valid_until: Option<chrono::NaiveDate>,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<()> {
+        let providers = self
+            .auth_provider_repo
+            .find_by_user_id(&user_id)
+            .await
+            .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
+        for provider in providers {
+            self.role_sync
+                .assign_role(
+                    &IdpSubject(provider.provider_user_id),
+                    &RoleName(role_name.to_string()),
+                )
+                .await
+                .map_err(|_| ServiceError::IdpError)?;
+        }
+
+        self.role_repo
+            .upsert_role_member(&user_id, role_name, valid_from, valid_until)
+            .await
+            .map_err(ServiceError::from)?;
+
+        self.audit_log
+            .log(
+                actor_user_id,
+                "role_member.upsert",
+                "role_member",
+                &format!("{user_id}:{role_name}"),
+                Some(serde_json::json!({
+                    "user_id": user_id,
+                    "role_name": role_name,
+                    "valid_from": valid_from.to_string(),
+                    "valid_until": valid_until.map(|d| d.to_string()),
+                })),
+            )
+            .await;
+
+        self.invalidate_sync_cache();
+        Ok(())
+    }
+
     /// Assigns a role to a member, writing the DB row first and then attempting
     /// to sync to the IdP on a best-effort basis. Unlike `add_role_member`,
     /// this does not fail the operation if the IdP sync fails — the failure is

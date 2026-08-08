@@ -64,4 +64,30 @@ impl UserAdminPort for KeycloakUserAdminAdapter {
             .await?;
         Ok(())
     }
+
+    async fn create_user(
+        &self,
+        email: &str,
+        first_name: &str,
+        last_name: &str,
+        locale: &str,
+    ) -> Result<String, UserAdminError> {
+        Ok(self
+            .client
+            .create_user(email, first_name, last_name, locale)
+            .await?)
+    }
+
+    async fn find_by_email(&self, email: &str) -> Result<Option<String>, UserAdminError> {
+        Ok(self.client.find_user_by_email(email).await?)
+    }
+
+    async fn send_required_actions_email(
+        &self,
+        subject: &str,
+        actions: &[String],
+    ) -> Result<(), UserAdminError> {
+        self.client.send_actions_email(subject, actions).await?;
+        Ok(())
+    }
 }

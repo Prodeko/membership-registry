@@ -52,6 +52,10 @@ pub trait MemberRepositoryPort: Send + Sync {
         params: MembersWithRolesParams,
     ) -> Result<i64, RepositoryError>;
 
+    /// Look up a member by email, case-insensitively. Returns `None` when no
+    /// member has that address.
+    async fn fetch_by_email(&self, email: &str) -> Result<Option<Person>, RepositoryError>;
+
     /// Narrow update used by marketing list sync when a contact unsubscribes
     /// remotely. Returns the number of rows updated (0 if no member with
     /// that email, or the flag was already at `value`).

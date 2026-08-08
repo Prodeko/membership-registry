@@ -657,6 +657,122 @@ impl KeycloakClient {
         Ok(())
     }
 
+    pub async fn create_user(
+        &self,
+        email: &str,
+        first_name: &str,
+        last_name: &str,
+        locale: &str,
+    ) -> Result<String, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("users");
+        // A random throwaway password (never revealed to anyone) marked
+        // `temporary` gives the account a credential, which the login flow
+        // requires before offering password entry / reset — without one the
+        // user would be hard-blocked unless they used the invite link. The
+        // locale attribute must be set atomically here — emails sent right
+        // after creation already depend on it.
+        let throwaway_password = uuid::Uuid::new_v4().to_string();
+        let body = serde_json::json!({
+            "email": email,
+            "firstName": first_name,
+            "lastName": last_name,
+            "enabled": true,
+            "emailVerified": false,
+            "requiredActions": ["UPDATE_PASSWORD", "VERIFY_EMAIL"],
+            "attributes": { "locale": [locale] },
+            "credentials": [{
+                "type": "password",
+                "value": throwaway_password,
+                "temporary": true,
+            }],
+        });
+        let response = self
+            .http
+            .post(&url)
+            .bearer_auth(&token)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(e.to_string()))?;
+
+        if response.status() == reqwest::StatusCode::CONFLICT {
+            return Err(KeycloakError::Unavailable(
+                "user already exists in Keycloak".into(),
+            ));
+        }
+        if !response.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "create_user failed: {}",
+                response.status()
+            )));
+        }
+
+        // The new user's id is the last path segment of the Location header.
+        let location = response
+            .headers()
+            .get("Location")
+            .and_then(|v| v.to_str().ok())
+            .ok_or_else(|| KeycloakError::BadResponse("missing Location header".into()))?;
+        let subject = location
+            .rsplit('/')
+            .next()
+            .ok_or_else(|| KeycloakError::BadResponse("malformed Location header".into()))?
+            .to_string();
+        Ok(subject)
+    }
+
+    pub async fn find_user_by_email(&self, email: &str) -> Result<Option<String>, KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url("users");
+        let response = self
+            .http
+            .get(&url)
+            .bearer_auth(&token)
+            .query(&[("email", email), ("exact", "true")])
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(e.to_string()))?;
+        if !response.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "find_user_by_email failed: {}",
+                response.status()
+            )));
+        }
+        let users: Vec<KeycloakUserDTO> = response
+            .json()
+            .await
+            .map_err(|e| KeycloakError::BadResponse(e.to_string()))?;
+        Ok(users.into_iter().next().map(|u| u.id))
+    }
+
+    pub async fn send_actions_email(
+        &self,
+        subject: &str,
+        actions: &[String],
+    ) -> Result<(), KeycloakError> {
+        let token = self.get_service_token().await?;
+        let url = self.admin_url(&format!(
+            "users/{}/execute-actions-email",
+            encode_path(subject)
+        ));
+        let response = self
+            .http
+            .put(&url)
+            .bearer_auth(&token)
+            .json(actions)
+            .send()
+            .await
+            .map_err(|e| KeycloakError::Unavailable(e.to_string()))?;
+        if !response.status().is_success() {
+            return Err(KeycloakError::Unavailable(format!(
+                "execute-actions-email failed: {}",
+                response.status()
+            )));
+        }
+        Ok(())
+    }
+
     // -----------------------------------------------------------------------
     // Role management (admin API)
     // -----------------------------------------------------------------------
@@ -1522,6 +1638,67 @@ impl KeycloakClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{body_partial_json, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// Matches a user payload carrying a non-trivial temporary password
+    /// credential (the random value itself is unpredictable).
+    struct HasTempPasswordCredential;
+    impl wiremock::Match for HasTempPasswordCredential {
+        fn matches(&self, request: &wiremock::Request) -> bool {
+            let Ok(v) = serde_json::from_slice::<serde_json::Value>(&request.body) else {
+                return false;
+            };
+            let Some(c) = v["credentials"].get(0) else {
+                return false;
+            };
+            c["type"] == "password"
+                && c["temporary"] == true
+                && c["value"].as_str().is_some_and(|s| s.len() >= 16)
+        }
+    }
+
+    #[tokio::test]
+    async fn create_user_sends_required_actions() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/realms/test/protocol/openid-connect/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "t",
+                "expires_in": 3600
+            })))
+            .mount(&server)
+            .await;
+        // Only matches when the payload carries the required actions, the
+        // locale attribute, and a temporary password credential; otherwise
+        // the request 404s and create_user errors.
+        Mock::given(method("POST"))
+            .and(path("/admin/realms/test/users"))
+            .and(body_partial_json(serde_json::json!({
+                "requiredActions": ["UPDATE_PASSWORD", "VERIFY_EMAIL"],
+                "attributes": { "locale": ["en"] }
+            })))
+            .and(HasTempPasswordCredential)
+            .respond_with(ResponseTemplate::new(201).insert_header(
+                "Location",
+                format!("{}/admin/realms/test/users/abc-123", server.uri()).as_str(),
+            ))
+            .mount(&server)
+            .await;
+
+        let client = KeycloakClient::new(KeycloakConfig {
+            base_url: server.uri(),
+            realm: "test".into(),
+            client_id: "app".into(),
+            client_secret: None,
+            admin_client_id: "admin-cli".into(),
+            admin_client_secret: "secret".into(),
+            admin_role_name: "admin".into(),
+        });
+
+        let subject = client.create_user("a@x.com", "A", "B", "en").await.unwrap();
+        assert_eq!(subject, "abc-123");
+    }
 
     #[test]
     fn url_builders() {

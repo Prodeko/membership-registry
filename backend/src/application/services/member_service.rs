@@ -115,6 +115,31 @@ impl MemberService {
         Ok(person)
     }
 
+    pub async fn find_by_email(&self, email: &str) -> ServiceResult<Option<Person>> {
+        self.member_repo
+            .fetch_by_email(email)
+            .await
+            .map_err(ServiceError::from)
+    }
+
+    /// Create a member whose Keycloak account already exists (subject supplied),
+    /// then link that subject through the `"keycloak"` provider. Reuses
+    /// `create_member` so imported accounts get the same marketing/attribute
+    /// bootstrap as self-registered members.
+    pub async fn provision_member(
+        &self,
+        new_person: NewPerson,
+        provider_user_id: &str,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<Person> {
+        let person = self.create_member(new_person, actor_user_id).await?;
+        self.auth_provider_repo
+            .create(&person.id.0, "keycloak", provider_user_id)
+            .await
+            .map_err(|e| ServiceError::DatabaseError(format!("{e:?}")))?;
+        Ok(person)
+    }
+
     pub async fn get_all_members(&self) -> ServiceResult<Vec<Person>> {
         self.member_repo
             .fetch_all()
