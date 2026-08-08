@@ -98,6 +98,27 @@ const Role = () => {
   }
 
   const handleSave = () => {
+    const windowDays = parseInt(renewalWindowDays, 10);
+    const graceDays = parseInt(gracePeriodDays, 10);
+    const reminders = notificationDays
+      .split(",")
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0)
+      .map((s) => parseInt(s, 10));
+
+    if (!Number.isFinite(windowDays) || windowDays < 1) {
+      toast.error("Renewal window must be a positive number of days");
+      return;
+    }
+    if (!Number.isFinite(graceDays) || graceDays < 0) {
+      toast.error("Grace period must be zero or more days");
+      return;
+    }
+    if (reminders.some((n) => !Number.isFinite(n) || n < 1)) {
+      toast.error("Reminder days must be positive numbers separated by commas");
+      return;
+    }
+
     updateRole(
       {
         roleName: role.name,
@@ -110,12 +131,9 @@ const Role = () => {
             ? parseInt(renewalPeriodMonths) || null
             : null,
           renewal_email_template: renewalEmailTemplate || null,
-          renewal_notification_days: notificationDays
-            .split(",")
-            .map((s) => parseInt(s.trim(), 10))
-            .filter((n) => Number.isFinite(n) && n > 0),
-          renewal_window_days: parseInt(renewalWindowDays, 10) || 30,
-          grace_period_days: parseInt(gracePeriodDays, 10) || 0,
+          renewal_notification_days: reminders,
+          renewal_window_days: windowDays,
+          grace_period_days: graceDays,
           renewal_prompts: (["fi", "en"] as const)
             .filter((locale) =>
               [
@@ -128,14 +146,13 @@ const Role = () => {
         },
       },
       {
+        // Validation errors surface through the global mutation error toast,
+        // which shows the server's message.
         onSuccess: () => {
           toast.success("Role updated");
           queryClient.invalidateQueries({
             queryKey: [QueryKey.ROLES, roleName],
           });
-        },
-        onError: () => {
-          toast.error("Failed to update role");
         },
       },
     );
