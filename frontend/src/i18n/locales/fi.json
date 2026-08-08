@@ -42,9 +42,13 @@
       "title": "Aktiiviset roolit",
       "description": "Nykyiset jäsenyysroolisi.",
       "empty": "Sinulla ei ole vielä aktiivisia rooleja.",
-      "no_expiry": "Ei päättymispäivää",
-      "expiring_soon": "Vanhenee {{days}} päivän kuluttua",
-      "renew": "Uusi jäsenyys"
+      "no_expiry": "Ei päättymispäivää"
+    },
+    "renewal": {
+      "title": "Uusi {{role}}-jäsenyytesi",
+      "expires_text": "Jäsenyytesi päättyy {{date}}.",
+      "expired_text": "Jäsenyytesi päättyi {{date}}. Voit uusia sen {{deadline}} asti.",
+      "renew_button": "Uusi jäsenyys"
     },
     "profile": {
       "title": "Profiili"

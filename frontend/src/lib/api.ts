@@ -37,6 +37,7 @@ import {
   RoleMember,
   RoleStats,
   SavedFilter,
+  StartRenewalResponse,
   UpdateMember,
   UpdateRole,
 } from "@/common/types";
@@ -285,6 +286,17 @@ export const useGetMemberRoles = (
       return response.data;
     },
     enabled: options?.enabled,
+  });
+};
+
+export const useStartRenewal = () => {
+  return useMutation<StartRenewalResponse, Error, string>({
+    mutationFn: async (roleName: string) => {
+      const response = await axios_client.post<StartRenewalResponse>(
+        `/members/me/roles/${encodeURIComponent(roleName)}/renewal`,
+      );
+      return response.data;
+    },
   });
 };
 
