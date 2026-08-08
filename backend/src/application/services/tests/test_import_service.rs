@@ -522,117 +522,132 @@ async fn preview_roles_distinguishes_unchanged_and_changed_valid_until() {
     assert_eq!(preview.update_count(), 1);
 }
 
-#[tokio::test]
-async fn preview_attributes_classifies_create_update_unchanged_and_errors() {
-    let mut attr = MockAttributeRepositoryPort::new();
-    attr.expect_fetch_all_definitions().returning(|| {
-        Ok(vec![
-            def("guild", Some(vec!["prodeko", "athene"]), EditableBy::Admin),
-            def("year", None, EditableBy::Admin),
-        ])
-    });
-    let svc = import_service(
-        MockMemberRepositoryPort::new(),
-        attr,
-        MockUserAdminPort::new(),
-    );
+/// Definitions used by the attribute-value import tests: guild (allowed
+/// prodeko|athene), year (free-form), nickname (user-editable).
+fn value_import_defs() -> Vec<AttributeDefinition> {
+    vec![
+        def("guild", Some(vec!["prodeko", "athene"]), EditableBy::Admin),
+        def("year", None, EditableBy::Admin),
+        def("nickname", None, EditableBy::User),
+    ]
+}
 
-    let csv = b"name,description,allowed_values,default_value,editable_by,sync_to_keycloak\n\
-year,,,,admin,false\n\
-guild,,prodeko|athene|tik,,,\n\
-shirt-size,Shirt size,S|M|L,M,user,false\n\
-bad-editable,,,,wizard,\n";
-    let preview = svc.preview_attributes(csv).await.unwrap();
-
-    assert_eq!(preview.fatal_error, None);
-    assert_eq!(preview.rows[0].result, Ok(RowAction::Unchanged));
-    assert_eq!(preview.rows[1].result, Ok(RowAction::Update));
-    assert_eq!(
-        preview.rows[1].changes,
-        vec!["allowed_values: prodeko|athene → prodeko|athene|tik".to_string()]
-    );
-    assert_eq!(preview.rows[2].result, Ok(RowAction::Create));
-    assert!(preview.rows[3].result.is_err());
-    assert_eq!(preview.create_count(), 1);
-    assert_eq!(preview.update_count(), 1);
-    assert_eq!(preview.unchanged_count(), 1);
-    assert_eq!(preview.error_count(), 1);
+/// Every member currently has guild=prodeko and nothing else.
+fn guild_prodeko(uid: &PersonId) -> Vec<MemberAttribute> {
+    vec![MemberAttribute {
+        user_id: uid.clone(),
+        name: AttributeName::new("guild").unwrap(),
+        value: AttributeValue::new("prodeko").unwrap(),
+    }]
 }
 
 #[tokio::test]
-async fn apply_attributes_writes_creates_and_updates_only() {
+async fn preview_attribute_values_classifies_create_update_unchanged_and_errors() {
+    let mut attr = MockAttributeRepositoryPort::new();
+    attr.expect_fetch_all_definitions()
+        .returning(|| Ok(value_import_defs()));
+    attr.expect_fetch_member_values()
+        .returning(|uid| Ok(guild_prodeko(uid)));
+
+    let mut members = MockMemberRepositoryPort::new();
+    members
+        .expect_fetch_by_email()
+        .returning(|email| Ok((email != "nobody@x.com").then(|| person(email))));
+
+    let svc = import_service(members, attr, MockUserAdminPort::new());
+    let csv = b"email,attribute,value\n\
+a@x.com,guild,prodeko\n\
+b@x.com,guild,athene\n\
+c@x.com,year,III\n\
+c@x.com,guild,null\n\
+b@x.com,year,null\n\
+d@x.com,guild,tik\n\
+nobody@x.com,year,I\n\
+a@x.com,ghost,x\n\
+a@x.com,nickname,Foo\n\
+a@x.com,guild,athene\n\
+d@x.com,year,\n";
+    let preview = svc.preview_attributes(csv).await.unwrap();
+
+    assert_eq!(preview.fatal_error, None);
+    assert_eq!(preview.rows[0].result, Ok(RowAction::Unchanged)); // same value
+    assert_eq!(preview.rows[1].result, Ok(RowAction::Update));
+    assert_eq!(
+        preview.rows[1].changes,
+        vec!["guild: prodeko → athene".to_string()]
+    );
+    assert_eq!(preview.rows[2].result, Ok(RowAction::Create)); // year not set yet
+    assert_eq!(preview.rows[3].result, Ok(RowAction::Update)); // clear a set value
+    assert_eq!(
+        preview.rows[3].changes,
+        vec!["guild: prodeko → (cleared)".to_string()]
+    );
+    assert_eq!(preview.rows[4].result, Ok(RowAction::Unchanged)); // clear an unset value
+    assert!(preview.rows[5].result.is_err()); // value not in allowed set
+    assert!(preview.rows[6].result.is_err()); // unknown member
+    assert!(preview.rows[7].result.is_err()); // unknown attribute
+    assert!(preview.rows[8].result.is_err()); // user-editable attribute
+    assert!(preview.rows[9].result.is_err()); // duplicate email+attribute in file
+    assert!(preview.rows[10].result.is_err()); // empty value cell
+    assert_eq!(preview.create_count(), 1);
+    assert_eq!(preview.update_count(), 2);
+    assert_eq!(preview.unchanged_count(), 2);
+    assert_eq!(preview.error_count(), 6);
+}
+
+#[tokio::test]
+async fn apply_attribute_values_sets_and_clears_changed_rows_only() {
     use crate::application::services::import_service::RowOutcome;
     let mut attr = MockAttributeRepositoryPort::new();
     attr.expect_fetch_all_definitions()
-        .returning(|| {
-            Ok(vec![
-                def("guild", Some(vec!["prodeko", "athene"]), EditableBy::Admin),
-                def("year", None, EditableBy::Admin),
-            ])
-        })
+        .returning(|| Ok(value_import_defs()))
         .times(1..);
-    attr.expect_create_definition()
-        .withf(|input| input.name.as_str() == "shirt-size")
-        .returning(|input| {
-            Ok(AttributeDefinition::new(
-                input.name,
-                input.description,
-                input.allowed_values,
-                input.default_value,
-                input.sync_to_keycloak,
-                input.editable_by,
-            )
-            .unwrap())
-        })
-        .times(1);
+    attr.expect_fetch_member_values()
+        .returning(|uid| Ok(guild_prodeko(uid)));
     attr.expect_fetch_definition()
-        .returning(|_| {
-            Ok(Some(def(
-                "guild",
-                Some(vec!["prodeko", "athene"]),
-                EditableBy::Admin,
-            )))
+        .returning(|name| Ok(value_import_defs().into_iter().find(|d| d.name() == name)));
+    attr.expect_upsert_member_value()
+        .withf(|_, name, value| {
+            (name.as_str() == "guild" && value.as_str() == "athene")
+                || (name.as_str() == "year" && value.as_str() == "III")
         })
-        .times(1..);
-    attr.expect_fetch_all_values_for()
-        .returning(|_| Ok(vec![]))
-        .times(0..);
-    attr.expect_update_definition()
-        .withf(|name, input| {
-            name.as_str() == "guild" && input.allowed_values.as_ref().is_some_and(|v| v.len() == 3)
-        })
-        .returning(|_, _| {
-            Ok(def(
-                "guild",
-                Some(vec!["prodeko", "athene", "tik"]),
-                EditableBy::Admin,
-            ))
-        })
+        .returning(|_, _, _| Ok(()))
+        .times(2);
+    attr.expect_delete_member_value()
+        .withf(|_, name| name.as_str() == "guild")
+        .returning(|_, _| Ok(()))
         .times(1);
 
-    let svc = import_service(
-        MockMemberRepositoryPort::new(),
-        attr,
-        MockUserAdminPort::new(),
-    );
-    // update, create, duplicate-in-file, unchanged
-    let csv = b"name,allowed_values,default_value,editable_by\n\
-guild,prodeko|athene|tik,,\n\
-shirt-size,S|M|L,M,user\n\
-guild,prodeko,,\n\
-year,,,\n";
+    let mut members = MockMemberRepositoryPort::new();
+    members
+        .expect_fetch_by_email()
+        .returning(|email| Ok(Some(person(email))));
+
+    let svc = import_service(members, attr, MockUserAdminPort::new());
+    // update, create, clear, duplicate-in-file, unchanged
+    let csv = b"email,attribute,value\n\
+a@x.com,guild,athene\n\
+b@x.com,year,III\n\
+b@x.com,guild,null\n\
+a@x.com,guild,prodeko\n\
+c@x.com,guild,prodeko\n";
     let report = svc.apply_attributes_import(csv, None).await.unwrap();
 
     assert_eq!(report.rows[0].outcome, RowOutcome::Updated);
     assert_eq!(
         report.rows[0].changes,
-        vec!["allowed_values: prodeko|athene → prodeko|athene|tik".to_string()]
+        vec!["guild: prodeko → athene".to_string()]
     );
     assert_eq!(report.rows[1].outcome, RowOutcome::Created);
-    assert!(matches!(report.rows[2].outcome, RowOutcome::Skipped(_)));
-    assert_eq!(report.rows[3].outcome, RowOutcome::Unchanged);
+    assert_eq!(report.rows[2].outcome, RowOutcome::Updated);
+    assert_eq!(
+        report.rows[2].changes,
+        vec!["guild: prodeko → (cleared)".to_string()]
+    );
+    assert!(matches!(report.rows[3].outcome, RowOutcome::Skipped(_)));
+    assert_eq!(report.rows[4].outcome, RowOutcome::Unchanged);
     assert_eq!(report.count(&RowOutcome::Created), 1);
-    assert_eq!(report.count(&RowOutcome::Updated), 1);
+    assert_eq!(report.count(&RowOutcome::Updated), 2);
     assert_eq!(report.count(&RowOutcome::Unchanged), 1);
 }
 

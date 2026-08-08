@@ -1380,7 +1380,8 @@ export interface RoleImportReport {
 
 export interface AttributeImportPreviewRow {
   line: number;
-  name: string;
+  email: string;
+  attribute: string;
   action?: "create" | "update" | "unchanged";
   error?: string | null;
   changes: string[];
@@ -1395,7 +1396,8 @@ export interface AttributeImportPreview {
 }
 export interface AttributeImportResultRow {
   line: number;
-  name: string;
+  email: string;
+  attribute: string;
   outcome: string;
   detail?: string | null;
   changes: string[];

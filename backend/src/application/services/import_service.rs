@@ -3,18 +3,15 @@ use std::sync::Arc;
 
 use chrono::NaiveDate;
 
-use crate::application::ports::attribute_repository_port::CreateAttributeDefinition;
 use crate::application::ports::tabular_parse_port::{TabularParseError, TabularParsePort};
 use crate::application::ports::user_admin_port::UserAdminPort;
-use crate::application::services::attribute_service::{
-    AttributeService, UpdateAttributeDefinitionPatch,
-};
+use crate::application::services::attribute_service::AttributeService;
 use crate::application::services::errors::ServiceResult;
 use crate::application::services::member_service::MemberService;
 use crate::application::services::role_service::RoleService;
 use crate::domain::{
-    AttributeDefinition, AttributeName, AttributeValue, EditableBy, Email, NewPerson, Patch,
-    Person, PersonId, UpdatePersonData,
+    AttributeDefinition, AttributeName, AttributeValue, EditableBy, Email, NewPerson, Person,
+    PersonId, UpdatePersonData,
 };
 use uuid::Uuid;
 
@@ -918,22 +915,16 @@ impl ImportService {
 }
 
 // ---------------------------------------------------------------------------
-// Attribute definition import
+// Member attribute value import
 // ---------------------------------------------------------------------------
 
-const KNOWN_ATTRIBUTE_COLUMNS: &[&str] = &[
-    "name",
-    "description",
-    "allowed_values",
-    "default_value",
-    "editable_by",
-    "sync_to_keycloak",
-];
+const KNOWN_ATTRIBUTE_COLUMNS: &[&str] = &["email", "attribute", "value"];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AttributePreviewRow {
     pub line: usize,
-    pub name: String,
+    pub email: String,
+    pub attribute: String,
     pub result: Result<RowAction, String>,
     /// Human-readable `field: old → new` entries; non-empty only for updates.
     pub changes: Vec<String>,
@@ -972,7 +963,8 @@ impl AttributeImportPreview {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AttributeResultRow {
     pub line: usize,
-    pub name: String,
+    pub email: String,
+    pub attribute: String,
     pub outcome: RowOutcome,
     /// Human-readable `field: old → new` entries; non-empty only for updates.
     pub changes: Vec<String>,
@@ -991,12 +983,9 @@ impl AttributeImportReport {
 }
 
 struct AttributeColumns {
-    name: usize,
-    description: Option<usize>,
-    allowed_values: Option<usize>,
-    default_value: Option<usize>,
-    editable_by: Option<usize>,
-    sync_to_keycloak: Option<usize>,
+    email: usize,
+    attribute: usize,
+    value: usize,
 }
 
 fn resolve_attribute_columns(headers: &[String]) -> Result<AttributeColumns, String> {
@@ -1010,216 +999,101 @@ fn resolve_attribute_columns(headers: &[String]) -> Result<AttributeColumns, Str
         return Err(format!("unknown column(s): {}", unknown.join(", ")));
     }
     Ok(AttributeColumns {
-        name: idx("name").ok_or_else(|| "missing required column: name".to_string())?,
-        description: idx("description"),
-        allowed_values: idx("allowed_values"),
-        default_value: idx("default_value"),
-        editable_by: idx("editable_by"),
-        sync_to_keycloak: idx("sync_to_keycloak"),
+        email: idx("email").ok_or_else(|| "missing required column: email".to_string())?,
+        attribute: idx("attribute")
+            .ok_or_else(|| "missing required column: attribute".to_string())?,
+        value: idx("value").ok_or_else(|| "missing required column: value".to_string())?,
     })
 }
 
-/// Parsed row intent. Field cells follow the shared import convention:
-/// empty = keep current (or unset on create), `null` = clear.
+/// One member's value for one attribute; `value: None` means clear.
 struct AttributeRowData {
+    user_id: PersonId,
     name: AttributeName,
-    description: Patch<String>,
-    allowed_values: Patch<Vec<AttributeValue>>,
-    default_value: Patch<AttributeValue>,
-    editable_by: Option<EditableBy>,
-    sync_to_keycloak: Option<bool>,
-}
-
-fn parse_attribute_row(
-    cols: &AttributeColumns,
-    rec: &[String],
-    seen: &mut HashSet<String>,
-) -> Result<AttributeRowData, String> {
-    let raw_name = rec[cols.name].trim();
-    let name =
-        AttributeName::new(raw_name.to_string()).map_err(|e| format!("invalid name: {e:?}"))?;
-    if !seen.insert(raw_name.to_ascii_lowercase()) {
-        return Err("duplicate name within file".into());
-    }
-    let raw = |idx: Option<usize>| cell(idx, rec).map(str::trim).filter(|s| !s.is_empty());
-
-    let description = match raw(cols.description) {
-        None => Patch::Leave,
-        Some("null") => Patch::Clear,
-        Some(v) => Patch::Set(v.to_string()),
-    };
-    let allowed_values = match raw(cols.allowed_values) {
-        None => Patch::Leave,
-        Some("null") => Patch::Clear,
-        Some(v) => Patch::Set(
-            v.split('|')
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(|s| {
-                    AttributeValue::new(s)
-                        .map_err(|e| format!("invalid allowed value '{s}': {e:?}"))
-                })
-                .collect::<Result<Vec<_>, _>>()?,
-        ),
-    };
-    let default_value = match raw(cols.default_value) {
-        None => Patch::Leave,
-        Some("null") => Patch::Clear,
-        Some(v) => {
-            Patch::Set(AttributeValue::new(v).map_err(|e| format!("invalid default_value: {e:?}"))?)
-        }
-    };
-    let editable_by = match raw(cols.editable_by) {
-        None => None,
-        Some(v) => Some(match v.to_ascii_lowercase().as_str() {
-            "admin" => EditableBy::Admin,
-            "user" => EditableBy::User,
-            "both" => EditableBy::Both,
-            _ => return Err("editable_by must be admin, user or both".into()),
-        }),
-    };
-    let sync_to_keycloak = match raw(cols.sync_to_keycloak) {
-        None => None,
-        Some(v) => {
-            Some(parse_bool(v).map_err(|_| "sync_to_keycloak must be true/false".to_string())?)
-        }
-    };
-    Ok(AttributeRowData {
-        name,
-        description,
-        allowed_values,
-        default_value,
-        editable_by,
-        sync_to_keycloak,
-    })
-}
-
-fn joined_values(vs: &[AttributeValue]) -> String {
-    vs.iter()
-        .map(AttributeValue::as_str)
-        .collect::<Vec<_>>()
-        .join("|")
-}
-
-fn attribute_changes(data: &AttributeRowData, existing: &AttributeDefinition) -> Vec<String> {
-    const EMPTY: &str = "(empty)";
-    let mut changes = Vec::new();
-
-    match &data.description {
-        Patch::Set(d) if existing.description() != Some(d.as_str()) => changes.push(format!(
-            "description: {} → {d}",
-            existing.description().unwrap_or(EMPTY)
-        )),
-        Patch::Clear if existing.description().is_some() => changes.push(format!(
-            "description: {} → (cleared)",
-            existing.description().unwrap_or(EMPTY)
-        )),
-        _ => {}
-    }
-    match &data.allowed_values {
-        Patch::Set(vs) => {
-            let old = existing.allowed_values().map(joined_values);
-            let new = joined_values(vs);
-            if old.as_deref() != Some(new.as_str()) {
-                changes.push(format!(
-                    "allowed_values: {} → {new}",
-                    old.unwrap_or_else(|| EMPTY.to_string())
-                ));
-            }
-        }
-        Patch::Clear if existing.allowed_values().is_some() => changes.push(format!(
-            "allowed_values: {} → (cleared)",
-            existing
-                .allowed_values()
-                .map(joined_values)
-                .unwrap_or_else(|| EMPTY.to_string())
-        )),
-        _ => {}
-    }
-    match &data.default_value {
-        Patch::Set(v) if existing.default_value() != Some(v) => changes.push(format!(
-            "default_value: {} → {}",
-            existing
-                .default_value()
-                .map(AttributeValue::as_str)
-                .unwrap_or(EMPTY),
-            v.as_str()
-        )),
-        Patch::Clear if existing.default_value().is_some() => changes.push(format!(
-            "default_value: {} → (cleared)",
-            existing
-                .default_value()
-                .map(AttributeValue::as_str)
-                .unwrap_or(EMPTY)
-        )),
-        _ => {}
-    }
-    if let Some(e) = data.editable_by {
-        if e != existing.editable_by() {
-            changes.push(format!(
-                "editable_by: {} → {}",
-                existing.editable_by().as_str(),
-                e.as_str()
-            ));
-        }
-    }
-    if let Some(s) = data.sync_to_keycloak {
-        if s != existing.sync_to_keycloak() {
-            changes.push(format!(
-                "sync_to_keycloak: {} → {s}",
-                existing.sync_to_keycloak()
-            ));
-        }
-    }
-    changes
-}
-
-fn classify_attribute_row(
-    data: &AttributeRowData,
-    defs: &[AttributeDefinition],
-) -> Result<(RowAction, Vec<String>), String> {
-    match defs.iter().find(|d| d.name() == &data.name) {
-        None => {
-            if let (Patch::Set(allowed), Patch::Set(dv)) =
-                (&data.allowed_values, &data.default_value)
-            {
-                if !allowed.contains(dv) {
-                    return Err(format!(
-                        "default_value '{}' not in allowed_values",
-                        dv.as_str()
-                    ));
-                }
-            }
-            Ok((RowAction::Create, vec![]))
-        }
-        Some(existing) => {
-            let resolved_allowed = data
-                .allowed_values
-                .clone()
-                .apply(existing.allowed_values().map(<[AttributeValue]>::to_vec));
-            let resolved_default = data
-                .default_value
-                .clone()
-                .apply(existing.default_value().cloned());
-            if let (Some(a), Some(d)) = (&resolved_allowed, &resolved_default) {
-                if !a.contains(d) {
-                    return Err(format!(
-                        "default_value '{}' not in allowed_values",
-                        d.as_str()
-                    ));
-                }
-            }
-            let changes = attribute_changes(data, existing);
-            Ok(if changes.is_empty() {
-                (RowAction::Unchanged, vec![])
-            } else {
-                (RowAction::Update, changes)
-            })
-        }
-    }
+    value: Option<AttributeValue>,
 }
 
 impl ImportService {
+    async fn parse_attribute_row(
+        &self,
+        cols: &AttributeColumns,
+        rec: &[String],
+        defs: &[AttributeDefinition],
+        seen: &mut HashSet<(String, String)>,
+    ) -> Result<AttributeRowData, String> {
+        let email = rec[cols.email].trim();
+        let raw_name = rec[cols.attribute].trim();
+        let name = AttributeName::new(raw_name.to_string())
+            .map_err(|e| format!("invalid attribute name: {e:?}"))?;
+        if !seen.insert((email.to_ascii_lowercase(), raw_name.to_ascii_lowercase())) {
+            return Err("duplicate email+attribute within file".into());
+        }
+
+        let def = defs
+            .iter()
+            .find(|d| d.name() == &name)
+            .ok_or_else(|| format!("unknown attribute '{raw_name}'"))?;
+        if def.editable_by() == EditableBy::User {
+            return Err(format!(
+                "attribute '{raw_name}' is user-editable and cannot be set via import"
+            ));
+        }
+
+        let member = self
+            .member_service
+            .find_by_email(email)
+            .await
+            .map_err(|e| format!("lookup failed: {e:?}"))?
+            .ok_or_else(|| "no member with this email".to_string())?;
+
+        let value = match rec[cols.value].trim() {
+            "" => return Err("value required; use null to clear".into()),
+            "null" => None,
+            v => {
+                let parsed = AttributeValue::new(v)
+                    .map_err(|e| format!("invalid value for '{raw_name}': {e:?}"))?;
+                def.validate(&parsed)
+                    .map_err(|_| format!("value '{v}' not allowed for '{raw_name}'"))?;
+                Some(parsed)
+            }
+        };
+        Ok(AttributeRowData {
+            user_id: member.id,
+            name,
+            value,
+        })
+    }
+
+    async fn classify_attribute_row(
+        &self,
+        data: &AttributeRowData,
+    ) -> Result<(RowAction, Vec<String>), String> {
+        let current_values = self
+            .attribute_service
+            .fetch_for_member(data.user_id.clone())
+            .await
+            .map_err(|e| format!("attribute lookup failed: {e:?}"))?;
+        let old = current_values
+            .iter()
+            .find(|a| a.name == data.name)
+            .map(|a| a.value.as_str());
+        let name = data.name.as_str();
+        Ok(
+            match (data.value.as_ref().map(AttributeValue::as_str), old) {
+                (Some(new), Some(old)) if new == old => (RowAction::Unchanged, vec![]),
+                (Some(new), Some(old)) => {
+                    (RowAction::Update, vec![format!("{name}: {old} → {new}")])
+                }
+                (Some(_), None) => (RowAction::Create, vec![]),
+                (None, Some(old)) => (
+                    RowAction::Update,
+                    vec![format!("{name}: {old} → (cleared)")],
+                ),
+                (None, None) => (RowAction::Unchanged, vec![]),
+            },
+        )
+    }
+
     pub async fn preview_attributes(&self, bytes: &[u8]) -> ServiceResult<AttributeImportPreview> {
         let parsed = match self.parser.parse(bytes) {
             Ok(p) => p,
@@ -1244,16 +1118,18 @@ impl ImportService {
         let mut rows = Vec::new();
         let mut seen = HashSet::new();
         for (i, rec) in parsed.records.iter().enumerate() {
-            let name = rec[cols.name].trim().to_string();
-            let (result, changes) = match parse_attribute_row(&cols, rec, &mut seen)
-                .and_then(|data| classify_attribute_row(&data, &defs))
-            {
-                Ok((action, changes)) => (Ok(action), changes),
-                Err(e) => (Err(e), vec![]),
-            };
+            let (result, changes) =
+                match self.parse_attribute_row(&cols, rec, &defs, &mut seen).await {
+                    Ok(data) => match self.classify_attribute_row(&data).await {
+                        Ok((action, changes)) => (Ok(action), changes),
+                        Err(e) => (Err(e), vec![]),
+                    },
+                    Err(e) => (Err(e), vec![]),
+                };
             rows.push(AttributePreviewRow {
                 line: i + 1,
-                name,
+                email: rec[cols.email].trim().to_string(),
+                attribute: rec[cols.attribute].trim().to_string(),
                 result,
                 changes,
             });
@@ -1292,48 +1168,46 @@ impl ImportService {
         let mut rows = Vec::new();
         let mut seen = HashSet::new();
         for (i, rec) in parsed.records.iter().enumerate() {
-            let name = rec[cols.name].trim().to_string();
-            let (outcome, changes) = match parse_attribute_row(&cols, rec, &mut seen) {
+            let (outcome, changes) = match self
+                .parse_attribute_row(&cols, rec, &defs, &mut seen)
+                .await
+            {
                 Err(e) => (RowOutcome::Skipped(e), vec![]),
-                Ok(data) => match classify_attribute_row(&data, &defs) {
+                Ok(data) => match self.classify_attribute_row(&data).await {
                     Err(e) => (RowOutcome::Skipped(e), vec![]),
                     Ok((RowAction::Unchanged, _)) => (RowOutcome::Unchanged, vec![]),
-                    Ok((RowAction::Create, _)) => {
-                        let input = CreateAttributeDefinition {
-                            name: data.name.clone(),
-                            description: data.description.apply(None),
-                            allowed_values: data.allowed_values.apply(None),
-                            default_value: data.default_value.apply(None),
-                            sync_to_keycloak: data.sync_to_keycloak.unwrap_or(false),
-                            editable_by: data.editable_by.unwrap_or(EditableBy::Admin),
+                    Ok((action, changes)) => {
+                        let write = match &data.value {
+                            Some(v) => {
+                                self.attribute_service
+                                    .set_as_admin(
+                                        data.user_id.clone(),
+                                        &data.name,
+                                        v.clone(),
+                                        actor,
+                                    )
+                                    .await
+                            }
+                            None => {
+                                self.attribute_service
+                                    .clear_as_admin(data.user_id.clone(), &data.name, actor)
+                                    .await
+                            }
                         };
-                        match self.attribute_service.create_definition(input, actor).await {
-                            Ok(_) => (RowOutcome::Created, vec![]),
-                            Err(e) => (RowOutcome::Failed(format!("create failed: {e:?}")), vec![]),
-                        }
-                    }
-                    Ok((RowAction::Update, changes)) => {
-                        let patch = UpdateAttributeDefinitionPatch {
-                            description: data.description.clone(),
-                            allowed_values: data.allowed_values.clone(),
-                            default_value: data.default_value.clone(),
-                            sync_to_keycloak: data.sync_to_keycloak,
-                            editable_by: data.editable_by,
-                        };
-                        match self
-                            .attribute_service
-                            .update_definition(&data.name, patch, actor)
-                            .await
-                        {
-                            Ok(_) => (RowOutcome::Updated, changes),
-                            Err(e) => (RowOutcome::Failed(format!("update failed: {e:?}")), vec![]),
+                        match write {
+                            Ok(()) => match action {
+                                RowAction::Update => (RowOutcome::Updated, changes),
+                                _ => (RowOutcome::Created, vec![]),
+                            },
+                            Err(e) => (RowOutcome::Failed(format!("write failed: {e:?}")), vec![]),
                         }
                     }
                 },
             };
             rows.push(AttributeResultRow {
                 line: i + 1,
-                name,
+                email: rec[cols.email].trim().to_string(),
+                attribute: rec[cols.attribute].trim().to_string(),
                 outcome,
                 changes,
             });

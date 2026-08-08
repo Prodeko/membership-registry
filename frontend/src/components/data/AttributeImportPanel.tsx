@@ -62,14 +62,12 @@ export default function AttributeImportPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Import attribute definitions</CardTitle>
+        <CardTitle>Import attribute values</CardTitle>
         <CardDescription>
-          Columns: name (required), description, allowed_values (separated by{" "}
-          <code>|</code>), default_value, editable_by (admin/user/both),
-          sync_to_keycloak (true/false). Existing definitions (matched by name)
-          are updated; empty cells keep the current value, <code>null</code>{" "}
-          clears it. New definitions default to editable_by=admin,
-          sync_to_keycloak=false.
+          Columns: email, attribute, value (all required). Each row sets one
+          attribute value for an existing member; set value to <code>null</code>{" "}
+          to clear it. The member and the attribute must already exist, and
+          values are validated against the attribute&apos;s allowed values.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -116,7 +114,8 @@ function AttributePreviewTable({
           <thead className="bg-muted text-left">
             <tr>
               <th className="px-3 py-2 font-medium">#</th>
-              <th className="px-3 py-2 font-medium">Name</th>
+              <th className="px-3 py-2 font-medium">Email</th>
+              <th className="px-3 py-2 font-medium">Attribute</th>
               <th className="px-3 py-2 font-medium">Action</th>
               <th className="px-3 py-2 font-medium">Changes</th>
             </tr>
@@ -125,7 +124,8 @@ function AttributePreviewTable({
             {preview.rows.map((r) => (
               <tr key={r.line} className="border-t">
                 <td className="px-3 py-2">{r.line}</td>
-                <td className="px-3 py-2">{r.name}</td>
+                <td className="px-3 py-2">{r.email}</td>
+                <td className="px-3 py-2">{r.attribute}</td>
                 <td className="px-3 py-2">
                   {r.error ? (
                     <span className="text-destructive">{r.error}</span>
@@ -148,12 +148,13 @@ function AttributePreviewTable({
 }
 
 function attributeReportToCsv(report: AttributeImportReport): string {
-  const header = "line,name,outcome,detail,changes";
+  const header = "line,email,attribute,outcome,detail,changes";
   const esc = (s: string) => `"${s.replace(/"/g, '""')}"`;
   const lines = report.rows.map((r) =>
     [
       r.line,
-      esc(r.name),
+      esc(r.email),
+      esc(r.attribute),
       r.outcome,
       esc(r.detail ?? ""),
       esc(r.changes.join("; ")),
@@ -192,7 +193,8 @@ function AttributeReportTable({ report }: { report: AttributeImportReport }) {
           <thead className="bg-muted text-left">
             <tr>
               <th className="px-3 py-2 font-medium">#</th>
-              <th className="px-3 py-2 font-medium">Name</th>
+              <th className="px-3 py-2 font-medium">Email</th>
+              <th className="px-3 py-2 font-medium">Attribute</th>
               <th className="px-3 py-2 font-medium">Outcome</th>
               <th className="px-3 py-2 font-medium">Detail</th>
             </tr>
@@ -201,7 +203,8 @@ function AttributeReportTable({ report }: { report: AttributeImportReport }) {
             {report.rows.map((r) => (
               <tr key={r.line} className="border-t">
                 <td className="px-3 py-2">{r.line}</td>
-                <td className="px-3 py-2">{r.name}</td>
+                <td className="px-3 py-2">{r.email}</td>
+                <td className="px-3 py-2">{r.attribute}</td>
                 <td className="px-3 py-2">{r.outcome}</td>
                 <td className="px-3 py-2 text-muted-foreground">
                   {r.detail ?? ""}

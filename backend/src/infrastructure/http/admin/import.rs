@@ -297,7 +297,8 @@ async fn apply_roles(
 #[derive(Debug, Serialize)]
 struct AttributePreviewRowDTO {
     line: usize,
-    name: String,
+    email: String,
+    attribute: String,
     action: Option<String>,
     error: Option<String>,
     changes: Vec<String>,
@@ -320,7 +321,8 @@ impl From<AttributeImportPreview> for AttributeImportPreviewDTO {
             .iter()
             .map(|r| AttributePreviewRowDTO {
                 line: r.line,
-                name: r.name.clone(),
+                email: r.email.clone(),
+                attribute: r.attribute.clone(),
                 action: action_str(&r.result),
                 error: r.result.as_ref().err().cloned(),
                 changes: r.changes.clone(),
@@ -340,7 +342,8 @@ impl From<AttributeImportPreview> for AttributeImportPreviewDTO {
 #[derive(Debug, Serialize)]
 struct AttributeResultRowDTO {
     line: usize,
-    name: String,
+    email: String,
+    attribute: String,
     outcome: String,
     detail: Option<String>,
     changes: Vec<String>,
@@ -366,7 +369,8 @@ impl From<AttributeImportReport> for AttributeImportReportDTO {
                 let (outcome, detail) = outcome_parts(&r.outcome);
                 AttributeResultRowDTO {
                     line: r.line,
-                    name: r.name.clone(),
+                    email: r.email.clone(),
+                    attribute: r.attribute.clone(),
                     outcome: outcome.to_string(),
                     detail,
                     changes: r.changes.clone(),
