@@ -288,4 +288,76 @@ mod test_role {
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }
+
+    #[tokio::test]
+    async fn replace_and_fetch_renewal_prompts() {
+        let (repo, db_url) = setup_test_db().await;
+
+        repo.role
+            .create(&Role {
+                name: RoleName("prompt-role".to_string()),
+                color: None,
+                description: None,
+                renewable: true,
+                renewal_payment_link: None,
+                renewal_period_months: Some(12),
+                renewal_email_template: None,
+                renewal_notification_days: vec![30, 7, 1],
+                renewal_window_days: 30,
+                grace_period_days: 0,
+            })
+            .await
+            .unwrap();
+
+        let fi = crate::domain::RenewalPrompt {
+            locale: "fi".to_string(),
+            title: "Jäsenmaksu vuodelle {year}".to_string(),
+            body: "Et ole maksanut jäsenmaksua vuodelle {year}.".to_string(),
+            button_label: "Maksa jäsenmaksu".to_string(),
+        };
+        let en = crate::domain::RenewalPrompt {
+            locale: "en".to_string(),
+            title: "Membership fee for {year}".to_string(),
+            body: "You have not paid the membership fee for {year}.".to_string(),
+            button_label: "Pay membership fee".to_string(),
+        };
+
+        repo.role
+            .replace_renewal_prompts("prompt-role", &[fi.clone(), en.clone()])
+            .await
+            .unwrap();
+        let fetched = repo
+            .role
+            .fetch_renewal_prompts("prompt-role")
+            .await
+            .unwrap();
+        assert_eq!(fetched.len(), 2);
+        assert!(fetched.contains(&fi));
+
+        // Replace drops rows not in the new set
+        repo.role
+            .replace_renewal_prompts("prompt-role", &[en.clone()])
+            .await
+            .unwrap();
+        let fetched = repo
+            .role
+            .fetch_renewal_prompts("prompt-role")
+            .await
+            .unwrap();
+        assert_eq!(fetched, vec![en]);
+
+        // Empty set clears everything
+        repo.role
+            .replace_renewal_prompts("prompt-role", &[])
+            .await
+            .unwrap();
+        assert!(repo
+            .role
+            .fetch_renewal_prompts("prompt-role")
+            .await
+            .unwrap()
+            .is_empty());
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
 }

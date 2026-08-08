@@ -41,7 +41,8 @@ use crate::application::ports::{
 use crate::domain::{
     Application, ApplicationId, ApplicationStatus, AttributeDefinition, AttributeName,
     AttributeValue, EmailTemplate, EmailTemplateTranslation, MarketingTag, MemberAttribute,
-    NewApplication, NewPerson, Person, PersonId, Role, RoleName, RoleRenewal, UpdatePersonData,
+    NewApplication, NewPerson, Person, PersonId, RenewalPrompt, Role, RoleName, RoleRenewal,
+    UpdatePersonData,
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
@@ -134,6 +135,8 @@ mock! {
         async fn fetch_roles_with_stats(&self, params: RolesWithStatsParams) -> Result<Vec<RoleStats>, RepositoryError>;
         async fn fetch_expired_unsynced(&self) -> Result<Vec<RoleMembership>, RepositoryError>;
         async fn mark_keycloak_synced(&self, user_id: &Uuid, role_name: &str, valid_from: NaiveDate) -> Result<(), RepositoryError>;
+        async fn fetch_renewal_prompts(&self, role_name: &str) -> Result<Vec<RenewalPrompt>, RepositoryError>;
+        async fn replace_renewal_prompts(&self, role_name: &str, prompts: &[RenewalPrompt]) -> Result<(), RepositoryError>;
     }
 }
 

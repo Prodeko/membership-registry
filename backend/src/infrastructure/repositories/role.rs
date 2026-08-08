@@ -7,7 +7,7 @@ use crate::application::ports::repository_error::RepositoryError;
 use crate::application::ports::role_repository_port::{
     RoleMembership, RoleRepositoryPort, RoleStats as PortRoleStats, RolesWithStatsParams,
 };
-use crate::domain::{Person, Role, RoleName};
+use crate::domain::{Person, RenewalPrompt, Role, RoleName};
 
 // --- DAO types (private, map DB shape) ---
 
@@ -84,6 +84,25 @@ impl From<RoleStatsDAO> for PortRoleStats {
             description: row.description,
             member_count: row.member_count,
             active_member_count: row.active_member_count,
+        }
+    }
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct RenewalPromptDAO {
+    locale: String,
+    title: String,
+    body: String,
+    button_label: String,
+}
+
+impl From<RenewalPromptDAO> for RenewalPrompt {
+    fn from(row: RenewalPromptDAO) -> Self {
+        Self {
+            locale: row.locale,
+            title: row.title,
+            body: row.body,
+            button_label: row.button_label,
         }
     }
 }
@@ -463,5 +482,52 @@ impl RoleRepositoryPort for RoleRepo {
         .fetch_all(&self.pool)
         .await?;
         Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    async fn fetch_renewal_prompts(
+        &self,
+        role_name: &str,
+    ) -> Result<Vec<RenewalPrompt>, RepositoryError> {
+        let rows = sqlx::query_as::<_, RenewalPromptDAO>(
+            r#"
+            SELECT locale, title, body, button_label
+            FROM RoleRenewalPrompt
+            WHERE role_name = $1
+            ORDER BY locale
+            "#,
+        )
+        .bind(role_name)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    async fn replace_renewal_prompts(
+        &self,
+        role_name: &str,
+        prompts: &[RenewalPrompt],
+    ) -> Result<(), RepositoryError> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM RoleRenewalPrompt WHERE role_name = $1")
+            .bind(role_name)
+            .execute(&mut *tx)
+            .await?;
+        for prompt in prompts {
+            sqlx::query(
+                r#"
+                INSERT INTO RoleRenewalPrompt (role_name, locale, title, body, button_label)
+                VALUES ($1, $2, $3, $4, $5)
+                "#,
+            )
+            .bind(role_name)
+            .bind(&prompt.locale)
+            .bind(&prompt.title)
+            .bind(&prompt.body)
+            .bind(&prompt.button_label)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
     }
 }
