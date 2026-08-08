@@ -665,12 +665,15 @@ impl KeycloakClient {
     ) -> Result<String, KeycloakError> {
         let token = self.get_service_token().await?;
         let url = self.admin_url("users");
+        // Created without credentials: the required actions are the only way
+        // the user can ever log in (via invite or forgot-password email).
         let body = serde_json::json!({
             "email": email,
             "firstName": first_name,
             "lastName": last_name,
             "enabled": true,
             "emailVerified": false,
+            "requiredActions": ["UPDATE_PASSWORD", "VERIFY_EMAIL"],
         });
         let response = self
             .http
@@ -1623,6 +1626,47 @@ impl KeycloakClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use wiremock::matchers::{body_partial_json, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[tokio::test]
+    async fn create_user_sends_required_actions() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/realms/test/protocol/openid-connect/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "t",
+                "expires_in": 3600
+            })))
+            .mount(&server)
+            .await;
+        // Only matches when the payload carries the required actions; without
+        // them the request 404s and create_user errors.
+        Mock::given(method("POST"))
+            .and(path("/admin/realms/test/users"))
+            .and(body_partial_json(serde_json::json!({
+                "requiredActions": ["UPDATE_PASSWORD", "VERIFY_EMAIL"]
+            })))
+            .respond_with(ResponseTemplate::new(201).insert_header(
+                "Location",
+                format!("{}/admin/realms/test/users/abc-123", server.uri()).as_str(),
+            ))
+            .mount(&server)
+            .await;
+
+        let client = KeycloakClient::new(KeycloakConfig {
+            base_url: server.uri(),
+            realm: "test".into(),
+            client_id: "app".into(),
+            client_secret: None,
+            admin_client_id: "admin-cli".into(),
+            admin_client_secret: "secret".into(),
+            admin_role_name: "admin".into(),
+        });
+
+        let subject = client.create_user("a@x.com", "A", "B").await.unwrap();
+        assert_eq!(subject, "abc-123");
+    }
 
     #[test]
     fn url_builders() {
