@@ -165,3 +165,26 @@ async fn update_role_rejects_blank_prompt_fields() {
         Err(crate::application::services::errors::ServiceError::Constraint(_))
     ));
 }
+
+#[tokio::test]
+async fn update_role_rejects_duplicate_prompt_locales() {
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo.expect_update().never();
+    role_repo.expect_replace_renewal_prompts().never();
+
+    let svc = make_role_service(role_repo);
+
+    let prompt = RenewalPrompt {
+        locale: "fi".to_string(),
+        title: "title".to_string(),
+        body: "body".to_string(),
+        button_label: "btn".to_string(),
+    };
+    let prompts = vec![prompt.clone(), prompt];
+    let result = svc.update_role(&renewable_role(), &prompts, None).await;
+    assert!(matches!(
+        result,
+        Err(crate::application::services::errors::ServiceError::Constraint(ref msg))
+            if msg.contains("fi")
+    ));
+}

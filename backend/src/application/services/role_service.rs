@@ -127,6 +127,7 @@ impl RoleService {
         role.validate_renewal_config()
             .map_err(ServiceError::Constraint)?;
 
+        let mut seen_locales = HashSet::new();
         for prompt in prompts {
             if prompt.locale.trim().is_empty()
                 || prompt.title.trim().is_empty()
@@ -136,6 +137,12 @@ impl RoleService {
                 return Err(ServiceError::Constraint(
                     "Renewal prompt fields must not be empty".to_string(),
                 ));
+            }
+            if !seen_locales.insert(prompt.locale.trim()) {
+                return Err(ServiceError::Constraint(format!(
+                    "Duplicate renewal prompt locale: {}",
+                    prompt.locale.trim()
+                )));
             }
         }
 
