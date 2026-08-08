@@ -85,6 +85,8 @@ struct PendingNotificationDAO {
     language: String,
     role_name: String,
     old_valid_until: NaiveDate,
+    days_left: i32,
+    notified_days: Vec<i32>,
 }
 
 impl From<PendingNotificationDAO> for PendingNotification {
@@ -98,6 +100,8 @@ impl From<PendingNotificationDAO> for PendingNotification {
             language: dao.language,
             role_name: dao.role_name,
             old_valid_until: dao.old_valid_until,
+            days_left: dao.days_left,
+            notified_days: dao.notified_days,
         }
     }
 }
@@ -111,10 +115,7 @@ pub struct RoleRenewalRepo {
 
 #[async_trait::async_trait]
 impl RoleRenewalRepositoryPort for RoleRenewalRepo {
-    async fn find_expiring_renewable(
-        &self,
-        days_ahead: i32,
-    ) -> Result<Vec<RenewableExpiring>, RepositoryError> {
+    async fn find_expiring_renewable(&self) -> Result<Vec<RenewableExpiring>, RepositoryError> {
         let rows = sqlx::query_as::<_, RenewableExpiringDAO>(
             r#"
             SELECT
@@ -133,18 +134,23 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
             WHERE r.renewable = TRUE
               AND rm.valid_until IS NOT NULL
               AND rm.valid_until >= CURRENT_DATE
-              AND rm.valid_until <= CURRENT_DATE + ($1 || ' days')::interval
+              AND rm.valid_until - CURRENT_DATE <= GREATEST(
+                  r.renewal_window_days,
+                  COALESCE(
+                      (SELECT MAX(d) FROM unnest(r.renewal_notification_days) AS d),
+                      0
+                  )
+              )
               AND rm.keycloak_removed_at IS NULL
               AND NOT EXISTS (
                   SELECT 1 FROM RoleRenewal rr
                   WHERE rr.user_id = rm.user_id
                     AND rr.role_name = rm.role_name
                     AND rr.old_valid_from = rm.valid_from
-                    AND rr.status = 'pending'
+                    AND rr.status IN ('pending', 'paid')
               )
             "#,
         )
-        .bind(days_ahead)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows.into_iter().map(Into::into).collect())
@@ -153,7 +159,7 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
     async fn find_pending_needing_notification(
         &self,
         role_name: &str,
-        days: i32,
+        max_days: i32,
     ) -> Result<Vec<PendingNotification>, RepositoryError> {
         let rows = sqlx::query_as::<_, PendingNotificationDAO>(
             r#"
@@ -165,19 +171,20 @@ impl RoleRenewalRepositoryPort for RoleRenewalRepo {
                 m.last_name,
                 m.language,
                 rr.role_name,
-                rr.old_valid_until
+                rr.old_valid_until,
+                (rr.old_valid_until - CURRENT_DATE)::int AS days_left,
+                rr.notified_days
             FROM RoleRenewal rr
             JOIN Member m ON m.user_id = rr.user_id
             WHERE rr.role_name = $1
               AND rr.status = 'pending'
               AND rr.old_valid_until >= CURRENT_DATE
               AND rr.old_valid_until - CURRENT_DATE <= $2
-              AND NOT ($2 = ANY(rr.notified_days))
               AND m.email_notifications = TRUE
             "#,
         )
         .bind(role_name)
-        .bind(days)
+        .bind(max_days)
         .fetch_all(&self.pool)
         .await?;
         Ok(rows.into_iter().map(Into::into).collect())

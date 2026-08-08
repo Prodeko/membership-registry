@@ -147,8 +147,8 @@ mock! {
 
     #[async_trait::async_trait]
     impl RoleRenewalRepositoryPort for RoleRenewalRepositoryPort {
-        async fn find_expiring_renewable(&self, days_ahead: i32) -> Result<Vec<RenewableExpiring>, RepositoryError>;
-        async fn find_pending_needing_notification(&self, role_name: &str, days: i32) -> Result<Vec<PendingNotification>, RepositoryError>;
+        async fn find_expiring_renewable(&self) -> Result<Vec<RenewableExpiring>, RepositoryError>;
+        async fn find_pending_needing_notification(&self, role_name: &str, max_days: i32) -> Result<Vec<PendingNotification>, RepositoryError>;
         async fn create(&self, renewal: &RoleRenewal) -> Result<RoleRenewal, RepositoryError>;
         async fn find_by_id(&self, renewal_id: Uuid) -> Result<RoleRenewal, RepositoryError>;
         async fn find_pending(&self, user_id: Uuid, role_name: &str, old_valid_from: NaiveDate) -> Result<Option<RoleRenewal>, RepositoryError>;

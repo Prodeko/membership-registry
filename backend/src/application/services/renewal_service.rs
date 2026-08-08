@@ -9,7 +9,9 @@ use crate::application::ports::{
     role_repository_port::RoleRepositoryPort,
     rolesync_port::{IdpSubject, RoleSyncPort},
 };
-use crate::domain::{add_months, RenewalStatus, RoleName, RoleRenewal};
+use crate::domain::{
+    add_months, milestones_due, renewal_payment_url, RenewalStatus, Role, RoleName, RoleRenewal,
+};
 
 use super::{
     audit_log_service::AuditLogService,
@@ -59,23 +61,9 @@ impl RenewalService {
 
     /// Create RoleRenewal records for memberships approaching expiry.
     async fn create_renewal_records(&self) -> ServiceResult<()> {
-        let roles = self
-            .role_repo
-            .fetch_all()
-            .await
-            .map_err(ServiceError::from)?;
-
-        // Look ahead as far as the earliest configured reminder needs
-        let lookahead = roles
-            .iter()
-            .filter(|r| r.renewable)
-            .flat_map(|r| r.renewal_notification_days.iter().copied())
-            .max()
-            .unwrap_or(0);
-
         let expiring = self
             .renewal_repo
-            .find_expiring_renewable(lookahead)
+            .find_expiring_renewable()
             .await
             .map_err(ServiceError::from)?;
 
@@ -159,37 +147,32 @@ impl RenewalService {
                 None => continue,
             };
 
-            for &days in &role.renewal_notification_days {
-                self.send_notifications_for_milestone(
-                    &role.name.0,
-                    &template_name,
-                    &payment_link,
-                    days,
-                )
+            self.send_notifications_for_role(role, &template_name, &payment_link)
                 .await;
-            }
         }
 
         Ok(())
     }
 
-    async fn send_notifications_for_milestone(
-        &self,
-        role_name: &str,
-        template_name: &str,
-        payment_link: &str,
-        days: i32,
-    ) {
+    /// Send at most one reminder email per pending renewal, covering every
+    /// configured milestone the renewal has crossed but not yet been notified
+    /// for. Marking all crossed milestones at once prevents a burst of emails
+    /// when a renewal is created with several milestones already in the past.
+    async fn send_notifications_for_role(&self, role: &Role, template_name: &str, payment_link: &str) {
+        let role_name = &role.name.0;
+        let Some(&max_offset) = role.renewal_notification_days.iter().max() else {
+            return;
+        };
+
         let pending = match self
             .renewal_repo
-            .find_pending_needing_notification(role_name, days)
+            .find_pending_needing_notification(role_name, max_offset)
             .await
         {
             Ok(p) => p,
             Err(e) => {
                 tracing::error!(
                     role = role_name,
-                    days = days,
                     "Failed to fetch pending notifications: {e:?}"
                 );
                 return;
@@ -197,9 +180,16 @@ impl RenewalService {
         };
 
         for item in &pending {
-            let full_payment_link =
-                format!("{}?client_reference_id={}", payment_link, item.renewal_id);
+            let due = milestones_due(
+                &role.renewal_notification_days,
+                item.days_left,
+                &item.notified_days,
+            );
+            if due.is_empty() {
+                continue;
+            }
 
+            let full_payment_link = renewal_payment_url(payment_link, item.renewal_id);
             let valid_until_str = item.old_valid_until.to_string();
 
             self.notification_service
@@ -216,18 +206,20 @@ impl RenewalService {
                 )
                 .await;
 
-            if let Err(e) = self.renewal_repo.mark_notified(item.renewal_id, days).await {
-                tracing::error!(
-                    renewal_id = %item.renewal_id,
-                    days = days,
-                    "Failed to mark notification as sent: {e:?}"
-                );
+            for &days in &due {
+                if let Err(e) = self.renewal_repo.mark_notified(item.renewal_id, days).await {
+                    tracing::error!(
+                        renewal_id = %item.renewal_id,
+                        days = days,
+                        "Failed to mark notification as sent: {e:?}"
+                    );
+                }
             }
 
             tracing::info!(
                 user_id = %item.user_id,
                 role = role_name,
-                days_before = days,
+                days_before = item.days_left,
                 "Sent renewal notification"
             );
         }
@@ -407,10 +399,7 @@ impl RenewalService {
             .await
             .map_err(ServiceError::from)?
         {
-            return Ok(format!(
-                "{payment_link}?client_reference_id={}",
-                existing.renewal_id
-            ));
+            return Ok(renewal_payment_url(&payment_link, existing.renewal_id));
         }
 
         let new_valid_from = valid_until + chrono::Duration::days(1);
@@ -429,15 +418,20 @@ impl RenewalService {
 
         let created = match self.renewal_repo.create(&renewal).await {
             Ok(r) => r,
-            // Unique pending index: a concurrent request won the race
-            Err(RepositoryError::Constraint(_)) => self
-                .renewal_repo
-                .find_pending(user_id, role_name, membership.valid_from)
-                .await
-                .map_err(ServiceError::from)?
-                .ok_or_else(|| {
-                    ServiceError::DatabaseError("pending renewal disappeared".to_string())
-                })?,
+            // The unique pending index fired: a concurrent request won the
+            // race, so reuse the renewal it created. Any other constraint
+            // violation is a real error and must propagate.
+            Err(RepositoryError::Constraint(msg))
+                if msg.contains("idx_role_renewal_pending_unique") =>
+            {
+                self.renewal_repo
+                    .find_pending(user_id, role_name, membership.valid_from)
+                    .await
+                    .map_err(ServiceError::from)?
+                    .ok_or_else(|| {
+                        ServiceError::DatabaseError("pending renewal disappeared".to_string())
+                    })?
+            }
             Err(e) => return Err(ServiceError::from(e)),
         };
 
@@ -455,9 +449,6 @@ impl RenewalService {
             )
             .await;
 
-        Ok(format!(
-            "{payment_link}?client_reference_id={}",
-            created.renewal_id
-        ))
+        Ok(renewal_payment_url(&payment_link, created.renewal_id))
     }
 }

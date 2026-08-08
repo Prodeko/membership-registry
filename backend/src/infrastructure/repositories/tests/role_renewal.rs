@@ -90,18 +90,23 @@ mod test_role_renewal {
     }
 
     #[tokio::test]
-    async fn notification_query_honors_arbitrary_offset() {
+    async fn notification_query_reports_days_left_and_notified_offsets() {
         let (repo, db_url) = setup_test_db().await;
         let renewal = seed(&repo).await;
         let created = repo.role_renewal.create(&renewal).await.unwrap();
 
-        // Expiry is 10 days out: due at the 14-day offset, not at 7
+        // Expiry is 10 days out: inside a 14-day horizon, outside a 7-day one
         let due = repo
             .role_renewal
             .find_pending_needing_notification(ROLE_NAME, 14)
             .await
             .unwrap();
-        assert!(due.iter().any(|p| p.renewal_id == created.renewal_id));
+        let row = due
+            .iter()
+            .find(|p| p.renewal_id == created.renewal_id)
+            .unwrap();
+        assert_eq!(row.days_left, 10);
+        assert!(row.notified_days.is_empty());
 
         let not_due = repo
             .role_renewal
@@ -110,6 +115,8 @@ mod test_role_renewal {
             .unwrap();
         assert!(not_due.iter().all(|p| p.renewal_id != created.renewal_id));
 
+        // Milestone filtering is the caller's job: a notified renewal is still
+        // returned, with the sent offset recorded
         repo.role_renewal
             .mark_notified(created.renewal_id, 14)
             .await
@@ -119,7 +126,130 @@ mod test_role_renewal {
             .find_pending_needing_notification(ROLE_NAME, 14)
             .await
             .unwrap();
-        assert!(after.iter().all(|p| p.renewal_id != created.renewal_id));
+        let row = after
+            .iter()
+            .find(|p| p.renewal_id == created.renewal_id)
+            .unwrap();
+        assert_eq!(row.notified_days, vec![14]);
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    #[tokio::test]
+    async fn overdue_sweep_honors_grace_period() {
+        let (repo, db_url) = setup_test_db().await;
+        let renewal = seed(&repo).await;
+        sqlx::query("UPDATE Role SET grace_period_days = 14 WHERE name = $1")
+            .bind(ROLE_NAME)
+            .execute(&repo.member.pool)
+            .await
+            .unwrap();
+
+        let today = Utc::now().date_naive();
+        // (valid_from offset, valid_until offset, expected overdue)
+        let cases = [(-400, -14, false), (-500, -15, true)];
+        let mut ids = Vec::new();
+        for (from, until, _) in cases {
+            let valid_from = today + Duration::days(from);
+            let valid_until = today + Duration::days(until);
+            repo.role
+                .create_role_member(&user_id(), ROLE_NAME, valid_from, Some(valid_until))
+                .await
+                .unwrap();
+            let created = repo
+                .role_renewal
+                .create(&RoleRenewal {
+                    renewal_id: Uuid::new_v4(),
+                    old_valid_from: valid_from,
+                    old_valid_until: valid_until,
+                    new_valid_from: valid_until + Duration::days(1),
+                    new_valid_until: valid_until + Duration::days(366),
+                    ..renewal.clone()
+                })
+                .await
+                .unwrap();
+            ids.push(created.renewal_id);
+        }
+
+        let overdue = repo.role_renewal.find_overdue_pending().await.unwrap();
+        for ((_, until, expected), id) in cases.iter().zip(&ids) {
+            assert_eq!(
+                overdue.iter().any(|r| r.renewal_id == *id),
+                *expected,
+                "renewal expiring at {until} days"
+            );
+        }
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    #[tokio::test]
+    async fn paid_renewal_does_not_requalify_membership() {
+        let (repo, db_url) = setup_test_db().await;
+        let renewal = seed(&repo).await;
+
+        let qualifies = |rows: &[crate::application::ports::role_renewal_repository_port::RenewableExpiring]| {
+            rows.iter()
+                .any(|e| e.user_id == user_id() && e.role_name == ROLE_NAME)
+        };
+
+        let before = repo.role_renewal.find_expiring_renewable().await.unwrap();
+        assert!(qualifies(&before));
+
+        let created = repo.role_renewal.create(&renewal).await.unwrap();
+        let with_pending = repo.role_renewal.find_expiring_renewable().await.unwrap();
+        assert!(!qualifies(&with_pending));
+
+        repo.role_renewal
+            .mark_paid(created.renewal_id, "pi_test")
+            .await
+            .unwrap();
+        let with_paid = repo.role_renewal.find_expiring_renewable().await.unwrap();
+        assert!(
+            !qualifies(&with_paid),
+            "paid renewal must not requalify the old membership for reminders"
+        );
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    #[tokio::test]
+    async fn expiring_horizon_covers_renewal_window_per_role() {
+        let (repo, db_url) = setup_test_db().await;
+        // Role has window 30 and reminder offsets [14]
+        let _ = seed(&repo).await;
+        let today = Utc::now().date_naive();
+
+        // Inside the window though beyond the largest reminder offset
+        repo.role
+            .create_role_member(
+                &user_id(),
+                ROLE_NAME,
+                today - Duration::days(100),
+                Some(today + Duration::days(20)),
+            )
+            .await
+            .unwrap();
+        // Beyond the window
+        repo.role
+            .create_role_member(
+                &user_id(),
+                ROLE_NAME,
+                today - Duration::days(50),
+                Some(today + Duration::days(40)),
+            )
+            .await
+            .unwrap();
+
+        let expiring = repo.role_renewal.find_expiring_renewable().await.unwrap();
+        let until_days: Vec<i64> = expiring
+            .iter()
+            .filter(|e| e.user_id == user_id() && e.role_name == ROLE_NAME)
+            .map(|e| (e.valid_until - today).num_days())
+            .collect();
+        assert!(until_days.contains(&10));
+        assert!(until_days.contains(&20));
+        assert!(!until_days.contains(&40));
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }

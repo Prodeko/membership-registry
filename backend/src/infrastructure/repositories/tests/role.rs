@@ -315,6 +315,63 @@ mod test_role {
     }
 
     #[tokio::test]
+    async fn renewal_due_boundaries_are_inclusive() {
+        let (repo, db_url) = setup_test_db().await;
+        let user = _get_user_id();
+        let today = chrono::Utc::now().date_naive();
+
+        let renewal_defaults = Role {
+            name: RoleName(String::new()),
+            color: None,
+            description: None,
+            renewable: true,
+            renewal_payment_link: Some("https://pay".to_string()),
+            renewal_period_months: Some(12),
+            renewal_email_template: None,
+            renewal_notification_days: vec![30, 7, 1],
+            renewal_window_days: 30,
+            grace_period_days: 14,
+        };
+
+        // (role, days from today to valid_until, expected renewal_due)
+        let cases = [
+            ("opens-today", 30, true),
+            ("opens-tomorrow", 31, false),
+            ("last-grace-day", -14, true),
+            ("past-grace", -15, false),
+        ];
+        for (name, offset, _) in cases {
+            repo.role
+                .create(&Role {
+                    name: RoleName(name.to_string()),
+                    ..renewal_defaults.clone()
+                })
+                .await
+                .unwrap();
+            repo.role
+                .create_role_member(
+                    &user,
+                    name,
+                    today + chrono::Duration::days(offset - 365),
+                    Some(today + chrono::Duration::days(offset)),
+                )
+                .await
+                .unwrap();
+        }
+
+        let memberships = repo.role.fetch_roles_by_member(&user).await.unwrap();
+        for (name, _, expected) in cases {
+            let m = memberships
+                .iter()
+                .find(|m| m.role_name.0 == name)
+                .unwrap();
+            assert_eq!(m.renewal_due, expected, "role {name}");
+        }
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    #[tokio::test]
     async fn replace_and_fetch_renewal_prompts() {
         let (repo, db_url) = setup_test_db().await;
 
