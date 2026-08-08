@@ -95,7 +95,8 @@ test.describe("Membership renewal", () => {
       new URL(secondRequest.url()).searchParams.get("client_reference_id"),
     ).toBe(renewalId);
 
-    // Simulate payment completion: banner disappears
+    // Simulate payment completion: the new membership pushes valid_until
+    // beyond the renewal window, so the banner disappears
     await db.query(
       `UPDATE rolerenewal SET status = 'paid', stripe_payment_id = 'pi_e2e_test' WHERE renewal_id = $1`,
       [renewalId],

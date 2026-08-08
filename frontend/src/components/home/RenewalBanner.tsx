@@ -29,7 +29,7 @@ const RenewalBanner = ({
     (isExpired
       ? t("home.renewal.expired_text", {
           date: validUntil.toLocaleDateString(),
-          deadline: renewalDeadline?.toLocaleDateString(),
+          deadline: (renewalDeadline ?? validUntil).toLocaleDateString(),
         })
       : t("home.renewal.expires_text", {
           date: validUntil.toLocaleDateString(),
