@@ -52,6 +52,15 @@ const Role = () => {
   const [notificationDays, setNotificationDays] = React.useState("30, 7, 1");
   const [initialized, setInitialized] = React.useState(false);
 
+  type PromptDraft = { title: string; body: string; button_label: string };
+  const emptyPrompt: PromptDraft = { title: "", body: "", button_label: "" };
+  const [prompts, setPrompts] = React.useState<
+    Record<"fi" | "en", PromptDraft>
+  >({
+    fi: emptyPrompt,
+    en: emptyPrompt,
+  });
+
   React.useEffect(() => {
     if (role && !initialized) {
       setRenewable(role.renewable);
@@ -61,6 +70,13 @@ const Role = () => {
       setRenewalWindowDays(role.renewal_window_days.toString());
       setGracePeriodDays(role.grace_period_days.toString());
       setNotificationDays(role.renewal_notification_days.join(", "));
+      const byLocale = Object.fromEntries(
+        role.renewal_prompts.map((p) => [p.locale, p]),
+      );
+      setPrompts({
+        fi: { ...emptyPrompt, ...byLocale["fi"] },
+        en: { ...emptyPrompt, ...byLocale["en"] },
+      });
       setInitialized(true);
     }
   }, [role, initialized]);
@@ -100,7 +116,15 @@ const Role = () => {
             .filter((n) => Number.isFinite(n) && n > 0),
           renewal_window_days: parseInt(renewalWindowDays, 10) || 30,
           grace_period_days: parseInt(gracePeriodDays, 10) || 0,
-          renewal_prompts: role.renewal_prompts,
+          renewal_prompts: (["fi", "en"] as const)
+            .filter((locale) =>
+              [
+                prompts[locale].title,
+                prompts[locale].body,
+                prompts[locale].button_label,
+              ].every((v) => v.trim().length > 0),
+            )
+            .map((locale) => ({ locale, ...prompts[locale] })),
         },
       },
       {
@@ -250,6 +274,64 @@ const Role = () => {
                 <p className="text-xs text-muted-foreground">
                   Comma-separated day offsets, e.g. 30, 7, 1.
                 </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Renewal banner texts</Label>
+                <p className="text-xs text-muted-foreground">
+                  Shown on the member home page while renewal is open. Fill all
+                  three fields for a language, or leave them empty to use the
+                  default texts. Placeholders: {"{year}"}, {"{valid_until}"},{" "}
+                  {"{deadline}"}, {"{role_name}"}.
+                </p>
+                <div className="grid grid-cols-2 gap-4">
+                  {(["fi", "en"] as const).map((locale) => (
+                    <div key={locale} className="space-y-2">
+                      <p className="text-sm font-medium">
+                        {locale === "fi" ? "Suomi" : "English"}
+                      </p>
+                      <Input
+                        data-testid={`prompt-${locale}-title`}
+                        placeholder="Title"
+                        value={prompts[locale].title}
+                        onChange={(e) =>
+                          setPrompts((prev) => ({
+                            ...prev,
+                            [locale]: {
+                              ...prev[locale],
+                              title: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <Input
+                        data-testid={`prompt-${locale}-body`}
+                        placeholder="Body text"
+                        value={prompts[locale].body}
+                        onChange={(e) =>
+                          setPrompts((prev) => ({
+                            ...prev,
+                            [locale]: { ...prev[locale], body: e.target.value },
+                          }))
+                        }
+                      />
+                      <Input
+                        data-testid={`prompt-${locale}-button`}
+                        placeholder="Button label"
+                        value={prompts[locale].button_label}
+                        onChange={(e) =>
+                          setPrompts((prev) => ({
+                            ...prev,
+                            [locale]: {
+                              ...prev[locale],
+                              button_label: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           )}
