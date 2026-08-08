@@ -1,6 +1,7 @@
 import { test, expect } from "../fixtures";
 import { HomePage } from "../pages/home.page";
 import { loginViaKeycloak } from "../helpers/auth";
+import { completeMemberProfile } from "../helpers/profile";
 
 const RENEWAL_PAYMENT_LINK = "https://buy.stripe.com/test_e2e_renewal";
 
@@ -245,8 +246,7 @@ test.describe("Membership renewal", () => {
     testRole,
   }) => {
     await loginViaKeycloak(page, testUser.email, testUser.password);
-    const member = await db.getMemberByEmail(testUser.email);
-    const userId = member!.user_id as string;
+    const userId = await completeMemberProfile(db, adminApi, testUser.email);
 
     await adminApi.updateRole(testRole.name, {
       renewable: true,
@@ -257,7 +257,7 @@ test.describe("Membership renewal", () => {
           locale: "en",
           title: "Membership fee for {year}",
           body: "You have not paid the membership fee for {year}.",
-          button_label: "Pay membership fee",
+          button_label: "Pay membership fee for {year}",
         },
       ],
     });
@@ -266,7 +266,8 @@ test.describe("Membership renewal", () => {
 
     // {year} = year of (valid_until + 1 day + 12 months)
     const expectedYear =
-      new Date(new Date(validUntil).getTime() + 86_400_000).getFullYear() + 1;
+      new Date(new Date(validUntil).getTime() + 86_400_000).getUTCFullYear() +
+      1;
 
     await page.goto("/home");
     const home = new HomePage(page);
@@ -280,6 +281,6 @@ test.describe("Membership renewal", () => {
     );
     await expect(
       page.getByTestId(`renewal-banner-button-${testRole.name}`),
-    ).toHaveText("Pay membership fee");
+    ).toHaveText(`Pay membership fee for ${expectedYear}`);
   });
 });
