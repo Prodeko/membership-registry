@@ -6,7 +6,6 @@ pub enum PaymentWebhookError {
     InvalidPayload(String),
     MissingApplicationId,
     MissingPaymentIntent,
-    UnhandledEvent,
 }
 
 pub struct PaymentEvent {
