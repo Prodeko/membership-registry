@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::application::ports::role_repository_port::{RoleMembership, RoleStats};
+use crate::application::ports::role_repository_port::RoleStats;
+use crate::application::services::role_service::MemberRoleView;
 use crate::domain::Role;
 
 #[derive(Debug, Serialize, Deserialize, Default, TS)]
@@ -51,6 +52,26 @@ pub struct UpdateRoleDTO {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, rename = "RenewalPrompt")]
+pub struct RenewalPromptDTO {
+    pub locale: String,
+    pub title: String,
+    pub body: String,
+    pub button_label: String,
+}
+
+impl From<crate::domain::RenewalPrompt> for RenewalPromptDTO {
+    fn from(p: crate::domain::RenewalPrompt) -> Self {
+        Self {
+            locale: p.locale,
+            title: p.title,
+            body: p.body,
+            button_label: p.button_label,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
 #[ts(export, rename = "RoleMember")]
 pub struct RoleMembershipDTO {
     pub user_id: uuid::Uuid,
@@ -60,10 +81,12 @@ pub struct RoleMembershipDTO {
     pub renewable: bool,
     pub renewal_due: bool,
     pub renewal_deadline: Option<chrono::NaiveDate>,
+    pub renewal_prompts: Vec<RenewalPromptDTO>,
 }
 
-impl From<RoleMembership> for RoleMembershipDTO {
-    fn from(rm: RoleMembership) -> Self {
+impl From<MemberRoleView> for RoleMembershipDTO {
+    fn from(view: MemberRoleView) -> Self {
+        let rm = view.membership;
         Self {
             user_id: rm.user_id,
             role_name: rm.role_name.0,
@@ -72,6 +95,7 @@ impl From<RoleMembership> for RoleMembershipDTO {
             renewable: rm.renewable,
             renewal_due: rm.renewal_due,
             renewal_deadline: rm.renewal_deadline,
+            renewal_prompts: view.renewal_prompts.into_iter().map(Into::into).collect(),
         }
     }
 }

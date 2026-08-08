@@ -34,6 +34,7 @@ export type {
   PostTargetableRole,
   PutTargetableRole,
   PublicConfig,
+  RenewalPrompt,
   Role,
   RoleGroup,
   RoleGroupMembership,

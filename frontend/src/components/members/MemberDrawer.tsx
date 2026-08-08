@@ -282,6 +282,7 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
           renewable: false,
           renewal_due: false,
           renewal_deadline: null,
+          renewal_prompts: [],
         });
       }
     });

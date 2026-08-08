@@ -49,6 +49,7 @@ export type { NewSavedFilter } from "./NewSavedFilter";
 export type { PostTargetableRole } from "./PostTargetableRole";
 export type { PublicConfig } from "./PublicConfig";
 export type { PutTargetableRole } from "./PutTargetableRole";
+export type { RenewalPrompt } from "./RenewalPrompt";
 export type { Role } from "./Role";
 export type { RoleGroup } from "./RoleGroup";
 export type { RoleGroupMembership } from "./RoleGroupMembership";

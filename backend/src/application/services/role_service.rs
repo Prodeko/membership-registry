@@ -10,7 +10,8 @@ use crate::application::ports::{
     role_repository_port::{RoleMembership, RoleRepositoryPort, RoleStats, RolesWithStatsParams},
     rolesync_port::{IdpSubject, RoleSyncPort},
 };
-use crate::domain::{Person, Role, RoleName};
+use crate::domain::{add_months, Person, RenewalPrompt, Role, RoleName};
+use chrono::Datelike;
 use uuid::Uuid;
 
 use super::{
@@ -39,6 +40,13 @@ pub struct SyncMissingRolesSummary {
     pub removed: u32,
     pub remove_failed: u32,
     pub users_processed: u32,
+}
+
+/// Read model for the member-facing roles list: a membership row plus the
+/// rendered renewal banner prompts when renewal is due.
+pub struct MemberRoleView {
+    pub membership: RoleMembership,
+    pub renewal_prompts: Vec<RenewalPrompt>,
 }
 
 #[derive(Clone)]
@@ -347,11 +355,64 @@ impl RoleService {
             .map_err(ServiceError::from)
     }
 
-    pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<RoleMembership>> {
-        self.role_repo
+    pub async fn get_member_roles(&self, user_id: Uuid) -> ServiceResult<Vec<MemberRoleView>> {
+        let memberships = self
+            .role_repo
             .fetch_roles_by_member(&user_id)
             .await
-            .map_err(ServiceError::from)
+            .map_err(ServiceError::from)?;
+
+        let mut roles: HashMap<String, Role> = HashMap::new();
+        let mut prompts: HashMap<String, Vec<RenewalPrompt>> = HashMap::new();
+        let mut views = Vec::with_capacity(memberships.len());
+
+        for membership in memberships {
+            let mut renewal_prompts = Vec::new();
+            if membership.renewal_due {
+                if let Some(valid_until) = membership.valid_until {
+                    let role_name = membership.role_name.0.clone();
+                    if !roles.contains_key(&role_name) {
+                        let role = self
+                            .role_repo
+                            .fetch_by_name(&role_name)
+                            .await
+                            .map_err(ServiceError::from)?;
+                        let role_prompts = self
+                            .role_repo
+                            .fetch_renewal_prompts(&role_name)
+                            .await
+                            .map_err(ServiceError::from)?;
+                        roles.insert(role_name.clone(), role);
+                        prompts.insert(role_name.clone(), role_prompts);
+                    }
+                    let role = &roles[&role_name];
+                    let period_months = role.renewal_period_months.filter(|m| *m > 0).unwrap_or(12);
+                    let new_valid_until =
+                        add_months(valid_until + chrono::Duration::days(1), period_months);
+                    let deadline =
+                        valid_until + chrono::Duration::days(role.grace_period_days as i64);
+                    let year = new_valid_until.year().to_string();
+                    let valid_until_str = valid_until.format("%-d.%-m.%Y").to_string();
+                    let deadline_str = deadline.format("%-d.%-m.%Y").to_string();
+                    let vars: [(&str, &str); 4] = [
+                        ("year", &year),
+                        ("valid_until", &valid_until_str),
+                        ("deadline", &deadline_str),
+                        ("role_name", &role_name),
+                    ];
+                    renewal_prompts = prompts[&role_name]
+                        .iter()
+                        .map(|p| p.rendered(&vars))
+                        .collect();
+                }
+            }
+            views.push(MemberRoleView {
+                membership,
+                renewal_prompts,
+            });
+        }
+
+        Ok(views)
     }
 
     pub async fn get_role_members(&self, role_name: &str) -> ServiceResult<Vec<Person>> {
