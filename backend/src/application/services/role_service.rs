@@ -121,14 +121,32 @@ impl RoleService {
     pub async fn update_role(
         &self,
         role: &Role,
+        prompts: &[RenewalPrompt],
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<Role> {
         role.validate_renewal_config()
             .map_err(ServiceError::Constraint)?;
 
+        for prompt in prompts {
+            if prompt.locale.trim().is_empty()
+                || prompt.title.trim().is_empty()
+                || prompt.body.trim().is_empty()
+                || prompt.button_label.trim().is_empty()
+            {
+                return Err(ServiceError::Constraint(
+                    "Renewal prompt fields must not be empty".to_string(),
+                ));
+            }
+        }
+
         let updated = self
             .role_repo
             .update(role)
+            .await
+            .map_err(ServiceError::from)?;
+
+        self.role_repo
+            .replace_renewal_prompts(&updated.name.0, prompts)
             .await
             .map_err(ServiceError::from)?;
 
@@ -146,6 +164,13 @@ impl RoleService {
             .await;
 
         Ok(updated)
+    }
+
+    pub async fn get_role_prompts(&self, role_name: &str) -> ServiceResult<Vec<RenewalPrompt>> {
+        self.role_repo
+            .fetch_renewal_prompts(role_name)
+            .await
+            .map_err(ServiceError::from)
     }
 
     pub async fn get_all_roles(&self) -> ServiceResult<Vec<Role>> {

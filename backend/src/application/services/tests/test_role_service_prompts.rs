@@ -121,3 +121,47 @@ async fn non_due_roles_get_no_prompts_and_no_role_fetch() {
     let views = svc.get_member_roles_with_prompts(user_id).await.unwrap();
     assert!(views[0].renewal_prompts.is_empty());
 }
+
+#[tokio::test]
+async fn update_role_replaces_prompts() {
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo.expect_update().returning(|r| Ok(r.clone()));
+    role_repo
+        .expect_replace_renewal_prompts()
+        .withf(|role_name, prompts| role_name == "membership" && prompts.len() == 1)
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    let svc = make_role_service(role_repo);
+
+    let prompts = vec![RenewalPrompt {
+        locale: "fi".to_string(),
+        title: "Jäsenmaksu vuodelle {year}".to_string(),
+        body: "Et ole maksanut jäsenmaksua vuodelle {year}.".to_string(),
+        button_label: "Maksa jäsenmaksu".to_string(),
+    }];
+    svc.update_role(&renewable_role(), &prompts, None)
+        .await
+        .unwrap();
+}
+
+#[tokio::test]
+async fn update_role_rejects_blank_prompt_fields() {
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo.expect_update().never();
+    role_repo.expect_replace_renewal_prompts().never();
+
+    let svc = make_role_service(role_repo);
+
+    let prompts = vec![RenewalPrompt {
+        locale: "fi".to_string(),
+        title: "  ".to_string(),
+        body: "body".to_string(),
+        button_label: "btn".to_string(),
+    }];
+    let result = svc.update_role(&renewable_role(), &prompts, None).await;
+    assert!(matches!(
+        result,
+        Err(crate::application::services::errors::ServiceError::Constraint(_))
+    ));
+}

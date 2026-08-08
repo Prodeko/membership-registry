@@ -100,6 +100,7 @@ const Role = () => {
             .filter((n) => Number.isFinite(n) && n > 0),
           renewal_window_days: parseInt(renewalWindowDays, 10) || 30,
           grace_period_days: parseInt(gracePeriodDays, 10) || 0,
+          renewal_prompts: role.renewal_prompts,
         },
       },
       {
