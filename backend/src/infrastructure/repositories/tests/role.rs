@@ -347,6 +347,34 @@ mod test_role {
             button_label: "Pay membership fee".to_string(),
         };
 
+        // A second role with its own prompt row must be untouched by replaces
+        // targeting the first role.
+        repo.role
+            .create(&Role {
+                name: RoleName("other-role".to_string()),
+                color: None,
+                description: None,
+                renewable: true,
+                renewal_payment_link: None,
+                renewal_period_months: Some(12),
+                renewal_email_template: None,
+                renewal_notification_days: vec![30, 7, 1],
+                renewal_window_days: 30,
+                grace_period_days: 0,
+            })
+            .await
+            .unwrap();
+        let other = crate::domain::RenewalPrompt {
+            locale: "fi".to_string(),
+            title: "Toisen roolin otsikko".to_string(),
+            body: "Toisen roolin teksti".to_string(),
+            button_label: "Toisen roolin nappi".to_string(),
+        };
+        repo.role
+            .replace_renewal_prompts("other-role", &[other.clone()])
+            .await
+            .unwrap();
+
         repo.role
             .replace_renewal_prompts("prompt-role", &[fi.clone(), en.clone()])
             .await
@@ -382,6 +410,12 @@ mod test_role {
             .await
             .unwrap()
             .is_empty());
+
+        // Every replace above was scoped to prompt-role
+        assert_eq!(
+            repo.role.fetch_renewal_prompts("other-role").await.unwrap(),
+            vec![other]
+        );
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }
