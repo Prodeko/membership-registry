@@ -250,11 +250,13 @@ async fn recovers_pending_renewal_when_unique_index_race_fires() {
         .times(2)
         .returning(move |_, _, _| find_pending_results.pop().unwrap());
     renewal_repo.expect_create().returning(|_| {
-        Err(crate::application::ports::repository_error::RepositoryError::Constraint(
-            "duplicate key value violates unique constraint \
+        Err(
+            crate::application::ports::repository_error::RepositoryError::Constraint(
+                "duplicate key value violates unique constraint \
              \"idx_role_renewal_pending_unique\""
-                .to_string(),
-        ))
+                    .to_string(),
+            ),
+        )
     });
 
     let svc = make_service(renewal_repo, role_repo);
@@ -287,9 +289,11 @@ async fn propagates_non_race_constraint_errors() {
         .times(1)
         .returning(|_, _, _| Ok(None));
     renewal_repo.expect_create().returning(|_| {
-        Err(crate::application::ports::repository_error::RepositoryError::Constraint(
-            "violates foreign key constraint \"rolerenewal_user_id_fkey\"".to_string(),
-        ))
+        Err(
+            crate::application::ports::repository_error::RepositoryError::Constraint(
+                "violates foreign key constraint \"rolerenewal_user_id_fkey\"".to_string(),
+            ),
+        )
     });
 
     let svc = make_service(renewal_repo, role_repo);

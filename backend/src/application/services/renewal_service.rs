@@ -158,7 +158,12 @@ impl RenewalService {
     /// configured milestone the renewal has crossed but not yet been notified
     /// for. Marking all crossed milestones at once prevents a burst of emails
     /// when a renewal is created with several milestones already in the past.
-    async fn send_notifications_for_role(&self, role: &Role, template_name: &str, payment_link: &str) {
+    async fn send_notifications_for_role(
+        &self,
+        role: &Role,
+        template_name: &str,
+        payment_link: &str,
+    ) {
         let role_name = &role.name.0;
         let Some(&max_offset) = role.renewal_notification_days.iter().max() else {
             return;

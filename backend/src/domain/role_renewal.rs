@@ -43,13 +43,19 @@ mod tests {
 
     #[test]
     fn all_crossed_milestones_are_due_at_once() {
-        assert_eq!(milestones_due(&[90, 60, 30, 7, 1], 25, &[]), vec![90, 60, 30]);
+        assert_eq!(
+            milestones_due(&[90, 60, 30, 7, 1], 25, &[]),
+            vec![90, 60, 30]
+        );
     }
 
     #[test]
     fn notified_milestones_are_not_resent() {
         assert!(milestones_due(&[90, 60, 30, 7, 1], 25, &[90, 60, 30]).is_empty());
-        assert_eq!(milestones_due(&[90, 60, 30, 7, 1], 7, &[90, 60, 30]), vec![7]);
+        assert_eq!(
+            milestones_due(&[90, 60, 30, 7, 1], 7, &[90, 60, 30]),
+            vec![7]
+        );
     }
 
     #[test]

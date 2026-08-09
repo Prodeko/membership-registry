@@ -80,9 +80,7 @@ impl Role {
                         || link.contains(char::is_whitespace)
                         || link.contains('#') =>
                 {
-                    return Err(
-                        "renewal payment link must be an absolute https:// URL".to_string()
-                    );
+                    return Err("renewal payment link must be an absolute https:// URL".to_string());
                 }
                 Some(_) => {}
             }
@@ -164,8 +162,12 @@ mod tests {
 
     #[test]
     fn validate_bounds_day_fields() {
-        assert!(role(MAX_RENEWAL_DAYS + 1, 0).validate_renewal_config().is_err());
-        assert!(role(30, MAX_RENEWAL_DAYS + 1).validate_renewal_config().is_err());
+        assert!(role(MAX_RENEWAL_DAYS + 1, 0)
+            .validate_renewal_config()
+            .is_err());
+        assert!(role(30, MAX_RENEWAL_DAYS + 1)
+            .validate_renewal_config()
+            .is_err());
         assert!(role(MAX_RENEWAL_DAYS, 0).validate_renewal_config().is_ok());
     }
 

@@ -361,10 +361,7 @@ mod test_role {
 
         let memberships = repo.role.fetch_roles_by_member(&user).await.unwrap();
         for (name, _, expected) in cases {
-            let m = memberships
-                .iter()
-                .find(|m| m.role_name.0 == name)
-                .unwrap();
+            let m = memberships.iter().find(|m| m.role_name.0 == name).unwrap();
             assert_eq!(m.renewal_due, expected, "role {name}");
         }
 
