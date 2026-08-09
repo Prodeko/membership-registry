@@ -5,6 +5,15 @@ use sqlx::{postgres::PgPoolOptions, Error, Pool, Postgres};
 pub async fn create_pg_pool(db_url: &str, max_connections: u32) -> Result<Pool<Postgres>, Error> {
     PgPoolOptions::new()
         .max_connections(max_connections)
+        // The renewal window is decided both by SQL (CURRENT_DATE) and by the
+        // app clock (Utc::now); pinning the session time zone keeps the two
+        // from disagreeing around midnight.
+        .after_connect(|conn, _| {
+            Box::pin(async move {
+                sqlx::query("SET TIME ZONE 'UTC'").execute(conn).await?;
+                Ok(())
+            })
+        })
         .connect(db_url)
         .await
 }

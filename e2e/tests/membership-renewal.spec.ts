@@ -1,6 +1,7 @@
 import { test, expect } from "../fixtures";
 import { HomePage } from "../pages/home.page";
 import { loginViaKeycloak } from "../helpers/auth";
+import { completeMemberProfile } from "../helpers/profile";
 
 const RENEWAL_PAYMENT_LINK = "https://buy.stripe.com/test_e2e_renewal";
 
@@ -27,7 +28,7 @@ test.describe("Membership renewal", () => {
   // Fresh login needed — beforeEach cleans up the test user
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("user can see renewal warning and click renew link which redirects to stripe", async ({
+  test("member renews from the home banner and lands on the payment link", async ({
     page,
     db,
     adminApi,
@@ -40,87 +41,11 @@ test.describe("Membership renewal", () => {
     expect(member).not.toBeNull();
     const userId = member!.user_id as string;
 
-    // Make the role renewable with a payment link
     await adminApi.updateRole(testRole.name, {
       renewable: true,
       renewal_payment_link: RENEWAL_PAYMENT_LINK,
       renewal_period_months: 12,
     });
-
-    // Give user a role membership expiring in 15 days
-    const validFrom = startOfYear();
-    const validUntil = daysFromNow(15);
-    const newValidFrom = daysFromNow(16);
-    const newValidUntil = daysFromNow(16 + 365);
-
-    await adminApi.assignRole(userId, testRole.name, validFrom, validUntil);
-
-    // Create a pending renewal record (no admin endpoint for this)
-    const renewalRows = await db.query<{ renewal_id: string }>(
-      `INSERT INTO rolerenewal (user_id, role_name, old_valid_from, old_valid_until, new_valid_from, new_valid_until, status)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pending')
-       RETURNING renewal_id`,
-      [
-        userId,
-        testRole.name,
-        validFrom,
-        validUntil,
-        newValidFrom,
-        newValidUntil,
-      ],
-    );
-    const renewalId = renewalRows[0].renewal_id;
-
-    // Reload home page
-    await page.goto("/home");
-    const home = new HomePage(page);
-    await home.waitForLoaded();
-
-    // Verify expiring warning and renewal link are visible
-    await expect(home.expiringWarning(testRole.name)).toBeVisible();
-    const href = await home.getRenewalLinkHref(testRole.name);
-    expect(href).toContain(RENEWAL_PAYMENT_LINK);
-    expect(href).toContain(`client_reference_id=${renewalId}`);
-
-    // Simulate payment completion: mark renewal as paid and create new role membership
-    await db.query(
-      `UPDATE rolerenewal SET status = 'paid', stripe_payment_id = 'pi_e2e_test' WHERE renewal_id = $1`,
-      [renewalId],
-    );
-    await adminApi.assignRole(
-      userId,
-      testRole.name,
-      newValidFrom,
-      newValidUntil,
-    );
-
-    // Go back to home and verify the renewal warning is gone (merged period extends far out)
-    await page.goto("/home");
-    await home.waitForLoaded();
-
-    await expect(home.expiringWarning(testRole.name)).toBeHidden();
-
-    // Verify new membership exists in DB
-    const roleMemberRows = await db.query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM rolemember WHERE user_id = $1 AND role_name = $2`,
-      [userId, testRole.name],
-    );
-    expect(parseInt(roleMemberRows[0].count, 10)).toBe(2); // old + new period
-  });
-
-  test("non-renewable expiring role does not show warning", async ({
-    page,
-    db,
-    adminApi,
-    testUser,
-    testRole,
-  }) => {
-    await loginViaKeycloak(page, testUser.email, testUser.password);
-
-    const member = await db.getMemberByEmail(testUser.email);
-    const userId = member!.user_id as string;
-
-    // Role is NOT renewable (default)
     await adminApi.assignRole(
       userId,
       testRole.name,
@@ -132,11 +57,67 @@ test.describe("Membership renewal", () => {
     const home = new HomePage(page);
     await home.waitForLoaded();
 
-    // Non-renewable role should NOT show expiring warning
-    await expect(home.expiringWarning(testRole.name)).toBeHidden();
+    await expect(home.renewalBanner(testRole.name)).toBeVisible();
+
+    // Intercept the Stripe navigation so the test stays offline
+    await page.route("**/test_e2e_renewal*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<html>stripe checkout stub</html>",
+      }),
+    );
+    const [request] = await Promise.all([
+      page.waitForRequest((req) => req.url().includes("test_e2e_renewal")),
+      home.clickRenew(testRole.name),
+    ]);
+    // Let the payment-link navigation commit before navigating elsewhere,
+    // or the next goto races against it
+    await page.waitForURL("**/test_e2e_renewal*");
+
+    const renewalId = new URL(request.url()).searchParams.get(
+      "client_reference_id",
+    );
+    expect(renewalId).toBeTruthy();
+
+    const renewalRows = await db.query<{ status: string }>(
+      `SELECT status FROM rolerenewal WHERE renewal_id = $1 AND user_id = $2 AND role_name = $3`,
+      [renewalId, userId, testRole.name],
+    );
+    expect(renewalRows).toHaveLength(1);
+    expect(renewalRows[0].status).toBe("pending");
+
+    // Clicking again reuses the same pending renewal
+    await page.goto("/home");
+    await home.waitForLoaded();
+    const [secondRequest] = await Promise.all([
+      page.waitForRequest((req) => req.url().includes("test_e2e_renewal")),
+      home.clickRenew(testRole.name),
+    ]);
+    expect(
+      new URL(secondRequest.url()).searchParams.get("client_reference_id"),
+    ).toBe(renewalId);
+    await page.waitForURL("**/test_e2e_renewal*");
+
+    // Simulate payment completion: the new membership pushes valid_until
+    // beyond the renewal window, so the banner disappears
+    await db.query(
+      `UPDATE rolerenewal SET status = 'paid', stripe_payment_id = 'pi_e2e_test' WHERE renewal_id = $1`,
+      [renewalId],
+    );
+    await adminApi.assignRole(
+      userId,
+      testRole.name,
+      daysFromNow(16),
+      daysFromNow(16 + 365),
+    );
+
+    await page.goto("/home");
+    await home.waitForLoaded();
+    await expect(home.renewalBanner(testRole.name)).toBeHidden();
   });
 
-  test("role expiring in more than 30 days does not show warning", async ({
+  test("configurable window controls when the banner appears", async ({
     page,
     db,
     adminApi,
@@ -144,16 +125,15 @@ test.describe("Membership renewal", () => {
     testRole,
   }) => {
     await loginViaKeycloak(page, testUser.email, testUser.password);
-
     const member = await db.getMemberByEmail(testUser.email);
     const userId = member!.user_id as string;
 
+    // Expires in 60 days: outside the default 30-day window
     await adminApi.updateRole(testRole.name, {
       renewable: true,
       renewal_payment_link: RENEWAL_PAYMENT_LINK,
       renewal_period_months: 12,
     });
-
     await adminApi.assignRole(
       userId,
       testRole.name,
@@ -161,14 +141,25 @@ test.describe("Membership renewal", () => {
       daysFromNow(60),
     );
 
-    await page.goto("/home");
     const home = new HomePage(page);
+    await page.goto("/home");
     await home.waitForLoaded();
+    await expect(home.renewalBanner(testRole.name)).toBeHidden();
 
-    await expect(home.expiringWarning(testRole.name)).toBeHidden();
+    // Widening the window to 90 days makes it due
+    await adminApi.updateRole(testRole.name, {
+      renewable: true,
+      renewal_payment_link: RENEWAL_PAYMENT_LINK,
+      renewal_period_months: 12,
+      renewal_window_days: 90,
+    });
+
+    await page.goto("/home");
+    await home.waitForLoaded();
+    await expect(home.renewalBanner(testRole.name)).toBeVisible();
   });
 
-  test("renewed role merges periods and hides warning", async ({
+  test("grace period keeps renewal open after expiry", async ({
     page,
     db,
     adminApi,
@@ -176,7 +167,37 @@ test.describe("Membership renewal", () => {
     testRole,
   }) => {
     await loginViaKeycloak(page, testUser.email, testUser.password);
+    const member = await db.getMemberByEmail(testUser.email);
+    const userId = member!.user_id as string;
 
+    await adminApi.updateRole(testRole.name, {
+      renewable: true,
+      renewal_payment_link: RENEWAL_PAYMENT_LINK,
+      renewal_period_months: 12,
+      grace_period_days: 30,
+    });
+    // Expired 5 days ago
+    await adminApi.assignRole(
+      userId,
+      testRole.name,
+      startOfYear(),
+      daysFromNow(-5),
+    );
+
+    const home = new HomePage(page);
+    await page.goto("/home");
+    await home.waitForLoaded();
+    await expect(home.renewalBanner(testRole.name)).toBeVisible();
+  });
+
+  test("expired role without grace shows no banner", async ({
+    page,
+    db,
+    adminApi,
+    testUser,
+    testRole,
+  }) => {
+    await loginViaKeycloak(page, testUser.email, testUser.password);
     const member = await db.getMemberByEmail(testUser.email);
     const userId = member!.user_id as string;
 
@@ -185,38 +206,86 @@ test.describe("Membership renewal", () => {
       renewal_payment_link: RENEWAL_PAYMENT_LINK,
       renewal_period_months: 12,
     });
-
-    // Old period expiring in 10 days + new period starting after, valid for a year
-    const oldValidFrom = startOfYear();
-    const oldValidUntil = daysFromNow(10);
-    const newValidFrom = daysFromNow(11);
-    const newValidUntil = daysFromNow(11 + 365);
-
-    // Insert both membership periods (simulates a completed renewal)
     await adminApi.assignRole(
       userId,
       testRole.name,
-      oldValidFrom,
-      oldValidUntil,
+      startOfYear(),
+      daysFromNow(-5),
     );
+
+    const home = new HomePage(page);
+    await page.goto("/home");
+    await home.waitForLoaded();
+    await expect(home.renewalBanner(testRole.name)).toBeHidden();
+  });
+
+  test("non-renewable expiring role shows no banner", async ({
+    page,
+    db,
+    adminApi,
+    testUser,
+    testRole,
+  }) => {
+    await loginViaKeycloak(page, testUser.email, testUser.password);
+    const member = await db.getMemberByEmail(testUser.email);
+    const userId = member!.user_id as string;
+
     await adminApi.assignRole(
       userId,
       testRole.name,
-      newValidFrom,
-      newValidUntil,
+      startOfYear(),
+      daysFromNow(15),
     );
+
+    const home = new HomePage(page);
+    await page.goto("/home");
+    await home.waitForLoaded();
+    await expect(home.renewalBanner(testRole.name)).toBeHidden();
+  });
+
+  test("configured banner texts render with substituted year", async ({
+    page,
+    db,
+    adminApi,
+    testUser,
+    testRole,
+  }) => {
+    await loginViaKeycloak(page, testUser.email, testUser.password);
+    const userId = await completeMemberProfile(db, adminApi, testUser.email);
+
+    await adminApi.updateRole(testRole.name, {
+      renewable: true,
+      renewal_payment_link: RENEWAL_PAYMENT_LINK,
+      renewal_period_months: 12,
+      renewal_prompts: [
+        {
+          locale: "en",
+          title: "Membership fee for {year}",
+          body: "You have not paid the membership fee for {year}.",
+          button_label: "Pay membership fee for {year}",
+        },
+      ],
+    });
+    const validUntil = daysFromNow(15);
+    await adminApi.assignRole(userId, testRole.name, startOfYear(), validUntil);
+
+    // {year} = year of (valid_until + 1 day + 12 months)
+    const expectedYear =
+      new Date(new Date(validUntil).getTime() + 86_400_000).getUTCFullYear() +
+      1;
 
     await page.goto("/home");
     const home = new HomePage(page);
     await home.waitForLoaded();
 
-    // Merged role should show as active with no expiry warning (latest valid_until is far out)
-    const roles = await home.getRoles();
-    const matched = roles.find((r) => r.roleName === testRole.displayName);
-    expect(matched).toBeDefined();
-    expect(matched!.status).not.toContain("Expired");
-
-    // No warning because merged valid_until is > 30 days out
-    await expect(home.expiringWarning(testRole.name)).toBeHidden();
+    const banner = home.renewalBanner(testRole.name);
+    await expect(banner).toBeVisible();
+    await expect(banner).toContainText(`Membership fee for ${expectedYear}`);
+    await expect(banner).toContainText(
+      `You have not paid the membership fee for ${expectedYear}.`,
+    );
+    await expect(
+      page.getByTestId(`renewal-banner-button-${testRole.name}`),
+    ).toHaveText(`Pay membership fee for ${expectedYear}`);
   });
 });

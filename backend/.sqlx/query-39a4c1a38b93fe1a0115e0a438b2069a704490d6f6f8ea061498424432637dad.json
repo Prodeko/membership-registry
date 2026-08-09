@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO Role (name, color, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days)\n            VALUES ($1, $2, $3, $4, $5, $6, $7)\n            RETURNING name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days",
+  "query": "INSERT INTO Role (name, color, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days)\n            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)\n            RETURNING name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days",
   "describe": {
     "columns": [
       {
@@ -90,6 +90,28 @@
             "name": "renewal_notification_days"
           }
         }
+      },
+      {
+        "ordinal": 8,
+        "name": "renewal_window_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "role",
+            "name": "renewal_window_days"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "grace_period_days",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "role",
+            "name": "grace_period_days"
+          }
+        }
       }
     ],
     "parameters": {
@@ -100,7 +122,9 @@
         "Text",
         "Int4",
         "Text",
-        "Int4Array"
+        "Int4Array",
+        "Int4",
+        "Int4"
       ]
     },
     "nullable": [
@@ -111,8 +135,10 @@
       true,
       true,
       true,
+      false,
+      false,
       false
     ]
   },
-  "hash": "9ca26a0b1954423732bca3361330e587c6b65e5f4a1fe6ac19147ad0f9863df3"
+  "hash": "39a4c1a38b93fe1a0115e0a438b2069a704490d6f6f8ea061498424432637dad"
 }

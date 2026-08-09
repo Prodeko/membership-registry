@@ -61,9 +61,7 @@ impl IntoResponse for ServiceError {
             ServiceError::AlreadyExists => {
                 (StatusCode::BAD_REQUEST, "Application already exists").into_response()
             }
-            ServiceError::Constraint(_) => {
-                (StatusCode::BAD_REQUEST, "Constraint violation").into_response()
-            }
+            ServiceError::Constraint(msg) => (StatusCode::BAD_REQUEST, msg).into_response(),
             ServiceError::InvalidInput => {
                 (StatusCode::BAD_REQUEST, "Invalid input").into_response()
             }

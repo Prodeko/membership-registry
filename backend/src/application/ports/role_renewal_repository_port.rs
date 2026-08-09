@@ -18,7 +18,7 @@ pub struct RenewableExpiring {
     pub renewal_period_months: Option<i32>,
 }
 
-/// A pending renewal that is due for notification at a given milestone.
+/// A pending renewal inside a role's notification horizon.
 pub struct PendingNotification {
     pub renewal_id: Uuid,
     pub user_id: Uuid,
@@ -28,25 +28,26 @@ pub struct PendingNotification {
     pub language: String,
     pub role_name: String,
     pub old_valid_until: NaiveDate,
+    /// Days from today until the old membership expires.
+    pub days_left: i32,
+    /// Milestone offsets already emailed for this renewal.
+    pub notified_days: Vec<i32>,
 }
 
 #[async_trait::async_trait]
 pub trait RoleRenewalRepositoryPort: Send + Sync {
-    /// Find all renewable role memberships expiring within `days_ahead` days
-    /// that do NOT already have a pending renewal.
-    async fn find_expiring_renewable(
-        &self,
-        days_ahead: i32,
-    ) -> Result<Vec<RenewableExpiring>, RepositoryError>;
+    /// Find all renewable role memberships expiring within their role's own
+    /// horizon — the greater of the renewal window and the largest reminder
+    /// offset — that do not already have a pending or paid renewal.
+    async fn find_expiring_renewable(&self) -> Result<Vec<RenewableExpiring>, RepositoryError>;
 
-    /// Find pending renewals that need notification for a specific milestone.
-    /// Returns renewals where old_valid_until is between today and today + days,
-    /// the notification flag for that milestone is not yet set, and the member
-    /// has email notifications enabled.
+    /// Find pending renewals for a role expiring within `max_days` days where
+    /// the member has email notifications enabled. The caller decides which
+    /// milestones are due from `days_left` and `notified_days`.
     async fn find_pending_needing_notification(
         &self,
         role_name: &str,
-        days: i32,
+        max_days: i32,
     ) -> Result<Vec<PendingNotification>, RepositoryError>;
 
     /// Create a new renewal record. Returns the created renewal.
@@ -73,10 +74,11 @@ pub trait RoleRenewalRepositoryPort: Send + Sync {
     /// Mark a renewal as expired.
     async fn mark_expired(&self, renewal_id: Uuid) -> Result<(), RepositoryError>;
 
-    /// Mark a specific notification milestone as sent.
-    /// Returns an error if the days value is not one of 30, 7, or 1.
+    /// Record that the reminder for the given day offset has been sent.
+    /// Appends the offset if it is not already recorded.
     async fn mark_notified(&self, renewal_id: Uuid, days: i32) -> Result<(), RepositoryError>;
 
-    /// Find all pending renewals that have passed their old_valid_until date.
+    /// Find all pending renewals whose old_valid_until plus the role's grace
+    /// period has passed.
     async fn find_overdue_pending(&self) -> Result<Vec<RoleRenewal>, RepositoryError>;
 }

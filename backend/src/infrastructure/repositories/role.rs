@@ -7,7 +7,7 @@ use crate::application::ports::repository_error::RepositoryError;
 use crate::application::ports::role_repository_port::{
     RoleMembership, RoleRepositoryPort, RoleStats as PortRoleStats, RolesWithStatsParams,
 };
-use crate::domain::{Person, Role, RoleName};
+use crate::domain::{Person, RenewalPrompt, Role, RoleName};
 
 // --- DAO types (private, map DB shape) ---
 
@@ -21,6 +21,8 @@ struct RoleDAO {
     renewal_period_months: Option<i32>,
     renewal_email_template: Option<String>,
     renewal_notification_days: Vec<i32>,
+    renewal_window_days: i32,
+    grace_period_days: i32,
 }
 
 impl From<RoleDAO> for Role {
@@ -34,6 +36,8 @@ impl From<RoleDAO> for Role {
             renewal_period_months: row.renewal_period_months,
             renewal_email_template: row.renewal_email_template,
             renewal_notification_days: row.renewal_notification_days,
+            renewal_window_days: row.renewal_window_days,
+            grace_period_days: row.grace_period_days,
         }
     }
 }
@@ -45,8 +49,8 @@ struct RoleMemberDAO {
     valid_from: NaiveDate,
     valid_until: Option<NaiveDate>,
     renewable: bool,
-    renewal_payment_link: Option<String>,
-    pending_renewal_id: Option<Uuid>,
+    renewal_due: bool,
+    renewal_deadline: Option<NaiveDate>,
 }
 
 impl From<RoleMemberDAO> for RoleMembership {
@@ -57,8 +61,8 @@ impl From<RoleMemberDAO> for RoleMembership {
             valid_from: row.valid_from,
             valid_until: row.valid_until,
             renewable: row.renewable,
-            renewal_payment_link: row.renewal_payment_link,
-            pending_renewal_id: row.pending_renewal_id,
+            renewal_due: row.renewal_due,
+            renewal_deadline: row.renewal_deadline,
         }
     }
 }
@@ -84,6 +88,25 @@ impl From<RoleStatsDAO> for PortRoleStats {
     }
 }
 
+#[derive(Debug, sqlx::FromRow)]
+struct RenewalPromptDAO {
+    locale: String,
+    title: String,
+    body: String,
+    button_label: String,
+}
+
+impl From<RenewalPromptDAO> for RenewalPrompt {
+    fn from(row: RenewalPromptDAO) -> Self {
+        Self {
+            locale: row.locale,
+            title: row.title,
+            body: row.body,
+            button_label: row.button_label,
+        }
+    }
+}
+
 // --- Repository ---
 
 #[derive(Clone)]
@@ -96,9 +119,9 @@ impl RoleRepositoryPort for RoleRepo {
     async fn create(&self, role: &Role) -> Result<Role, RepositoryError> {
         let row = sqlx::query_as!(
             RoleDAO,
-            r#"INSERT INTO Role (name, color, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days"#,
+            r#"INSERT INTO Role (name, color, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days"#,
             &role.name.0,
             role.color.as_deref(),
             role.renewable,
@@ -106,6 +129,8 @@ impl RoleRepositoryPort for RoleRepo {
             role.renewal_period_months,
             role.renewal_email_template.as_deref(),
             &role.renewal_notification_days,
+            role.renewal_window_days,
+            role.grace_period_days,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -117,10 +142,12 @@ impl RoleRepositoryPort for RoleRepo {
             RoleDAO,
             r#"UPDATE Role SET color = $2, description = $3, renewable = $4,
                 renewal_payment_link = $5, renewal_period_months = $6,
-                renewal_email_template = $7, renewal_notification_days = $8
+                renewal_email_template = $7, renewal_notification_days = $8,
+                renewal_window_days = $9, grace_period_days = $10
             WHERE name = $1
             RETURNING name, color, description, renewable, renewal_payment_link,
-                      renewal_period_months, renewal_email_template, renewal_notification_days"#,
+                      renewal_period_months, renewal_email_template, renewal_notification_days,
+                      renewal_window_days, grace_period_days"#,
             &role.name.0,
             role.color.as_deref(),
             role.description.as_deref(),
@@ -129,6 +156,8 @@ impl RoleRepositoryPort for RoleRepo {
             role.renewal_period_months,
             role.renewal_email_template.as_deref(),
             &role.renewal_notification_days,
+            role.renewal_window_days,
+            role.grace_period_days,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -136,7 +165,7 @@ impl RoleRepositoryPort for RoleRepo {
     }
 
     async fn fetch_all(&self) -> Result<Vec<Role>, RepositoryError> {
-        let rows = sqlx::query_as!(RoleDAO, "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days FROM Role")
+        let rows = sqlx::query_as!(RoleDAO, "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days FROM Role")
             .fetch_all(&self.pool)
             .await?;
         Ok(rows.into_iter().map(Into::into).collect())
@@ -145,7 +174,7 @@ impl RoleRepositoryPort for RoleRepo {
     async fn fetch_by_name(&self, role_name: &str) -> Result<Role, RepositoryError> {
         let row = sqlx::query_as!(
             RoleDAO,
-            "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days FROM Role WHERE name = $1",
+            "SELECT name, color, description, renewable, renewal_payment_link, renewal_period_months, renewal_email_template, renewal_notification_days, renewal_window_days, grace_period_days FROM Role WHERE name = $1",
             role_name,
         )
         .fetch_one(&self.pool)
@@ -293,15 +322,16 @@ impl RoleRepositoryPort for RoleRepo {
             RoleMemberDAO,
             r#"
           SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,
-                 r.renewable, r.renewal_payment_link,
-                 rr.renewal_id as "pending_renewal_id?"
+                 r.renewable,
+                 COALESCE(r.renewable AND rm.valid_until IS NOT NULL
+                          AND r.renewal_payment_link IS NOT NULL
+                          AND COALESCE(r.renewal_period_months, 0) > 0
+                          AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days
+                                               AND rm.valid_until + r.grace_period_days,
+                          FALSE) AS "renewal_due!",
+                 rm.valid_until + r.grace_period_days AS "renewal_deadline?"
           FROM RoleMember rm
           JOIN Role r ON r.name = rm.role_name
-          LEFT JOIN RoleRenewal rr
-            ON rr.user_id = rm.user_id
-            AND rr.role_name = rm.role_name
-            AND rr.old_valid_from = rm.valid_from
-            AND rr.status = 'pending'
           WHERE rm.user_id = $1
           ORDER BY rm.valid_from DESC
           "#,
@@ -332,15 +362,16 @@ impl RoleRepositoryPort for RoleRepo {
             RoleMemberDAO,
             r#"
             SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,
-                   r.renewable, r.renewal_payment_link,
-                   rr.renewal_id as "pending_renewal_id?"
+                   r.renewable,
+                   COALESCE(r.renewable AND rm.valid_until IS NOT NULL
+                            AND r.renewal_payment_link IS NOT NULL
+                            AND COALESCE(r.renewal_period_months, 0) > 0
+                            AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days
+                                                 AND rm.valid_until + r.grace_period_days,
+                            FALSE) AS "renewal_due!",
+                   rm.valid_until + r.grace_period_days AS "renewal_deadline?"
             FROM RoleMember rm
             JOIN Role r ON r.name = rm.role_name
-            LEFT JOIN RoleRenewal rr
-              ON rr.user_id = rm.user_id
-              AND rr.role_name = rm.role_name
-              AND rr.old_valid_from = rm.valid_from
-              AND rr.status = 'pending'
             WHERE rm.valid_until < CURRENT_DATE AND rm.keycloak_removed_at IS NULL
             "#
         )
@@ -455,5 +486,52 @@ impl RoleRepositoryPort for RoleRepo {
         .fetch_all(&self.pool)
         .await?;
         Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    async fn fetch_renewal_prompts(
+        &self,
+        role_name: &str,
+    ) -> Result<Vec<RenewalPrompt>, RepositoryError> {
+        let rows = sqlx::query_as::<_, RenewalPromptDAO>(
+            r#"
+            SELECT locale, title, body, button_label
+            FROM RoleRenewalPrompt
+            WHERE role_name = $1
+            ORDER BY locale
+            "#,
+        )
+        .bind(role_name)
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows.into_iter().map(Into::into).collect())
+    }
+
+    async fn replace_renewal_prompts(
+        &self,
+        role_name: &str,
+        prompts: &[RenewalPrompt],
+    ) -> Result<(), RepositoryError> {
+        let mut tx = self.pool.begin().await?;
+        sqlx::query("DELETE FROM RoleRenewalPrompt WHERE role_name = $1")
+            .bind(role_name)
+            .execute(&mut *tx)
+            .await?;
+        for prompt in prompts {
+            sqlx::query(
+                r#"
+                INSERT INTO RoleRenewalPrompt (role_name, locale, title, body, button_label)
+                VALUES ($1, $2, $3, $4, $5)
+                "#,
+            )
+            .bind(role_name)
+            .bind(&prompt.locale)
+            .bind(&prompt.title)
+            .bind(&prompt.body)
+            .bind(&prompt.button_label)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
     }
 }

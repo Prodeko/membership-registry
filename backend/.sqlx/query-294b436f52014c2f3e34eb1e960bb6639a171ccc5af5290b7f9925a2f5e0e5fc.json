@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,\n                   r.renewable, r.renewal_payment_link,\n                   rr.renewal_id as \"pending_renewal_id?\"\n            FROM RoleMember rm\n            JOIN Role r ON r.name = rm.role_name\n            LEFT JOIN RoleRenewal rr\n              ON rr.user_id = rm.user_id\n              AND rr.role_name = rm.role_name\n              AND rr.old_valid_from = rm.valid_from\n              AND rr.status = 'pending'\n            WHERE rm.valid_until < CURRENT_DATE AND rm.keycloak_removed_at IS NULL\n            ",
+  "query": "\n          SELECT rm.user_id, rm.role_name, rm.valid_from, rm.valid_until,\n                 r.renewable,\n                 COALESCE(r.renewable AND rm.valid_until IS NOT NULL\n                          AND r.renewal_payment_link IS NOT NULL\n                          AND COALESCE(r.renewal_period_months, 0) > 0\n                          AND CURRENT_DATE BETWEEN rm.valid_until - r.renewal_window_days\n                                               AND rm.valid_until + r.grace_period_days,\n                          FALSE) AS \"renewal_due!\",\n                 rm.valid_until + r.grace_period_days AS \"renewal_deadline?\"\n          FROM RoleMember rm\n          JOIN Role r ON r.name = rm.role_name\n          WHERE rm.user_id = $1\n          ORDER BY rm.valid_from DESC\n          ",
   "describe": {
     "columns": [
       {
@@ -60,29 +60,21 @@
       },
       {
         "ordinal": 5,
-        "name": "renewal_payment_link",
-        "type_info": "Text",
-        "origin": {
-          "Table": {
-            "table": "role",
-            "name": "renewal_payment_link"
-          }
-        }
+        "name": "renewal_due!",
+        "type_info": "Bool",
+        "origin": "Expression"
       },
       {
         "ordinal": 6,
-        "name": "pending_renewal_id?",
-        "type_info": "Uuid",
-        "origin": {
-          "Table": {
-            "table": "rolerenewal",
-            "name": "renewal_id"
-          }
-        }
+        "name": "renewal_deadline?",
+        "type_info": "Date",
+        "origin": "Expression"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Uuid"
+      ]
     },
     "nullable": [
       false,
@@ -90,9 +82,9 @@
       false,
       true,
       false,
-      true,
-      true
+      null,
+      null
     ]
   },
-  "hash": "97974c7d8839257f62bee6b67b980200ed33a22d118dbaa01c4976919ee843dd"
+  "hash": "294b436f52014c2f3e34eb1e960bb6639a171ccc5af5290b7f9925a2f5e0e5fc"
 }

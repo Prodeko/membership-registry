@@ -2,7 +2,7 @@ use chrono::NaiveDate;
 use uuid::Uuid;
 
 use super::repository_error::RepositoryError;
-use crate::domain::{Person, Role, RoleName};
+use crate::domain::{Person, RenewalPrompt, Role, RoleName};
 
 #[derive(Debug, Clone)]
 pub struct RoleMembership {
@@ -11,8 +11,8 @@ pub struct RoleMembership {
     pub valid_from: NaiveDate,
     pub valid_until: Option<NaiveDate>,
     pub renewable: bool,
-    pub renewal_payment_link: Option<String>,
-    pub pending_renewal_id: Option<Uuid>,
+    pub renewal_due: bool,
+    pub renewal_deadline: Option<NaiveDate>,
 }
 
 #[derive(Debug, Clone)]
@@ -105,5 +105,18 @@ pub trait RoleRepositoryPort: Send + Sync {
         user_id: &Uuid,
         role_name: &str,
         valid_from: NaiveDate,
+    ) -> Result<(), RepositoryError>;
+
+    /// Fetch the configured renewal banner prompts for a role (any number of locales).
+    async fn fetch_renewal_prompts(
+        &self,
+        role_name: &str,
+    ) -> Result<Vec<RenewalPrompt>, RepositoryError>;
+
+    /// Replace a role's renewal banner prompts with exactly `prompts` (delete + insert, atomic).
+    async fn replace_renewal_prompts(
+        &self,
+        role_name: &str,
+        prompts: &[RenewalPrompt],
     ) -> Result<(), RepositoryError>;
 }

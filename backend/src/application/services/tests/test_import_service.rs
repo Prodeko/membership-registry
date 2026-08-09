@@ -348,6 +348,8 @@ async fn preview_roles_flags_unknown_member_and_role() {
                 renewal_period_months: None,
                 renewal_email_template: None,
                 renewal_notification_days: vec![],
+                renewal_window_days: 30,
+                grace_period_days: 0,
             }])
         })
         .times(1..);
@@ -463,8 +465,8 @@ fn membership(
         valid_from: date(valid_from),
         valid_until: valid_until.map(date),
         renewable: false,
-        renewal_payment_link: None,
-        pending_renewal_id: None,
+        renewal_due: false,
+        renewal_deadline: None,
     }
 }
 
@@ -479,6 +481,8 @@ fn member_role() -> crate::domain::Role {
         renewal_period_months: None,
         renewal_email_template: None,
         renewal_notification_days: vec![],
+        renewal_window_days: 30,
+        grace_period_days: 0,
     }
 }
 

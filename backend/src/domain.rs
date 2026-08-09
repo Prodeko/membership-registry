@@ -1,10 +1,12 @@
 pub mod application;
 pub mod attribute;
+pub mod dates;
 pub mod email_template;
 pub mod identity;
 pub mod marketing_tag;
 pub mod patch;
 pub mod person;
+pub mod renewal_prompt;
 pub mod role;
 pub mod role_group;
 pub mod role_renewal;
@@ -12,11 +14,13 @@ pub mod well_known;
 
 pub use application::*;
 pub use attribute::*;
+pub use dates::*;
 pub use email_template::*;
 pub use identity::*;
 pub use marketing_tag::*;
 pub use patch::*;
 pub use person::*;
+pub use renewal_prompt::*;
 pub use role::*;
 pub use role_group::*;
 pub use role_renewal::*;

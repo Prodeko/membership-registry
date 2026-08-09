@@ -1,6 +1,7 @@
 mod audit_log;
 mod member;
 mod role;
+mod role_renewal;
 
 use dotenvy::dotenv;
 use sqlx::{migrate::MigrateDatabase, PgPool, Postgres};

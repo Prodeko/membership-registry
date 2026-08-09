@@ -6,6 +6,7 @@ import {
   useGetUserApplications,
   useWithdrawApplication,
 } from "@/lib/api";
+import { RoleMember } from "@/common/types";
 import { kebabCaseToTitleCase } from "@/lib/utils";
 import { useLanguageSync } from "@/i18n/useLanguageSync";
 import { Clock, ExternalLink, FileText, Pencil, Shield } from "lucide-react";
@@ -32,6 +33,7 @@ import {
 } from "../ui/dialog";
 import { Separator } from "../ui/separator";
 import { LanguageSwitcher } from "../language-switcher/LanguageSwitcher";
+import RenewalBanner from "./RenewalBanner";
 
 const statusVariant = {
   approved: "default" as const,
@@ -75,6 +77,44 @@ const UserHome = () => {
     });
   })();
 
+  const groupedRoles = (() => {
+    if (!roles) return [];
+    const byName = new Map<string, RoleMember[]>();
+    for (const r of roles) {
+      const list = byName.get(r.role_name) ?? [];
+      list.push(r);
+      byName.set(r.role_name, list);
+    }
+    return [...byName.entries()].map(([roleName, rows]) => {
+      const validFrom = new Date(
+        Math.min(...rows.map((r) => new Date(r.valid_from).getTime())),
+      );
+      const hasNoExpiry = rows.some((r) => r.valid_until === null);
+      // ISO date strings compare correctly as strings
+      const latest = rows.reduce((a, b) =>
+        (a.valid_until ?? "9999-12-31") >= (b.valid_until ?? "9999-12-31")
+          ? a
+          : b,
+      );
+      return {
+        roleName,
+        validFrom,
+        validUntil:
+          hasNoExpiry || !latest.valid_until
+            ? null
+            : new Date(latest.valid_until),
+        renewalDue: !hasNoExpiry && latest.renewal_due,
+        renewalDeadline: latest.renewal_deadline
+          ? new Date(latest.renewal_deadline)
+          : null,
+        renewalPrompts: latest.renewal_prompts,
+      };
+    });
+  })();
+  const dueRoles = groupedRoles.filter(
+    (r) => r.renewalDue && r.validUntil !== null,
+  );
+
   if (isMemberLoading || isAppsLoading) {
     return (
       <main className="flex justify-center min-h-screen w-screen px-4 py-20">
@@ -105,6 +145,16 @@ const UserHome = () => {
           </div>
           <LanguageSwitcher />
         </div>
+
+        {dueRoles.map((role) => (
+          <RenewalBanner
+            key={role.roleName}
+            roleName={role.roleName}
+            validUntil={role.validUntil!}
+            renewalDeadline={role.renewalDeadline}
+            prompts={role.renewalPrompts}
+          />
+        ))}
 
         {applications && applications.length > 0 && (
           <Card data-testid="home-applications-card">
@@ -200,124 +250,39 @@ const UserHome = () => {
               </p>
             ) : (
               <div className="space-y-3">
-                {(() => {
-                  const now = new Date();
-                  const grouped = new Map<
-                    string,
-                    {
-                      role_name: string;
-                      validFrom: Date;
-                      validUntil: Date | null;
-                      renewable: boolean;
-                      renewal_payment_link: string | null;
-                      pending_renewal_id: string | null;
-                    }
-                  >();
-
-                  for (const role of roles) {
-                    const vf = new Date(role.valid_from);
-                    const vu = role.valid_until
-                      ? new Date(role.valid_until)
-                      : null;
-                    const existing = grouped.get(role.role_name);
-
-                    if (!existing) {
-                      grouped.set(role.role_name, {
-                        role_name: role.role_name,
-                        validFrom: vf,
-                        validUntil: vu,
-                        renewable: role.renewable,
-                        renewal_payment_link: role.renewal_payment_link,
-                        pending_renewal_id: role.pending_renewal_id,
-                      });
-                    } else {
-                      if (vf < existing.validFrom) existing.validFrom = vf;
-                      if (vu === null) {
-                        existing.validUntil = null;
-                      } else if (
-                        existing.validUntil !== null &&
-                        vu > existing.validUntil
-                      ) {
-                        existing.validUntil = vu;
-                      }
-                      if (role.pending_renewal_id) {
-                        existing.pending_renewal_id = role.pending_renewal_id;
-                        existing.renewal_payment_link =
-                          role.renewal_payment_link;
-                      }
-                    }
-                  }
-
-                  return [...grouped.values()].map((role) => {
-                    const isExpired = role.validUntil && role.validUntil < now;
-                    const daysUntilExpiry = role.validUntil
-                      ? Math.ceil(
-                          (role.validUntil.getTime() - now.getTime()) /
-                            (1000 * 60 * 60 * 24),
-                        )
-                      : null;
-                    const isExpiringSoon =
-                      role.renewable &&
-                      !isExpired &&
-                      daysUntilExpiry !== null &&
-                      daysUntilExpiry <= 30;
-                    return (
-                      <div
-                        key={role.role_name}
-                        data-testid={`role-row-${role.role_name}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="font-medium" data-testid="role-name">
-                              {kebabCaseToTitleCase(role.role_name)}
-                            </p>
-                            <p className="text-sm text-muted-foreground flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {role.validFrom.toLocaleDateString()}
-                              {" - "}
-                              {role.validUntil
-                                ? role.validUntil.toLocaleDateString()
-                                : t("home.roles.no_expiry")}
-                            </p>
-                          </div>
-                          <Badge
-                            variant={isExpired ? "destructive" : "default"}
-                            data-testid={`role-status-${role.role_name}`}
-                          >
-                            {isExpired
-                              ? t("status.expired")
-                              : t("status.active")}
-                          </Badge>
+                {groupedRoles.map((role) => {
+                  const isExpired =
+                    role.validUntil !== null && role.validUntil < new Date();
+                  return (
+                    <div
+                      key={role.roleName}
+                      data-testid={`role-row-${role.roleName}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium" data-testid="role-name">
+                            {kebabCaseToTitleCase(role.roleName)}
+                          </p>
+                          <p className="text-sm text-muted-foreground flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {role.validFrom.toLocaleDateString()}
+                            {" - "}
+                            {role.validUntil
+                              ? role.validUntil.toLocaleDateString()
+                              : t("home.roles.no_expiry")}
+                          </p>
                         </div>
-                        {isExpiringSoon && (
-                          <div
-                            className="flex items-center justify-between mt-2 text-sm text-orange-600"
-                            data-testid={`role-expiring-warning-${role.role_name}`}
-                          >
-                            <span>
-                              {t("home.roles.expiring_soon", {
-                                days: daysUntilExpiry,
-                              })}
-                            </span>
-                            {role.renewal_payment_link &&
-                              role.pending_renewal_id && (
-                                <a
-                                  href={`${role.renewal_payment_link}?client_reference_id=${role.pending_renewal_id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-500 hover:underline"
-                                  data-testid={`role-renewal-link-${role.role_name}`}
-                                >
-                                  {t("home.roles.renew")}
-                                </a>
-                              )}
-                          </div>
-                        )}
-                        <Separator className="mt-3" />
+                        <Badge
+                          variant={isExpired ? "destructive" : "default"}
+                          data-testid={`role-status-${role.roleName}`}
+                        >
+                          {isExpired ? t("status.expired") : t("status.active")}
+                        </Badge>
                       </div>
-                    );
-                  });
-                })()}
+                      <Separator className="mt-3" />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>

@@ -73,14 +73,12 @@ export class HomePage {
     return results;
   }
 
-  expiringWarning(roleName: string) {
-    return this.page.getByTestId(`role-expiring-warning-${roleName}`);
+  renewalBanner(roleName: string) {
+    return this.page.getByTestId(`renewal-banner-${roleName}`);
   }
 
-  async getRenewalLinkHref(roleName: string): Promise<string | null> {
-    const link = this.page.getByTestId(`role-renewal-link-${roleName}`);
-    if (!(await link.isVisible())) return null;
-    return link.getAttribute("href");
+  async clickRenew(roleName: string): Promise<void> {
+    await this.page.getByTestId(`renewal-banner-button-${roleName}`).click();
   }
 
   // --- Profile ---

@@ -15,7 +15,7 @@ use crate::{
     infrastructure::http::{
         dto::{
             member::MemberDTO,
-            role::{RoleDTO, RoleStatsDTO, UpdateRoleDTO},
+            role::{RenewalPromptDTO, RoleDTO, RoleStatsDTO, UpdateRoleDTO},
         },
         errors::ApiResult,
         types::RolePath,
@@ -53,13 +53,10 @@ async fn get_role(
     Path(path): Path<RolePath>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<RoleDTO>> {
-    let role = state
-        .role_service
-        .get_role(&path.id)
-        .await
-        .map(RoleDTO::from)
-        .map(Json)?;
-    Ok(role)
+    let mut role_dto = RoleDTO::from(state.role_service.get_role(&path.id).await?);
+    let prompts = state.role_service.get_role_prompts(&role_dto.name).await?;
+    role_dto.renewal_prompts = prompts.into_iter().map(RenewalPromptDTO::from).collect();
+    Ok(Json(role_dto))
 }
 
 async fn get_role_members(
@@ -130,6 +127,8 @@ async fn post_role(
         renewal_period_months: None,
         renewal_email_template: None,
         renewal_notification_days: vec![30, 7, 1],
+        renewal_window_days: 30,
+        grace_period_days: 0,
     };
     let role = state
         .role_service
@@ -158,15 +157,33 @@ async fn update_role(
         renewal_period_months: body.renewal_period_months,
         renewal_email_template: body.renewal_email_template,
         renewal_notification_days: body.renewal_notification_days,
+        renewal_window_days: body.renewal_window_days,
+        grace_period_days: body.grace_period_days,
     };
-    let updated = state
-        .role_service
-        .update_role(&role, actor_id)
-        .await
-        .map(RoleDTO::from)
-        .map(Json)?;
+    let prompts: Vec<crate::domain::RenewalPrompt> = body
+        .renewal_prompts
+        .iter()
+        .map(|p| crate::domain::RenewalPrompt {
+            locale: p.locale.clone(),
+            title: p.title.clone(),
+            body: p.body.clone(),
+            button_label: p.button_label.clone(),
+        })
+        .collect();
 
-    Ok(updated)
+    let mut updated = RoleDTO::from(
+        state
+            .role_service
+            .update_role(&role, &prompts, actor_id)
+            .await?,
+    );
+    let saved_prompts = state.role_service.get_role_prompts(&updated.name).await?;
+    updated.renewal_prompts = saved_prompts
+        .into_iter()
+        .map(RenewalPromptDTO::from)
+        .collect();
+
+    Ok(Json(updated))
 }
 
 #[derive(serde::Serialize)]

@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
-use crate::application::ports::role_repository_port::{RoleMembership, RoleStats};
+use crate::application::ports::role_repository_port::RoleStats;
+use crate::application::services::role_service::MemberRoleView;
 use crate::domain::Role;
 
 #[derive(Debug, Serialize, Deserialize, Default, TS)]
@@ -15,6 +16,9 @@ pub struct RoleDTO {
     pub renewal_period_months: Option<i32>,
     pub renewal_email_template: Option<String>,
     pub renewal_notification_days: Vec<i32>,
+    pub renewal_window_days: i32,
+    pub grace_period_days: i32,
+    pub renewal_prompts: Vec<RenewalPromptDTO>,
 }
 
 impl From<Role> for RoleDTO {
@@ -28,6 +32,9 @@ impl From<Role> for RoleDTO {
             renewal_period_months: role.renewal_period_months,
             renewal_email_template: role.renewal_email_template,
             renewal_notification_days: role.renewal_notification_days,
+            renewal_window_days: role.renewal_window_days,
+            grace_period_days: role.grace_period_days,
+            renewal_prompts: Vec::new(),
         }
     }
 }
@@ -42,6 +49,29 @@ pub struct UpdateRoleDTO {
     pub renewal_period_months: Option<i32>,
     pub renewal_email_template: Option<String>,
     pub renewal_notification_days: Vec<i32>,
+    pub renewal_window_days: i32,
+    pub grace_period_days: i32,
+    pub renewal_prompts: Vec<RenewalPromptDTO>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, rename = "RenewalPrompt")]
+pub struct RenewalPromptDTO {
+    pub locale: String,
+    pub title: String,
+    pub body: String,
+    pub button_label: String,
+}
+
+impl From<crate::domain::RenewalPrompt> for RenewalPromptDTO {
+    fn from(p: crate::domain::RenewalPrompt) -> Self {
+        Self {
+            locale: p.locale,
+            title: p.title,
+            body: p.body,
+            button_label: p.button_label,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -52,22 +82,31 @@ pub struct RoleMembershipDTO {
     pub valid_from: chrono::NaiveDate,
     pub valid_until: Option<chrono::NaiveDate>,
     pub renewable: bool,
-    pub renewal_payment_link: Option<String>,
-    pub pending_renewal_id: Option<uuid::Uuid>,
+    pub renewal_due: bool,
+    pub renewal_deadline: Option<chrono::NaiveDate>,
+    pub renewal_prompts: Vec<RenewalPromptDTO>,
 }
 
-impl From<RoleMembership> for RoleMembershipDTO {
-    fn from(rm: RoleMembership) -> Self {
+impl From<MemberRoleView> for RoleMembershipDTO {
+    fn from(view: MemberRoleView) -> Self {
+        let rm = view.membership;
         Self {
             user_id: rm.user_id,
             role_name: rm.role_name.0,
             valid_from: rm.valid_from,
             valid_until: rm.valid_until,
             renewable: rm.renewable,
-            renewal_payment_link: rm.renewal_payment_link,
-            pending_renewal_id: rm.pending_renewal_id,
+            renewal_due: rm.renewal_due,
+            renewal_deadline: rm.renewal_deadline,
+            renewal_prompts: view.renewal_prompts.into_iter().map(Into::into).collect(),
         }
     }
+}
+
+#[derive(Debug, Serialize, TS)]
+#[ts(export, rename = "StartRenewalResponse")]
+pub struct StartRenewalResponseDTO {
+    pub payment_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
