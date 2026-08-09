@@ -71,6 +71,9 @@ test.describe("Membership renewal", () => {
       page.waitForRequest((req) => req.url().includes("test_e2e_renewal")),
       home.clickRenew(testRole.name),
     ]);
+    // Let the payment-link navigation commit before navigating elsewhere,
+    // or the next goto races against it
+    await page.waitForURL("**/test_e2e_renewal*");
 
     const renewalId = new URL(request.url()).searchParams.get(
       "client_reference_id",
@@ -94,6 +97,7 @@ test.describe("Membership renewal", () => {
     expect(
       new URL(secondRequest.url()).searchParams.get("client_reference_id"),
     ).toBe(renewalId);
+    await page.waitForURL("**/test_e2e_renewal*");
 
     // Simulate payment completion: the new membership pushes valid_until
     // beyond the renewal window, so the banner disappears
