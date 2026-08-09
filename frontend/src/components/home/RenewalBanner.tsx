@@ -41,14 +41,14 @@ const RenewalBanner = ({
       className="border-0 bg-primary"
       data-testid={`renewal-banner-${roleName}`}
     >
-      <CardContent className="flex items-center justify-between gap-4 p-6">
+      <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="font-semibold text-primary-foreground">{title}</p>
           <p className="text-sm text-primary-foreground/80">{body}</p>
         </div>
         <Button
           disabled={isPending}
-          className="shrink-0 bg-white text-primary hover:bg-white/90"
+          className="w-full bg-white text-primary hover:bg-white/90 sm:w-auto sm:shrink-0"
           data-testid={`renewal-banner-button-${roleName}`}
           onClick={() =>
             startRenewal(roleName, {
