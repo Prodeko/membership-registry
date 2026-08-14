@@ -88,6 +88,48 @@ Treat the client secret like a password — store it in the app's secret
 manager, never in source control. Use `Regenerate` if it is ever exposed;
 this invalidates the old value immediately.
 
+## 5. Client scopes
+
+By default Keycloak does not serve user attributes to oauth clients. In order
+to get, for example custom roles like 'ilmo-admin' working in a consuming app,
+keycloak client scopes must be mapped. These are also called protocol mappers
+in keycloak.
+
+![Client details — navigating to scope mappers](images/kc-6.png)
+
+Open the client details and click on Client scopes. Open the dedicated scope.
+Add protocol mappers for the custom claims your consuming app needs.
+
+### Realm roles — type `User Realm Role`
+
+- Name: `realm roles`
+- Multivalued: on. Single-valued emits a bare string where apps expect a list.
+- Token Claim Name: `realm_access.roles`. The dot nests, giving
+  `{"realm_access": {"roles": [...]}}` — the shape apps read.
+- Claim JSON Type: `String`
+- Add to ID token: on. This is the setting the default `roles` scope lacks.
+- Add to access token: on. Add to userinfo: off.
+
+The mapper delivers the effective role set, including roles inherited from
+groups and composites.
+
+### Locale — type `User Attribute`
+
+- Name: `locale`
+- User Attribute: `locale`, Token Claim Name: `locale`
+- Claim JSON Type: `String`
+- Add to ID token: on
+
+The registry syncs each member's language into the `locale` user attribute; each
+client maps the claim itself.
+
+![Client details — evaluate effective client claims](images/kc-7.png)
+
+Verify the role mappers you created work before deploying. Navigate to:
+`Client scopes` → `Evaluate`, enter a member's username, and read
+`Generated ID token`. Those are exactly the claims the app will receive and can
+use.
+
 ## Local development
 
 I recommend you bootstrap Keycloak and the membership-registry locally for
