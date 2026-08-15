@@ -3,6 +3,8 @@ use jsonwebtoken::{
 };
 use moka::future::Cache;
 use percent_encoding::{utf8_percent_encode, AsciiSet, CONTROLS};
+use rand::seq::SliceRandom;
+use rand::RngExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -35,6 +37,44 @@ const PATH_SEGMENT_ENCODE_SET: &AsciiSet = &CONTROLS
 
 fn encode_path(segment: &str) -> String {
     utf8_percent_encode(segment, PATH_SEGMENT_ENCODE_SET).to_string()
+}
+
+/// Character classes a Keycloak realm password policy can require, one entry
+/// per stock rule (`upperCase`, `lowerCase`, `digits`, `specialChars`).
+const PASSWORD_CLASSES: [&[u8]; 4] = [
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    b"abcdefghijklmnopqrstuvwxyz",
+    b"0123456789",
+    b"!@#$%^&*-_=+?",
+];
+
+/// A random password that satisfies every stock Keycloak password policy.
+///
+/// Keycloak validates the credential against the realm policy while creating
+/// the user, so a password short of a required character class fails the whole
+/// `POST /users` with 400. Eight characters of each class cover any realistic
+/// `upperCase(n)`-style threshold, and the 32-character length covers
+/// `length(n)`.
+fn throwaway_password() -> String {
+    let mut rng = rand::rng();
+    let mut chars: Vec<u8> = Vec::with_capacity(8 * PASSWORD_CLASSES.len());
+    for _ in 0..8 {
+        for class in PASSWORD_CLASSES {
+            chars.push(class[rng.random_range(0..class.len())]);
+        }
+    }
+    chars.shuffle(&mut rng);
+    String::from_utf8_lossy(&chars).into_owned()
+}
+
+/// Keycloak error bodies are short JSON documents, but cap the length anyway so
+/// a stray HTML error page cannot flood a log line or an import report cell.
+fn error_body(body: &str) -> String {
+    const MAX: usize = 300;
+    match body.char_indices().nth(MAX) {
+        Some((cut, _)) => format!("{}…", &body[..cut]),
+        None => body.to_string(),
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -671,9 +711,12 @@ impl KeycloakClient {
         // requires before offering password entry / reset — without one the
         // user would be hard-blocked unless they used the invite link. The
         // locale attribute must be set atomically here — emails sent right
-        // after creation already depend on it.
-        let throwaway_password = uuid::Uuid::new_v4().to_string();
+        // after creation already depend on it. `username` is sent explicitly
+        // because realms without `registrationEmailAsUsername` reject a user
+        // that carries only an email.
+        let throwaway_password = throwaway_password();
         let body = serde_json::json!({
+            "username": email,
             "email": email,
             "firstName": first_name,
             "lastName": last_name,
@@ -702,9 +745,14 @@ impl KeycloakClient {
             ));
         }
         if !response.status().is_success() {
+            let status = response.status();
+            // Keycloak names the offending field or policy rule in the body
+            // ("User name is missing", "Invalid password: …"). Carry it into
+            // the error so it reaches the admin running a member import.
+            let body = error_body(&response.text().await.unwrap_or_default());
+            tracing::error!("create_user returned {status}: {body}");
             return Err(KeycloakError::Unavailable(format!(
-                "create_user failed: {}",
-                response.status()
+                "create_user failed: {status}: {body}"
             )));
         }
 
@@ -1670,11 +1718,12 @@ mod tests {
             .mount(&server)
             .await;
         // Only matches when the payload carries the required actions, the
-        // locale attribute, and a temporary password credential; otherwise
-        // the request 404s and create_user errors.
+        // username, the locale attribute, and a temporary password credential;
+        // otherwise the request 404s and create_user errors.
         Mock::given(method("POST"))
             .and(path("/admin/realms/test/users"))
             .and(body_partial_json(serde_json::json!({
+                "username": "a@x.com",
                 "requiredActions": ["UPDATE_PASSWORD", "VERIFY_EMAIL"],
                 "attributes": { "locale": ["en"] }
             })))
@@ -1698,6 +1747,72 @@ mod tests {
 
         let subject = client.create_user("a@x.com", "A", "B", "en").await.unwrap();
         assert_eq!(subject, "abc-123");
+    }
+
+    #[tokio::test]
+    async fn create_user_error_carries_keycloak_reason() {
+        let server = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/realms/test/protocol/openid-connect/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "access_token": "t",
+                "expires_in": 3600
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/admin/realms/test/users"))
+            .respond_with(ResponseTemplate::new(400).set_body_json(serde_json::json!({
+                "error": "invalidPasswordMinUpperCaseCharsMessage",
+                "error_description": "Invalid password: must contain at least 1 upper case characters."
+            })))
+            .mount(&server)
+            .await;
+
+        let client = KeycloakClient::new(KeycloakConfig {
+            base_url: server.uri(),
+            realm: "test".into(),
+            client_id: "app".into(),
+            client_secret: None,
+            admin_client_id: "admin-cli".into(),
+            admin_client_secret: "secret".into(),
+            admin_role_name: "admin".into(),
+        });
+
+        let err = client
+            .create_user("a@x.com", "A", "B", "en")
+            .await
+            .unwrap_err();
+        let KeycloakError::Unavailable(msg) = err else {
+            panic!("expected Unavailable, got {err:?}");
+        };
+        assert!(msg.contains("400"), "{msg}");
+        assert!(msg.contains("must contain at least 1 upper case"), "{msg}");
+    }
+
+    #[test]
+    fn throwaway_password_satisfies_every_policy_class() {
+        for _ in 0..50 {
+            let pw = throwaway_password();
+            assert_eq!(pw.len(), 32);
+            for class in PASSWORD_CLASSES {
+                let hits = pw.bytes().filter(|b| class.contains(b)).count();
+                assert!(
+                    hits >= 8,
+                    "'{pw}' has {hits} chars of class '{}'",
+                    String::from_utf8_lossy(class)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn error_body_truncates_on_a_char_boundary() {
+        assert_eq!(error_body("short"), "short");
+        let long = "ä".repeat(400);
+        let truncated = error_body(&long);
+        assert_eq!(truncated.chars().count(), 301);
+        assert!(truncated.ends_with('…'));
     }
 
     #[test]
