@@ -3,17 +3,22 @@ import { DataTable } from "../ui/data-table";
 import { columns } from "./columns";
 import { APPLICATION_STATUSES } from "@/lib/constants";
 import { Badge } from "../ui/badge";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { capitalizeFirstLetter } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { buttonVariants } from "../ui/button";
 
 const Applications = () => {
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(
-    "pending",
-  );
+  // The status filter lives in the URL so returning from an application
+  // (or reloading) keeps the list the user was viewing.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const statusParam = searchParams.get("status");
+  const selectedStatus =
+    APPLICATION_STATUSES.find((s) => s === statusParam) ?? "pending";
+  const setSelectedStatus = (status: string) =>
+    setSearchParams({ status }, { replace: true });
 
   const queryClient = useQueryClient();
 
