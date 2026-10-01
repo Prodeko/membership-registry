@@ -1156,6 +1156,7 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
                 setAttributeEdits((prev) => ({ ...prev, [name]: "" }))
               }
               heading=""
+              canClearRequired
               emptyMessage="No attributes defined yet. Configure them in the Attributes admin page."
             />
           </section>

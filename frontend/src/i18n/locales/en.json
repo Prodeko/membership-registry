@@ -50,6 +50,11 @@
       "expired_text": "Your membership expired on {{date}}. You can renew it until {{deadline}}.",
       "renew_button": "Pay membership fee"
     },
+    "missing_attributes": {
+      "title": "Missing information",
+      "description": "Please fill in the required information: {{names}}.",
+      "fill_button": "Fill in"
+    },
     "profile": {
       "title": "Profile"
     }
@@ -101,7 +106,8 @@
     "not_set": "— not set",
     "not_set_option": "— not set —",
     "not_set_placeholder": "Not set",
-    "clear": "Clear"
+    "clear": "Clear",
+    "required": "Required"
   },
   "application": {
     "form": {
@@ -114,7 +120,8 @@
       "application_text_placeholder": "Short application text",
       "membership_tooltip": "Select the membership type you want to apply for. If you have already applied for a role, you can't apply for it again until the current application is processed.",
       "proceed_payment": "Proceed to payment",
-      "submit": "Submit application"
+      "submit": "Submit application",
+      "required_missing": "Fill in the required fields: {{names}}."
     }
   },
   "success": {

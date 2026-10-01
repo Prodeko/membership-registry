@@ -11,6 +11,7 @@ pub struct CreateAttributeDefinition {
     pub default_value: Option<AttributeValue>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableBy,
+    pub required: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -20,6 +21,7 @@ pub struct UpdateAttributeDefinition {
     pub default_value: Option<AttributeValue>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableBy,
+    pub required: bool,
 }
 
 #[async_trait::async_trait]

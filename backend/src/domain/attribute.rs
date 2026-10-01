@@ -125,6 +125,9 @@ pub struct AttributeDefinition {
     default_value: Option<AttributeValue>,
     sync_to_keycloak: bool,
     editable_by: EditableBy,
+    /// Members must hold a value for this attribute: application forms can't
+    /// be submitted without it and members can't clear it themselves.
+    required: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -150,6 +153,7 @@ impl AttributeDefinition {
         default_value: Option<AttributeValue>,
         sync_to_keycloak: bool,
         editable_by: EditableBy,
+        required: bool,
     ) -> Result<Self, InvalidAttributeDefinition> {
         if matches!(&allowed_values, Some(v) if v.is_empty()) {
             return Err(InvalidAttributeDefinition::EmptyAllowedValues);
@@ -166,6 +170,7 @@ impl AttributeDefinition {
             default_value,
             sync_to_keycloak,
             editable_by,
+            required,
         })
     }
 
@@ -178,6 +183,7 @@ impl AttributeDefinition {
         default_value: Option<AttributeValue>,
         sync_to_keycloak: bool,
         editable_by: EditableBy,
+        required: bool,
     ) -> Self {
         let allowed_values = allowed_values.filter(|v| !v.is_empty());
         Self {
@@ -187,6 +193,7 @@ impl AttributeDefinition {
             default_value,
             sync_to_keycloak,
             editable_by,
+            required,
         }
     }
 
@@ -212,6 +219,10 @@ impl AttributeDefinition {
 
     pub fn editable_by(&self) -> EditableBy {
         self.editable_by
+    }
+
+    pub fn required(&self) -> bool {
+        self.required
     }
 
     pub fn validate(&self, value: &AttributeValue) -> Result<(), AttributeValidationError> {
@@ -358,6 +369,7 @@ mod tests {
             None,
             false,
             EditableBy::Admin,
+            false,
         )
         .unwrap();
         assert!(def.validate(&av("anything")).is_ok());
@@ -372,6 +384,7 @@ mod tests {
             None,
             true,
             EditableBy::Admin,
+            false,
         )
         .unwrap();
         assert!(def.validate(&av("IV")).is_ok());
@@ -390,6 +403,7 @@ mod tests {
             None,
             false,
             EditableBy::Admin,
+            false,
         );
         assert_eq!(r, Err(InvalidAttributeDefinition::EmptyAllowedValues));
     }
@@ -403,6 +417,7 @@ mod tests {
             Some(av("external")),
             true,
             EditableBy::Admin,
+            false,
         )
         .unwrap();
         assert_eq!(
@@ -420,6 +435,7 @@ mod tests {
             Some(av("other")),
             true,
             EditableBy::Admin,
+            false,
         );
         assert_eq!(
             r,
@@ -436,6 +452,7 @@ mod tests {
             Some(av("anything goes")),
             false,
             EditableBy::Admin,
+            false,
         )
         .unwrap();
         assert_eq!(

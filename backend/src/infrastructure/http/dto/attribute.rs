@@ -42,6 +42,7 @@ pub struct AttributeDefinitionDTO {
     pub default_value: Option<String>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableByDTO,
+    pub required: bool,
 }
 
 impl From<AttributeDefinition> for AttributeDefinitionDTO {
@@ -53,6 +54,7 @@ impl From<AttributeDefinition> for AttributeDefinitionDTO {
         Self {
             sync_to_keycloak: d.sync_to_keycloak(),
             editable_by: d.editable_by().into(),
+            required: d.required(),
             description: d.description().map(str::to_string),
             allowed_values: allowed,
             default_value: default,
@@ -70,6 +72,9 @@ pub struct CreateAttributeDefinitionDTO {
     pub default_value: Option<String>,
     pub sync_to_keycloak: bool,
     pub editable_by: EditableByDTO,
+    #[serde(default)]
+    #[ts(optional)]
+    pub required: Option<bool>,
 }
 
 /// Patch DTO for updating a definition. Each field's wire semantics:
@@ -94,6 +99,9 @@ pub struct UpdateAttributeDefinitionDTO {
     #[serde(default)]
     #[ts(optional)]
     pub editable_by: Option<EditableByDTO>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub required: Option<bool>,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -104,6 +112,7 @@ pub struct MemberAttributeDTO {
     pub editable: bool,
     pub allowed_values: Option<Vec<String>>,
     pub description: Option<String>,
+    pub required: bool,
 }
 
 #[derive(Debug, Deserialize, TS)]

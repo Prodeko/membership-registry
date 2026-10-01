@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Switch } from "../ui/switch";
+import { Checkbox } from "../ui/checkbox";
 
 type Mode = "create" | "edit";
 
@@ -62,6 +63,7 @@ const AttributeFormModal = ({
   const [editableBy, setEditableBy] = useState<EditableBy>(
     initial?.editable_by ?? "admin",
   );
+  const [required, setRequired] = useState(initial?.required ?? false);
   const [nameError, setNameError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -72,6 +74,7 @@ const AttributeFormModal = ({
       setDefaultValue(initial?.default_value ?? "");
       setSyncToKeycloak(initial?.sync_to_keycloak ?? true);
       setEditableBy(initial?.editable_by ?? "admin");
+      setRequired(initial?.required ?? false);
       setNameError(null);
     }
   }, [open, initial]);
@@ -97,6 +100,7 @@ const AttributeFormModal = ({
         default_value,
         sync_to_keycloak: syncToKeycloak,
         editable_by: editableBy,
+        required,
       } satisfies CreateAttributeDefinition);
     } else {
       // Build a sparse Patch payload: omit fields that match the loaded
@@ -128,6 +132,9 @@ const AttributeFormModal = ({
       }
       if (editableBy !== (initial?.editable_by ?? "admin")) {
         patch.editable_by = editableBy;
+      }
+      if (required !== (initial?.required ?? false)) {
+        patch.required = required;
       }
       onSubmit(patch);
     }
@@ -260,6 +267,24 @@ const AttributeFormModal = ({
                 <SelectItem value="both">Admin and user</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="attr-required"
+              checked={required}
+              onCheckedChange={(c) => setRequired(c === true)}
+              className="mt-0.5"
+            />
+            <div>
+              <Label htmlFor="attr-required">Required</Label>
+              <p className="text-xs text-muted-foreground">
+                Members must fill this in. Application forms that include it
+                can't be submitted without a value, members can't clear it, and
+                members missing it are asked to fill it on their home page.
+                Admin-only attributes are never prompted to members.
+              </p>
+            </div>
           </div>
         </div>
 

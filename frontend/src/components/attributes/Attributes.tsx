@@ -137,6 +137,11 @@ const Attributes = () => {
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{def.editable_by}</Badge>
+                    {def.required && (
+                      <Badge variant="secondary" className="ml-1">
+                        required
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right space-x-2">
                     <Button

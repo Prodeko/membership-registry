@@ -29,6 +29,7 @@ fn def(name: &str, allowed: Option<Vec<&str>>, editable: EditableBy) -> Attribut
         None,
         false,
         editable,
+        false,
     )
     .unwrap()
 }
