@@ -121,6 +121,7 @@ mod tests {
             Arc::new(MockRoleRepositoryPort::new()),
             None,
             "http://localhost".to_string(),
+            3,
         )
     }
 

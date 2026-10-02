@@ -1,3 +1,4 @@
+pub mod application_alert_service;
 pub mod application_digest_service;
 pub mod application_service;
 pub mod attribute_service;

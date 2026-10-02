@@ -13,8 +13,11 @@ use crate::domain::well_known::{
 use crate::domain::ApplicationStatus;
 
 /// Sends admins a daily digest email listing membership applications that
-/// await admin action: pending ones awaiting a decision and unpaid ones the
-/// admin may reject to clear out. Recipients are members who hold the
+/// have awaited admin action for at least `stale_after_days`: pending ones
+/// awaiting a decision and unpaid ones the admin may reject to clear out.
+/// Fresh applications are left out because `ApplicationAlertService` already
+/// emailed admins about each one as it arrived; the digest is the reminder
+/// for the ones nobody acted on. Recipients are members who hold the
 /// `admin` role and have the `admin-notifications-email` attribute set; the
 /// digest goes to the attribute's value. Scheduled by
 /// `scheduler::start_application_digest_job` — every failure is logged and
@@ -26,6 +29,7 @@ pub struct ApplicationDigestService {
     role_repo: Arc<dyn RoleRepositoryPort>,
     email_port: Option<Arc<dyn EmailPort>>,
     frontend_url: String,
+    stale_after_days: u32,
 }
 
 impl ApplicationDigestService {
@@ -35,6 +39,7 @@ impl ApplicationDigestService {
         role_repo: Arc<dyn RoleRepositoryPort>,
         email_port: Option<Arc<dyn EmailPort>>,
         frontend_url: String,
+        stale_after_days: u32,
     ) -> Self {
         Self {
             application_queries,
@@ -42,6 +47,7 @@ impl ApplicationDigestService {
             role_repo,
             email_port,
             frontend_url,
+            stale_after_days,
         }
     }
 
@@ -53,8 +59,13 @@ impl ApplicationDigestService {
             return;
         };
         applications.extend(unpaid);
+        let cutoff = chrono::Utc::now() - chrono::Duration::days(i64::from(self.stale_after_days));
+        applications.retain(|app| app.created_at <= cutoff);
         if applications.is_empty() {
-            tracing::debug!("Application digest: no applications awaiting action, skipping");
+            tracing::debug!(
+                stale_after_days = self.stale_after_days,
+                "Application digest: no stale applications awaiting action, skipping"
+            );
             return;
         }
 
@@ -181,7 +192,7 @@ struct DigestEmail {
 
 fn build_digest(applications: &[ApplicationWithMember], frontend_url: &str) -> DigestEmail {
     let subject = format!(
-        "{} membership application{} awaiting action",
+        "{} membership application{} still awaiting action",
         applications.len(),
         if applications.len() == 1 { "" } else { "s" }
     );
@@ -202,7 +213,7 @@ fn build_digest(applications: &[ApplicationWithMember], frontend_url: &str) -> D
         })
         .collect();
     let body = format!(
-        "<p>The following membership applications are awaiting action:</p>\
+        "<p>The following membership applications have been awaiting action for a while:</p>\
          <table border=\"1\" cellpadding=\"6\" cellspacing=\"0\">\
          <tr><th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Submitted</th></tr>{rows}</table>\
          <p><a href=\"{frontend_url}/applications\">Open the applications view</a></p>"
