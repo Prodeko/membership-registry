@@ -170,6 +170,26 @@ impl MarketingListPort for MailchimpMarketingAdapter {
         }
     }
 
+    async fn archive(&self, email: &str) -> Result<(), MarketingListError> {
+        // DELETE on a list member archives it (permanent deletion is a
+        // separate `delete-permanent` action we never use).
+        let resp = self
+            .http
+            .delete(self.member_url(email))
+            .bearer_auth(&self.config.api_key)
+            .send()
+            .await
+            .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
+
+        if resp.status().is_success() || resp.status().as_u16() == 404 {
+            Ok(())
+        } else {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            Err(MarketingListError::ApiError { status, body })
+        }
+    }
+
     async fn set_tags(
         &self,
         identity: &ContactIdentity,
