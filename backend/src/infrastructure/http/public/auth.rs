@@ -57,6 +57,9 @@ async fn logout(State(state): State<AppState>, jar: CookieJar) -> (CookieJar, Js
     (jar, Json("Logged out".to_string()))
 }
 
+// `Result<_, Response>` is the idiomatic axum handler shape; a boxed
+// `Response` would not implement `IntoResponse`.
+#[allow(clippy::result_large_err)]
 async fn callback(
     State(state): State<AppState>,
     query: axum::extract::Query<std::collections::HashMap<String, String>>,
