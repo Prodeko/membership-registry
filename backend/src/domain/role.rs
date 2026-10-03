@@ -84,7 +84,7 @@ impl Role {
                 }
                 Some(_) => {}
             }
-            if !self.renewal_period_months.is_some_and(|m| m > 0) {
+            if self.renewal_period_months.is_none_or(|m| m <= 0) {
                 return Err(
                     "a renewable role requires a positive renewal period (months)".to_string(),
                 );

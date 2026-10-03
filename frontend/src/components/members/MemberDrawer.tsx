@@ -1035,7 +1035,6 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
               {Object.entries(groupedActiveRoles).map(([roleName, periods]) => {
                 const isExpanded = expandedRoles[roleName];
                 const latest = periods[periods.length - 1];
-                const previous = periods.slice(0, -1);
                 const latestKey = `${latest.role_name}::${latest.valid_from}`;
                 const dateEdit = roleDateEdits[latestKey];
                 const currentFrom = dateEdit?.validFrom ?? latest.valid_from;
@@ -1060,10 +1059,15 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
                     >
                       <RoleBadge role={roleName} />
                       <div className="flex-1" />
-                      <ValidityPill
-                        validFrom={latest.valid_from}
-                        validUntil={latest.valid_until}
-                      />
+                      <div className="flex flex-col items-end gap-1">
+                        {[...periods].reverse().map((p) => (
+                          <ValidityPill
+                            key={p.valid_from}
+                            validFrom={p.valid_from}
+                            validUntil={p.valid_until}
+                          />
+                        ))}
+                      </div>
                       <ChevronDown
                         className={cn(
                           "w-4 h-4 text-muted-foreground transition-transform",
@@ -1074,20 +1078,9 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
 
                     {isExpanded && (
                       <div className="border-t bg-muted/20 px-3 py-3 space-y-3">
-                        {previous.map((p) => (
-                          <div
-                            key={p.valid_from}
-                            className="flex items-center justify-between"
-                          >
-                            <RoleBadge role={roleName} />
-                            <span className="text-xs text-muted-foreground">
-                              {fmtDate(p.valid_from)} – {fmtDate(p.valid_until)}
-                            </span>
-                          </div>
-                        ))}
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-muted-foreground w-10 shrink-0">
-                            Valid
+                            {periods.length > 1 ? "Latest" : "Valid"}
                           </span>
                           <DateRangePicker
                             initialDateFrom={currentFrom}
