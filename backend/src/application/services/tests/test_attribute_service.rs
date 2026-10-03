@@ -1095,3 +1095,97 @@ async fn apply_defaults_for_new_user_swallows_repo_failure() {
     // Must not panic; registration cannot be blocked by attribute defaults.
     svc.apply_defaults_for_new_user(user_id).await;
 }
+
+// ---------------------------------------------------------------------------
+// Google Groups hook
+// ---------------------------------------------------------------------------
+
+/// Ticking the PoRa box on the application form puts an active,
+/// Finnish-speaking member on the PoRa list.
+#[tokio::test]
+async fn setting_rule_attribute_resyncs_its_group() {
+    use crate::application::ports::role_repository_port::RoleMembership;
+    use crate::application::services::group_membership_service::{
+        GroupMembershipService, GroupRule,
+    };
+    use crate::domain::{Email, MemberAttribute, Person, RoleName};
+
+    let user_id = uuid::Uuid::new_v4();
+
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_definition()
+        .returning(|_| Ok(Some(def("pora-membership", false, EditableBy::Both))));
+    repo.expect_upsert_member_value()
+        .returning(|_, _, _| Ok(()));
+
+    let mut group_attrs = MockAttributeRepositoryPort::new();
+    group_attrs
+        .expect_fetch_member_values()
+        .returning(move |_| {
+            Ok(vec![MemberAttribute {
+                user_id: PersonId(user_id),
+                name: AttributeName::new("pora-membership").unwrap(),
+                value: av("yes"),
+            }])
+        });
+    let mut member_repo = MockMemberRepositoryPort::new();
+    member_repo.expect_fetch_one().returning(move |_| {
+        Ok(Person {
+            id: PersonId(user_id),
+            email: Email::new_unchecked("user@example.com".to_string()),
+            first_name: "Test".to_string(),
+            last_name: "User".to_string(),
+            full_name: None,
+            home_municipality: None,
+            email_notifications: true,
+            language: "fi".to_string(),
+        })
+    });
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo
+        .expect_fetch_roles_by_member()
+        .returning(move |_| {
+            Ok(vec![RoleMembership {
+                user_id,
+                role_name: RoleName("member".to_string()),
+                valid_from: chrono::Utc::now().date_naive(),
+                valid_until: None,
+                renewable: false,
+                renewal_due: false,
+                renewal_deadline: None,
+            }])
+        });
+    let mut port = MockGroupMembershipPort::new();
+    port.expect_add_member()
+        .withf(|group, email| group == "jasenet@raittiusseura.org" && email == "user@example.com")
+        .times(1)
+        .returning(|_, _| Ok(()));
+    port.expect_remove_member().never();
+
+    let groups = GroupMembershipService::new(
+        Arc::new(port),
+        Arc::new(member_repo),
+        Arc::new(role_repo),
+        Arc::new(group_attrs),
+        GroupRule::parse_all(
+            r#"[{"group": "jasenet@raittiusseura.org", "roles": ["member"], "language": "fi",
+                 "attribute": {"name": "pora-membership", "value": "yes"}}]"#,
+        )
+        .unwrap(),
+    );
+    let svc = build_service(
+        repo,
+        MockAttributeSyncPort::new(),
+        MockAuthProviderRepo::new(),
+    )
+    .with_groups(Some(Arc::new(groups)));
+
+    svc.set_via_application_form(
+        PersonId(user_id),
+        &AttributeName::new("pora-membership").unwrap(),
+        av("yes"),
+        None,
+    )
+    .await
+    .unwrap();
+}

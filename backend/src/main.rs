@@ -27,6 +27,7 @@ use application::{
         audit_log_repository_port::AuditLogRepositoryPort,
         auth_provider_repo_port::AuthProviderRepositoryPort,
         email_port::EmailPort,
+        group_membership_port::GroupMembershipPort,
         marketing_list_port::MarketingListPort,
         marketing_tag_repository_port::MarketingTagRepositoryPort,
         member_repository_port::MemberRepositoryPort,
@@ -42,13 +43,21 @@ use application::{
     services::{
         application_alert_service::ApplicationAlertService,
         application_digest_service::ApplicationDigestService,
-        application_service::ApplicationService, attribute_service::AttributeService,
-        audit_log_service::AuditLogService, authentication_service::AuthenticationService,
-        export_service::ExportService, import_service::ImportService,
-        marketing_service::MarketingService, marketing_tag_admin_service::MarketingTagAdminService,
-        member_service::MemberService, notification_service::NotificationService,
-        renewal_service::RenewalService, role_group_service::RoleGroupService,
-        role_service::RoleService, saved_filter::SavedFilterService,
+        application_service::ApplicationService,
+        attribute_service::AttributeService,
+        audit_log_service::AuditLogService,
+        authentication_service::AuthenticationService,
+        export_service::ExportService,
+        group_membership_service::{GroupMembershipService, GroupRule},
+        import_service::ImportService,
+        marketing_service::MarketingService,
+        marketing_tag_admin_service::MarketingTagAdminService,
+        member_service::MemberService,
+        notification_service::NotificationService,
+        renewal_service::RenewalService,
+        role_group_service::RoleGroupService,
+        role_service::RoleService,
+        saved_filter::SavedFilterService,
         template_admin_service::TemplateAdminService,
     },
 };
@@ -59,6 +68,7 @@ use infrastructure::{
         ammonia_sanitizer::AmmoniaSanitizer,
         csv_adapter::CsvAdapter,
         csv_parse_adapter::CsvParseAdapter,
+        google::{GoogleGroupsAdapter, GoogleGroupsConfig},
         keycloak::{
             KeycloakAttributeSyncAdapter, KeycloakAuthAdapter, KeycloakClient, KeycloakConfig,
             KeycloakRoleSyncAdapter, KeycloakUserAdminAdapter,
@@ -89,6 +99,7 @@ pub struct Services {
     pub application_digest_service: ApplicationDigestService,
     pub marketing_tag_admin_service: MarketingTagAdminService,
     pub marketing_service: Option<Arc<MarketingService>>,
+    pub group_membership_service: Option<Arc<GroupMembershipService>>,
     pub payment_webhook: StripeWebhookAdapter,
     pub export_service: ExportService,
     pub import_service: ImportService,
@@ -168,6 +179,41 @@ fn build_marketing_port(config: &Config) -> Option<Arc<dyn MarketingListPort>> {
     }
 }
 
+/// Build the Google Groups sync. Returns `None` only when all three env vars
+/// are absent (dev/e2e). Any partial or malformed configuration is a fatal
+/// startup error, for the same reason as the Mailchimp check above.
+fn build_group_sync(config: &Config) -> Option<(Arc<dyn GroupMembershipPort>, Vec<GroupRule>)> {
+    let key = non_empty(&config.google_service_account_key);
+    let admin = non_empty(&config.google_delegated_admin);
+    let rules = non_empty(&config.google_group_rules);
+
+    match (key, admin, rules) {
+        (None, None, None) => {
+            tracing::debug!("Google Groups sync disabled: no credentials configured");
+            None
+        }
+        (Some(key), Some(admin), Some(rules)) => {
+            let gg_config = GoogleGroupsConfig::new(&key, admin).unwrap_or_else(|| {
+                tracing::error!("GOOGLE_SERVICE_ACCOUNT_KEY is not a service-account key JSON");
+                std::process::exit(1);
+            });
+            let rules = GroupRule::parse_all(&rules).unwrap_or_else(|| {
+                tracing::error!(
+                    "GOOGLE_GROUP_RULES is malformed (expected a JSON array of rules with group, roles and optional language and attribute)"
+                );
+                std::process::exit(1);
+            });
+            Some((Arc::new(GoogleGroupsAdapter::new(gg_config)), rules))
+        }
+        _ => {
+            tracing::error!(
+                "GOOGLE_SERVICE_ACCOUNT_KEY, GOOGLE_DELEGATED_ADMIN and GOOGLE_GROUP_RULES must be set together; refusing to start with a half-configured group sync"
+            );
+            std::process::exit(1);
+        }
+    }
+}
+
 impl Services {
     pub fn new(repo: PostgresRepo, config: Config) -> Self {
         let keycloak_cfg = KeycloakConfig {
@@ -241,14 +287,28 @@ impl Services {
                 ))
             });
 
+        let group_service: Option<Arc<GroupMembershipService>> =
+            build_group_sync(&config).map(|(port, rules)| {
+                Arc::new(GroupMembershipService::new(
+                    port,
+                    Arc::clone(&member_repo),
+                    Arc::clone(&role_repo),
+                    Arc::clone(&attribute_repo),
+                    rules,
+                ))
+            });
+
         // Attribute service must precede member_service: registration-time
         // defaults are pushed via the AttributeBootstrapPort hook.
-        let attribute_service = Arc::new(AttributeService::new(
-            Arc::clone(&attribute_repo),
-            Arc::clone(&attribute_sync),
-            Arc::clone(&auth_provider_repo),
-            audit_log_service.clone(),
-        ));
+        let attribute_service = Arc::new(
+            AttributeService::new(
+                Arc::clone(&attribute_repo),
+                Arc::clone(&attribute_sync),
+                Arc::clone(&auth_provider_repo),
+                audit_log_service.clone(),
+            )
+            .with_groups(group_service.clone()),
+        );
         let member_service = MemberService::new(
             Arc::clone(&member_repo),
             Arc::clone(&user_admin),
@@ -258,7 +318,8 @@ impl Services {
                 as Arc<
                     dyn crate::application::ports::attribute_bootstrap_port::AttributeBootstrapPort,
                 >,
-        );
+        )
+        .with_groups(group_service.clone());
         let role_service = RoleService::new(
             Arc::clone(&role_repo),
             member_service.clone(),
@@ -266,7 +327,8 @@ impl Services {
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         )
-        .with_marketing(marketing_service.clone());
+        .with_marketing(marketing_service.clone())
+        .with_groups(group_service.clone());
         let role_group_service = RoleGroupService::new(
             Arc::clone(&role_group_repo),
             Arc::clone(&role_sync),
@@ -308,7 +370,8 @@ impl Services {
             notification_service.clone(),
             audit_log_service.clone(),
         )
-        .with_marketing(marketing_service.clone());
+        .with_marketing(marketing_service.clone())
+        .with_groups(group_service.clone());
 
         let saved_filter_repo: Arc<dyn SavedFilterRepositoryPort> = Arc::new(repo.saved_filter);
         let saved_filter_service = SavedFilterService::new(saved_filter_repo);
@@ -339,6 +402,7 @@ impl Services {
             application_digest_service,
             marketing_tag_admin_service,
             marketing_service,
+            group_membership_service: group_service,
             payment_webhook,
             export_service,
             import_service,

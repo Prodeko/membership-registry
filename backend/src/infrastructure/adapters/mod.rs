@@ -1,6 +1,7 @@
 pub mod ammonia_sanitizer;
 pub mod csv_adapter;
 pub mod csv_parse_adapter;
+pub mod google;
 pub mod keycloak;
 pub mod mailchimp;
 pub mod sendgrid;

@@ -23,6 +23,7 @@ use crate::domain::{
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
+    group_membership_service::GroupMembershipService,
 };
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
@@ -131,6 +132,9 @@ pub struct AttributeService {
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
     sync_status_cache: Cache<String, Vec<DriftEntry>>,
+    /// `None` where Google Groups sync is not configured. When set, a group
+    /// whose rule checks an attribute is re-synced when that value changes.
+    groups: Option<Arc<GroupMembershipService>>,
 }
 
 impl AttributeService {
@@ -149,6 +153,21 @@ impl AttributeService {
                 .max_capacity(1)
                 .time_to_live(Duration::from_secs(60))
                 .build(),
+            groups: None,
+        }
+    }
+
+    pub fn with_groups(mut self, groups: Option<Arc<GroupMembershipService>>) -> Self {
+        self.groups = groups;
+        self
+    }
+
+    /// Best-effort Google Groups re-sync after `name` changed for `user_id`.
+    async fn sync_groups(&self, user_id: PersonId, name: &AttributeName) {
+        if let Some(groups) = &self.groups {
+            groups
+                .sync_after_attribute_change(user_id.0, name.as_str())
+                .await;
         }
     }
 
@@ -713,6 +732,7 @@ impl AttributeService {
             )
             .await;
 
+        self.sync_groups(user_id, def.name()).await;
         self.invalidate_sync_cache();
         kc_outcome.into_result(def.name())
     }
@@ -748,6 +768,7 @@ impl AttributeService {
             )
             .await;
 
+        self.sync_groups(user_id, def.name()).await;
         self.invalidate_sync_cache();
         kc_outcome.into_result(def.name())
     }

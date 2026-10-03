@@ -63,6 +63,7 @@ export enum QueryKey {
   EMAIL_TEMPLATES = "email_templates",
   PUBLIC_CONFIG = "public_config",
   KEYCLOAK_SYNC_STATUS = "keycloak_sync_status",
+  GOOGLE_GROUPS = "google_groups",
   MARKETING_PREFERENCES = "marketing_preferences",
   MARKETING_TAGS = "marketing_tags",
   ATTRIBUTE_DEFINITIONS = "attribute_definitions",
@@ -394,6 +395,44 @@ export const useSyncMissingKeycloakRoles = () => {
       queryClient.invalidateQueries({
         queryKey: [QueryKey.KEYCLOAK_SYNC_STATUS],
       });
+    },
+  });
+};
+
+export interface GoogleGroupsStatus {
+  configured: boolean;
+  groups: string[];
+}
+
+export function useGetGoogleGroups() {
+  return useQuery<GoogleGroupsStatus>({
+    queryKey: [QueryKey.GOOGLE_GROUPS],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<GoogleGroupsStatus>(
+        "/members/google-groups",
+      );
+      return response.data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export interface GoogleGroupsBackfillResponse {
+  users_processed: number;
+  added: number;
+  removed: number;
+  failed: number;
+}
+
+export const useBackfillGoogleGroups = () => {
+  return useMutation<GoogleGroupsBackfillResponse, Error, { remove: boolean }>({
+    mutationFn: async ({ remove }) => {
+      const response =
+        await admin_axios_client.post<GoogleGroupsBackfillResponse>(
+          "/members/google-groups/backfill",
+          { remove },
+        );
+      return response.data;
     },
   });
 };
