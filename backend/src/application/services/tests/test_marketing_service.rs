@@ -388,6 +388,57 @@ async fn sync_after_role_change_does_not_resubscribe_member_who_opted_out() {
 }
 
 #[tokio::test]
+async fn sync_after_role_change_restores_returning_member_without_resetting_tags() {
+    let user_id = Uuid::new_v4();
+
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_fetch_preferences()
+        .returning(|_, _| Ok(preferences(SubscriptionState::Archived)));
+    mc.expect_restore()
+        .withf(|identity| identity.email == "user@example.com")
+        .times(1)
+        .returning(|_| Ok(()));
+    // No confirmation-email subscribe, and the member's old tags stay.
+    mc.expect_subscribe().times(0);
+    mc.expect_set_tags().times(0);
+    mc.expect_archive().times(0);
+
+    let svc = build_service_with_roles(
+        mc,
+        member_repo_for(user_id),
+        MockMarketingTagRepositoryPort::new(),
+        vec![active_membership(user_id)],
+    );
+    svc.sync_after_role_change(user_id, MEMBERSHIP_ROLE).await;
+}
+
+#[tokio::test]
+async fn sync_after_role_change_leaves_archived_former_member_alone() {
+    let user_id = Uuid::new_v4();
+    let expired = membership(
+        user_id,
+        MEMBERSHIP_ROLE,
+        today() - Duration::days(400),
+        Some(today() - Duration::days(1)),
+    );
+
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_fetch_preferences()
+        .returning(|_, _| Ok(preferences(SubscriptionState::Archived)));
+    mc.expect_restore().times(0);
+    mc.expect_archive().times(0);
+    mc.expect_subscribe().times(0);
+
+    let svc = build_service_with_roles(
+        mc,
+        member_repo_for(user_id),
+        MockMarketingTagRepositoryPort::new(),
+        vec![expired],
+    );
+    svc.sync_after_role_change(user_id, MEMBERSHIP_ROLE).await;
+}
+
+#[tokio::test]
 async fn sync_after_role_change_archives_former_member() {
     let user_id = Uuid::new_v4();
     let expired = membership(
@@ -519,6 +570,12 @@ async fn set_tags_rejects_unknown_label() {
 
 #[tokio::test]
 async fn set_tags_rejects_when_user_is_not_a_contact() {
+    for state in [SubscriptionState::NotAContact, SubscriptionState::Archived] {
+        set_tags_rejects_in_state(state).await;
+    }
+}
+
+async fn set_tags_rejects_in_state(state: SubscriptionState) {
     let user_id = Uuid::new_v4();
 
     let mut tag_repo = MockMarketingTagRepositoryPort::new();
@@ -532,13 +589,13 @@ async fn set_tags_rejects_when_user_is_not_a_contact() {
         .returning(move |_| Ok(test_person(user_id)));
 
     let mut mc = MockMarketingListPort::new();
-    mc.expect_fetch_preferences().returning(|_, _| {
+    mc.expect_fetch_preferences().returning(move |_, _| {
         Ok(MarketingPreferences {
-            state: SubscriptionState::NotAContact,
+            state,
             tags: vec![],
         })
     });
-    // Writes must not happen when the user is not yet on the list.
+    // Writes must not happen when the user is not on the list.
     mc.expect_set_tags().times(0);
 
     let svc = build_service(mc, member_repo, tag_repo);
