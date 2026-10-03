@@ -235,6 +235,8 @@ impl Services {
                     Arc::clone(port),
                     Arc::clone(&member_repo),
                     Arc::clone(&marketing_tag_repo),
+                    Arc::clone(&role_repo),
+                    Arc::clone(&targetable_roles),
                 ))
             });
 
@@ -251,7 +253,6 @@ impl Services {
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
-            marketing_service.clone(),
             Arc::clone(&attribute_service)
                 as Arc<
                     dyn crate::application::ports::attribute_bootstrap_port::AttributeBootstrapPort,
@@ -263,7 +264,8 @@ impl Services {
             Arc::clone(&role_sync),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
-        );
+        )
+        .with_marketing(marketing_service.clone());
         let role_group_service = RoleGroupService::new(
             Arc::clone(&role_group_repo),
             Arc::clone(&role_sync),
@@ -295,7 +297,8 @@ impl Services {
             Arc::clone(&auth_provider_repo),
             notification_service.clone(),
             audit_log_service.clone(),
-        );
+        )
+        .with_marketing(marketing_service.clone());
 
         let saved_filter_repo: Arc<dyn SavedFilterRepositoryPort> = Arc::new(repo.saved_filter);
         let saved_filter_service = SavedFilterService::new(saved_filter_repo);
