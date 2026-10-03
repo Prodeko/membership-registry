@@ -89,7 +89,8 @@ pub struct ApplicationTargetableRoleDTO {
 #[ts(export, rename = "ApplicationFormAttribute")]
 pub struct ApplicationFormAttributeDTO {
     pub name: String,
-    pub value: String,
+    /// One element unless the attribute is `multiple`.
+    pub values: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, TS, Validate)]

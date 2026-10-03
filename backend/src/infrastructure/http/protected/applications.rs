@@ -12,10 +12,13 @@ use crate::{
     application::services::{
         application_service::CreateApplicationParams, authentication_service::AuthenticatedUser,
     },
-    domain::{AttributeName, AttributeValue},
+    domain::AttributeName,
     infrastructure::http::{
-        dto::application::{
-            ApplicationDTO, ApplicationTargetableRoleDTO, CreateApplicationRequestDTO,
+        dto::{
+            application::{
+                ApplicationDTO, ApplicationTargetableRoleDTO, CreateApplicationRequestDTO,
+            },
+            attribute::parse_values,
         },
         errors::{ApiError, ApiResult},
         types::ApplicationPath,
@@ -119,8 +122,8 @@ async fn post_application(
         .into_iter()
         .map(|kv| {
             let name = AttributeName::new(kv.name).map_err(|_| ApiError::BadRequest)?;
-            let value = AttributeValue::new(kv.value).map_err(|_| ApiError::BadRequest)?;
-            Ok::<_, ApiError>((name, value))
+            let values = parse_values(kv.values)?;
+            Ok::<_, ApiError>((name, values))
         })
         .collect::<Result<Vec<_>, _>>()?;
 

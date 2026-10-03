@@ -128,11 +128,26 @@ pub struct AttributeDefinition {
     /// Members must hold a value for this attribute: application forms can't
     /// be submitted without it and members can't clear it themselves.
     required: bool,
+    /// Members may hold several values at once (a multichoice attribute).
+    /// Single-valued attributes hold exactly one.
+    multiple: bool,
+    /// Members may give one free-text value outside `allowed_values` (an
+    /// "other" choice). Only meaningful when `allowed_values` is set.
+    allow_other: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum AttributeValidationError {
-    NotInAllowedValues,
+    /// A member value must have at least one element; clearing is a
+    /// separate operation.
+    Empty,
+    /// More than one value for an attribute that isn't `multiple`.
+    TooManyValues,
+    DuplicateValue(AttributeValue),
+    NotInAllowedValues(AttributeValue),
+    /// More than one value outside `allowed_values` on an `allow_other`
+    /// attribute; only a single "other" entry is permitted.
+    TooManyOtherValues,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -171,6 +186,8 @@ impl AttributeDefinition {
             sync_to_keycloak,
             editable_by,
             required,
+            multiple: false,
+            allow_other: false,
         })
     }
 
@@ -194,7 +211,23 @@ impl AttributeDefinition {
             sync_to_keycloak,
             editable_by,
             required,
+            multiple: false,
+            allow_other: false,
         }
+    }
+
+    /// Marks the definition multichoice. Kept off the constructors so that
+    /// the many single-valued call sites don't grow another positional flag.
+    pub fn with_multiple(mut self, multiple: bool) -> Self {
+        self.multiple = multiple;
+        self
+    }
+
+    /// Lets members give one value outside `allowed_values`. Like
+    /// `with_multiple`, kept off the constructors.
+    pub fn with_allow_other(mut self, allow_other: bool) -> Self {
+        self.allow_other = allow_other;
+        self
     }
 
     pub fn name(&self) -> &AttributeName {
@@ -225,12 +258,42 @@ impl AttributeDefinition {
         self.required
     }
 
-    pub fn validate(&self, value: &AttributeValue) -> Result<(), AttributeValidationError> {
-        match &self.allowed_values {
-            None => Ok(()),
-            Some(allowed) if allowed.iter().any(|v| v == value) => Ok(()),
-            Some(_) => Err(AttributeValidationError::NotInAllowedValues),
+    pub fn multiple(&self) -> bool {
+        self.multiple
+    }
+
+    pub fn allow_other(&self) -> bool {
+        self.allow_other
+    }
+
+    /// Validates a complete set of values for one member: non-empty, at most
+    /// one unless `multiple`, no duplicates, and each within `allowed_values`
+    /// except for a single "other" value when `allow_other` is set.
+    pub fn validate(&self, values: &[AttributeValue]) -> Result<(), AttributeValidationError> {
+        if values.is_empty() {
+            return Err(AttributeValidationError::Empty);
         }
+        if !self.multiple && values.len() > 1 {
+            return Err(AttributeValidationError::TooManyValues);
+        }
+        let mut others = 0;
+        for (i, value) in values.iter().enumerate() {
+            if values[..i].contains(value) {
+                return Err(AttributeValidationError::DuplicateValue(value.clone()));
+            }
+            if let Some(allowed) = &self.allowed_values {
+                if !allowed.contains(value) {
+                    if !self.allow_other {
+                        return Err(AttributeValidationError::NotInAllowedValues(value.clone()));
+                    }
+                    others += 1;
+                }
+            }
+        }
+        if others > 1 {
+            return Err(AttributeValidationError::TooManyOtherValues);
+        }
+        Ok(())
     }
 }
 
@@ -238,7 +301,19 @@ impl AttributeDefinition {
 pub struct MemberAttribute {
     pub user_id: PersonId,
     pub name: AttributeName,
-    pub value: AttributeValue,
+    /// Never empty; exactly one element unless the definition is `multiple`.
+    pub values: Vec<AttributeValue>,
+}
+
+/// Order-insensitive equality of two value lists. Keycloak keeps values in
+/// insertion order, but the registry doesn't treat order as meaningful, so
+/// drift detection must not flag a reordering as a mismatch.
+pub fn same_values(a: &[AttributeValue], b: &[AttributeValue]) -> bool {
+    let mut a: Vec<&str> = a.iter().map(AttributeValue::as_str).collect();
+    let mut b: Vec<&str> = b.iter().map(AttributeValue::as_str).collect();
+    a.sort_unstable();
+    b.sort_unstable();
+    a == b
 }
 
 /// One observed disagreement between the registry and Keycloak for a single
@@ -250,7 +325,7 @@ pub enum DriftEntry {
         user_id: PersonId,
         idp_subject: IdpSubject,
         attribute: AttributeName,
-        value: AttributeValue,
+        values: Vec<AttributeValue>,
     },
     /// Registry has a value but the user has no linked identity provider, so
     /// no KC subject exists to compare against. These cannot be auto-synced
@@ -258,21 +333,21 @@ pub enum DriftEntry {
     RegistryUnlinked {
         user_id: PersonId,
         attribute: AttributeName,
-        value: AttributeValue,
+        values: Vec<AttributeValue>,
     },
     /// Keycloak has a value the registry doesn't track for any linked user.
     KeycloakOnly {
         idp_subject: IdpSubject,
         attribute: AttributeName,
-        value: AttributeValue,
+        values: Vec<AttributeValue>,
     },
-    /// Both sides have a value but they disagree.
+    /// Both sides have values but they disagree (compared as sets).
     ValueMismatch {
         user_id: PersonId,
         idp_subject: IdpSubject,
         attribute: AttributeName,
-        registry_value: AttributeValue,
-        keycloak_value: AttributeValue,
+        registry_values: Vec<AttributeValue>,
+        keycloak_values: Vec<AttributeValue>,
     },
     /// Keycloak holds more than one value for an attribute the registry
     /// treats as single-valued. The registry can't safely overwrite without
@@ -372,7 +447,7 @@ mod tests {
             false,
         )
         .unwrap();
-        assert!(def.validate(&av("anything")).is_ok());
+        assert!(def.validate(&[av("anything")]).is_ok());
     }
 
     #[test]
@@ -387,11 +462,95 @@ mod tests {
             false,
         )
         .unwrap();
-        assert!(def.validate(&av("IV")).is_ok());
+        assert!(def.validate(&[av("IV")]).is_ok());
         assert_eq!(
-            def.validate(&av("V")),
-            Err(AttributeValidationError::NotInAllowedValues)
+            def.validate(&[av("V")]),
+            Err(AttributeValidationError::NotInAllowedValues(av("V")))
         );
+    }
+
+    fn languages(multiple: bool) -> AttributeDefinition {
+        AttributeDefinition::new(
+            AttributeName::new("languages").unwrap(),
+            None,
+            Some(vec![av("fi"), av("sv"), av("en")]),
+            None,
+            false,
+            EditableBy::Both,
+            false,
+        )
+        .unwrap()
+        .with_multiple(multiple)
+    }
+
+    #[test]
+    fn definition_validate_rejects_empty() {
+        assert_eq!(
+            languages(true).validate(&[]),
+            Err(AttributeValidationError::Empty)
+        );
+    }
+
+    #[test]
+    fn single_valued_definition_rejects_several_values() {
+        assert_eq!(
+            languages(false).validate(&[av("fi"), av("en")]),
+            Err(AttributeValidationError::TooManyValues)
+        );
+    }
+
+    #[test]
+    fn multiple_definition_accepts_several_allowed_values() {
+        assert!(languages(true).validate(&[av("fi"), av("en")]).is_ok());
+        assert_eq!(
+            languages(true).validate(&[av("fi"), av("de")]),
+            Err(AttributeValidationError::NotInAllowedValues(av("de")))
+        );
+    }
+
+    #[test]
+    fn multiple_definition_rejects_duplicates() {
+        assert_eq!(
+            languages(true).validate(&[av("fi"), av("fi")]),
+            Err(AttributeValidationError::DuplicateValue(av("fi")))
+        );
+    }
+
+    #[test]
+    fn allow_other_accepts_one_value_outside_the_list() {
+        let def = languages(false).with_allow_other(true);
+        assert!(def.validate(&[av("de")]).is_ok());
+        assert!(def.validate(&[av("fi")]).is_ok());
+    }
+
+    #[test]
+    fn allow_other_on_multichoice_mixes_listed_values_with_one_other() {
+        let def = languages(true).with_allow_other(true);
+        assert!(def.validate(&[av("fi"), av("en"), av("de")]).is_ok());
+        assert_eq!(
+            def.validate(&[av("fi"), av("de"), av("fr")]),
+            Err(AttributeValidationError::TooManyOtherValues)
+        );
+    }
+
+    #[test]
+    fn allow_other_still_rejects_duplicates_and_extra_values() {
+        let multi = languages(true).with_allow_other(true);
+        assert_eq!(
+            multi.validate(&[av("de"), av("de")]),
+            Err(AttributeValidationError::DuplicateValue(av("de")))
+        );
+        let single = languages(false).with_allow_other(true);
+        assert_eq!(
+            single.validate(&[av("fi"), av("de")]),
+            Err(AttributeValidationError::TooManyValues)
+        );
+    }
+
+    #[test]
+    fn same_values_ignores_order() {
+        assert!(same_values(&[av("fi"), av("en")], &[av("en"), av("fi")]));
+        assert!(!same_values(&[av("fi")], &[av("fi"), av("en")]));
     }
 
     #[test]

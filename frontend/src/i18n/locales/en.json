@@ -107,7 +107,10 @@
     "not_set_option": "— not set —",
     "not_set_placeholder": "Not set",
     "clear": "Clear",
-    "required": "Required"
+    "required": "Required",
+    "multi_add_placeholder": "Type a value and press Enter",
+    "other_option": "Other…",
+    "other_placeholder": "Type your own answer"
   },
   "application": {
     "form": {

@@ -1246,9 +1246,9 @@ export const useGetMemberAttributes = (
 
 export const useSetMemberAttribute = (memberId: string) => {
   const queryClient = useQueryClient();
-  return useMutation<void, Error, { name: string; value: string }>({
-    mutationFn: async ({ name, value }) => {
-      const body: SetMemberAttribute = { value };
+  return useMutation<void, Error, { name: string; values: string[] }>({
+    mutationFn: async ({ name, values }) => {
+      const body: SetMemberAttribute = { values };
       await admin_axios_client.put(
         `/members/${memberId}/attributes/${encodeURIComponent(name)}`,
         body,
@@ -1297,9 +1297,9 @@ export const useGetMyAttributes = () => {
 
 export const useSetMyAttribute = () => {
   const queryClient = useQueryClient();
-  return useMutation<void, Error, { name: string; value: string }>({
-    mutationFn: async ({ name, value }) => {
-      const body: SetMemberAttribute = { value };
+  return useMutation<void, Error, { name: string; values: string[] }>({
+    mutationFn: async ({ name, values }) => {
+      const body: SetMemberAttribute = { values };
       await axios_client.put(
         `/attributes/me/${encodeURIComponent(name)}`,
         body,

@@ -786,7 +786,7 @@ async fn create_application_rejects_attribute_not_on_form() {
                 frontend_url: "http://localhost".to_string(),
                 attributes: vec![(
                     AttributeName::new("major-subject").unwrap(),
-                    AttributeValue::new("iem").unwrap(),
+                    vec![AttributeValue::new("iem").unwrap()],
                 )],
             },
             None,
@@ -861,7 +861,10 @@ async fn create_application_writes_submitted_attribute_to_member() {
     let upserts_for_repo = Arc::clone(&upserts);
     attr_repo
         .expect_upsert_member_value()
-        .returning(move |_uid, name, value| {
+        .returning(move |_uid, name, values| {
+            let [value] = values else {
+                panic!("expected a single value, got {values:?}")
+            };
             upserts_for_repo
                 .lock()
                 .unwrap()
@@ -889,7 +892,7 @@ async fn create_application_writes_submitted_attribute_to_member() {
                 frontend_url: "http://localhost".to_string(),
                 attributes: vec![(
                     AttributeName::new("major-subject").unwrap(),
-                    AttributeValue::new("iem").unwrap(),
+                    vec![AttributeValue::new("iem").unwrap()],
                 )],
             },
             None,
@@ -901,6 +904,120 @@ async fn create_application_writes_submitted_attribute_to_member() {
     assert_eq!(
         recorded,
         vec![("major-subject".to_string(), "iem".to_string())]
+    );
+}
+
+#[tokio::test]
+async fn create_application_writes_multichoice_values_with_other_to_member() {
+    use crate::application::ports::application_repository_port::ApplicationTargetableRole;
+    use crate::domain::{AttributeDefinition, AttributeName, AttributeValue, EditableBy};
+    use std::sync::Mutex;
+
+    let user_id = Uuid::new_v4();
+
+    let mut commands = MockApplicationCommandPort::new();
+    let mut queries = MockApplicationQueryPort::new();
+    let mut targetable = MockTargetableRolePort::new();
+
+    queries
+        .expect_fetch_existing()
+        .returning(|_, _, _| Err(RepositoryError::NotFound));
+
+    targetable.expect_fetch_targetable_role().returning(|_, _| {
+        Ok(ApplicationTargetableRole {
+            role_name: "test-role".to_string(),
+            valid_until: valid_until(),
+            active: true,
+            optional_roles: None,
+            payment_link: None,
+            approved_email_template: None,
+            rejected_email_template: None,
+            form_attributes: vec![AttributeName::new("languages").unwrap()],
+        })
+    });
+
+    commands.expect_create().returning(|new| {
+        Ok(Application::from((
+            ApplicationId(Uuid::new_v4()),
+            Utc::now(),
+            new.clone(),
+        )))
+    });
+
+    // All submitted values land in a single upsert, the "other" one included.
+    let mut attr_repo = MockAttributeRepositoryPort::new();
+    attr_repo.expect_fetch_definition().returning(|_| {
+        Ok(Some(
+            AttributeDefinition::new(
+                AttributeName::new("languages").unwrap(),
+                None,
+                Some(vec![
+                    AttributeValue::new("fi").unwrap(),
+                    AttributeValue::new("sv").unwrap(),
+                    AttributeValue::new("en").unwrap(),
+                ]),
+                None,
+                false,
+                EditableBy::Admin, // admin-only on profile, but form bypasses
+                false,
+            )
+            .unwrap()
+            .with_multiple(true)
+            .with_allow_other(true),
+        ))
+    });
+    let upserts: Arc<Mutex<Vec<(String, Vec<String>)>>> = Arc::new(Mutex::new(Vec::new()));
+    let upserts_for_repo = Arc::clone(&upserts);
+    attr_repo
+        .expect_upsert_member_value()
+        .returning(move |_uid, name, values| {
+            upserts_for_repo.lock().unwrap().push((
+                name.as_str().to_string(),
+                values.iter().map(|v| v.as_str().to_string()).collect(),
+            ));
+            Ok(())
+        });
+
+    let attr_service = Arc::new(AttributeService::new(
+        Arc::new(attr_repo),
+        Arc::new(MockAttributeSyncPort::new()),
+        Arc::new(MockAuthProviderRepo::new()),
+        noop_audit_log(),
+    ));
+
+    let svc = build_service_with_attribute(commands, queries, targetable, attr_service);
+    let result = svc
+        .create_application(
+            CreateApplicationParams {
+                user_id,
+                role_name: "test-role".to_string(),
+                valid_until: valid_until(),
+                stripe_payment_id: None,
+                optional_roles: None,
+                application_text: None,
+                frontend_url: "http://localhost".to_string(),
+                attributes: vec![(
+                    AttributeName::new("languages").unwrap(),
+                    vec![
+                        AttributeValue::new("fi").unwrap(),
+                        AttributeValue::new("en").unwrap(),
+                        // Not in allowed_values: the member's "other" answer.
+                        AttributeValue::new("kurdish").unwrap(),
+                    ],
+                )],
+            },
+            None,
+        )
+        .await;
+
+    assert!(result.is_ok());
+    let recorded = upserts.lock().unwrap().clone();
+    assert_eq!(
+        recorded,
+        vec![(
+            "languages".to_string(),
+            vec!["fi".to_string(), "en".to_string(), "kurdish".to_string()]
+        )]
     );
 }
 
@@ -956,7 +1073,7 @@ fn build_required_attribute_service(
                 .map(|name| MemberAttribute {
                     user_id: uid.clone(),
                     name: AttributeName::new(*name).unwrap(),
-                    value: AttributeValue::new("yes").unwrap(),
+                    values: vec![AttributeValue::new("yes").unwrap()],
                 })
                 .collect())
         });

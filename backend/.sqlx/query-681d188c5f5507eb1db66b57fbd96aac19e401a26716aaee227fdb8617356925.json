@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE AttributeDefinition\n               SET description = $2, allowed_values = $3, default_value = $4,\n                   sync_to_keycloak = $5, editable_by = $6, required = $7\n               WHERE name = $1\n               RETURNING name, description, allowed_values, default_value,\n                         sync_to_keycloak,\n                         editable_by AS \"editable_by: EditableByDAO\", required",
+  "query": "SELECT name, description, allowed_values, default_value,\n                      sync_to_keycloak,\n                      editable_by AS \"editable_by: EditableByDAO\", required, multiple, allow_other\n               FROM AttributeDefinition WHERE name = $1",
   "describe": {
     "columns": [
       {
@@ -90,28 +90,33 @@
             "name": "required"
           }
         }
+      },
+      {
+        "ordinal": 7,
+        "name": "multiple",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attributedefinition",
+            "name": "multiple"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "allow_other",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attributedefinition",
+            "name": "allow_other"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
-        "Text",
-        "TextArray",
-        "Text",
-        "Bool",
-        {
-          "Custom": {
-            "name": "attribute_editable_by",
-            "kind": {
-              "Enum": [
-                "admin",
-                "user",
-                "both"
-              ]
-            }
-          }
-        },
-        "Bool"
+        "Text"
       ]
     },
     "nullable": [
@@ -121,8 +126,10 @@
       true,
       false,
       false,
+      false,
+      false,
       false
     ]
   },
-  "hash": "8b015bae83d25bcd7d6d06a44b6dcd1ceacee1868a030f8f30ecc943d8d64bfa"
+  "hash": "681d188c5f5507eb1db66b57fbd96aac19e401a26716aaee227fdb8617356925"
 }

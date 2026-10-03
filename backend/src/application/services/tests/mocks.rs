@@ -297,10 +297,10 @@ mock! {
         async fn delete_definition(&self, name: &AttributeName) -> Result<(), RepositoryError>;
         async fn fetch_definition(&self, name: &AttributeName) -> Result<Option<AttributeDefinition>, RepositoryError>;
         async fn fetch_all_definitions(&self) -> Result<Vec<AttributeDefinition>, RepositoryError>;
-        async fn upsert_member_value(&self, user_id: &PersonId, name: &AttributeName, value: &AttributeValue) -> Result<(), RepositoryError>;
+        async fn upsert_member_value(&self, user_id: &PersonId, name: &AttributeName, values: &[AttributeValue]) -> Result<(), RepositoryError>;
         async fn delete_member_value(&self, user_id: &PersonId, name: &AttributeName) -> Result<(), RepositoryError>;
         async fn fetch_member_values(&self, user_id: &PersonId) -> Result<Vec<MemberAttribute>, RepositoryError>;
-        async fn fetch_all_values_for(&self, name: &AttributeName) -> Result<Vec<(PersonId, AttributeValue)>, RepositoryError>;
+        async fn fetch_all_values_for(&self, name: &AttributeName) -> Result<Vec<(PersonId, Vec<AttributeValue>)>, RepositoryError>;
     }
 }
 
@@ -313,7 +313,7 @@ mock! {
     impl AttributeSyncPort for AttributeSyncPort {
         async fn add_mapper_to_scope(&self, attr: &AttributeName) -> Result<(), AttributeSyncError>;
         async fn remove_mapper_from_scope(&self, attr: &AttributeName) -> Result<(), AttributeSyncError>;
-        async fn set_user_attribute(&self, subject: &IdpSubject, attr: &AttributeName, value: &AttributeValue) -> Result<(), AttributeSyncError>;
+        async fn set_user_attribute(&self, subject: &IdpSubject, attr: &AttributeName, values: &[AttributeValue]) -> Result<(), AttributeSyncError>;
         async fn clear_user_attribute(&self, subject: &IdpSubject, attr: &AttributeName) -> Result<(), AttributeSyncError>;
         async fn list_users_with_attributes(&self, attrs: &[AttributeName]) -> Result<Vec<(IdpSubject, std::collections::HashMap<String, Vec<AttributeValue>>)>, AttributeSyncError>;
     }
