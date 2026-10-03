@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as \"status!: ApplicationStatusDAO\"\n            FROM Application a\n            JOIN Member m ON a.user_id = m.user_id\n            WHERE a.application_id = $1\n            ",
+  "query": "\n            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as \"status!: ApplicationStatusDAO\",\n                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as \"attribute_names!\",\n                ARRAY(SELECT ma.value FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as \"attribute_values!\"\n            FROM Application a\n            JOIN Member m ON a.user_id = m.user_id\n            WHERE a.application_id = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -146,6 +146,18 @@
             "name": "status"
           }
         }
+      },
+      {
+        "ordinal": 12,
+        "name": "attribute_names!",
+        "type_info": "TextArray",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 13,
+        "name": "attribute_values!",
+        "type_info": "TextArray",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -165,8 +177,10 @@
       true,
       true,
       true,
-      false
+      false,
+      null,
+      null
     ]
   },
-  "hash": "a8d5082155c0940d7b438f9ca1a8810c1fe61a54e6d58d139fcb3e5b2c82cfe6"
+  "hash": "f05eb63a64658554ef8eddd27a10549f371201221ab7133f656b3cb24f9734e3"
 }

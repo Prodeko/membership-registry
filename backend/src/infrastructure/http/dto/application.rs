@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -66,6 +68,9 @@ pub struct ApplicationWithMemberDTO {
     pub optional_roles: Option<Vec<String>>,
     pub application_text: Option<String>,
     pub status: ApplicationStatusDTO,
+    /// The applicant's current member attribute values, keyed by name.
+    /// Current values, not a snapshot from when the application was made.
+    pub attributes: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -179,6 +184,7 @@ impl From<ApplicationWithMember> for ApplicationWithMemberDTO {
             optional_roles: awm.optional_roles,
             application_text: awm.application_text,
             status: awm.status.into(),
+            attributes: awm.attributes,
         }
     }
 }
