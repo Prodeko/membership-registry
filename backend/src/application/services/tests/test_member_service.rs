@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use uuid::Uuid;
 
-use crate::application::services::marketing_service::MarketingService;
 use crate::application::services::member_service::MemberService;
 use crate::domain::{Email, NewPerson, Person, PersonId, UpdatePersonData};
 
@@ -73,7 +72,6 @@ async fn find_by_email_returns_member_when_present() {
         Arc::new(MockUserAdminPort::new()),
         Arc::new(MockAuthProviderRepo::new()),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
@@ -116,7 +114,6 @@ async fn provision_member_creates_person_and_links_subject() {
         Arc::new(MockUserAdminPort::new()),
         Arc::new(auth_repo),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
@@ -177,7 +174,6 @@ async fn update_member_syncs_profile_to_keycloak_and_requires_verify_on_email_ch
         Arc::new(user_admin),
         Arc::new(auth_provider_repo),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
@@ -246,7 +242,6 @@ async fn update_member_does_not_require_verify_when_email_unchanged() {
         Arc::new(user_admin),
         Arc::new(auth_provider_repo),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
@@ -268,60 +263,8 @@ async fn update_member_does_not_require_verify_when_email_unchanged() {
     tokio::time::sleep(std::time::Duration::from_millis(50)).await;
 }
 
-/// Regression test: every successful `create_member` must auto-subscribe
-/// the new member to the marketing list. Both HTTP registration paths
-/// (explicit `POST /members` and OAuth first-login) go through this
-/// method, so this single assertion covers both.
 #[tokio::test]
-async fn create_member_auto_subscribes_to_marketing_list() {
-    let user_id = Uuid::new_v4();
-
-    let mut member_repo = MockMemberRepositoryPort::new();
-    member_repo
-        .expect_create()
-        .returning(move |_| Ok(fake_created_person(user_id)));
-
-    let user_admin = MockUserAdminPort::new();
-
-    let mut auth_provider_repo = MockAuthProviderRepo::new();
-    auth_provider_repo
-        .expect_find_by_user_id()
-        .returning(|_| Ok(vec![]));
-
-    // Marketing side: an empty catalog is enough to exercise the wiring.
-    // The key assertion is that `subscribe` lands on the Mailchimp port.
-    let mut tag_repo = MockMarketingTagRepositoryPort::new();
-    tag_repo.expect_fetch_all().returning(|| Ok(vec![]));
-
-    let mut mc = MockMarketingListPort::new();
-    mc.expect_subscribe().times(1).returning(|_| Ok(()));
-    // set_tags must not be called with an empty catalog.
-    mc.expect_set_tags().times(0);
-
-    let marketing_service = Arc::new(MarketingService::new(
-        Arc::new(mc),
-        // MarketingService only hits member_repo for `get_preferences` /
-        // `set_tags`, not for `subscribe_on_registration`. A fresh mock
-        // with no expectations is fine.
-        Arc::new(MockMemberRepositoryPort::new()),
-        Arc::new(tag_repo),
-    ));
-
-    let svc = MemberService::new(
-        Arc::new(member_repo),
-        Arc::new(user_admin),
-        Arc::new(auth_provider_repo),
-        noop_audit_log(),
-        Some(marketing_service),
-        noop_attribute_bootstrap(),
-    );
-
-    svc.create_member(new_person(user_id), None).await.unwrap();
-    // Mock expectations are verified on drop.
-}
-
-#[tokio::test]
-async fn create_member_without_marketing_service_still_succeeds() {
+async fn create_member_returns_created_person() {
     let user_id = Uuid::new_v4();
 
     let mut member_repo = MockMemberRepositoryPort::new();
@@ -341,7 +284,6 @@ async fn create_member_without_marketing_service_still_succeeds() {
         Arc::new(user_admin),
         Arc::new(auth_provider_repo),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
