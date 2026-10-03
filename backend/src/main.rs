@@ -99,6 +99,7 @@ pub struct Services {
     pub application_digest_service: ApplicationDigestService,
     pub marketing_tag_admin_service: MarketingTagAdminService,
     pub marketing_service: Option<Arc<MarketingService>>,
+    pub group_membership_service: Option<Arc<GroupMembershipService>>,
     pub payment_webhook: StripeWebhookAdapter,
     pub export_service: ExportService,
     pub import_service: ImportService,
@@ -198,7 +199,7 @@ fn build_group_sync(config: &Config) -> Option<(Arc<dyn GroupMembershipPort>, Ve
             });
             let rules = GroupRule::parse_all(&rules).unwrap_or_else(|| {
                 tracing::error!(
-                    "GOOGLE_GROUP_RULES is malformed (expected 'group@domain=role|role;...')"
+                    "GOOGLE_GROUP_RULES is malformed (expected a JSON array of rules with group, roles and optional language and attribute)"
                 );
                 std::process::exit(1);
             });
@@ -292,18 +293,22 @@ impl Services {
                     port,
                     Arc::clone(&member_repo),
                     Arc::clone(&role_repo),
+                    Arc::clone(&attribute_repo),
                     rules,
                 ))
             });
 
         // Attribute service must precede member_service: registration-time
         // defaults are pushed via the AttributeBootstrapPort hook.
-        let attribute_service = Arc::new(AttributeService::new(
-            Arc::clone(&attribute_repo),
-            Arc::clone(&attribute_sync),
-            Arc::clone(&auth_provider_repo),
-            audit_log_service.clone(),
-        ));
+        let attribute_service = Arc::new(
+            AttributeService::new(
+                Arc::clone(&attribute_repo),
+                Arc::clone(&attribute_sync),
+                Arc::clone(&auth_provider_repo),
+                audit_log_service.clone(),
+            )
+            .with_groups(group_service.clone()),
+        );
         let member_service = MemberService::new(
             Arc::clone(&member_repo),
             Arc::clone(&user_admin),
@@ -313,7 +318,8 @@ impl Services {
                 as Arc<
                     dyn crate::application::ports::attribute_bootstrap_port::AttributeBootstrapPort,
                 >,
-        );
+        )
+        .with_groups(group_service.clone());
         let role_service = RoleService::new(
             Arc::clone(&role_repo),
             member_service.clone(),
@@ -396,6 +402,7 @@ impl Services {
             application_digest_service,
             marketing_tag_admin_service,
             marketing_service,
+            group_membership_service: group_service,
             payment_webhook,
             export_service,
             import_service,

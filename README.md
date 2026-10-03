@@ -108,13 +108,23 @@ Leave both blank in dev to skip marketing sync entirely.
 
 ## Google Groups configuration
 
-`GroupMembershipPort` keeps Google Workspace groups (the `jasenet@…` member lists that prodeko.org's application approval used to fill) in sync with roles. Each group has a rule naming the roles that put a user on it. Whenever one of those roles is granted, extended, renewed, deleted or expires, the user is added to the group if they hold any of the rule's roles that day and removed otherwise. Both calls are idempotent. Failures are logged and never fail the role change. The three variables must be set together, or all left empty. A partial or malformed configuration makes the backend refuse to start.
+`GroupMembershipPort` keeps Google Workspace groups (the `jasenet@…` member lists that prodeko.org's application approval used to fill) in sync with the registry. Each group has a rule: the roles that put a user on it, and optionally a language and an attribute value the user must also have. A user is added to the group while they hold one of the rule's roles that day and meet its other conditions, and removed otherwise. The group is re-checked whenever one of those roles is granted, extended, renewed, deleted or expires, when the member's language changes, and when the attribute is set or cleared — including on the application form. When a member's email changes, the old address is removed from every group and the new one added where they belong; deleting a member removes their address from every group. Failures are logged and never fail the change that triggered them. The three variables must be set together, or all left empty. A partial or malformed configuration makes the backend refuse to start.
 
 In `backend/.env`:
 
 - `GOOGLE_SERVICE_ACCOUNT_KEY` — the service account's JSON key, as the variable's value (not a path)
 - `GOOGLE_DELEGATED_ADMIN` — the Workspace admin the service account impersonates
-- `GOOGLE_GROUP_RULES` — `;`-separated `group=role|role` entries, e.g. `jasenet@prodeko.org=prodeko-full-member|prodeko-external-member;jasenet@raittiusseura.org=pora-member`
+- `GOOGLE_GROUP_RULES` — a JSON array of rules. `group` and `roles` are required; `language` and `attribute` are optional.
+
+```json
+[
+  {"group": "jasenet@prodeko.org", "roles": ["prodeko-full-member", "prodeko-external-member"]},
+  {"group": "jasenet@raittiusseura.org", "roles": ["prodeko-full-member", "prodeko-external-member"],
+   "language": "fi", "attribute": {"name": "pora-membership", "value": "yes"}}
+]
+```
+
+This matches the old prodeko.org behaviour: every member is on the Prodeko list, and Finnish-speaking members are also on the PoRa list, now only if they ticked the PoRa box. Drop `language` to put everyone who ticked the box on the PoRa list.
 
 The service account needs domain-wide delegation for the scope `https://www.googleapis.com/auth/admin.directory.group.member` in each Workspace whose groups it manages.
 

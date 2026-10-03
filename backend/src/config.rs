@@ -91,7 +91,7 @@ pub struct Config {
     #[envconfig(from = "GOOGLE_DELEGATED_ADMIN")]
     pub google_delegated_admin: Option<String>,
 
-    /// `group=role|role;group=role` — see `GroupRule::parse_all`.
+    /// JSON array of group rules — see `GroupRule::parse_all`.
     #[envconfig(from = "GOOGLE_GROUP_RULES")]
     pub google_group_rules: Option<String>,
 }
