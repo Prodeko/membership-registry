@@ -120,11 +120,11 @@ In `backend/.env`:
 [
   {"group": "jasenet@prodeko.org", "roles": ["prodeko-full-member", "prodeko-external-member"]},
   {"group": "jasenet@raittiusseura.org", "roles": ["prodeko-full-member", "prodeko-external-member"],
-   "language": "fi", "attribute": {"name": "pora-membership", "value": "yes"}}
+   "attribute": {"name": "pora-membership", "value": "yes"}}
 ]
 ```
 
-This matches the old prodeko.org behaviour: every member is on the Prodeko list, and Finnish-speaking members are also on the PoRa list, now only if they ticked the PoRa box. Drop `language` to put everyone who ticked the box on the PoRa list.
+Every member is on the Prodeko list, and members who ticked the PoRa box on the application form are also on the PoRa list. Add `"language": "fi"` to a rule to limit it to Finnish-speaking members, as the old prodeko.org did for the PoRa list.
 
 The service account needs domain-wide delegation for the scope `https://www.googleapis.com/auth/admin.directory.group.member` in each Workspace whose groups it manages.
 
