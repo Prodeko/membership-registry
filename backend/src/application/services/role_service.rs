@@ -17,6 +17,7 @@ use uuid::Uuid;
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
+    marketing_service::MarketingService,
     member_service::MemberService,
 };
 
@@ -57,6 +58,9 @@ pub struct RoleService {
     pub auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     pub audit_log: AuditLogService,
     keycloak_sync_cache: Cache<String, HashMap<Uuid, MemberKeycloakSyncStatus>>,
+    /// `None` where Mailchimp is not configured (dev/e2e). When set, every
+    /// change to a membership role re-syncs the user's list membership.
+    marketing: Option<Arc<MarketingService>>,
 }
 
 impl RoleService {
@@ -77,11 +81,24 @@ impl RoleService {
                 .max_capacity(1)
                 .time_to_live(Duration::from_secs(60))
                 .build(),
+            marketing: None,
         }
+    }
+
+    pub fn with_marketing(mut self, marketing: Option<Arc<MarketingService>>) -> Self {
+        self.marketing = marketing;
+        self
     }
 
     fn invalidate_sync_cache(&self) {
         self.keycloak_sync_cache.invalidate_all();
+    }
+
+    /// Best-effort Mailchimp re-sync after `role_name` changed for `user_id`.
+    async fn sync_marketing(&self, user_id: Uuid, role_name: &str) {
+        if let Some(marketing) = &self.marketing {
+            marketing.sync_after_role_change(user_id, role_name).await;
+        }
     }
 
     pub async fn create_role(
@@ -258,6 +275,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
+        self.sync_marketing(user_id, role_name).await;
         Ok(())
     }
 
@@ -307,6 +325,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
+        self.sync_marketing(user_id, role_name).await;
         Ok(())
     }
 
@@ -377,6 +396,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
+        self.sync_marketing(user_id, role_name).await;
         Ok(())
     }
 
@@ -523,6 +543,11 @@ impl RoleService {
         }
 
         self.invalidate_sync_cache();
+        for role_name in &role_names {
+            for user_id in &user_ids {
+                self.sync_marketing(*user_id, role_name).await;
+            }
+        }
         Ok(())
     }
 
@@ -554,6 +579,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
+        self.sync_marketing(user_id, role_name).await;
         Ok(())
     }
 
@@ -608,6 +634,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
+        self.sync_marketing(user_id, role_name).await;
         Ok(())
     }
 
@@ -692,6 +719,9 @@ impl RoleService {
                         "valid_until": membership.valid_until.map(|d| d.to_string()),
                     })),
                 )
+                .await;
+
+            self.sync_marketing(membership.user_id, &membership.role_name.0)
                 .await;
 
             synced += 1;

@@ -1,12 +1,15 @@
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use uuid::Uuid;
 
+use crate::application::ports::application_repository_port::TargetableRolePort;
 use crate::application::ports::marketing_list_port::{
     ContactIdentity, MarketingListPort, SubscriptionState, TagPreference,
 };
 use crate::application::ports::marketing_tag_repository_port::MarketingTagRepositoryPort;
 use crate::application::ports::member_repository_port::MemberRepositoryPort;
+use crate::application::ports::role_repository_port::RoleRepositoryPort;
 use crate::domain::{MarketingTag, Person};
 
 use super::errors::{ServiceError, ServiceResult};
@@ -35,14 +38,20 @@ pub struct UserMarketingPreferences {
 }
 
 /// Orchestrates marketing list operations. Owns the business rules
-/// (auto_apply semantics on register/resubscribe, catalog validation on
-/// user-initiated tag updates) so HTTP controllers stay thin and the
-/// Mailchimp port stays free of domain concerns.
+/// (list membership follows membership roles, auto_apply semantics on
+/// subscribe, catalog validation on user-initiated tag updates) so HTTP
+/// controllers stay thin and the Mailchimp port stays free of domain
+/// concerns.
 #[derive(Clone)]
 pub struct MarketingService {
     marketing_port: Arc<dyn MarketingListPort>,
     member_repo: Arc<dyn MemberRepositoryPort>,
     tag_repo: Arc<dyn MarketingTagRepositoryPort>,
+    role_repo: Arc<dyn RoleRepositoryPort>,
+    /// Membership roles are the application-targetable ones — the roles
+    /// members apply for and buy each year. Only users holding one of them
+    /// *right now* belong on the list.
+    targetable_roles: Arc<dyn TargetableRolePort>,
 }
 
 impl MarketingService {
@@ -50,12 +59,44 @@ impl MarketingService {
         marketing_port: Arc<dyn MarketingListPort>,
         member_repo: Arc<dyn MemberRepositoryPort>,
         tag_repo: Arc<dyn MarketingTagRepositoryPort>,
+        role_repo: Arc<dyn RoleRepositoryPort>,
+        targetable_roles: Arc<dyn TargetableRolePort>,
     ) -> Self {
         Self {
             marketing_port,
             member_repo,
             tag_repo,
+            role_repo,
+            targetable_roles,
         }
+    }
+
+    /// Names of every role that has ever been application-targetable. Every
+    /// year's entry counts, including inactive ones: closing applications
+    /// for a year must not drop current members from the list.
+    async fn membership_roles(&self) -> ServiceResult<HashSet<String>> {
+        let roles = self
+            .targetable_roles
+            .fetch_all_targetable_roles()
+            .await
+            .map_err(ServiceError::from)?;
+        Ok(roles.into_iter().map(|r| r.role_name).collect())
+    }
+
+    async fn has_active_membership(
+        &self,
+        user_id: Uuid,
+        membership_roles: &HashSet<String>,
+    ) -> ServiceResult<bool> {
+        let today = chrono::Utc::now().date_naive();
+        let memberships = self
+            .role_repo
+            .fetch_roles_by_member(&user_id)
+            .await
+            .map_err(ServiceError::from)?;
+        Ok(memberships
+            .iter()
+            .any(|m| membership_roles.contains(&m.role_name.0) && m.is_active_on(today)))
     }
 
     async fn load_catalog(&self) -> ServiceResult<Vec<MarketingTag>> {
@@ -145,9 +186,17 @@ impl MarketingService {
 
     /// Subscribe the user and activate every `auto_apply` tag. Used by the
     /// "resubscribe" button on the profile page — it restores the user to
-    /// the default state for a new signup. Opt-in (`auto_apply=false`)
+    /// the default state for a new member. Opt-in (`auto_apply=false`)
     /// tags are left untouched; users must toggle those on themselves.
+    /// Only active members may subscribe; the list mirrors membership.
     pub async fn subscribe(&self, user_id: Uuid) -> ServiceResult<UserMarketingPreferences> {
+        let membership_roles = self.membership_roles().await?;
+        if !self
+            .has_active_membership(user_id, &membership_roles)
+            .await?
+        {
+            return Err(ServiceError::Forbidden);
+        }
         let catalog = self.load_catalog().await?;
         let identity = self.identity_for(user_id).await?;
         self.subscribe_with_defaults(&identity, &catalog).await?;
@@ -158,27 +207,52 @@ impl MarketingService {
         Ok(Self::join_view(catalog, prefs.state, &prefs.tags))
     }
 
-    /// Best-effort auto-subscribe at registration time. Errors are logged
-    /// and never surfaced — a Mailchimp outage (or a missing tag catalog
-    /// row) must not fail user signup. Takes the freshly-created `Person`
-    /// directly so we skip a repo round-trip right after `create_member`.
-    pub async fn subscribe_on_registration(&self, person: &Person) {
-        let catalog = match self.load_catalog().await {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::error!("Failed to load marketing tag catalog on registration: {e:?}");
-                return;
-            }
+    /// Best-effort reconcile of the user's list membership, called after any
+    /// change to one of their roles. Changes to non-membership roles are
+    /// ignored. Errors are logged and never surfaced — a Mailchimp outage
+    /// must not fail the role change that triggered the sync.
+    pub async fn sync_after_role_change(&self, user_id: Uuid, role_name: &str) {
+        let result = match self.membership_roles().await {
+            Ok(roles) if !roles.contains(role_name) => Ok(()),
+            Ok(roles) => self.try_sync_membership(user_id, &roles).await,
+            Err(e) => Err(e),
         };
-        let identity = ContactIdentity {
-            email: person.email.as_str().to_string(),
-            first_name: person.first_name.clone(),
-            last_name: person.last_name.clone(),
-            language: person.language.clone(),
-        };
-        if let Err(e) = self.subscribe_with_defaults(&identity, &catalog).await {
-            tracing::error!("Mailchimp auto-subscribe on registration failed: {e:?}");
+        if let Err(e) = result {
+            tracing::error!(user_id = %user_id, "Mailchimp membership sync failed: {e:?}");
         }
+    }
+
+    /// Active members who are not on the list get subscribed with the
+    /// `auto_apply` defaults; former members who still receive mail get
+    /// archived. Everyone else is left alone — in particular members who
+    /// unsubscribed themselves are never re-added, and existing subscribers
+    /// keep their tag choices.
+    async fn try_sync_membership(
+        &self,
+        user_id: Uuid,
+        membership_roles: &HashSet<String>,
+    ) -> ServiceResult<()> {
+        let active = self
+            .has_active_membership(user_id, membership_roles)
+            .await?;
+        let identity = self.identity_for(user_id).await?;
+        let state = self
+            .marketing_port
+            .fetch_preferences(&identity.email, &[])
+            .await?
+            .state;
+
+        match (active, state) {
+            (true, SubscriptionState::NotAContact) => {
+                let catalog = self.load_catalog().await?;
+                self.subscribe_with_defaults(&identity, &catalog).await?;
+            }
+            (false, SubscriptionState::Subscribed | SubscriptionState::Pending) => {
+                self.marketing_port.archive(&identity.email).await?;
+            }
+            _ => {}
+        }
+        Ok(())
     }
 
     async fn subscribe_with_defaults(

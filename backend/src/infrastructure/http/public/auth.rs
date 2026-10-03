@@ -57,6 +57,7 @@ async fn logout(State(state): State<AppState>, jar: CookieJar) -> (CookieJar, Js
     (jar, Json("Logged out".to_string()))
 }
 
+#[allow(clippy::result_large_err)] // axum handler: the error is the HTTP response itself
 async fn callback(
     State(state): State<AppState>,
     query: axum::extract::Query<std::collections::HashMap<String, String>>,
