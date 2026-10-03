@@ -12,6 +12,7 @@ use crate::domain::{AttributeName, AttributeValue, Patch, PersonId};
 use chrono::NaiveDate;
 use uuid::Uuid;
 
+use crate::application::services::application_alert_service::ApplicationAlertService;
 use crate::application::services::attribute_service::AttributeService;
 use crate::application::services::notification_service::NotificationService;
 
@@ -60,9 +61,11 @@ pub struct ApplicationService {
     pub attribute_service: Arc<AttributeService>,
     pub audit_log: AuditLogService,
     pub notification_service: NotificationService,
+    pub admin_alerts: ApplicationAlertService,
 }
 
 impl ApplicationService {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         application_commands: Arc<dyn ApplicationCommandPort>,
         application_queries: Arc<dyn ApplicationQueryPort>,
@@ -71,6 +74,7 @@ impl ApplicationService {
         attribute_service: Arc<AttributeService>,
         audit_log: AuditLogService,
         notification_service: NotificationService,
+        admin_alerts: ApplicationAlertService,
     ) -> Self {
         Self {
             application_commands,
@@ -80,6 +84,7 @@ impl ApplicationService {
             attribute_service,
             audit_log,
             notification_service,
+            admin_alerts,
         }
     }
 
@@ -192,6 +197,14 @@ impl ApplicationService {
             )
             .await;
 
+        // Paid roles start Unpaid and alert admins once payment arrives
+        // instead (see `update_payment_id`), so each application alerts once.
+        if application.status == ApplicationStatus::Pending {
+            self.admin_alerts
+                .notify_new_application(application.application_id.0)
+                .await;
+        }
+
         Ok(CreateApplicationResult {
             application,
             redirect_to,
@@ -268,6 +281,10 @@ impl ApplicationService {
                         &application_id.to_string(),
                         None,
                     )
+                    .await;
+
+                self.admin_alerts
+                    .notify_new_application(application_id)
                     .await;
             }
             ApplicationTransition::Approved => {
@@ -613,6 +630,10 @@ impl ApplicationService {
                 &application_id.to_string(),
                 Some(serde_json::json!({ "stripe_payment_id": stripe_payment_id })),
             )
+            .await;
+
+        self.admin_alerts
+            .notify_new_application(application_id)
             .await;
 
         Ok(())

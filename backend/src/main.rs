@@ -40,6 +40,7 @@ use application::{
         user_admin_port::UserAdminPort,
     },
     services::{
+        application_alert_service::ApplicationAlertService,
         application_digest_service::ApplicationDigestService,
         application_service::ApplicationService, attribute_service::AttributeService,
         audit_log_service::AuditLogService, authentication_service::AuthenticationService,
@@ -272,6 +273,13 @@ impl Services {
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
         );
+        let application_alert_service = ApplicationAlertService::new(
+            Arc::clone(&application_queries),
+            Arc::clone(&attribute_repo),
+            Arc::clone(&role_repo),
+            email_port.clone(),
+            config.frontend_url.clone(),
+        );
         let application_service = ApplicationService::new(
             application_commands,
             Arc::clone(&application_queries),
@@ -280,6 +288,7 @@ impl Services {
             Arc::clone(&attribute_service),
             audit_log_service.clone(),
             notification_service.clone(),
+            application_alert_service,
         );
         let application_digest_service = ApplicationDigestService::new(
             Arc::clone(&application_queries),
@@ -287,6 +296,7 @@ impl Services {
             Arc::clone(&role_repo),
             email_port,
             config.frontend_url.clone(),
+            config.application_digest_stale_days,
         );
 
         let renewal_repo: Arc<dyn RoleRenewalRepositoryPort> = Arc::new(repo.role_renewal);

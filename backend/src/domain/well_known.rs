@@ -12,7 +12,7 @@ pub fn admin_role_name() -> RoleName {
 }
 
 /// Member attribute holding the address that receives admin notification
-/// emails (e.g. the pending-application digest). Notifications go to the
+/// emails (e.g. the new-application alert). Notifications go to the
 /// attribute's value, and only for members who also hold [`ADMIN_ROLE_NAME`]
 /// — the attribute alone does not subscribe a member.
 pub const ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE: &str = "admin-notifications-email";
