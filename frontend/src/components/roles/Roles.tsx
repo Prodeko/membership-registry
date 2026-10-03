@@ -1,4 +1,8 @@
-import { useCleanupExpiredRoles, useGetRolesStats } from "@/lib/api";
+import {
+  useCleanupExpiredRoles,
+  useGetRolesCount,
+  useGetRolesStats,
+} from "@/lib/api";
 import { DataTable } from "../ui/data-table";
 import { columns } from "./columns";
 import CreateRoleModal from "./CreateRoleModal";
@@ -78,6 +82,7 @@ const Roles = () => {
       <DataTable
         columns={columns}
         useFetchData={useGetRolesStats}
+        useCount={useGetRolesCount}
         searchColumn="name"
         modelName="roles"
       />

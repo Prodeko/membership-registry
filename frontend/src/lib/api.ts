@@ -361,6 +361,18 @@ export const useGetRolesStats = (params: PaginatedQueryParams) => {
   });
 };
 
+export const useGetRolesCount = (params: { search?: string }) => {
+  return useQuery<{ total: number }>({
+    queryKey: [QueryKey.ROLES, "count", params.search],
+    queryFn: async () => {
+      const response = await admin_axios_client.get("/roles/stats/count", {
+        params: { search: params.search || undefined },
+      });
+      return response.data;
+    },
+  });
+};
+
 export const useCleanupExpiredRoles = () => {
   return useMutation<{ synced: number }, Error>({
     mutationFn: async () => {
