@@ -16,6 +16,7 @@ use crate::domain::{
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
+    marketing_service::MarketingService,
     notification_service::NotificationService,
 };
 
@@ -27,6 +28,9 @@ pub struct RenewalService {
     auth_provider_repo: Arc<dyn AuthProviderRepositoryPort>,
     notification_service: NotificationService,
     audit_log: AuditLogService,
+    /// `None` where Mailchimp is not configured. When set, a paid renewal of
+    /// a membership role re-syncs the member's list membership.
+    marketing: Option<Arc<MarketingService>>,
 }
 
 impl RenewalService {
@@ -45,7 +49,13 @@ impl RenewalService {
             auth_provider_repo,
             notification_service,
             audit_log,
+            marketing: None,
         }
+    }
+
+    pub fn with_marketing(mut self, marketing: Option<Arc<MarketingService>>) -> Self {
+        self.marketing = marketing;
+        self
     }
 
     /// Main entry point called by the scheduler. Handles the full renewal cycle:
@@ -340,6 +350,13 @@ impl RenewalService {
                 })),
             )
             .await;
+
+        // A renewal paid during the grace period restores a lapsed membership.
+        if let Some(marketing) = &self.marketing {
+            marketing
+                .sync_after_role_change(renewal.user_id, &renewal.role_name.0)
+                .await;
+        }
 
         tracing::info!(
             user_id = %renewal.user_id,

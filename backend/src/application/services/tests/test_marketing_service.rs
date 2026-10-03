@@ -1,13 +1,16 @@
 use std::sync::Arc;
 
+use chrono::{Duration, NaiveDate, Utc};
 use uuid::Uuid;
 
+use crate::application::ports::application_repository_port::ApplicationTargetableRole;
 use crate::application::ports::marketing_list_port::{
     MarketingPreferences, SubscriptionState, TagPreference,
 };
+use crate::application::ports::role_repository_port::RoleMembership;
 use crate::application::services::errors::ServiceError;
 use crate::application::services::marketing_service::MarketingService;
-use crate::domain::{Email, MarketingTag, Person, PersonId};
+use crate::domain::{Email, MarketingTag, Person, PersonId, RoleName};
 
 use super::mocks::*;
 
@@ -38,12 +41,92 @@ fn test_person(user_id: Uuid) -> Person {
     }
 }
 
+const MEMBERSHIP_ROLE: &str = "member";
+const OTHER_ROLE: &str = "board";
+
+/// A targetable-role entry; every year's entry, active or not, marks
+/// `role` as a membership role.
+fn targetable(role: &str, active: bool) -> ApplicationTargetableRole {
+    ApplicationTargetableRole {
+        role_name: role.to_string(),
+        valid_until: today() + Duration::days(365),
+        active,
+        optional_roles: None,
+        payment_link: None,
+        approved_email_template: None,
+        rejected_email_template: None,
+        form_attributes: vec![],
+    }
+}
+
+fn targetable_roles() -> MockTargetableRolePort {
+    let mut targetable_roles = MockTargetableRolePort::new();
+    // Membership closed for applications this year: still a membership role.
+    targetable_roles
+        .expect_fetch_all_targetable_roles()
+        .returning(|| Ok(vec![targetable(MEMBERSHIP_ROLE, false)]));
+    targetable_roles
+}
+
+fn today() -> NaiveDate {
+    Utc::now().date_naive()
+}
+
+fn membership(
+    user_id: Uuid,
+    role: &str,
+    valid_from: NaiveDate,
+    valid_until: Option<NaiveDate>,
+) -> RoleMembership {
+    RoleMembership {
+        user_id,
+        role_name: RoleName(role.to_string()),
+        valid_from,
+        valid_until,
+        renewable: false,
+        renewal_due: false,
+        renewal_deadline: None,
+    }
+}
+
+fn active_membership(user_id: Uuid) -> RoleMembership {
+    membership(user_id, MEMBERSHIP_ROLE, today() - Duration::days(30), None)
+}
+
+fn build_service_with_roles(
+    mc: MockMarketingListPort,
+    member_repo: MockMemberRepositoryPort,
+    tag_repo: MockMarketingTagRepositoryPort,
+    memberships: Vec<RoleMembership>,
+) -> MarketingService {
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo
+        .expect_fetch_roles_by_member()
+        .returning(move |_| Ok(memberships.clone()));
+    MarketingService::new(
+        Arc::new(mc),
+        Arc::new(member_repo),
+        Arc::new(tag_repo),
+        Arc::new(role_repo),
+        Arc::new(targetable_roles()),
+    )
+}
+
+/// Service for a user holding an active membership.
 fn build_service(
     mc: MockMarketingListPort,
     member_repo: MockMemberRepositoryPort,
     tag_repo: MockMarketingTagRepositoryPort,
 ) -> MarketingService {
-    MarketingService::new(Arc::new(mc), Arc::new(member_repo), Arc::new(tag_repo))
+    let user_id = Uuid::new_v4();
+    build_service_with_roles(mc, member_repo, tag_repo, vec![active_membership(user_id)])
+}
+
+fn preferences(state: SubscriptionState) -> MarketingPreferences {
+    MarketingPreferences {
+        state,
+        tags: vec![],
+    }
 }
 
 // --- get_preferences: catalog join + ordering ---
@@ -194,10 +277,42 @@ async fn subscribe_with_no_auto_apply_tags_skips_set_tags_but_still_subscribes()
     svc.subscribe(user_id).await.unwrap();
 }
 
-// --- subscribe_on_registration ---
+#[tokio::test]
+async fn subscribe_rejects_users_without_active_membership() {
+    let user_id = Uuid::new_v4();
+    let expired = membership(
+        user_id,
+        MEMBERSHIP_ROLE,
+        today() - Duration::days(400),
+        Some(today() - Duration::days(1)),
+    );
+
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_subscribe().times(0);
+    mc.expect_set_tags().times(0);
+
+    let svc = build_service_with_roles(
+        mc,
+        MockMemberRepositoryPort::new(),
+        MockMarketingTagRepositoryPort::new(),
+        vec![expired],
+    );
+    let err = svc.subscribe(user_id).await.unwrap_err();
+    assert!(matches!(err, ServiceError::Forbidden));
+}
+
+// --- sync_after_role_change: list membership follows membership roles ---
+
+fn member_repo_for(user_id: Uuid) -> MockMemberRepositoryPort {
+    let mut member_repo = MockMemberRepositoryPort::new();
+    member_repo
+        .expect_fetch_one()
+        .returning(move |_| Ok(test_person(user_id)));
+    member_repo
+}
 
 #[tokio::test]
-async fn subscribe_on_registration_activates_auto_apply_tags() {
+async fn sync_after_role_change_subscribes_new_member_with_auto_apply_tags() {
     let user_id = Uuid::new_v4();
 
     let mut tag_repo = MockMarketingTagRepositoryPort::new();
@@ -209,10 +324,9 @@ async fn subscribe_on_registration_activates_auto_apply_tags() {
         ])
     });
 
-    // Member repo is NOT consulted: the person is passed in directly.
-    let member_repo = MockMemberRepositoryPort::new();
-
     let mut mc = MockMarketingListPort::new();
+    mc.expect_fetch_preferences()
+        .returning(|_, _| Ok(preferences(SubscriptionState::NotAContact)));
     mc.expect_subscribe().times(1).returning(|_| Ok(()));
     mc.expect_set_tags()
         .withf(|_identity, updates| {
@@ -222,17 +336,134 @@ async fn subscribe_on_registration_activates_auto_apply_tags() {
         })
         .times(1)
         .returning(|_, _| Ok(()));
+    mc.expect_archive().times(0);
 
-    let svc = build_service(mc, member_repo, tag_repo);
-    svc.subscribe_on_registration(&test_person(user_id)).await;
+    let svc = build_service_with_roles(
+        mc,
+        member_repo_for(user_id),
+        tag_repo,
+        vec![active_membership(user_id)],
+    );
+    svc.sync_after_role_change(user_id, MEMBERSHIP_ROLE).await;
 }
 
 #[tokio::test]
-async fn subscribe_on_registration_swallows_catalog_errors() {
+async fn sync_after_role_change_leaves_existing_subscriber_untouched() {
     let user_id = Uuid::new_v4();
 
-    let mut tag_repo = MockMarketingTagRepositoryPort::new();
-    tag_repo.expect_fetch_all().returning(|| {
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_fetch_preferences()
+        .returning(|_, _| Ok(preferences(SubscriptionState::Subscribed)));
+    // Re-subscribing would reset the member's tag choices.
+    mc.expect_subscribe().times(0);
+    mc.expect_set_tags().times(0);
+    mc.expect_archive().times(0);
+
+    let svc = build_service_with_roles(
+        mc,
+        member_repo_for(user_id),
+        MockMarketingTagRepositoryPort::new(),
+        vec![active_membership(user_id)],
+    );
+    svc.sync_after_role_change(user_id, MEMBERSHIP_ROLE).await;
+}
+
+#[tokio::test]
+async fn sync_after_role_change_does_not_resubscribe_member_who_opted_out() {
+    let user_id = Uuid::new_v4();
+
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_fetch_preferences()
+        .returning(|_, _| Ok(preferences(SubscriptionState::Unsubscribed)));
+    mc.expect_subscribe().times(0);
+    mc.expect_archive().times(0);
+
+    let svc = build_service_with_roles(
+        mc,
+        member_repo_for(user_id),
+        MockMarketingTagRepositoryPort::new(),
+        vec![active_membership(user_id)],
+    );
+    svc.sync_after_role_change(user_id, MEMBERSHIP_ROLE).await;
+}
+
+#[tokio::test]
+async fn sync_after_role_change_archives_former_member() {
+    let user_id = Uuid::new_v4();
+    let expired = membership(
+        user_id,
+        MEMBERSHIP_ROLE,
+        today() - Duration::days(400),
+        Some(today() - Duration::days(1)),
+    );
+
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_fetch_preferences()
+        .returning(|_, _| Ok(preferences(SubscriptionState::Subscribed)));
+    mc.expect_archive()
+        .withf(|email| email == "user@example.com")
+        .times(1)
+        .returning(|_| Ok(()));
+    mc.expect_subscribe().times(0);
+
+    let svc = build_service_with_roles(
+        mc,
+        member_repo_for(user_id),
+        MockMarketingTagRepositoryPort::new(),
+        vec![expired],
+    );
+    svc.sync_after_role_change(user_id, MEMBERSHIP_ROLE).await;
+}
+
+#[tokio::test]
+async fn sync_after_role_change_ignores_other_roles_and_future_memberships() {
+    let user_id = Uuid::new_v4();
+    let other_role = membership(user_id, OTHER_ROLE, today() - Duration::days(30), None);
+    let not_started = membership(user_id, MEMBERSHIP_ROLE, today() + Duration::days(1), None);
+
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_fetch_preferences()
+        .returning(|_, _| Ok(preferences(SubscriptionState::Pending)));
+    mc.expect_archive().times(1).returning(|_| Ok(()));
+    mc.expect_subscribe().times(0);
+
+    let svc = build_service_with_roles(
+        mc,
+        member_repo_for(user_id),
+        MockMarketingTagRepositoryPort::new(),
+        vec![other_role, not_started],
+    );
+    svc.sync_after_role_change(user_id, MEMBERSHIP_ROLE).await;
+}
+
+#[tokio::test]
+async fn sync_after_role_change_ignores_non_membership_roles() {
+    let user_id = Uuid::new_v4();
+
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo.expect_fetch_roles_by_member().times(0);
+
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_fetch_preferences().times(0);
+    mc.expect_subscribe().times(0);
+    mc.expect_archive().times(0);
+
+    let svc = MarketingService::new(
+        Arc::new(mc),
+        Arc::new(MockMemberRepositoryPort::new()),
+        Arc::new(MockMarketingTagRepositoryPort::new()),
+        Arc::new(role_repo),
+        Arc::new(targetable_roles()),
+    );
+    svc.sync_after_role_change(user_id, OTHER_ROLE).await;
+}
+
+#[tokio::test]
+async fn sync_after_role_change_swallows_role_repo_errors() {
+    let user_id = Uuid::new_v4();
+
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo.expect_fetch_roles_by_member().returning(|_| {
         Err(
             crate::application::ports::repository_error::RepositoryError::Unexpected(
                 "db down".to_string(),
@@ -240,16 +471,21 @@ async fn subscribe_on_registration_swallows_catalog_errors() {
         )
     });
 
-    let member_repo = MockMemberRepositoryPort::new();
-
     let mut mc = MockMarketingListPort::new();
-    // Nothing should be sent to Mailchimp if we can't load the catalog.
+    // Nothing should be sent to Mailchimp if membership can't be determined.
+    mc.expect_fetch_preferences().times(0);
     mc.expect_subscribe().times(0);
-    mc.expect_set_tags().times(0);
+    mc.expect_archive().times(0);
 
-    let svc = build_service(mc, member_repo, tag_repo);
-    // Must not panic / must not return — it's a best-effort void call.
-    svc.subscribe_on_registration(&test_person(user_id)).await;
+    let svc = MarketingService::new(
+        Arc::new(mc),
+        Arc::new(MockMemberRepositoryPort::new()),
+        Arc::new(MockMarketingTagRepositoryPort::new()),
+        Arc::new(role_repo),
+        Arc::new(targetable_roles()),
+    );
+    // Must not panic / must not return an error — it's a best-effort call.
+    svc.sync_after_role_change(user_id, MEMBERSHIP_ROLE).await;
 }
 
 // --- set_tags: catalog validation ---

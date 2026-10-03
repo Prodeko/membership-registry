@@ -16,7 +16,6 @@ fn make_role_service(role_repo: MockRoleRepositoryPort) -> RoleService {
         Arc::new(MockUserAdminPort::new()),
         Arc::new(MockAuthProviderRepo::new()),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
