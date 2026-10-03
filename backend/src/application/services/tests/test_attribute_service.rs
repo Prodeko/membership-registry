@@ -19,6 +19,7 @@ fn def(name: &str, sync: bool, editable_by: EditableBy) -> AttributeDefinition {
         None,
         sync,
         editable_by,
+        false,
     )
     .unwrap()
 }
@@ -113,6 +114,65 @@ async fn clear_as_self_rejects_admin_only_attribute() {
     assert!(matches!(res, Err(ServiceError::Forbidden)));
 }
 
+fn required_def(name: &str, editable_by: EditableBy) -> AttributeDefinition {
+    AttributeDefinition::new(
+        AttributeName::new(name).unwrap(),
+        None,
+        None,
+        None,
+        false,
+        editable_by,
+        true,
+    )
+    .unwrap()
+}
+
+#[tokio::test]
+async fn clear_as_self_rejects_required_attribute() {
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_definition()
+        .returning(|_| Ok(Some(required_def("pora-membership", EditableBy::Both))));
+
+    let svc = build_service(
+        repo,
+        MockAttributeSyncPort::new(),
+        MockAuthProviderRepo::new(),
+    );
+
+    let res = svc
+        .clear_as_self(
+            PersonId(uuid::Uuid::new_v4()),
+            &AttributeName::new("pora-membership").unwrap(),
+        )
+        .await;
+
+    assert!(matches!(res, Err(ServiceError::Constraint(_))));
+}
+
+#[tokio::test]
+async fn clear_as_admin_allows_required_attribute() {
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_definition()
+        .returning(|_| Ok(Some(required_def("pora-membership", EditableBy::Both))));
+    repo.expect_delete_member_value().returning(|_, _| Ok(()));
+
+    let svc = build_service(
+        repo,
+        MockAttributeSyncPort::new(),
+        MockAuthProviderRepo::new(),
+    );
+
+    let res = svc
+        .clear_as_admin(
+            PersonId(uuid::Uuid::new_v4()),
+            &AttributeName::new("pora-membership").unwrap(),
+            None,
+        )
+        .await;
+
+    assert!(res.is_ok());
+}
+
 #[tokio::test]
 async fn set_as_admin_accepts_both_editable() {
     let mut repo = MockAttributeRepositoryPort::new();
@@ -155,6 +215,7 @@ async fn set_rejects_value_not_in_allowed_values() {
                 None,
                 false,
                 EditableBy::Admin,
+                false,
             )
             .unwrap(),
         ))
@@ -360,6 +421,7 @@ async fn update_patch_leave_preserves_existing_description() {
         None,
         false,
         EditableBy::Admin,
+        false,
     )
     .unwrap();
 
@@ -377,6 +439,7 @@ async fn update_patch_leave_preserves_existing_description() {
             input.default_value,
             input.sync_to_keycloak,
             input.editable_by,
+            input.required,
         )
         .unwrap())
     });
@@ -393,6 +456,7 @@ async fn update_patch_leave_preserves_existing_description() {
         default_value: Patch::Leave,
         sync_to_keycloak: None,
         editable_by: None,
+        required: None,
     };
     let _ = svc
         .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)
@@ -409,6 +473,7 @@ async fn update_patch_clear_drops_description() {
         None,
         false,
         EditableBy::Admin,
+        false,
     )
     .unwrap();
 
@@ -425,6 +490,7 @@ async fn update_patch_clear_drops_description() {
             input.default_value,
             input.sync_to_keycloak,
             input.editable_by,
+            input.required,
         )
         .unwrap())
     });
@@ -441,6 +507,7 @@ async fn update_patch_clear_drops_description() {
         default_value: Patch::Leave,
         sync_to_keycloak: None,
         editable_by: None,
+        required: None,
     };
     let _ = svc
         .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)
@@ -789,6 +856,7 @@ async fn create_definition_rolls_back_db_when_kc_mapper_add_fails() {
             input.default_value,
             input.sync_to_keycloak,
             input.editable_by,
+            input.required,
         )
         .unwrap())
     });
@@ -812,6 +880,7 @@ async fn create_definition_rolls_back_db_when_kc_mapper_add_fails() {
                 default_value: None,
                 sync_to_keycloak: true,
                 editable_by: EditableBy::Admin,
+                required: false,
             },
             None,
         )
@@ -834,6 +903,7 @@ async fn update_definition_rejects_tightening_that_invalidates_existing_value() 
         None,
         false,
         EditableBy::Admin,
+        false,
     )
     .unwrap();
 
@@ -858,6 +928,7 @@ async fn update_definition_rejects_tightening_that_invalidates_existing_value() 
         default_value: Patch::Leave,
         sync_to_keycloak: None,
         editable_by: None,
+        required: None,
     };
     let res = svc
         .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)
@@ -935,6 +1006,7 @@ async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
         Some(av("external")),
         true,
         EditableBy::Admin,
+        false,
     )
     .unwrap();
     let def_with_default_internal = AttributeDefinition::new(
@@ -944,6 +1016,7 @@ async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
         Some(av("other")),
         false,
         EditableBy::Both,
+        false,
     )
     .unwrap();
     let def_without_default = AttributeDefinition::new(
@@ -953,6 +1026,7 @@ async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
         None,
         false,
         EditableBy::Admin,
+        false,
     )
     .unwrap();
 

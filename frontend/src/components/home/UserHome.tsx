@@ -1,6 +1,7 @@
 import {
   useGetMeMember,
   useGetMemberRoles,
+  useGetMyAttributes,
   useGetPublicConfig,
   useGetTargetableRoles,
   useGetUserApplications,
@@ -34,6 +35,7 @@ import {
 import { Separator } from "../ui/separator";
 import { LanguageSwitcher } from "../language-switcher/LanguageSwitcher";
 import RenewalBanner from "./RenewalBanner";
+import MissingAttributesBanner from "./MissingAttributesBanner";
 
 const statusVariant = {
   approved: "default" as const,
@@ -54,6 +56,7 @@ const UserHome = () => {
     enabled: !!member,
   });
   const { data: publicConfig } = useGetPublicConfig();
+  const { data: myAttributes } = useGetMyAttributes();
   const { mutate: withdrawApplication } = useWithdrawApplication();
   const [withdrawId, setWithdrawId] = useState<string | null>(null);
 
@@ -114,6 +117,10 @@ const UserHome = () => {
   const dueRoles = groupedRoles.filter(
     (r) => r.renewalDue && r.validUntil !== null,
   );
+  // Admin-only attributes are left out: the member couldn't fill them anyway.
+  const missingAttributes = (myAttributes ?? []).filter(
+    (a) => a.required && a.editable && !a.value,
+  );
 
   if (isMemberLoading || isAppsLoading) {
     return (
@@ -145,6 +152,10 @@ const UserHome = () => {
           </div>
           <LanguageSwitcher />
         </div>
+
+        {missingAttributes.length > 0 && (
+          <MissingAttributesBanner attributes={missingAttributes} />
+        )}
 
         {dueRoles.map((role) => (
           <RenewalBanner

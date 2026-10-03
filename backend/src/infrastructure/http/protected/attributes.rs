@@ -52,6 +52,7 @@ async fn get_my_attributes(
                 .allowed_values()
                 .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect()),
             description: d.description().map(str::to_string),
+            required: d.required(),
             name: d.name().clone().into_inner(),
         })
         .collect();

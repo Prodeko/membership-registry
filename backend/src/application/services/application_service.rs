@@ -119,6 +119,26 @@ impl ApplicationService {
             }
         }
 
+        // Required form attributes must be filled: either submitted now or
+        // already held by the member (the form pre-fills existing values).
+        let submitted: Vec<AttributeName> =
+            params.attributes.iter().map(|(n, _)| n.clone()).collect();
+        let missing = self
+            .attribute_service
+            .missing_required(
+                PersonId(params.user_id),
+                &targetable_role.form_attributes,
+                &submitted,
+            )
+            .await?;
+        if !missing.is_empty() {
+            let names: Vec<&str> = missing.iter().map(AttributeName::as_str).collect();
+            return Err(E::Constraint(format!(
+                "required attributes missing: {}",
+                names.join(", ")
+            )));
+        }
+
         let requires_payment =
             targetable_role.payment_link.is_some() && params.stripe_payment_id.is_none();
 

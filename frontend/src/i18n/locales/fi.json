@@ -50,6 +50,11 @@
       "expired_text": "Jäsenyytesi päättyi {{date}}. Voit uusia sen {{deadline}} asti.",
       "renew_button": "Maksa jäsenmaksu"
     },
+    "missing_attributes": {
+      "title": "Puuttuvia tietoja",
+      "description": "Täytä pakolliset tiedot: {{names}}.",
+      "fill_button": "Täytä tiedot"
+    },
     "profile": {
       "title": "Profiili"
     }
@@ -101,7 +106,8 @@
     "not_set": "— ei asetettu",
     "not_set_option": "— ei asetettu —",
     "not_set_placeholder": "Ei asetettu",
-    "clear": "Tyhjennä"
+    "clear": "Tyhjennä",
+    "required": "Pakollinen"
   },
   "application": {
     "form": {
@@ -114,7 +120,8 @@
       "application_text_placeholder": "Lyhyt hakemusteksti",
       "membership_tooltip": "Valitse jäsenyystyyppi, johon haluat hakea. Jos olet jo hakenut roolia, et voi hakea sitä uudelleen ennen kuin nykyinen hakemus on käsitelty.",
       "proceed_payment": "Siirry maksamaan",
-      "submit": "Lähetä hakemus"
+      "submit": "Lähetä hakemus",
+      "required_missing": "Täytä pakolliset kentät: {{names}}."
     }
   },
   "success": {

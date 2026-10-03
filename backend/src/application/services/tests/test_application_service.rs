@@ -749,6 +749,7 @@ async fn create_application_writes_submitted_attribute_to_member() {
                 None,
                 false,
                 EditableBy::Admin, // admin-only on profile, but form bypasses
+                false,
             )
             .unwrap(),
         ))
@@ -798,4 +799,118 @@ async fn create_application_writes_submitted_attribute_to_member() {
         recorded,
         vec![("major-subject".to_string(), "iem".to_string())]
     );
+}
+
+/// Application whose form lists `pora-membership`, which is defined as
+/// required. `held` is what the member already has stored.
+fn build_required_attribute_service(
+    commands: MockApplicationCommandPort,
+    held: Vec<&'static str>,
+) -> ApplicationService {
+    use crate::application::ports::application_repository_port::ApplicationTargetableRole;
+    use crate::domain::{
+        AttributeDefinition, AttributeName, AttributeValue, EditableBy, MemberAttribute,
+    };
+
+    let mut queries = MockApplicationQueryPort::new();
+    let mut targetable = MockTargetableRolePort::new();
+
+    queries
+        .expect_fetch_existing()
+        .returning(|_, _, _| Err(RepositoryError::NotFound));
+
+    targetable.expect_fetch_targetable_role().returning(|_, _| {
+        Ok(ApplicationTargetableRole {
+            role_name: "test-role".to_string(),
+            valid_until: valid_until(),
+            active: true,
+            optional_roles: None,
+            payment_link: None,
+            approved_email_template: None,
+            rejected_email_template: None,
+            form_attributes: vec![AttributeName::new("pora-membership").unwrap()],
+        })
+    });
+
+    let mut attr_repo = MockAttributeRepositoryPort::new();
+    attr_repo.expect_fetch_all_definitions().returning(|| {
+        Ok(vec![AttributeDefinition::new(
+            AttributeName::new("pora-membership").unwrap(),
+            None,
+            None,
+            None,
+            false,
+            EditableBy::Both,
+            true,
+        )
+        .unwrap()])
+    });
+    attr_repo
+        .expect_fetch_member_values()
+        .returning(move |uid| {
+            Ok(held
+                .iter()
+                .map(|name| MemberAttribute {
+                    user_id: uid.clone(),
+                    name: AttributeName::new(*name).unwrap(),
+                    value: AttributeValue::new("yes").unwrap(),
+                })
+                .collect())
+        });
+
+    let attr_service = Arc::new(AttributeService::new(
+        Arc::new(attr_repo),
+        Arc::new(MockAttributeSyncPort::new()),
+        Arc::new(MockAuthProviderRepo::new()),
+        noop_audit_log(),
+    ));
+
+    build_service_with_attribute(commands, queries, targetable, attr_service)
+}
+
+fn params_without_attributes(user_id: Uuid) -> CreateApplicationParams {
+    CreateApplicationParams {
+        user_id,
+        role_name: "test-role".to_string(),
+        valid_until: valid_until(),
+        stripe_payment_id: None,
+        optional_roles: None,
+        application_text: None,
+        frontend_url: "http://localhost".to_string(),
+        attributes: vec![],
+    }
+}
+
+#[tokio::test]
+async fn create_application_rejects_missing_required_attribute() {
+    // No expect_create: the application must be rejected before it is stored.
+    let svc = build_required_attribute_service(MockApplicationCommandPort::new(), vec![]);
+
+    let result = svc
+        .create_application(params_without_attributes(Uuid::new_v4()), None)
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(crate::application::services::errors::ServiceError::Constraint(_))
+    ));
+}
+
+#[tokio::test]
+async fn create_application_accepts_required_attribute_already_held() {
+    let mut commands = MockApplicationCommandPort::new();
+    commands.expect_create().returning(|new| {
+        Ok(Application::from((
+            ApplicationId(Uuid::new_v4()),
+            Utc::now(),
+            new.clone(),
+        )))
+    });
+    let svc = build_required_attribute_service(commands, vec!["pora-membership"]);
+
+    let result = svc
+        .create_application(params_without_attributes(Uuid::new_v4()), None)
+        .await;
+
+    assert!(result.is_ok());
 }
