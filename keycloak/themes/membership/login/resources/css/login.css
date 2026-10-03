@@ -93,3 +93,9 @@ a:hover {
 h1, h2, h3, h4 {
   font-weight: 600;
 }
+
+/* Password policy hint under the password field */
+.kc-password-requirements ul {
+  margin: 0.25rem 0 0 1.25rem;
+  list-style: disc;
+}

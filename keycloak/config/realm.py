@@ -8,6 +8,14 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from admin import KeycloakAdmin
 
+# Shown to users on the registration / update-password pages by the login
+# theme (password-requirements.ftl). Override with KC_PASSWORD_POLICY, e.g. a
+# lenient policy in dev so the test users' simple passwords stay valid.
+DEFAULT_PASSWORD_POLICY = (
+    "length(8) and upperCase(1) and lowerCase(1) and digits(1)"
+    " and notUsername and notEmail"
+)
+
 
 def _allow_unmanaged_user_attributes(kc: KeycloakAdmin) -> None:
     """Allow the registry to push arbitrary user attributes via the admin API.
@@ -52,6 +60,7 @@ def configure_realm(kc: KeycloakAdmin) -> None:
         "internationalizationEnabled": True,
         "supportedLocales": ["fi", "en"],
         "defaultLocale": "fi",
+        "passwordPolicy": os.environ.get("KC_PASSWORD_POLICY") or DEFAULT_PASSWORD_POLICY,
     }
 
     if sendgrid_api_key:

@@ -116,6 +116,7 @@ jobs:
         env:
           KEYCLOAK_URL: http://localhost:8180
           DISABLE_BRUTE_FORCE_PROTECTION: "true"
+          KC_PASSWORD_POLICY: length(8)
 
       # --- Build and start backend ---
       - name: Build backend

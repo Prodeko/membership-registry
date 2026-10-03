@@ -59,6 +59,7 @@ python setup.py
 
 - `KEYCLOAK_URL` — Keycloak base URL (default `http://localhost:8180`)
 - `KC_SKIP_TEST_USERS` — set to `true` to skip creating test users
+- `KC_PASSWORD_POLICY` — Keycloak password policy string; defaults to 8+ chars with upper, lower and digit (see `config/realm.py`). The dev `.env` sets `length(8)` so test-user passwords stay valid. The login theme lists these rules on the registration page.
 - `KC_AUTH_REDIRECT_URIS`, `KC_AUTH_WEB_ORIGINS` — JSON arrays for the auth client
 - `SENDGRID_API_KEY`, `SMTP_FROM`, `SMTP_FROM_NAME` — SendGrid SMTP for emails sent by Keycloak itself (password reset, verification). Leave blank in dev.
 
