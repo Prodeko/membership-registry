@@ -952,6 +952,13 @@ impl RoleService {
             .map_err(ServiceError::from)
     }
 
+    pub async fn count_roles(&self, search: Option<String>) -> ServiceResult<i64> {
+        self.role_repo
+            .count_roles(search)
+            .await
+            .map_err(ServiceError::from)
+    }
+
     pub async fn get_keycloak_sync_status(
         &self,
     ) -> ServiceResult<HashMap<Uuid, MemberKeycloakSyncStatus>> {

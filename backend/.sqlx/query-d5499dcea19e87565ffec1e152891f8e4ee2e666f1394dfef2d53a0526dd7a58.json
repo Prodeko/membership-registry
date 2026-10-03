@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "-- sql\n            SELECT COUNT(*)::bigint AS \"count!\"\n            FROM Role\n            WHERE $1::varchar IS NULL OR Role.name ILIKE '%' || $1 || '%'\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Varchar"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "d5499dcea19e87565ffec1e152891f8e4ee2e666f1394dfef2d53a0526dd7a58"
+}
