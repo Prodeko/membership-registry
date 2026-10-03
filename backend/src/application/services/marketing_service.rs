@@ -223,8 +223,9 @@ impl MarketingService {
     }
 
     /// Active members who are not on the list get subscribed with the
-    /// `auto_apply` defaults; former members who still receive mail get
-    /// archived. Everyone else is left alone — in particular members who
+    /// `auto_apply` defaults, and returning members archived when their
+    /// previous membership ended are restored without a confirmation
+    /// email; former members who still receive mail get archived. Everyone else is left alone — in particular members who
     /// unsubscribed themselves are never re-added, and existing subscribers
     /// keep their tag choices.
     async fn try_sync_membership(
@@ -246,6 +247,11 @@ impl MarketingService {
             (true, SubscriptionState::NotAContact) => {
                 let catalog = self.load_catalog().await?;
                 self.subscribe_with_defaults(&identity, &catalog).await?;
+            }
+            // Archiving keeps the contact's tags, so a returning member
+            // gets their previous choices back rather than the defaults.
+            (true, SubscriptionState::Archived) => {
+                self.marketing_port.restore(&identity).await?;
             }
             (false, SubscriptionState::Subscribed | SubscriptionState::Pending) => {
                 self.marketing_port.archive(&identity.email).await?;
@@ -292,7 +298,10 @@ impl MarketingService {
             .fetch_preferences(&identity.email, &labels)
             .await?;
 
-        if matches!(current.state, SubscriptionState::NotAContact) {
+        if matches!(
+            current.state,
+            SubscriptionState::NotAContact | SubscriptionState::Archived
+        ) {
             return Err(ServiceError::InvalidInput);
         }
 
