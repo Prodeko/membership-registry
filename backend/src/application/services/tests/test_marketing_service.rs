@@ -388,8 +388,16 @@ async fn sync_after_role_change_does_not_resubscribe_member_who_opted_out() {
 }
 
 #[tokio::test]
-async fn sync_after_role_change_restores_returning_member_without_resetting_tags() {
+async fn sync_after_role_change_restores_returning_member_with_default_tags() {
     let user_id = Uuid::new_v4();
+
+    let mut tag_repo = MockMarketingTagRepositoryPort::new();
+    tag_repo.expect_fetch_all().returning(|| {
+        Ok(vec![
+            tag("weekly_newsletter", 10, true),
+            tag("events", 20, false),
+        ])
+    });
 
     let mut mc = MockMarketingListPort::new();
     mc.expect_fetch_preferences()
@@ -398,15 +406,21 @@ async fn sync_after_role_change_restores_returning_member_without_resetting_tags
         .withf(|identity| identity.email == "user@example.com")
         .times(1)
         .returning(|_| Ok(()));
-    // No confirmation-email subscribe, and the member's old tags stay.
+    // Defaults switched on like for a new member; opt-in tags untouched.
+    mc.expect_set_tags()
+        .withf(|_identity, updates| {
+            updates.len() == 1 && updates[0].name == "weekly_newsletter" && updates[0].active
+        })
+        .times(1)
+        .returning(|_, _| Ok(()));
+    // No confirmation-email subscribe.
     mc.expect_subscribe().times(0);
-    mc.expect_set_tags().times(0);
     mc.expect_archive().times(0);
 
     let svc = build_service_with_roles(
         mc,
         member_repo_for(user_id),
-        MockMarketingTagRepositoryPort::new(),
+        tag_repo,
         vec![active_membership(user_id)],
     );
     svc.sync_after_role_change(user_id, MEMBERSHIP_ROLE).await;
