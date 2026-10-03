@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use chrono::{DateTime, NaiveDate, Utc};
 use uuid::Uuid;
 
@@ -20,6 +22,8 @@ pub struct ApplicationWithMember {
     pub optional_roles: Option<Vec<String>>,
     pub application_text: Option<String>,
     pub status: ApplicationStatus,
+    /// The applicant's current member attribute values, keyed by name.
+    pub attributes: BTreeMap<String, String>,
 }
 
 #[derive(Debug)]

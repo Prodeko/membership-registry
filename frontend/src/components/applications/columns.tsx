@@ -31,6 +31,27 @@ import { Link } from "react-router";
 import { capitalizeFirstLetter } from "@/lib/utils";
 import ApplicationLink from "./ApplicationLink";
 
+/**
+ * A column showing the applicant's current value for one member attribute.
+ */
+export const attributeColumn = (
+  name: string,
+): ColumnDef<ApplicationWithMember> => ({
+  id: `attribute:${name}`,
+  accessorFn: (application) => application.attributes[name] ?? null,
+  header: ({ column }) => (
+    <DataTableColumnHeader column={column} title={name} />
+  ),
+  cell: ({ getValue }) => {
+    const value = getValue<string | null>();
+    return value ? (
+      <span>{value}</span>
+    ) : (
+      <span className="text-muted-foreground">–</span>
+    );
+  },
+});
+
 export const columns: ColumnDef<ApplicationWithMember>[] = [
   {
     id: "select",

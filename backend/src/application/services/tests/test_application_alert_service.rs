@@ -25,6 +25,7 @@ fn pending_app(full_name: &str, email: &str, role_name: &str) -> ApplicationWith
         optional_roles: None,
         application_text: None,
         status: ApplicationStatus::Pending,
+        attributes: Default::default(),
     }
 }
 
