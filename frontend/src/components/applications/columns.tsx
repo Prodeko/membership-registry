@@ -29,6 +29,7 @@ import {
 import { Button } from "../ui/button";
 import { Link } from "react-router";
 import { capitalizeFirstLetter } from "@/lib/utils";
+import ApplicationLink from "./ApplicationLink";
 
 export const columns: ColumnDef<ApplicationWithMember>[] = [
   {
@@ -73,12 +74,12 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
     cell: ({ row }) => {
       const application = row.original;
       return (
-        <Link
-          to={`/applications/${application.application_id}`}
+        <ApplicationLink
+          id={application.application_id}
           className="flex items-center"
         >
           {application.full_name ?? "N/A"}
-        </Link>
+        </ApplicationLink>
       );
     },
   },
@@ -228,9 +229,9 @@ export const columns: ColumnDef<ApplicationWithMember>[] = [
             )}
             <DropdownMenuSeparator />
             <DropdownMenuItem className="flex items-center justify-between">
-              <Link to={`/applications/${application.application_id}`}>
+              <ApplicationLink id={application.application_id}>
                 View application
-              </Link>
+              </ApplicationLink>
               <FileIcon className="w-4 h-4 ml-2" />
             </DropdownMenuItem>
             <DropdownMenuItem className="flex items-center justify-between">
