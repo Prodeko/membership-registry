@@ -2,6 +2,8 @@ import {
   QueryKey,
   useDeleteApplication,
   useGetApplication,
+  useGetMemberAttributes,
+  useGetTargetableRoles,
   useSetApplicationStatus,
 } from "@/lib/api";
 import { useNavigate, useParams, Link } from "react-router";
@@ -10,6 +12,7 @@ import { Button } from "../ui/button";
 import RoleBadge from "../ui/role-badge";
 import { useQueryClient } from "@tanstack/react-query";
 import { capitalizeFirstLetter } from "@/lib/utils";
+import { MemberAttribute } from "@/common/generated/MemberAttribute";
 
 const Application = () => {
   const { id = "" } = useParams<{ id: string }>();
@@ -23,6 +26,12 @@ const Application = () => {
   } = useGetApplication(id, {
     enabled: id.length > 0,
   });
+
+  const userId = application?.user_id ?? "";
+  const { data: memberAttributes } = useGetMemberAttributes(userId, {
+    enabled: userId.length > 0,
+  });
+  const { data: targetableRoles } = useGetTargetableRoles();
 
   const { mutate: updateStatus } = useSetApplicationStatus();
   const { mutate: deleteApplication } = useDeleteApplication();
@@ -41,6 +50,30 @@ const Application = () => {
 
   const isPending =
     application.status === "pending" || application.status === "unpaid";
+
+  // Attributes the applicant was asked for on this role's form come first,
+  // in form order; any other attribute the member has a value for follows.
+  // Values are the member's current ones, not a snapshot from submit time.
+  const formAttributeNames =
+    targetableRoles?.find(
+      (r) =>
+        r.role_name === application.role_name &&
+        r.valid_until === application.valid_until,
+    )?.form_attributes ?? [];
+  const attributesByName = new Map(
+    (memberAttributes ?? []).map((a) => [a.name, a]),
+  );
+  const formAttributes = formAttributeNames.map(
+    (name) =>
+      attributesByName.get(name) ??
+      ({ name, value: null, required: false } as Pick<
+        MemberAttribute,
+        "name" | "value" | "required"
+      >),
+  );
+  const otherAttributes = (memberAttributes ?? []).filter(
+    (a) => a.value && !formAttributeNames.includes(a.name),
+  );
 
   const handleStatusUpdate = (action: "approve" | "reject") => {
     updateStatus(
@@ -126,6 +159,31 @@ const Application = () => {
           )}
         </div>
 
+        {(formAttributes.length > 0 || otherAttributes.length > 0) && (
+          <div className="space-y-3" data-testid="application-attributes">
+            <h2 className="text-lg font-semibold">Attributes</h2>
+            <div className="grid grid-cols-2 gap-y-2 gap-x-6 text-sm">
+              {formAttributes.map((attr) => (
+                <AttributeRow key={attr.name} attr={attr} />
+              ))}
+            </div>
+            {otherAttributes.length > 0 && (
+              <>
+                {formAttributes.length > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Other attributes on the member
+                  </p>
+                )}
+                <div className="grid grid-cols-2 gap-y-2 gap-x-6 text-sm text-muted-foreground">
+                  {otherAttributes.map((attr) => (
+                    <AttributeRow key={attr.name} attr={attr} />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-3 flex-wrap">
           {isPending && (
             <>
@@ -151,5 +209,25 @@ const Application = () => {
     </div>
   );
 };
+
+const AttributeRow = ({
+  attr,
+}: {
+  attr: Pick<MemberAttribute, "name" | "value" | "required">;
+}) => (
+  <>
+    <span className="font-mono">
+      {attr.name}
+      {attr.required && <span className="ml-0.5 text-destructive">*</span>}
+    </span>
+    <span data-testid={`application-attr-value-${attr.name}`}>
+      {attr.value ? (
+        attr.value
+      ) : (
+        <span className="text-muted-foreground italic">Not set</span>
+      )}
+    </span>
+  </>
+);
 
 export default Application;
