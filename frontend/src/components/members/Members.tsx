@@ -4,7 +4,7 @@ import {
   useGetMembersCount,
   useGetRoles,
 } from "@/lib/api";
-import { defaultFrom, defaultTo, stringsToOptions } from "@/lib/utils";
+import { stringsToOptions } from "@/lib/utils";
 import React from "react";
 import { RowSelectionState } from "@tanstack/react-table";
 import { useSearchParams } from "react-router";
@@ -25,11 +25,20 @@ type FilterState = {
   validUntil: Date;
 };
 
-const defaultFilterState: FilterState = {
-  roles: [],
-  validFrom: defaultFrom,
-  validUntil: defaultTo,
+const startOfToday = () => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  return d;
 };
+
+// "Current roles" means roles valid today. The backend only returns roles
+// whose validity covers the whole filter range, so a wider default (such as
+// the calendar year) hides every role that starts or ends inside it (#145).
+const defaultFilterState = (): FilterState => ({
+  roles: [],
+  validFrom: startOfToday(),
+  validUntil: startOfToday(),
+});
 
 const Members: React.FC = () => {
   const { data: roles, isLoading, error } = useGetRoles();
@@ -74,8 +83,9 @@ const Members: React.FC = () => {
   const applyFilters = () => setApplied(draft);
 
   const clearAllFilters = () => {
-    setDraft(defaultFilterState);
-    setApplied(defaultFilterState);
+    const next = defaultFilterState();
+    setDraft(next);
+    setApplied(next);
   };
 
   if (isLoading) {
@@ -135,7 +145,7 @@ const Members: React.FC = () => {
                   onUpdate={({ range }) =>
                     setDraft((d) => ({
                       ...d,
-                      validUntil: range.to ?? defaultTo,
+                      validUntil: range.to ?? range.from,
                       validFrom: range.from,
                     }))
                   }
@@ -169,14 +179,13 @@ const Members: React.FC = () => {
           customFilters={customFilters}
           setCustomFilters={(filters) => {
             const next: FilterState = {
-              ...defaultFilterState,
               roles: stringsToOptions(filters?.roles ?? []),
               validFrom: filters?.valid_from
                 ? new Date(filters.valid_from as string)
-                : defaultFrom,
+                : startOfToday(),
               validUntil: filters?.valid_until
                 ? new Date(filters.valid_until as string)
-                : defaultTo,
+                : startOfToday(),
             };
             setDraft(next);
             setApplied(next);
