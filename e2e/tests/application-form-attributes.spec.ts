@@ -19,6 +19,7 @@ const attributeName = (workerIndex: number) =>
 type AttributeShape = {
   allowed_values: string[];
   multiple?: boolean;
+  allow_other?: boolean;
 };
 
 /**
@@ -199,7 +200,44 @@ test.describe("Application form attributes", () => {
     await expectAdminSees(browser, String(dbApp!.application_id), attr, "iem");
   });
 
-  test("applicant picks several values on a multichoice attribute", async ({
+  test("applicant types an answer of their own via the Other option", async ({
+    browser,
+    page,
+    db,
+    adminApi,
+    testUser,
+    testRole,
+  }, testInfo) => {
+    const attr = attributeName(testInfo.parallelIndex);
+    await setupFormAttribute(adminApi, testRole.name, attr, {
+      allowed_values: ["iem", "tuta"],
+      allow_other: true,
+    });
+    const appForm = await openForm(
+      page,
+      testUser.email,
+      testUser.password,
+      testRole.displayName,
+    );
+
+    const submit = page.getByTestId("submit-application-button");
+    await expect(submit).toBeDisabled();
+    await appForm.setOtherAttribute(attr, "bioinformatics");
+    await expect(submit).toBeEnabled();
+
+    expect(
+      await submitAndReadValues(appForm, page, db, testUser.email, attr),
+    ).toEqual(["bioinformatics"]);
+    const dbApp = await db.getApplicationByUserEmail(testUser.email);
+    await expectAdminSees(
+      browser,
+      String(dbApp!.application_id),
+      attr,
+      "bioinformatics",
+    );
+  });
+
+  test("applicant picks several values plus an Other answer on a multichoice attribute", async ({
     browser,
     page,
     db,
@@ -211,6 +249,7 @@ test.describe("Application form attributes", () => {
     await setupFormAttribute(adminApi, testRole.name, attr, {
       allowed_values: ["fi", "sv", "en"],
       multiple: true,
+      allow_other: true,
     });
     const appForm = await openForm(
       page,
@@ -223,16 +262,17 @@ test.describe("Application form attributes", () => {
     await expect(submit).toBeDisabled();
     await appForm.chooseMany(attr, ["fi", "en"]);
     await expect(submit).toBeEnabled();
+    await appForm.fillOther(attr, "kurdish");
 
     expect(
       await submitAndReadValues(appForm, page, db, testUser.email, attr),
-    ).toEqual(["fi", "en"]);
+    ).toEqual(["fi", "en", "kurdish"]);
     const dbApp = await db.getApplicationByUserEmail(testUser.email);
     await expectAdminSees(
       browser,
       String(dbApp!.application_id),
       attr,
-      "fi, en",
+      "fi, en, kurdish",
     );
   });
 });

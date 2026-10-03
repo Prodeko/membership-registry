@@ -458,6 +458,7 @@ async fn update_patch_leave_preserves_existing_description() {
         editable_by: None,
         required: None,
         multiple: None,
+        allow_other: None,
     };
     let _ = svc
         .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)
@@ -510,6 +511,7 @@ async fn update_patch_clear_drops_description() {
         editable_by: None,
         required: None,
         multiple: None,
+        allow_other: None,
     };
     let _ = svc
         .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)
@@ -884,6 +886,7 @@ async fn create_definition_rolls_back_db_when_kc_mapper_add_fails() {
                 editable_by: EditableBy::Admin,
                 required: false,
                 multiple: false,
+                allow_other: false,
             },
             None,
         )
@@ -933,6 +936,7 @@ async fn update_definition_rejects_tightening_that_invalidates_existing_value() 
         editable_by: None,
         required: None,
         multiple: None,
+        allow_other: None,
     };
     let res = svc
         .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)

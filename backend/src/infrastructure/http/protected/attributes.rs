@@ -61,6 +61,7 @@ async fn get_my_attributes(
             description: d.description().map(str::to_string),
             required: d.required(),
             multiple: d.multiple(),
+            allow_other: d.allow_other(),
             name: d.name().clone().into_inner(),
         })
         .collect();

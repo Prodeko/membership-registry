@@ -131,6 +131,9 @@ pub struct AttributeDefinition {
     /// Members may hold several values at once (a multichoice attribute).
     /// Single-valued attributes hold exactly one.
     multiple: bool,
+    /// Members may give one free-text value outside `allowed_values` (an
+    /// "other" choice). Only meaningful when `allowed_values` is set.
+    allow_other: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -142,6 +145,9 @@ pub enum AttributeValidationError {
     TooManyValues,
     DuplicateValue(AttributeValue),
     NotInAllowedValues(AttributeValue),
+    /// More than one value outside `allowed_values` on an `allow_other`
+    /// attribute; only a single "other" entry is permitted.
+    TooManyOtherValues,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -181,6 +187,7 @@ impl AttributeDefinition {
             editable_by,
             required,
             multiple: false,
+            allow_other: false,
         })
     }
 
@@ -205,6 +212,7 @@ impl AttributeDefinition {
             editable_by,
             required,
             multiple: false,
+            allow_other: false,
         }
     }
 
@@ -212,6 +220,13 @@ impl AttributeDefinition {
     /// the many single-valued call sites don't grow another positional flag.
     pub fn with_multiple(mut self, multiple: bool) -> Self {
         self.multiple = multiple;
+        self
+    }
+
+    /// Lets members give one value outside `allowed_values`. Like
+    /// `with_multiple`, kept off the constructors.
+    pub fn with_allow_other(mut self, allow_other: bool) -> Self {
+        self.allow_other = allow_other;
         self
     }
 
@@ -247,8 +262,13 @@ impl AttributeDefinition {
         self.multiple
     }
 
+    pub fn allow_other(&self) -> bool {
+        self.allow_other
+    }
+
     /// Validates a complete set of values for one member: non-empty, at most
-    /// one unless `multiple`, no duplicates, and each within `allowed_values`.
+    /// one unless `multiple`, no duplicates, and each within `allowed_values`
+    /// except for a single "other" value when `allow_other` is set.
     pub fn validate(&self, values: &[AttributeValue]) -> Result<(), AttributeValidationError> {
         if values.is_empty() {
             return Err(AttributeValidationError::Empty);
@@ -256,15 +276,22 @@ impl AttributeDefinition {
         if !self.multiple && values.len() > 1 {
             return Err(AttributeValidationError::TooManyValues);
         }
+        let mut others = 0;
         for (i, value) in values.iter().enumerate() {
             if values[..i].contains(value) {
                 return Err(AttributeValidationError::DuplicateValue(value.clone()));
             }
             if let Some(allowed) = &self.allowed_values {
                 if !allowed.contains(value) {
-                    return Err(AttributeValidationError::NotInAllowedValues(value.clone()));
+                    if !self.allow_other {
+                        return Err(AttributeValidationError::NotInAllowedValues(value.clone()));
+                    }
+                    others += 1;
                 }
             }
+        }
+        if others > 1 {
+            return Err(AttributeValidationError::TooManyOtherValues);
         }
         Ok(())
     }
@@ -445,7 +472,7 @@ mod tests {
     #[test]
     fn validate_value_lists() {
         use AttributeValidationError::*;
-        let languages = |multiple: bool| {
+        let languages = |multiple: bool, allow_other: bool| {
             AttributeDefinition::new(
                 AttributeName::new("languages").unwrap(),
                 None,
@@ -457,21 +484,32 @@ mod tests {
             )
             .unwrap()
             .with_multiple(multiple)
+            .with_allow_other(allow_other)
         };
-        // (multiple, values, expected)
-        let cases: &[(bool, &[&str], Result<(), AttributeValidationError>)] = &[
-            (true, &[], Err(Empty)),
-            (false, &["fi", "en"], Err(TooManyValues)),
-            (true, &["fi", "en"], Ok(())),
-            (true, &["fi", "de"], Err(NotInAllowedValues(av("de")))),
-            (true, &["fi", "fi"], Err(DuplicateValue(av("fi")))),
+        // (multiple, allow_other, values, expected)
+        let cases: &[(bool, bool, &[&str], Result<(), AttributeValidationError>)] = &[
+            (true, false, &[], Err(Empty)),
+            (false, false, &["fi", "en"], Err(TooManyValues)),
+            (true, false, &["fi", "en"], Ok(())),
+            (
+                true,
+                false,
+                &["fi", "de"],
+                Err(NotInAllowedValues(av("de"))),
+            ),
+            (true, false, &["fi", "fi"], Err(DuplicateValue(av("fi")))),
+            (false, true, &["de"], Ok(())),
+            (true, true, &["fi", "en", "de"], Ok(())),
+            (true, true, &["fi", "de", "fr"], Err(TooManyOtherValues)),
+            (true, true, &["de", "de"], Err(DuplicateValue(av("de")))),
+            (false, true, &["fi", "de"], Err(TooManyValues)),
         ];
-        for (multiple, values, expected) in cases {
+        for (multiple, allow_other, values, expected) in cases {
             let values: Vec<_> = values.iter().map(|v| av(v)).collect();
             assert_eq!(
-                &languages(*multiple).validate(&values),
+                &languages(*multiple, *allow_other).validate(&values),
                 expected,
-                "multiple={multiple} {values:?}"
+                "multiple={multiple} allow_other={allow_other} {values:?}"
             );
         }
     }

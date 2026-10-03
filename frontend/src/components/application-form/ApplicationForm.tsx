@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { z } from "zod";
 import MultiValueSelect from "../attributes/MultiValueSelect";
+import SingleValueSelect from "../attributes/SingleValueSelect";
 import RenderMemberData from "../members/RenderMemberData";
 import { Card } from "../ui/card";
 import { Input } from "../ui/input";
@@ -88,6 +89,7 @@ const ApplicationForm = () => {
         allowed_values: def?.allowed_values ?? null,
         required: def?.required ?? false,
         multiple: def?.multiple ?? false,
+        allow_other: def?.allow_other ?? false,
         currentValues: def?.values ?? [],
       };
     });
@@ -273,27 +275,21 @@ const ApplicationForm = () => {
                           id={id}
                           values={values}
                           allowedValues={attr.allowed_values}
+                          allowOther={attr.allow_other}
                           onChange={setValues}
                           data-testid={`application-attr-${attr.name}`}
                         />
                       ) : attr.allowed_values &&
                         attr.allowed_values.length > 0 ? (
-                        <Select value={value} onValueChange={set}>
-                          <SelectTrigger
-                            id={id}
-                            className="w-64"
-                            data-testid={`application-attr-${attr.name}`}
-                          >
-                            <SelectValue placeholder="(select)" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {attr.allowed_values.map((v) => (
-                              <SelectItem key={v} value={v}>
-                                {v}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <SingleValueSelect
+                          id={id}
+                          value={value}
+                          allowedValues={attr.allowed_values}
+                          allowOther={attr.allow_other}
+                          onChange={set}
+                          placeholder="(select)"
+                          data-testid={`application-attr-${attr.name}`}
+                        />
                       ) : (
                         <Input
                           id={id}

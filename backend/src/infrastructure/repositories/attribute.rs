@@ -48,6 +48,7 @@ struct AttributeDefinitionDAO {
     editable_by: EditableByDAO,
     required: bool,
     multiple: bool,
+    allow_other: bool,
 }
 
 impl From<AttributeDefinitionDAO> for AttributeDefinition {
@@ -66,6 +67,7 @@ impl From<AttributeDefinitionDAO> for AttributeDefinition {
             row.required,
         )
         .with_multiple(row.multiple)
+        .with_allow_other(row.allow_other)
     }
 }
 
@@ -97,11 +99,11 @@ impl AttributeRepositoryPort for AttributeRepo {
         let default = input.default_value.as_ref().map(|v| v.as_str().to_string());
         let row = sqlx::query_as!(
             AttributeDefinitionDAO,
-            r#"INSERT INTO AttributeDefinition (name, description, allowed_values, default_value, sync_to_keycloak, editable_by, required, multiple)
-               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            r#"INSERT INTO AttributeDefinition (name, description, allowed_values, default_value, sync_to_keycloak, editable_by, required, multiple, allow_other)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                RETURNING name, description, allowed_values, default_value,
                          sync_to_keycloak,
-                         editable_by AS "editable_by: EditableByDAO", required, multiple"#,
+                         editable_by AS "editable_by: EditableByDAO", required, multiple, allow_other"#,
             input.name.as_str(),
             input.description.as_deref(),
             allowed.as_deref(),
@@ -110,6 +112,7 @@ impl AttributeRepositoryPort for AttributeRepo {
             editable_by as EditableByDAO,
             input.required,
             input.multiple,
+            input.allow_other,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -132,11 +135,11 @@ impl AttributeRepositoryPort for AttributeRepo {
             r#"UPDATE AttributeDefinition
                SET description = $2, allowed_values = $3, default_value = $4,
                    sync_to_keycloak = $5, editable_by = $6, required = $7,
-                   multiple = $8
+                   multiple = $8, allow_other = $9
                WHERE name = $1
                RETURNING name, description, allowed_values, default_value,
                          sync_to_keycloak,
-                         editable_by AS "editable_by: EditableByDAO", required, multiple"#,
+                         editable_by AS "editable_by: EditableByDAO", required, multiple, allow_other"#,
             name.as_str(),
             input.description.as_deref(),
             allowed.as_deref(),
@@ -145,6 +148,7 @@ impl AttributeRepositoryPort for AttributeRepo {
             editable_by as EditableByDAO,
             input.required,
             input.multiple,
+            input.allow_other,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -169,7 +173,7 @@ impl AttributeRepositoryPort for AttributeRepo {
             AttributeDefinitionDAO,
             r#"SELECT name, description, allowed_values, default_value,
                       sync_to_keycloak,
-                      editable_by AS "editable_by: EditableByDAO", required, multiple
+                      editable_by AS "editable_by: EditableByDAO", required, multiple, allow_other
                FROM AttributeDefinition WHERE name = $1"#,
             name.as_str(),
         )
@@ -183,7 +187,7 @@ impl AttributeRepositoryPort for AttributeRepo {
             AttributeDefinitionDAO,
             r#"SELECT name, description, allowed_values, default_value,
                       sync_to_keycloak,
-                      editable_by AS "editable_by: EditableByDAO", required, multiple
+                      editable_by AS "editable_by: EditableByDAO", required, multiple, allow_other
                FROM AttributeDefinition ORDER BY name"#
         )
         .fetch_all(&self.pool)

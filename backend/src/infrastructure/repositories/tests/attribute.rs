@@ -22,7 +22,7 @@ mod test_attribute {
         AttributeName::new("languages").unwrap()
     }
 
-    fn create_languages(multiple: bool) -> CreateAttributeDefinition {
+    fn create_languages(multiple: bool, allow_other: bool) -> CreateAttributeDefinition {
         CreateAttributeDefinition {
             name: languages(),
             description: None,
@@ -32,19 +32,21 @@ mod test_attribute {
             editable_by: EditableBy::Both,
             required: false,
             multiple,
+            allow_other,
         }
     }
 
     #[tokio::test]
-    async fn definition_round_trips_multiple() {
+    async fn definition_round_trips_multiple_and_allow_other() {
         let (repo, db_url) = setup_test_db().await;
 
         let created = repo
             .attribute
-            .create_definition(create_languages(true))
+            .create_definition(create_languages(true, true))
             .await
             .unwrap();
         assert!(created.multiple());
+        assert!(created.allow_other());
 
         let fetched = repo
             .attribute
@@ -66,11 +68,13 @@ mod test_attribute {
                     editable_by: EditableBy::Both,
                     required: false,
                     multiple: false,
+                    allow_other: false,
                 },
             )
             .await
             .unwrap();
         assert!(!updated.multiple());
+        assert!(!updated.allow_other());
 
         let all = repo.attribute.fetch_all_definitions().await.unwrap();
         assert!(all.contains(&updated));
@@ -82,12 +86,12 @@ mod test_attribute {
     async fn member_values_round_trip_in_order_and_upsert_replaces_the_list() {
         let (repo, db_url) = setup_test_db().await;
         repo.attribute
-            .create_definition(create_languages(true))
+            .create_definition(create_languages(true, true))
             .await
             .unwrap();
 
         repo.attribute
-            .upsert_member_value(&user_id(), &languages(), &avs(&["fi", "en", "sv"]))
+            .upsert_member_value(&user_id(), &languages(), &avs(&["fi", "en", "de"]))
             .await
             .unwrap();
         let held = repo
@@ -96,7 +100,7 @@ mod test_attribute {
             .await
             .unwrap();
         assert_eq!(held.len(), 1);
-        assert_eq!(held[0].values, avs(&["fi", "en", "sv"]));
+        assert_eq!(held[0].values, avs(&["fi", "en", "de"]));
 
         repo.attribute
             .upsert_member_value(&user_id(), &languages(), &avs(&["sv"]))
@@ -116,7 +120,7 @@ mod test_attribute {
     async fn table_rejects_empty_value_lists_and_empty_strings() {
         let (repo, db_url) = setup_test_db().await;
         repo.attribute
-            .create_definition(create_languages(true))
+            .create_definition(create_languages(true, false))
             .await
             .unwrap();
 

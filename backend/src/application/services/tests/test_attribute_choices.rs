@@ -1,4 +1,4 @@
-//! Multichoice (`multiple`) attributes: value
+//! Multichoice (`multiple`) and "other" (`allow_other`) attributes: value
 //! validation on set, definition changes that would strand existing values,
 //! and Keycloak drift for attributes that legitimately hold several values.
 
@@ -31,7 +31,7 @@ fn languages_name() -> AttributeName {
 }
 
 /// `languages` with allowed values fi/sv/en, editable by members.
-fn languages(multiple: bool, sync: bool) -> AttributeDefinition {
+fn languages(multiple: bool, allow_other: bool, sync: bool) -> AttributeDefinition {
     AttributeDefinition::new(
         languages_name(),
         None,
@@ -43,6 +43,7 @@ fn languages(multiple: bool, sync: bool) -> AttributeDefinition {
     )
     .unwrap()
     .with_multiple(multiple)
+    .with_allow_other(allow_other)
 }
 
 fn build_service(
@@ -76,6 +77,7 @@ fn empty_patch() -> UpdateAttributeDefinitionPatch {
         editable_by: None,
         required: None,
         multiple: None,
+        allow_other: None,
     }
 }
 
@@ -115,7 +117,7 @@ fn assert_constraint(res: Result<impl std::fmt::Debug, ServiceError>, needle: &s
 async fn set_stores_and_pushes_every_value_of_a_multichoice_attribute() {
     let mut repo = MockAttributeRepositoryPort::new();
     repo.expect_fetch_definition()
-        .returning(|_| Ok(Some(languages(true, true))));
+        .returning(|_| Ok(Some(languages(true, false, true))));
     repo.expect_upsert_member_value()
         .withf(|_, _, values| values == avs(&["fi", "en"]).as_slice())
         .times(1)
@@ -142,22 +144,32 @@ async fn set_stores_and_pushes_every_value_of_a_multichoice_attribute() {
     .unwrap();
 }
 
-/// `(multiple, values, expected)`: `None` means accepted, `Some(needle)` a
-/// Constraint error whose message contains `needle`.
-const SET_CASES: &[(bool, &[&str], Option<&str>)] = &[
-    (false, &["fi", "en"], Some("accepts only one value")),
-    (true, &["fi", "fi"], Some("more than once")),
-    (true, &[], Some("at least one value")),
-    (true, &["fi", "de"], Some("not in allowed_values")),
-    (true, &["fi", "en"], None),
+/// `(multiple, allow_other, values, expected)`: `None` means accepted,
+/// `Some(needle)` a Constraint error whose message contains `needle`.
+const SET_CASES: &[(bool, bool, &[&str], Option<&str>)] = &[
+    (false, false, &["fi", "en"], Some("accepts only one value")),
+    (true, false, &["fi", "fi"], Some("more than once")),
+    (true, false, &[], Some("at least one value")),
+    (false, false, &["de"], Some("not in allowed_values")),
+    (false, true, &["de"], None),
+    (true, true, &["fi", "en", "de"], None),
+    (
+        true,
+        true,
+        &["fi", "de", "fr"],
+        Some("only one value outside allowed_values"),
+    ),
 ];
 
 #[tokio::test]
 async fn set_validates_values_against_the_definition() {
-    for &(multiple, values, expected) in SET_CASES {
-        let res = set_values(languages(multiple, false), values).await;
+    for &(multiple, allow_other, values, expected) in SET_CASES {
+        let res = set_values(languages(multiple, allow_other, false), values).await;
         match expected {
-            None => assert!(res.is_ok(), "multiple={multiple} {values:?}: {res:?}"),
+            None => assert!(
+                res.is_ok(),
+                "multiple={multiple} allow_other={allow_other} {values:?}: {res:?}"
+            ),
             Some(needle) => assert_constraint(res, needle),
         }
     }
@@ -168,12 +180,42 @@ async fn set_validates_values_against_the_definition() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn create_definition_passes_multiple_to_the_repo() {
+async fn create_definition_rejects_allow_other_without_allowed_values() {
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_create_definition().times(0);
+    let svc = build_service(
+        repo,
+        MockAttributeSyncPort::new(),
+        MockAuthProviderRepo::new(),
+    );
+
+    let res = svc
+        .create_definition(
+            CreateAttributeDefinition {
+                name: languages_name(),
+                description: None,
+                allowed_values: None,
+                default_value: None,
+                sync_to_keycloak: false,
+                editable_by: EditableBy::Both,
+                required: false,
+                multiple: false,
+                allow_other: true,
+            },
+            None,
+        )
+        .await;
+
+    assert_constraint(res, "allow_other requires allowed_values");
+}
+
+#[tokio::test]
+async fn create_definition_passes_multiple_and_allow_other_to_the_repo() {
     let mut repo = MockAttributeRepositoryPort::new();
     repo.expect_create_definition()
-        .withf(|input| input.multiple)
+        .withf(|input| input.multiple && input.allow_other)
         .times(1)
-        .returning(|_| Ok(languages(true, false)));
+        .returning(|_| Ok(languages(true, true, false)));
     let svc = build_service(
         repo,
         MockAttributeSyncPort::new(),
@@ -191,6 +233,7 @@ async fn create_definition_passes_multiple_to_the_repo() {
                 editable_by: EditableBy::Both,
                 required: false,
                 multiple: true,
+                allow_other: true,
             },
             None,
         )
@@ -198,6 +241,7 @@ async fn create_definition_passes_multiple_to_the_repo() {
         .unwrap();
 
     assert!(created.multiple());
+    assert!(created.allow_other());
 }
 
 /// Runs `update_definition` on `existing`, whose members currently hold
@@ -222,7 +266,10 @@ async fn update_with_members(
     let written_by_repo = Arc::clone(&written);
     repo.expect_update_definition().returning(move |_, input| {
         written_by_repo.store(true, std::sync::atomic::Ordering::SeqCst);
-        Ok(existing.clone().with_multiple(input.multiple))
+        Ok(existing
+            .clone()
+            .with_multiple(input.multiple)
+            .with_allow_other(input.allow_other))
     });
     let svc = build_service(
         repo,
@@ -236,7 +283,7 @@ async fn update_with_members(
 #[tokio::test]
 async fn update_definition_rejects_turning_off_multiple_while_a_member_holds_several() {
     let (res, written) = update_with_members(
-        languages(true, false),
+        languages(true, false, false),
         vec![avs(&["fi"]), avs(&["fi", "en"])],
         UpdateAttributeDefinitionPatch {
             multiple: Some(false),
@@ -252,7 +299,7 @@ async fn update_definition_rejects_turning_off_multiple_while_a_member_holds_sev
 #[tokio::test]
 async fn update_definition_turns_off_multiple_when_every_member_holds_one() {
     let (res, written) = update_with_members(
-        languages(true, false),
+        languages(true, false, false),
         vec![avs(&["fi"]), avs(&["en"])],
         UpdateAttributeDefinitionPatch {
             multiple: Some(false),
@@ -263,6 +310,74 @@ async fn update_definition_turns_off_multiple_when_every_member_holds_one() {
 
     assert!(!res.unwrap().multiple());
     assert!(written);
+}
+
+#[tokio::test]
+async fn update_definition_rejects_allow_other_once_allowed_values_are_cleared() {
+    let (res, written) = update_with_members(
+        languages(false, true, false),
+        vec![],
+        UpdateAttributeDefinitionPatch {
+            allowed_values: Patch::Clear,
+            ..empty_patch()
+        },
+    )
+    .await;
+
+    assert_constraint(res, "allow_other requires allowed_values");
+    assert!(!written);
+}
+
+#[tokio::test]
+async fn update_definition_rejects_turning_off_allow_other_while_a_member_holds_an_other_value() {
+    let (res, written) = update_with_members(
+        languages(false, true, false),
+        vec![avs(&["fi"]), avs(&["de"])],
+        UpdateAttributeDefinitionPatch {
+            allow_other: Some(false),
+            ..empty_patch()
+        },
+    )
+    .await;
+
+    assert_constraint(res, "\"de\" which is not in allowed_values");
+    assert!(!written);
+}
+
+#[tokio::test]
+async fn update_definition_tightening_keeps_one_other_value_per_member_with_allow_other() {
+    // Dropping "sv" from the list turns a member's "sv" into their single
+    // "other" value, which allow_other permits.
+    let (res, written) = update_with_members(
+        languages(true, true, false),
+        vec![avs(&["fi", "sv"])],
+        UpdateAttributeDefinitionPatch {
+            allowed_values: Patch::Set(avs(&["fi", "en"])),
+            ..empty_patch()
+        },
+    )
+    .await;
+
+    res.unwrap();
+    assert!(written);
+}
+
+#[tokio::test]
+async fn update_definition_tightening_rejects_a_second_value_outside_the_list() {
+    // The member already has "de" as their other value; dropping "sv" would
+    // make it a second one.
+    let (res, written) = update_with_members(
+        languages(true, true, false),
+        vec![avs(&["fi", "sv", "de"])],
+        UpdateAttributeDefinitionPatch {
+            allowed_values: Patch::Set(avs(&["fi", "en"])),
+            ..empty_patch()
+        },
+    )
+    .await;
+
+    assert_constraint(res, "not in allowed_values");
+    assert!(!written);
 }
 
 // ---------------------------------------------------------------------------
@@ -279,7 +394,7 @@ async fn drift(multiple: bool, registry: &[&str], keycloak: &[&str]) -> Vec<Drif
 
     let mut repo = MockAttributeRepositoryPort::new();
     repo.expect_fetch_all_definitions()
-        .returning(move || Ok(vec![languages(multiple, true)]));
+        .returning(move || Ok(vec![languages(multiple, false, true)]));
     repo.expect_fetch_all_values_for()
         .returning(move |_| Ok(vec![(user_id.clone(), registry.clone())]));
 
