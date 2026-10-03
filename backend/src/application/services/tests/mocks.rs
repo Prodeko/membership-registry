@@ -23,6 +23,7 @@ use crate::application::ports::{
         AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort,
     },
     email_port::{EmailError, EmailPort},
+    group_membership_port::{GroupMembershipError, GroupMembershipPort},
     marketing_list_port::{
         ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences, TagPreference,
     },
@@ -218,6 +219,18 @@ mock! {
     #[async_trait::async_trait]
     impl EmailPort for EmailPort {
         async fn send_email(&self, to: &str, subject: &str, html_body: &str) -> Result<(), EmailError>;
+    }
+}
+
+// --- GroupMembershipPort ---
+
+mock! {
+    pub GroupMembershipPort {}
+
+    #[async_trait::async_trait]
+    impl GroupMembershipPort for GroupMembershipPort {
+        async fn add_member(&self, group: &str, email: &str) -> Result<(), GroupMembershipError>;
+        async fn remove_member(&self, group: &str, email: &str) -> Result<(), GroupMembershipError>;
     }
 }
 

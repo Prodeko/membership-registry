@@ -83,4 +83,15 @@ pub struct Config {
 
     #[envconfig(from = "MAILCHIMP_LIST_ID")]
     pub mailchimp_list_id: Option<String>,
+
+    /// Service-account key JSON (the file's contents, not a path).
+    #[envconfig(from = "GOOGLE_SERVICE_ACCOUNT_KEY")]
+    pub google_service_account_key: Option<String>,
+
+    #[envconfig(from = "GOOGLE_DELEGATED_ADMIN")]
+    pub google_delegated_admin: Option<String>,
+
+    /// `group=role|role;group=role` — see `GroupRule::parse_all`.
+    #[envconfig(from = "GOOGLE_GROUP_RULES")]
+    pub google_group_rules: Option<String>,
 }

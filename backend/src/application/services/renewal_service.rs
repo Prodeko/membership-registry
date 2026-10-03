@@ -16,6 +16,7 @@ use crate::domain::{
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
+    group_membership_service::GroupMembershipService,
     marketing_service::MarketingService,
     notification_service::NotificationService,
 };
@@ -31,6 +32,8 @@ pub struct RenewalService {
     /// `None` where Mailchimp is not configured. When set, a paid renewal of
     /// a membership role re-syncs the member's list membership.
     marketing: Option<Arc<MarketingService>>,
+    /// `None` where Google Groups sync is not configured.
+    groups: Option<Arc<GroupMembershipService>>,
 }
 
 impl RenewalService {
@@ -50,11 +53,17 @@ impl RenewalService {
             notification_service,
             audit_log,
             marketing: None,
+            groups: None,
         }
     }
 
     pub fn with_marketing(mut self, marketing: Option<Arc<MarketingService>>) -> Self {
         self.marketing = marketing;
+        self
+    }
+
+    pub fn with_groups(mut self, groups: Option<Arc<GroupMembershipService>>) -> Self {
+        self.groups = groups;
         self
     }
 
@@ -356,6 +365,11 @@ impl RenewalService {
         // A renewal paid during the grace period restores a lapsed membership.
         if let Some(marketing) = &self.marketing {
             marketing
+                .sync_after_role_change(renewal.user_id, &renewal.role_name.0)
+                .await;
+        }
+        if let Some(groups) = &self.groups {
+            groups
                 .sync_after_role_change(renewal.user_id, &renewal.role_name.0)
                 .await;
         }

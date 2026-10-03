@@ -106,6 +106,20 @@ In `backend/.env`:
 
 Leave both blank in dev to skip marketing sync entirely.
 
+## Google Groups configuration
+
+`GroupMembershipPort` keeps Google Workspace groups (the `jasenet@…` member lists that prodeko.org's application approval used to fill) in sync with roles. Each group has a rule naming the roles that put a user on it. Whenever one of those roles is granted, extended, renewed, deleted or expires, the user is added to the group if they hold any of the rule's roles that day and removed otherwise. Both calls are idempotent. Failures are logged and never fail the role change. The three variables must be set together, or all left empty. A partial or malformed configuration makes the backend refuse to start.
+
+In `backend/.env`:
+
+- `GOOGLE_SERVICE_ACCOUNT_KEY` — the service account's JSON key, as the variable's value (not a path)
+- `GOOGLE_DELEGATED_ADMIN` — the Workspace admin the service account impersonates
+- `GOOGLE_GROUP_RULES` — `;`-separated `group=role|role` entries, e.g. `jasenet@prodeko.org=prodeko-full-member|prodeko-external-member;jasenet@raittiusseura.org=pora-member`
+
+The service account needs domain-wide delegation for the scope `https://www.googleapis.com/auth/admin.directory.group.member` in each Workspace whose groups it manages.
+
+Leave all three blank in dev to skip group sync entirely.
+
 ## Migrations
 
 ```bash
