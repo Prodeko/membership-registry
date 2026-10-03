@@ -81,7 +81,7 @@ docker:
 	$(call quiet,docker,docker build -t membership-registry:local .)
 
 db-up:
-	docker compose up -d postgres
+	docker compose up -d membership-postgresd
 
 db-down:
 	docker compose down
