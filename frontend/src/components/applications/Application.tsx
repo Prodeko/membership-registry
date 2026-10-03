@@ -6,7 +6,7 @@ import {
   useGetTargetableRoles,
   useSetApplicationStatus,
 } from "@/lib/api";
-import { useNavigate, useParams, Link } from "react-router";
+import { useNavigate, useParams, Link, useLocation } from "react-router";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
 import RoleBadge from "../ui/role-badge";
@@ -17,7 +17,11 @@ import { MemberAttribute } from "@/common/generated/MemberAttribute";
 const Application = () => {
   const { id = "" } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
+  // The filtered list we came from, if any (set by the applications table).
+  const from = (location.state as { from?: string } | null)?.from;
+  const backToList = from?.startsWith("/applications") ? from : "/applications";
 
   const {
     data: application,
@@ -94,7 +98,7 @@ const Application = () => {
         queryClient.invalidateQueries({
           queryKey: [QueryKey.APPLICATIONS],
         });
-        navigate("/applications");
+        navigate(backToList);
       },
     });
   };
@@ -201,7 +205,7 @@ const Application = () => {
           <Button variant="destructive" onClick={handleDelete}>
             Delete
           </Button>
-          <Button variant="outline" onClick={() => navigate("/applications")}>
+          <Button variant="outline" onClick={() => navigate(backToList)}>
             Back to applications
           </Button>
         </div>
