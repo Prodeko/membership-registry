@@ -61,7 +61,7 @@ async fn set_as_self_rejects_admin_only_attribute() {
         .set_as_self(
             PersonId(uuid::Uuid::new_v4()),
             &AttributeName::new("xq-year").unwrap(),
-            av("IV"),
+            vec![av("IV")],
         )
         .await;
 
@@ -84,7 +84,7 @@ async fn set_as_admin_rejects_user_only_attribute() {
         .set_as_admin(
             PersonId(uuid::Uuid::new_v4()),
             &AttributeName::new("note").unwrap(),
-            av("hi"),
+            vec![av("hi")],
             None,
         )
         .await;
@@ -191,7 +191,7 @@ async fn set_as_admin_accepts_both_editable() {
         .set_as_admin(
             PersonId(uuid::Uuid::new_v4()),
             &AttributeName::new("note").unwrap(),
-            av("hi"),
+            vec![av("hi")],
             None,
         )
         .await;
@@ -231,7 +231,7 @@ async fn set_rejects_value_not_in_allowed_values() {
         .set_as_admin(
             PersonId(uuid::Uuid::new_v4()),
             &AttributeName::new("xq-year").unwrap(),
-            av("V"),
+            vec![av("V")],
             None,
         )
         .await;
@@ -274,7 +274,7 @@ async fn set_returns_partial_sync_when_kc_fails_after_db_success() {
         .set_as_admin(
             PersonId(uuid::Uuid::new_v4()),
             &AttributeName::new("xq-year").unwrap(),
-            av("IV"),
+            vec![av("IV")],
             None,
         )
         .await;
@@ -294,7 +294,7 @@ async fn drift_emits_registry_unlinked_for_user_with_no_providers() {
         .returning(|| Ok(vec![def("xq-year", true, EditableBy::Admin)]));
     let owned_uid = user_id.clone();
     repo.expect_fetch_all_values_for()
-        .returning(move |_| Ok(vec![(owned_uid.clone(), av("IV"))]));
+        .returning(move |_| Ok(vec![(owned_uid.clone(), vec![av("IV")])]));
 
     let mut sync = MockAttributeSyncPort::new();
     sync.expect_list_users_with_attributes()
@@ -320,7 +320,7 @@ async fn drift_emits_registry_only_when_kc_user_lacks_attribute() {
         .returning(|| Ok(vec![def("xq-year", true, EditableBy::Admin)]));
     let owned_uid = user_id.clone();
     repo.expect_fetch_all_values_for()
-        .returning(move |_| Ok(vec![(owned_uid.clone(), av("IV"))]));
+        .returning(move |_| Ok(vec![(owned_uid.clone(), vec![av("IV")])]));
 
     let mut sync = MockAttributeSyncPort::new();
     sync.expect_list_users_with_attributes()
@@ -354,7 +354,7 @@ async fn drift_emits_value_mismatch_when_kc_disagrees() {
         .returning(|| Ok(vec![def("xq-year", true, EditableBy::Admin)]));
     let owned_uid = user_id.clone();
     repo.expect_fetch_all_values_for()
-        .returning(move |_| Ok(vec![(owned_uid.clone(), av("IV"))]));
+        .returning(move |_| Ok(vec![(owned_uid.clone(), vec![av("IV")])]));
 
     let mut sync = MockAttributeSyncPort::new();
     sync.expect_list_users_with_attributes().returning(|_| {
@@ -457,6 +457,8 @@ async fn update_patch_leave_preserves_existing_description() {
         sync_to_keycloak: None,
         editable_by: None,
         required: None,
+        multiple: None,
+        allow_other: None,
     };
     let _ = svc
         .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)
@@ -508,6 +510,8 @@ async fn update_patch_clear_drops_description() {
         sync_to_keycloak: None,
         editable_by: None,
         required: None,
+        multiple: None,
+        allow_other: None,
     };
     let _ = svc
         .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)
@@ -540,9 +544,9 @@ async fn sync_missing_pushes_registry_only_value_mismatch_skips_kc_only_fails_un
     let user_c_for = user_c.clone();
     repo.expect_fetch_all_values_for().returning(move |_| {
         Ok(vec![
-            (user_a_for.clone(), av("IV")),
-            (user_b_for.clone(), av("II")),
-            (user_c_for.clone(), av("III")),
+            (user_a_for.clone(), vec![av("IV")]),
+            (user_b_for.clone(), vec![av("II")]),
+            (user_c_for.clone(), vec![av("III")]),
         ])
     });
 
@@ -644,7 +648,7 @@ async fn set_returns_provider_user_deleted_when_all_providers_are_missing() {
         .set_as_admin(
             PersonId(uuid::Uuid::new_v4()),
             &AttributeName::new("xq-year").unwrap(),
-            av("IV"),
+            vec![av("IV")],
             None,
         )
         .await;
@@ -702,7 +706,7 @@ async fn set_with_two_providers_one_unavailable_returns_partial_sync() {
         .set_as_admin(
             PersonId(uuid::Uuid::new_v4()),
             &AttributeName::new("xq-year").unwrap(),
-            av("IV"),
+            vec![av("IV")],
             None,
         )
         .await;
@@ -762,7 +766,7 @@ async fn set_with_scope_missing_returns_misconfigured_even_when_other_providers_
         .set_as_admin(
             PersonId(uuid::Uuid::new_v4()),
             &AttributeName::new("xq-year").unwrap(),
-            av("IV"),
+            vec![av("IV")],
             None,
         )
         .await;
@@ -881,6 +885,8 @@ async fn create_definition_rolls_back_db_when_kc_mapper_add_fails() {
                 sync_to_keycloak: true,
                 editable_by: EditableBy::Admin,
                 required: false,
+                multiple: false,
+                allow_other: false,
             },
             None,
         )
@@ -913,7 +919,7 @@ async fn update_definition_rejects_tightening_that_invalidates_existing_value() 
         .returning(move |_| Ok(Some(existing_for_fetch.clone())));
     let owned = user_id.clone();
     repo.expect_fetch_all_values_for()
-        .returning(move |_| Ok(vec![(owned.clone(), av("Z"))]));
+        .returning(move |_| Ok(vec![(owned.clone(), vec![av("Z")])]));
 
     let svc = build_service(
         repo,
@@ -929,6 +935,8 @@ async fn update_definition_rejects_tightening_that_invalidates_existing_value() 
         sync_to_keycloak: None,
         editable_by: None,
         required: None,
+        multiple: None,
+        allow_other: None,
     };
     let res = svc
         .update_definition(&AttributeName::new("xq-year").unwrap(), patch, None)
@@ -950,7 +958,7 @@ async fn sync_missing_surfaces_keycloak_multivalued_as_failure() {
         .returning(|| Ok(vec![def("xq-year", true, EditableBy::Admin)]));
     let owned = user_id.clone();
     repo.expect_fetch_all_values_for()
-        .returning(move |_| Ok(vec![(owned.clone(), av("IV"))]));
+        .returning(move |_| Ok(vec![(owned.clone(), vec![av("IV")])]));
 
     let mut sync = MockAttributeSyncPort::new();
     sync.expect_list_users_with_attributes().returning(|_| {
@@ -1043,7 +1051,10 @@ async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
     let upserts: Arc<Mutex<Vec<(String, String)>>> = Arc::new(Mutex::new(Vec::new()));
     let upserts_for_repo = Arc::clone(&upserts);
     repo.expect_upsert_member_value()
-        .returning(move |_uid, name, value| {
+        .returning(move |_uid, name, values| {
+            let [value] = values else {
+                panic!("expected a single value, got {values:?}")
+            };
             upserts_for_repo
                 .lock()
                 .unwrap()

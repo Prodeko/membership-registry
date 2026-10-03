@@ -37,7 +37,7 @@ import {
   FormMessage,
 } from "../ui/form";
 import { COUNTRIES, FINNISH_MUNICIPALITIES } from "@/lib/constants";
-import { cn, describeError } from "@/lib/utils";
+import { cn, describeError, sameValues } from "@/lib/utils";
 import { toast } from "sonner";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -156,11 +156,11 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
   const [roleDateEdits, setRoleDateEdits] = useState<
     Record<string, { validFrom: string; validUntil: string }>
   >({}); // key = `${roleName}::${validFrom}`
-  // Pending attribute changes; key = attribute name, value = "" means clear,
-  // non-empty string means set. Flushed on Save.
-  const [attributeEdits, setAttributeEdits] = useState<Record<string, string>>(
-    {},
-  );
+  // Pending attribute changes; key = attribute name, value = [] means clear,
+  // non-empty list means set. Flushed on Save.
+  const [attributeEdits, setAttributeEdits] = useState<
+    Record<string, string[]>
+  >({});
 
   // ── UI state ──
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(
@@ -241,7 +241,7 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
     return memberAttributes.map((a) => {
       const edited = attributeEdits[a.name];
       if (edited === undefined) return a;
-      return { ...a, value: edited === "" ? null : edited };
+      return { ...a, values: edited };
     });
   }, [memberAttributes, attributeEdits]);
 
@@ -537,15 +537,14 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
       // 8. Attribute edits — set non-empty, delete empty.
       stepLabel = "attributes";
       const originalAttrValues = new Map(
-        (memberAttributes ?? []).map((a) => [a.name, a.value ?? ""]),
+        (memberAttributes ?? []).map((a) => [a.name, a.values]),
       );
-      for (const [name, value] of Object.entries(attributeEdits)) {
-        const original = originalAttrValues.get(name) ?? "";
-        if (value === original) continue;
-        if (value === "") {
+      for (const [name, values] of Object.entries(attributeEdits)) {
+        if (sameValues(values, originalAttrValues.get(name) ?? [])) continue;
+        if (values.length === 0) {
           await deleteAttribute(name);
         } else {
-          await setAttribute({ name, value });
+          await setAttribute({ name, values });
         }
       }
 
@@ -579,11 +578,9 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
 
   const hasAttributeEdits = useMemo(() => {
     if (!memberAttributes) return Object.keys(attributeEdits).length > 0;
-    const original = new Map(
-      memberAttributes.map((a) => [a.name, a.value ?? ""]),
-    );
+    const original = new Map(memberAttributes.map((a) => [a.name, a.values]));
     return Object.entries(attributeEdits).some(
-      ([name, value]) => (original.get(name) ?? "") !== value,
+      ([name, values]) => !sameValues(original.get(name) ?? [], values),
     );
   }, [attributeEdits, memberAttributes]);
 
@@ -1142,11 +1139,11 @@ export default function MemberDrawer({ userId, onClose }: MemberDrawerProps) {
               onSet={(input) =>
                 setAttributeEdits((prev) => ({
                   ...prev,
-                  [input.name]: input.value,
+                  [input.name]: input.values,
                 }))
               }
               onDelete={(name) =>
-                setAttributeEdits((prev) => ({ ...prev, [name]: "" }))
+                setAttributeEdits((prev) => ({ ...prev, [name]: [] }))
               }
               heading=""
               canClearRequired

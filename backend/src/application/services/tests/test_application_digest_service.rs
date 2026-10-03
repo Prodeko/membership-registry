@@ -54,8 +54,8 @@ fn queries_returning(
     queries
 }
 
-fn holder(id: &PersonId, address: &str) -> (PersonId, AttributeValue) {
-    (id.clone(), AttributeValue::new(address).unwrap())
+fn holder(id: &PersonId, address: &str) -> (PersonId, Vec<AttributeValue>) {
+    (id.clone(), vec![AttributeValue::new(address).unwrap()])
 }
 
 fn admin(id: &PersonId) -> Person {

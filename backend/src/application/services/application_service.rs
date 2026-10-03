@@ -32,7 +32,7 @@ pub struct CreateApplicationParams {
     pub frontend_url: String,
     /// Attribute values submitted via the application form. Each pair must
     /// reference a name in the targetable role's `form_attributes` list.
-    pub attributes: Vec<(AttributeName, AttributeValue)>,
+    pub attributes: Vec<(AttributeName, Vec<AttributeValue>)>,
 }
 
 pub struct CreateApplicationResult {
@@ -171,9 +171,9 @@ impl ApplicationService {
         // place: rejecting the whole request would force a redo even
         // though the upstream payment link is already wired to the new
         // application_id.
-        for (name, value) in params.attributes {
+        for (name, values) in params.attributes {
             self.attribute_service
-                .set_via_application_form(PersonId(params.user_id), &name, value, actor_user_id)
+                .set_via_application_form(PersonId(params.user_id), &name, values, actor_user_id)
                 .await?;
         }
 

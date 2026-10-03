@@ -98,3 +98,10 @@ export const defaultTo = new Date(
   59,
   999,
 );
+
+/** Order-insensitive equality of two attribute value lists. */
+export function sameValues(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false;
+  const sortedB = [...b].sort();
+  return [...a].sort().every((v, i) => v === sortedB[i]);
+}
