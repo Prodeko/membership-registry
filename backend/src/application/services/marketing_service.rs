@@ -248,10 +248,12 @@ impl MarketingService {
                 let catalog = self.load_catalog().await?;
                 self.subscribe_with_defaults(&identity, &catalog).await?;
             }
-            // Archiving keeps the contact's tags, so a returning member
-            // gets their previous choices back rather than the defaults.
+            // A returning member re-applied and accepted the list again,
+            // so they get the defaults switched on like a new member.
             (true, SubscriptionState::Archived) => {
+                let catalog = self.load_catalog().await?;
                 self.marketing_port.restore(&identity).await?;
+                self.apply_default_tags(&identity, &catalog).await?;
             }
             (false, SubscriptionState::Subscribed | SubscriptionState::Pending) => {
                 self.marketing_port.archive(&identity.email).await?;
@@ -267,6 +269,15 @@ impl MarketingService {
         catalog: &[MarketingTag],
     ) -> Result<(), crate::application::ports::marketing_list_port::MarketingListError> {
         self.marketing_port.subscribe(identity).await?;
+        self.apply_default_tags(identity, catalog).await
+    }
+
+    /// Switch on every `auto_apply` tag. Other tags are left as they are.
+    async fn apply_default_tags(
+        &self,
+        identity: &ContactIdentity,
+        catalog: &[MarketingTag],
+    ) -> Result<(), crate::application::ports::marketing_list_port::MarketingListError> {
         let defaults = Self::default_active_tags(catalog);
         if !defaults.is_empty() {
             self.marketing_port.set_tags(identity, &defaults).await?;
