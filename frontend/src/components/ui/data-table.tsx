@@ -2,6 +2,7 @@
 
 import {
   ColumnDef,
+  PaginationState,
   RowSelectionState,
   SortingState,
   VisibilityState,
@@ -102,6 +103,21 @@ export function DataTable<TData, TValue>({
     React.useState<VisibilityState>(initialColumnVisibility ?? {});
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowCount, setRowCount] = React.useState<number | undefined>(undefined);
+  const [pagination, setPagination] = React.useState<PaginationState>({
+    pageSize: 10,
+    pageIndex: 0,
+  });
+
+  // Without a total, infer the page count from the page we got back. A short
+  // page is the last one; a page longer than pageSize means the endpoint
+  // ignores paging and returned everything at once. Only an exactly full
+  // page leaves the count unknown (-1).
+  const inferredPageCount =
+    tableData.length < pagination.pageSize
+      ? pagination.pageIndex + 1
+      : tableData.length > pagination.pageSize
+        ? 1
+        : -1;
 
   const table = useReactTable({
     data: tableData,
@@ -110,22 +126,19 @@ export function DataTable<TData, TValue>({
       sorting,
       columnVisibility,
       rowSelection,
+      pagination,
     },
     enableRowSelection: true,
     manualPagination: true,
     manualFiltering: true,
     manualSorting: true,
-    // When a real total is known, let the table derive the page count from it;
-    // otherwise mark the page count as unknown (-1) so navigation isn't capped.
+    // When a real total is known, let the table derive the page count from it.
     rowCount,
-    pageCount: rowCount === undefined ? -1 : undefined,
+    pageCount: rowCount === undefined ? inferredPageCount : undefined,
     initialState: {
-      pagination: {
-        pageSize: 10,
-        pageIndex: 0,
-      },
       columnVisibility: initialColumnVisibility,
     },
+    onPaginationChange: setPagination,
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
