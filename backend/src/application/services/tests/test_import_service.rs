@@ -61,7 +61,6 @@ fn import_service(
         Arc::clone(&user_admin),
         Arc::clone(&auth_provider),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
     let attribute_service = Arc::new(AttributeService::new(
@@ -158,7 +157,6 @@ fn writable_import_service(
         Arc::clone(&user_admin),
         Arc::clone(&auth_provider),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
     let attribute_service = Arc::new(AttributeService::new(
@@ -301,7 +299,6 @@ fn roles_import_service(
         Arc::clone(&user_admin),
         Arc::clone(&auth_provider),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
     let attribute_service = Arc::new(AttributeService::new(

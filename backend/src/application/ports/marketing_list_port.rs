@@ -58,6 +58,12 @@ pub trait MarketingListPort: Send + Sync {
     /// done by the user through the email footer, not through the app.
     async fn subscribe(&self, identity: &ContactIdentity) -> Result<(), MarketingListError>;
 
+    /// Archive a contact so it stops receiving campaigns, e.g. when its
+    /// membership ends. Unlike an unsubscribe this leaves no opt-out on the
+    /// contact, so a later `subscribe` can restore it. Archiving an unknown
+    /// contact is a no-op.
+    async fn archive(&self, email: &str) -> Result<(), MarketingListError>;
+
     /// Update tag active/inactive states. Identity fields ride along in the
     /// implicit contact upsert so Mailchimp stays fresh without a separate
     /// path. The caller must ensure the contact exists on the list first.
