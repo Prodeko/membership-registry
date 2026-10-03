@@ -3,7 +3,10 @@ import { HomePage } from "../pages/home.page";
 import { ApplicationFormPage } from "../pages/application-form.page";
 import { ApplicationSuccessPage } from "../pages/application-success.page";
 import { loginViaKeycloak } from "../helpers/auth";
-import { TEST_ROLE_VALID_UNTIL } from "../helpers/constants";
+import { APP_BASE_URL, TEST_ROLE_VALID_UNTIL } from "../helpers/constants";
+
+// Written by auth.setup.ts.
+const ADMIN_AUTH_FILE = ".auth/admin.json";
 
 // Per-worker attribute name so parallel workers don't collide on the
 // AttributeDefinition PK.
@@ -50,7 +53,8 @@ test.describe("Application form attributes", () => {
   // Fresh login — beforeEach removed the test user.
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("applicant fills a form attribute and the value lands in MemberAttribute", async ({
+  test("applicant fills a form attribute, the value lands in MemberAttribute and admin sees it on the application", async ({
+    browser,
     page,
     db,
     testUser,
@@ -105,5 +109,25 @@ test.describe("Application form attributes", () => {
     );
     expect(attrRows).toHaveLength(1);
     expect(attrRows[0].value).toBe("iem");
+
+    // Admin reviewing the application sees the submitted value. Separate
+    // context so the applicant's session doesn't leak into the admin one.
+    const adminContext = await browser.newContext({
+      storageState: ADMIN_AUTH_FILE,
+    });
+    try {
+      const adminPage = await adminContext.newPage();
+      await adminPage.goto(
+        `${APP_BASE_URL}/applications/${dbApp!.application_id}`,
+      );
+      await expect(
+        adminPage.getByTestId("application-attributes"),
+      ).toBeVisible();
+      await expect(
+        adminPage.getByTestId(`application-attr-value-${attr}`),
+      ).toHaveText("iem");
+    } finally {
+      await adminContext.close();
+    }
   });
 });
