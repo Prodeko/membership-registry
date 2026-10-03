@@ -206,6 +206,7 @@ impl RenewalService {
 
             let full_payment_link = renewal_payment_url(payment_link, item.renewal_id);
             let valid_until_str = item.old_valid_until.to_string();
+            let expires_in_str = item.days_left.to_string();
 
             self.notification_service
                 .send_notification_with_vars(
@@ -217,6 +218,7 @@ impl RenewalService {
                     &[
                         ("payment_link", &full_payment_link),
                         ("valid_until", &valid_until_str),
+                        ("expires_in", &expires_in_str),
                     ],
                 )
                 .await;
