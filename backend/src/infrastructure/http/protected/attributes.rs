@@ -12,7 +12,9 @@ use crate::{
     application::services::authentication_service::AuthenticatedUser,
     domain::{AttributeName, AttributeValue, PersonId},
     infrastructure::http::{
-        dto::attribute::{editable_for_self, MemberAttributeDTO, SetMemberAttributeDTO},
+        dto::attribute::{
+            editable_for_self, parse_values, MemberAttributeDTO, SetMemberAttributeDTO,
+        },
         errors::{ApiError, ApiResult},
     },
 };
@@ -36,23 +38,29 @@ async fn get_my_attributes(
 ) -> ApiResult<Json<Vec<MemberAttributeDTO>>> {
     let user = user_info.ok_or(ApiError::Unauthorized)?;
     let defs = state.attribute_service.list_definitions().await?;
-    let values: HashMap<String, String> = state
+    let mut values: HashMap<String, Vec<AttributeValue>> = state
         .attribute_service
         .fetch_for_member(PersonId(user.user_id))
         .await?
         .into_iter()
-        .map(|a| (a.name.into_inner(), a.value.into_inner()))
+        .map(|a| (a.name.into_inner(), a.values))
         .collect();
     let dtos: Vec<MemberAttributeDTO> = defs
         .into_iter()
         .map(|d| MemberAttributeDTO {
             editable: editable_for_self(&d),
-            value: values.get(d.name().as_str()).cloned(),
+            values: values
+                .remove(d.name().as_str())
+                .unwrap_or_default()
+                .into_iter()
+                .map(AttributeValue::into_inner)
+                .collect(),
             allowed_values: d
                 .allowed_values()
                 .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect()),
             description: d.description().map(str::to_string),
             required: d.required(),
+            multiple: d.multiple(),
             name: d.name().clone().into_inner(),
         })
         .collect();
@@ -68,7 +76,7 @@ async fn set_my_attribute(
 ) -> ApiResult<StatusCode> {
     let user = user_info.ok_or(ApiError::Unauthorized)?;
     let n = AttributeName::new(name).map_err(|_| ApiError::BadRequest)?;
-    let v = AttributeValue::new(body.value).map_err(|_| ApiError::BadRequest)?;
+    let v = parse_values(body.values)?;
     state
         .attribute_service
         .set_as_self(PersonId(user.user_id), &n, v)

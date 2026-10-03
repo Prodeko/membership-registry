@@ -7,4 +7,4 @@ export type ApplicationWithMember = { application_id: ApplicationId, user_id: st
  * The applicant's current member attribute values, keyed by name.
  * Current values, not a snapshot from when the application was made.
  */
-attributes: { [key in string]: string }, };
+attributes: { [key in string]: Array<string> }, };

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as \"status!: ApplicationStatusDAO\",\n                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as \"attribute_names!\",\n                ARRAY(SELECT ma.value FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as \"attribute_values!\"\n            FROM Application a\n            JOIN Member m ON a.user_id = m.user_id\n            WHERE a.application_id = $1\n            ",
+  "query": "\n            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as \"status!: ApplicationStatusDAO\",\n                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma, unnest(ma.value_list) WITH ORDINALITY AS v(value, n) WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name, v.n) as \"attribute_names!\",\n                ARRAY(SELECT v.value FROM MemberAttribute ma, unnest(ma.value_list) WITH ORDINALITY AS v(value, n) WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name, v.n) as \"attribute_values!\"\n            FROM Application a\n            JOIN Member m ON a.user_id = m.user_id\n            WHERE ($1::application_status IS NULL OR a.status = $1)\n            AND ($2 = '' OR m.full_name ILIKE '%' || $2 || '%' OR m.email ILIKE '%' || $2 || '%')\n            ORDER BY a.timestamp DESC\n            ",
   "describe": {
     "columns": [
       {
@@ -162,7 +162,20 @@
     ],
     "parameters": {
       "Left": [
-        "Uuid"
+        {
+          "Custom": {
+            "name": "application_status",
+            "kind": {
+              "Enum": [
+                "unpaid",
+                "pending",
+                "approved",
+                "rejected"
+              ]
+            }
+          }
+        },
+        "Text"
       ]
     },
     "nullable": [
@@ -182,5 +195,5 @@
       null
     ]
   },
-  "hash": "f05eb63a64658554ef8eddd27a10549f371201221ab7133f656b3cb24f9734e3"
+  "hash": "16ded8ee7d66c9b1e93eae0e0174589f9082d077c06018acc0fa746f31dc8e73"
 }

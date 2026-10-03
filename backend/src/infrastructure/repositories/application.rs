@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use sqlx::{types::chrono, PgPool};
 use uuid::Uuid;
@@ -84,7 +84,9 @@ struct ApplicationWithMemberDAO {
     optional_roles: Option<Vec<String>>,
     application_text: Option<String>,
     status: ApplicationStatusDAO,
-    // Parallel arrays, both ordered by attribute name.
+    // Parallel arrays with one element per attribute value, ordered by
+    // attribute name and then value position; a multichoice attribute's name
+    // repeats once per value.
     attribute_names: Vec<String>,
     attribute_values: Vec<String>,
 }
@@ -108,7 +110,13 @@ impl From<ApplicationWithMemberDAO> for PortWithMember {
                 .attribute_names
                 .into_iter()
                 .zip(row.attribute_values)
-                .collect(),
+                .fold(
+                    BTreeMap::new(),
+                    |mut attrs: BTreeMap<String, Vec<String>>, (name, value)| {
+                        attrs.entry(name).or_default().push(value);
+                        attrs
+                    },
+                ),
         }
     }
 }
@@ -250,8 +258,8 @@ impl ApplicationQueryPort for ApplicationRepo {
             ApplicationWithMemberDAO,
             r#"
             SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO",
-                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as "attribute_names!",
-                ARRAY(SELECT ma.value FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as "attribute_values!"
+                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma, unnest(ma.value_list) WITH ORDINALITY AS v(value, n) WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name, v.n) as "attribute_names!",
+                ARRAY(SELECT v.value FROM MemberAttribute ma, unnest(ma.value_list) WITH ORDINALITY AS v(value, n) WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name, v.n) as "attribute_values!"
             FROM Application a
             JOIN Member m ON a.user_id = m.user_id
             WHERE a.application_id = $1
@@ -274,8 +282,8 @@ impl ApplicationQueryPort for ApplicationRepo {
             ApplicationWithMemberDAO,
             r#"
             SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO",
-                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as "attribute_names!",
-                ARRAY(SELECT ma.value FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as "attribute_values!"
+                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma, unnest(ma.value_list) WITH ORDINALITY AS v(value, n) WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name, v.n) as "attribute_names!",
+                ARRAY(SELECT v.value FROM MemberAttribute ma, unnest(ma.value_list) WITH ORDINALITY AS v(value, n) WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name, v.n) as "attribute_values!"
             FROM Application a
             JOIN Member m ON a.user_id = m.user_id
             WHERE ($1::application_status IS NULL OR a.status = $1)

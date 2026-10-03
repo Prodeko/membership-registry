@@ -400,7 +400,7 @@ async fn preview_lists_changed_fields_for_update() {
         Ok(vec![MemberAttribute {
             user_id: uid.clone(),
             name: AttributeName::new("guild").unwrap(),
-            value: AttributeValue::new("prodeko").unwrap(),
+            values: vec![AttributeValue::new("prodeko").unwrap()],
         }])
     });
 
@@ -539,7 +539,7 @@ fn guild_prodeko(uid: &PersonId) -> Vec<MemberAttribute> {
     vec![MemberAttribute {
         user_id: uid.clone(),
         name: AttributeName::new("guild").unwrap(),
-        value: AttributeValue::new("prodeko").unwrap(),
+        values: vec![AttributeValue::new("prodeko").unwrap()],
     }]
 }
 
@@ -609,9 +609,13 @@ async fn apply_attribute_values_sets_and_clears_changed_rows_only() {
     attr.expect_fetch_definition()
         .returning(|name| Ok(value_import_defs().into_iter().find(|d| d.name() == name)));
     attr.expect_upsert_member_value()
-        .withf(|_, name, value| {
-            (name.as_str() == "guild" && value.as_str() == "athene")
-                || (name.as_str() == "year" && value.as_str() == "III")
+        .withf(|_, name, values| {
+            let value = match values {
+                [value] => value.as_str(),
+                _ => return false,
+            };
+            (name.as_str() == "guild" && value == "athene")
+                || (name.as_str() == "year" && value == "III")
         })
         .returning(|_, _, _| Ok(()))
         .times(2);
@@ -784,4 +788,87 @@ async fn apply_roles_skips_upsert_for_unchanged_assignment() {
 
     assert_eq!(report.rows[0].outcome, RowOutcome::Unchanged);
     assert_eq!(report.count(&RowOutcome::Unchanged), 1);
+}
+
+// ---------------------------------------------------------------------------
+// Multichoice attribute cells
+// ---------------------------------------------------------------------------
+
+/// `languages` (fi/sv/en) is multichoice; `guild` is a plain single-valued
+/// enum.
+fn choice_defs() -> Vec<AttributeDefinition> {
+    vec![
+        def("languages", Some(vec!["fi", "sv", "en"]), EditableBy::Admin).with_multiple(true),
+        def("guild", Some(vec!["prodeko", "athene"]), EditableBy::Admin),
+    ]
+}
+
+fn cell_values(def: &AttributeDefinition, raw: &str) -> Result<Vec<String>, String> {
+    crate::application::services::import_service::parse_cell_values(def, raw)
+        .map(|vs| vs.into_iter().map(AttributeValue::into_inner).collect())
+}
+
+#[test]
+fn multichoice_cell_splits_on_semicolon_and_trims() {
+    let [languages, _] = &choice_defs()[..] else {
+        unreachable!()
+    };
+    assert_eq!(
+        cell_values(languages, " fi ;en;; sv "),
+        Ok(vec!["fi".to_string(), "en".to_string(), "sv".to_string()])
+    );
+}
+
+#[test]
+fn multichoice_cell_rejects_duplicates_and_unlisted_values() {
+    let [languages, _] = &choice_defs()[..] else {
+        unreachable!()
+    };
+    assert!(cell_values(languages, "fi; fi").is_err());
+    assert!(cell_values(languages, "fi; de").is_err());
+}
+
+#[test]
+fn single_valued_cell_is_taken_verbatim() {
+    let free = def("note", None, EditableBy::Admin);
+    assert_eq!(cell_values(&free, "a; b"), Ok(vec!["a; b".to_string()]));
+    let [_, guild] = &choice_defs()[..] else {
+        unreachable!()
+    };
+    assert!(cell_values(guild, "prodeko; athene").is_err());
+}
+
+#[tokio::test]
+async fn preview_attribute_values_compares_multichoice_cells_as_sets() {
+    let mut attr = MockAttributeRepositoryPort::new();
+    attr.expect_fetch_all_definitions()
+        .returning(|| Ok(choice_defs()));
+    // Every member currently speaks fi and en.
+    attr.expect_fetch_member_values().returning(|uid| {
+        Ok(vec![MemberAttribute {
+            user_id: uid.clone(),
+            name: AttributeName::new("languages").unwrap(),
+            values: vec![
+                AttributeValue::new("fi").unwrap(),
+                AttributeValue::new("en").unwrap(),
+            ],
+        }])
+    });
+
+    let mut members = MockMemberRepositoryPort::new();
+    members
+        .expect_fetch_by_email()
+        .returning(|email| Ok(Some(person(email))));
+
+    let svc = import_service(members, attr, MockUserAdminPort::new());
+    let csv = b"email,attribute,value\n\
+a@x.com,languages,en; fi\n\
+b@x.com,languages,fi; sv\n\
+c@x.com,languages,fi; de\n";
+    let preview = svc.preview_attributes(csv).await.unwrap();
+
+    assert_eq!(preview.fatal_error, None);
+    assert_eq!(preview.rows[0].result, Ok(RowAction::Unchanged)); // reordered
+    assert_eq!(preview.rows[1].result, Ok(RowAction::Update));
+    assert!(preview.rows[2].result.is_err()); // "de" not allowed
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as \"status!: ApplicationStatusDAO\",\n                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as \"attribute_names!\",\n                ARRAY(SELECT ma.value FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as \"attribute_values!\"\n            FROM Application a\n            JOIN Member m ON a.user_id = m.user_id\n            WHERE ($1::application_status IS NULL OR a.status = $1)\n            AND ($2 = '' OR m.full_name ILIKE '%' || $2 || '%' OR m.email ILIKE '%' || $2 || '%')\n            ORDER BY a.timestamp DESC\n            ",
+  "query": "\n            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as \"status!: ApplicationStatusDAO\",\n                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma, unnest(ma.value_list) WITH ORDINALITY AS v(value, n) WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name, v.n) as \"attribute_names!\",\n                ARRAY(SELECT v.value FROM MemberAttribute ma, unnest(ma.value_list) WITH ORDINALITY AS v(value, n) WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name, v.n) as \"attribute_values!\"\n            FROM Application a\n            JOIN Member m ON a.user_id = m.user_id\n            WHERE a.application_id = $1\n            ",
   "describe": {
     "columns": [
       {
@@ -162,20 +162,7 @@
     ],
     "parameters": {
       "Left": [
-        {
-          "Custom": {
-            "name": "application_status",
-            "kind": {
-              "Enum": [
-                "unpaid",
-                "pending",
-                "approved",
-                "rejected"
-              ]
-            }
-          }
-        },
-        "Text"
+        "Uuid"
       ]
     },
     "nullable": [
@@ -195,5 +182,5 @@
       null
     ]
   },
-  "hash": "63c313474d00b43da62b10cbe6a3ee956bbf24848103cfe8c8fcc6cf6f4066ce"
+  "hash": "4e6c931b0cd21227f786d5cd1797dd447e8372176f6d02d642ca2056e8a48c55"
 }

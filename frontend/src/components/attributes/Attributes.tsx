@@ -142,6 +142,11 @@ const Attributes = () => {
                         required
                       </Badge>
                     )}
+                    {def.multiple && (
+                      <Badge variant="secondary" className="ml-1">
+                        multiple
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="text-right space-x-2">
                     <Button

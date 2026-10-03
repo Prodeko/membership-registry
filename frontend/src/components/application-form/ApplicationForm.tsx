@@ -20,6 +20,7 @@ import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { z } from "zod";
+import MultiValueSelect from "../attributes/MultiValueSelect";
 import RenderMemberData from "../members/RenderMemberData";
 import { Card } from "../ui/card";
 import { Input } from "../ui/input";
@@ -64,7 +65,7 @@ const ApplicationForm = () => {
   const { mutateAsync: createApplication } = useCreateApplication();
   const [paymentLink, setPaymentLink] = useState<string | null>(null);
   const [attributeValues, setAttributeValues] = useState<
-    Record<string, string>
+    Record<string, string[]>
   >({});
 
   const selectedRole = form.watch("role_name");
@@ -86,14 +87,15 @@ const ApplicationForm = () => {
         description: def?.description ?? null,
         allowed_values: def?.allowed_values ?? null,
         required: def?.required ?? false,
-        currentValue: def?.value ?? "",
+        multiple: def?.multiple ?? false,
+        currentValues: def?.values ?? [],
       };
     });
   }, [selectedTargetable, memberAttributes]);
 
   const missingRequired = formAttributeDefs.filter(
-    ({ name, required, currentValue }) =>
-      required && !(attributeValues[name] ?? currentValue),
+    ({ name, required, currentValues }) =>
+      required && (attributeValues[name] ?? currentValues).length === 0,
   );
 
   const onSubmit = async (values: FormValues) => {
@@ -103,11 +105,11 @@ const ApplicationForm = () => {
     if (missingRequired.length > 0) return;
 
     const submittedAttributes = formAttributeDefs
-      .map(({ name, currentValue }) => ({
+      .map(({ name, currentValues }) => ({
         name,
-        value: attributeValues[name] ?? currentValue ?? "",
+        values: attributeValues[name] ?? currentValues,
       }))
-      .filter((kv) => kv.value.length > 0);
+      .filter((kv) => kv.values.length > 0);
 
     try {
       const data = await createApplication({
@@ -238,13 +240,15 @@ const ApplicationForm = () => {
             {formAttributeDefs.length > 0 && (
               <div className="space-y-3">
                 {formAttributeDefs.map((attr) => {
-                  const value =
-                    attributeValues[attr.name] ?? attr.currentValue ?? "";
-                  const set = (v: string) =>
+                  const values =
+                    attributeValues[attr.name] ?? attr.currentValues;
+                  const setValues = (vs: string[]) =>
                     setAttributeValues((prev) => ({
                       ...prev,
-                      [attr.name]: v,
+                      [attr.name]: vs,
                     }));
+                  const value = values[0] ?? "";
+                  const set = (v: string) => setValues(v ? [v] : []);
                   const id = `application-attr-${attr.name}`;
                   return (
                     <div key={attr.name} className="space-y-1">
@@ -264,7 +268,16 @@ const ApplicationForm = () => {
                           {attr.description}
                         </p>
                       )}
-                      {attr.allowed_values && attr.allowed_values.length > 0 ? (
+                      {attr.multiple ? (
+                        <MultiValueSelect
+                          id={id}
+                          values={values}
+                          allowedValues={attr.allowed_values}
+                          onChange={setValues}
+                          data-testid={`application-attr-${attr.name}`}
+                        />
+                      ) : attr.allowed_values &&
+                        attr.allowed_values.length > 0 ? (
                         <Select value={value} onValueChange={set}>
                           <SelectTrigger
                             id={id}

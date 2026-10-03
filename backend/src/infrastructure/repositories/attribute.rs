@@ -47,6 +47,7 @@ struct AttributeDefinitionDAO {
     sync_to_keycloak: bool,
     editable_by: EditableByDAO,
     required: bool,
+    multiple: bool,
 }
 
 impl From<AttributeDefinitionDAO> for AttributeDefinition {
@@ -64,7 +65,15 @@ impl From<AttributeDefinitionDAO> for AttributeDefinition {
             row.editable_by.into(),
             row.required,
         )
+        .with_multiple(row.multiple)
     }
+}
+
+fn unchecked_values(values: Vec<String>) -> Vec<AttributeValue> {
+    values
+        .into_iter()
+        .map(AttributeValue::new_unchecked)
+        .collect()
 }
 
 // --- Repository ---
@@ -88,11 +97,11 @@ impl AttributeRepositoryPort for AttributeRepo {
         let default = input.default_value.as_ref().map(|v| v.as_str().to_string());
         let row = sqlx::query_as!(
             AttributeDefinitionDAO,
-            r#"INSERT INTO AttributeDefinition (name, description, allowed_values, default_value, sync_to_keycloak, editable_by, required)
-               VALUES ($1, $2, $3, $4, $5, $6, $7)
+            r#"INSERT INTO AttributeDefinition (name, description, allowed_values, default_value, sync_to_keycloak, editable_by, required, multiple)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                RETURNING name, description, allowed_values, default_value,
                          sync_to_keycloak,
-                         editable_by AS "editable_by: EditableByDAO", required"#,
+                         editable_by AS "editable_by: EditableByDAO", required, multiple"#,
             input.name.as_str(),
             input.description.as_deref(),
             allowed.as_deref(),
@@ -100,6 +109,7 @@ impl AttributeRepositoryPort for AttributeRepo {
             input.sync_to_keycloak,
             editable_by as EditableByDAO,
             input.required,
+            input.multiple,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -121,11 +131,12 @@ impl AttributeRepositoryPort for AttributeRepo {
             AttributeDefinitionDAO,
             r#"UPDATE AttributeDefinition
                SET description = $2, allowed_values = $3, default_value = $4,
-                   sync_to_keycloak = $5, editable_by = $6, required = $7
+                   sync_to_keycloak = $5, editable_by = $6, required = $7,
+                   multiple = $8
                WHERE name = $1
                RETURNING name, description, allowed_values, default_value,
                          sync_to_keycloak,
-                         editable_by AS "editable_by: EditableByDAO", required"#,
+                         editable_by AS "editable_by: EditableByDAO", required, multiple"#,
             name.as_str(),
             input.description.as_deref(),
             allowed.as_deref(),
@@ -133,6 +144,7 @@ impl AttributeRepositoryPort for AttributeRepo {
             input.sync_to_keycloak,
             editable_by as EditableByDAO,
             input.required,
+            input.multiple,
         )
         .fetch_one(&self.pool)
         .await?;
@@ -157,7 +169,7 @@ impl AttributeRepositoryPort for AttributeRepo {
             AttributeDefinitionDAO,
             r#"SELECT name, description, allowed_values, default_value,
                       sync_to_keycloak,
-                      editable_by AS "editable_by: EditableByDAO", required
+                      editable_by AS "editable_by: EditableByDAO", required, multiple
                FROM AttributeDefinition WHERE name = $1"#,
             name.as_str(),
         )
@@ -171,7 +183,7 @@ impl AttributeRepositoryPort for AttributeRepo {
             AttributeDefinitionDAO,
             r#"SELECT name, description, allowed_values, default_value,
                       sync_to_keycloak,
-                      editable_by AS "editable_by: EditableByDAO", required
+                      editable_by AS "editable_by: EditableByDAO", required, multiple
                FROM AttributeDefinition ORDER BY name"#
         )
         .fetch_all(&self.pool)
@@ -183,16 +195,17 @@ impl AttributeRepositoryPort for AttributeRepo {
         &self,
         user_id: &PersonId,
         name: &AttributeName,
-        value: &AttributeValue,
+        values: &[AttributeValue],
     ) -> Result<(), RepositoryError> {
+        let values: Vec<String> = values.iter().map(|v| v.as_str().to_string()).collect();
         sqlx::query!(
-            r#"INSERT INTO MemberAttribute (user_id, attribute_name, value)
+            r#"INSERT INTO MemberAttribute (user_id, attribute_name, value_list)
                VALUES ($1, $2, $3)
                ON CONFLICT (user_id, attribute_name) DO UPDATE
-                 SET value = EXCLUDED.value, updated_at = NOW()"#,
+                 SET value_list = EXCLUDED.value_list, updated_at = NOW()"#,
             user_id.0,
             name.as_str(),
-            value.as_str(),
+            &values,
         )
         .execute(&self.pool)
         .await?;
@@ -219,7 +232,7 @@ impl AttributeRepositoryPort for AttributeRepo {
         user_id: &PersonId,
     ) -> Result<Vec<MemberAttribute>, RepositoryError> {
         let rows = sqlx::query!(
-            r#"SELECT user_id, attribute_name, value
+            r#"SELECT user_id, attribute_name, value_list
                FROM MemberAttribute
                WHERE user_id = $1
                ORDER BY attribute_name"#,
@@ -232,7 +245,7 @@ impl AttributeRepositoryPort for AttributeRepo {
             .map(|r| MemberAttribute {
                 user_id: PersonId(r.user_id),
                 name: AttributeName::new_unchecked(r.attribute_name),
-                value: AttributeValue::new_unchecked(r.value),
+                values: unchecked_values(r.value_list),
             })
             .collect())
     }
@@ -240,16 +253,16 @@ impl AttributeRepositoryPort for AttributeRepo {
     async fn fetch_all_values_for(
         &self,
         name: &AttributeName,
-    ) -> Result<Vec<(PersonId, AttributeValue)>, RepositoryError> {
+    ) -> Result<Vec<(PersonId, Vec<AttributeValue>)>, RepositoryError> {
         let rows = sqlx::query!(
-            "SELECT user_id, value FROM MemberAttribute WHERE attribute_name = $1",
+            "SELECT user_id, value_list FROM MemberAttribute WHERE attribute_name = $1",
             name.as_str(),
         )
         .fetch_all(&self.pool)
         .await?;
         Ok(rows
             .into_iter()
-            .map(|r| (PersonId(r.user_id), AttributeValue::new_unchecked(r.value)))
+            .map(|r| (PersonId(r.user_id), unchecked_values(r.value_list)))
             .collect())
     }
 }

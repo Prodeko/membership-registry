@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO AttributeDefinition (name, description, allowed_values, default_value, sync_to_keycloak, editable_by, required)\n               VALUES ($1, $2, $3, $4, $5, $6, $7)\n               RETURNING name, description, allowed_values, default_value,\n                         sync_to_keycloak,\n                         editable_by AS \"editable_by: EditableByDAO\", required",
+  "query": "INSERT INTO AttributeDefinition (name, description, allowed_values, default_value, sync_to_keycloak, editable_by, required, multiple)\n               VALUES ($1, $2, $3, $4, $5, $6, $7, $8)\n               RETURNING name, description, allowed_values, default_value,\n                         sync_to_keycloak,\n                         editable_by AS \"editable_by: EditableByDAO\", required, multiple",
   "describe": {
     "columns": [
       {
@@ -90,6 +90,17 @@
             "name": "required"
           }
         }
+      },
+      {
+        "ordinal": 7,
+        "name": "multiple",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attributedefinition",
+            "name": "multiple"
+          }
+        }
       }
     ],
     "parameters": {
@@ -111,6 +122,7 @@
             }
           }
         },
+        "Bool",
         "Bool"
       ]
     },
@@ -121,8 +133,9 @@
       true,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "724c655de101b0d7337f675c5a779ac2df586d4189c8433d55fb9c636400c444"
+  "hash": "325c7e55e129729d68b4363450941753bd7f32ea7c45f8b1c12fe23263e03474"
 }

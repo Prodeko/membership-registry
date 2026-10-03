@@ -128,11 +128,20 @@ pub struct AttributeDefinition {
     /// Members must hold a value for this attribute: application forms can't
     /// be submitted without it and members can't clear it themselves.
     required: bool,
+    /// Members may hold several values at once (a multichoice attribute).
+    /// Single-valued attributes hold exactly one.
+    multiple: bool,
 }
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum AttributeValidationError {
-    NotInAllowedValues,
+    /// A member value must have at least one element; clearing is a
+    /// separate operation.
+    Empty,
+    /// More than one value for an attribute that isn't `multiple`.
+    TooManyValues,
+    DuplicateValue(AttributeValue),
+    NotInAllowedValues(AttributeValue),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -171,6 +180,7 @@ impl AttributeDefinition {
             sync_to_keycloak,
             editable_by,
             required,
+            multiple: false,
         })
     }
 
@@ -194,7 +204,15 @@ impl AttributeDefinition {
             sync_to_keycloak,
             editable_by,
             required,
+            multiple: false,
         }
+    }
+
+    /// Marks the definition multichoice. Kept off the constructors so that
+    /// the many single-valued call sites don't grow another positional flag.
+    pub fn with_multiple(mut self, multiple: bool) -> Self {
+        self.multiple = multiple;
+        self
     }
 
     pub fn name(&self) -> &AttributeName {
@@ -225,12 +243,30 @@ impl AttributeDefinition {
         self.required
     }
 
-    pub fn validate(&self, value: &AttributeValue) -> Result<(), AttributeValidationError> {
-        match &self.allowed_values {
-            None => Ok(()),
-            Some(allowed) if allowed.iter().any(|v| v == value) => Ok(()),
-            Some(_) => Err(AttributeValidationError::NotInAllowedValues),
+    pub fn multiple(&self) -> bool {
+        self.multiple
+    }
+
+    /// Validates a complete set of values for one member: non-empty, at most
+    /// one unless `multiple`, no duplicates, and each within `allowed_values`.
+    pub fn validate(&self, values: &[AttributeValue]) -> Result<(), AttributeValidationError> {
+        if values.is_empty() {
+            return Err(AttributeValidationError::Empty);
         }
+        if !self.multiple && values.len() > 1 {
+            return Err(AttributeValidationError::TooManyValues);
+        }
+        for (i, value) in values.iter().enumerate() {
+            if values[..i].contains(value) {
+                return Err(AttributeValidationError::DuplicateValue(value.clone()));
+            }
+            if let Some(allowed) = &self.allowed_values {
+                if !allowed.contains(value) {
+                    return Err(AttributeValidationError::NotInAllowedValues(value.clone()));
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -238,7 +274,19 @@ impl AttributeDefinition {
 pub struct MemberAttribute {
     pub user_id: PersonId,
     pub name: AttributeName,
-    pub value: AttributeValue,
+    /// Never empty; exactly one element unless the definition is `multiple`.
+    pub values: Vec<AttributeValue>,
+}
+
+/// Order-insensitive equality of two value lists. Keycloak keeps values in
+/// insertion order, but the registry doesn't treat order as meaningful, so
+/// drift detection must not flag a reordering as a mismatch.
+pub fn same_values(a: &[AttributeValue], b: &[AttributeValue]) -> bool {
+    let mut a: Vec<&str> = a.iter().map(AttributeValue::as_str).collect();
+    let mut b: Vec<&str> = b.iter().map(AttributeValue::as_str).collect();
+    a.sort_unstable();
+    b.sort_unstable();
+    a == b
 }
 
 /// One observed disagreement between the registry and Keycloak for a single
@@ -250,7 +298,7 @@ pub enum DriftEntry {
         user_id: PersonId,
         idp_subject: IdpSubject,
         attribute: AttributeName,
-        value: AttributeValue,
+        values: Vec<AttributeValue>,
     },
     /// Registry has a value but the user has no linked identity provider, so
     /// no KC subject exists to compare against. These cannot be auto-synced
@@ -258,21 +306,21 @@ pub enum DriftEntry {
     RegistryUnlinked {
         user_id: PersonId,
         attribute: AttributeName,
-        value: AttributeValue,
+        values: Vec<AttributeValue>,
     },
     /// Keycloak has a value the registry doesn't track for any linked user.
     KeycloakOnly {
         idp_subject: IdpSubject,
         attribute: AttributeName,
-        value: AttributeValue,
+        values: Vec<AttributeValue>,
     },
-    /// Both sides have a value but they disagree.
+    /// Both sides have values but they disagree (compared as sets).
     ValueMismatch {
         user_id: PersonId,
         idp_subject: IdpSubject,
         attribute: AttributeName,
-        registry_value: AttributeValue,
-        keycloak_value: AttributeValue,
+        registry_values: Vec<AttributeValue>,
+        keycloak_values: Vec<AttributeValue>,
     },
     /// Keycloak holds more than one value for an attribute the registry
     /// treats as single-valued. The registry can't safely overwrite without
@@ -372,7 +420,7 @@ mod tests {
             false,
         )
         .unwrap();
-        assert!(def.validate(&av("anything")).is_ok());
+        assert!(def.validate(&[av("anything")]).is_ok());
     }
 
     #[test]
@@ -387,11 +435,51 @@ mod tests {
             false,
         )
         .unwrap();
-        assert!(def.validate(&av("IV")).is_ok());
+        assert!(def.validate(&[av("IV")]).is_ok());
         assert_eq!(
-            def.validate(&av("V")),
-            Err(AttributeValidationError::NotInAllowedValues)
+            def.validate(&[av("V")]),
+            Err(AttributeValidationError::NotInAllowedValues(av("V")))
         );
+    }
+
+    #[test]
+    fn validate_value_lists() {
+        use AttributeValidationError::*;
+        let languages = |multiple: bool| {
+            AttributeDefinition::new(
+                AttributeName::new("languages").unwrap(),
+                None,
+                Some(vec![av("fi"), av("sv"), av("en")]),
+                None,
+                false,
+                EditableBy::Both,
+                false,
+            )
+            .unwrap()
+            .with_multiple(multiple)
+        };
+        // (multiple, values, expected)
+        let cases: &[(bool, &[&str], Result<(), AttributeValidationError>)] = &[
+            (true, &[], Err(Empty)),
+            (false, &["fi", "en"], Err(TooManyValues)),
+            (true, &["fi", "en"], Ok(())),
+            (true, &["fi", "de"], Err(NotInAllowedValues(av("de")))),
+            (true, &["fi", "fi"], Err(DuplicateValue(av("fi")))),
+        ];
+        for (multiple, values, expected) in cases {
+            let values: Vec<_> = values.iter().map(|v| av(v)).collect();
+            assert_eq!(
+                &languages(*multiple).validate(&values),
+                expected,
+                "multiple={multiple} {values:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn same_values_ignores_order() {
+        assert!(same_values(&[av("fi"), av("en")], &[av("en"), av("fi")]));
+        assert!(!same_values(&[av("fi")], &[av("fi"), av("en")]));
     }
 
     #[test]

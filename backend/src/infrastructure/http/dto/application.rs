@@ -70,7 +70,7 @@ pub struct ApplicationWithMemberDTO {
     pub status: ApplicationStatusDTO,
     /// The applicant's current member attribute values, keyed by name.
     /// Current values, not a snapshot from when the application was made.
-    pub attributes: BTreeMap<String, String>,
+    pub attributes: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -94,7 +94,8 @@ pub struct ApplicationTargetableRoleDTO {
 #[ts(export, rename = "ApplicationFormAttribute")]
 pub struct ApplicationFormAttributeDTO {
     pub name: String,
-    pub value: String,
+    /// One element unless the attribute is `multiple`.
+    pub values: Vec<String>,
 }
 
 #[derive(Deserialize, Debug, TS, Validate)]

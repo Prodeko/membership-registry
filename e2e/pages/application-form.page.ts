@@ -40,6 +40,18 @@ export class ApplicationFormPage {
     }
   }
 
+  /** Pick each of `values` in a multichoice attribute's selector. */
+  async chooseMany(name: string, values: string[]): Promise<void> {
+    const input = this.page
+      .getByTestId(`application-attr-${name}`)
+      .getByRole("combobox");
+    for (const value of values) {
+      await input.click();
+      await this.page.getByRole("option", { name: value, exact: true }).click();
+    }
+    await input.press("Escape");
+  }
+
   async submit(): Promise<void> {
     await this.page.getByTestId("submit-application-button").click();
   }

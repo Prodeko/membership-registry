@@ -107,7 +107,8 @@
     "not_set_option": "— not set —",
     "not_set_placeholder": "Not set",
     "clear": "Clear",
-    "required": "Required"
+    "required": "Required",
+    "multi_add_placeholder": "Type a value and press Enter"
   },
   "application": {
     "form": {

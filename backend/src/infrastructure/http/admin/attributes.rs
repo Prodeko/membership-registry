@@ -20,7 +20,7 @@ use crate::{
     domain::{AttributeName, AttributeValue, Patch, PersonId},
     infrastructure::http::{
         dto::attribute::{
-            editable_for_admin, parse_allowed_values, AttributeDefinitionDTO,
+            editable_for_admin, parse_allowed_values, parse_values, AttributeDefinitionDTO,
             AttributeSyncStatusDTO, CreateAttributeDefinitionDTO, MemberAttributeDTO,
             SetMemberAttributeDTO, UpdateAttributeDefinitionDTO,
         },
@@ -96,6 +96,7 @@ async fn create_definition(
                 sync_to_keycloak: body.sync_to_keycloak,
                 editable_by: body.editable_by.into(),
                 required: body.required.unwrap_or(false),
+                multiple: body.multiple.unwrap_or(false),
             },
             actor_id,
         )
@@ -145,6 +146,7 @@ async fn update_definition(
                 sync_to_keycloak: body.sync_to_keycloak,
                 editable_by: body.editable_by.map(Into::into),
                 required: body.required,
+                multiple: body.multiple,
             },
             actor_id,
         )
@@ -202,24 +204,30 @@ async fn get_member_attributes_admin(
     State(state): State<AppState>,
 ) -> ApiResult<Json<Vec<MemberAttributeDTO>>> {
     let defs = state.attribute_service.list_definitions().await?;
-    let values: HashMap<String, String> = state
+    let mut values: HashMap<String, Vec<AttributeValue>> = state
         .attribute_service
         .fetch_for_member(PersonId(user_id))
         .await?
         .into_iter()
-        .map(|a| (a.name.into_inner(), a.value.into_inner()))
+        .map(|a| (a.name.into_inner(), a.values))
         .collect();
 
     let dtos: Vec<MemberAttributeDTO> = defs
         .into_iter()
         .map(|d| MemberAttributeDTO {
             editable: editable_for_admin(&d),
-            value: values.get(d.name().as_str()).cloned(),
+            values: values
+                .remove(d.name().as_str())
+                .unwrap_or_default()
+                .into_iter()
+                .map(AttributeValue::into_inner)
+                .collect(),
             allowed_values: d
                 .allowed_values()
                 .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect()),
             description: d.description().map(str::to_string),
             required: d.required(),
+            multiple: d.multiple(),
             name: d.name().clone().into_inner(),
         })
         .collect();
@@ -235,7 +243,7 @@ async fn set_member_attribute_admin(
 ) -> ApiResult<StatusCode> {
     let actor_id = user_info.map(|u| u.user_id);
     let n = parse_name(name)?;
-    let v = AttributeValue::new(body.value).map_err(|_| ApiError::BadRequest)?;
+    let v = parse_values(body.values)?;
     state
         .attribute_service
         .set_as_admin(PersonId(user_id), &n, v, actor_id)

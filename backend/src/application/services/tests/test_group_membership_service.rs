@@ -65,7 +65,7 @@ fn pora_ticked(user_id: Uuid) -> Vec<MemberAttribute> {
     vec![MemberAttribute {
         user_id: PersonId(user_id),
         name: AttributeName::new(PORA_ATTRIBUTE).unwrap(),
-        value: AttributeValue::new("yes").unwrap(),
+        values: vec![AttributeValue::new("yes").unwrap()],
     }]
 }
 
@@ -288,6 +288,23 @@ async fn unticking_pora_removes_from_pora_only() {
     let user_id = Uuid::new_v4();
     let port = expect_calls(&[], &[(PORA_GROUP, EMAIL)]);
     let svc = build_service(port, user_id, Member::finnish(active(user_id), vec![]));
+    svc.sync_after_attribute_change(user_id, PORA_ATTRIBUTE)
+        .await;
+}
+
+#[tokio::test]
+async fn multichoice_attribute_meets_the_condition_when_any_value_matches() {
+    let user_id = Uuid::new_v4();
+    let port = expect_calls(&[(PORA_GROUP, EMAIL)], &[]);
+    let attributes = vec![MemberAttribute {
+        user_id: PersonId(user_id),
+        name: AttributeName::new(PORA_ATTRIBUTE).unwrap(),
+        values: vec![
+            AttributeValue::new("maybe").unwrap(),
+            AttributeValue::new("yes").unwrap(),
+        ],
+    }];
+    let svc = build_service(port, user_id, Member::finnish(active(user_id), attributes));
     svc.sync_after_attribute_change(user_id, PORA_ATTRIBUTE)
         .await;
 }

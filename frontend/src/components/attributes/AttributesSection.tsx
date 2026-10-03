@@ -4,6 +4,7 @@ import { MemberAttribute } from "@/common/types";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
+import MultiValueSelect from "./MultiValueSelect";
 import {
   Select,
   SelectContent,
@@ -16,7 +17,7 @@ const CLEAR_VALUE = "__attribute_clear__";
 
 interface Props {
   attributes: MemberAttribute[] | undefined;
-  onSet: (input: { name: string; value: string }) => void;
+  onSet: (input: { name: string; values: string[] }) => void;
   onDelete: (name: string) => void;
   isLoading?: boolean;
   isMutating?: boolean;
@@ -76,7 +77,7 @@ const AttributesSection = ({
 
 interface RowProps {
   attr: MemberAttribute;
-  onSet: (input: { name: string; value: string }) => void;
+  onSet: (input: { name: string; values: string[] }) => void;
   onDelete: (name: string) => void;
   isMutating: boolean;
   canClear: boolean;
@@ -90,9 +91,12 @@ const AttributeRow = ({
   canClear,
 }: RowProps) => {
   const { t } = useTranslation();
-  const [draft, setDraft] = useState<string>(attr.value ?? "");
+  // Single-valued attributes hold at most one element.
+  const current = attr.values[0] ?? "";
+  const [draft, setDraft] = useState<string>(current);
+  const [multiDraft, setMultiDraft] = useState<string[]>(attr.values);
 
-  const isDirty = draft !== (attr.value ?? "");
+  const isDirty = draft !== current;
   const hasEnum = attr.allowed_values && attr.allowed_values.length > 0;
 
   // Blur-triggered save only writes non-empty values. Clearing requires the
@@ -100,18 +104,35 @@ const AttributeRow = ({
   // existing value with no undo path.
   const saveOnBlur = () => {
     if (draft) {
-      onSet({ name: attr.name, value: draft });
+      onSet({ name: attr.name, values: [draft] });
     }
   };
 
   const handleSelectChange = (v: string) => {
     if (v === CLEAR_VALUE) {
       setDraft("");
-      if (attr.value) onDelete(attr.name);
+      if (current) onDelete(attr.name);
       return;
     }
     setDraft(v);
-    onSet({ name: attr.name, value: v });
+    onSet({ name: attr.name, values: [v] });
+  };
+
+  // Each add/remove saves immediately, like the single-value dropdown.
+  // Removing the last value clears the attribute, unless it can't be cleared:
+  // then the removal is undone (a fresh array re-syncs the selector).
+  const handleMultiChange = (values: string[]) => {
+    if (values.length === 0) {
+      if (!canClear) {
+        setMultiDraft([...multiDraft]);
+        return;
+      }
+      setMultiDraft([]);
+      if (attr.values.length > 0) onDelete(attr.name);
+      return;
+    }
+    setMultiDraft(values);
+    onSet({ name: attr.name, values });
   };
 
   return (
@@ -140,16 +161,26 @@ const AttributeRow = ({
 
       {!attr.editable ? (
         <p className="text-sm">
-          {attr.value ?? (
+          {attr.values.length > 0 ? (
+            attr.values.join(", ")
+          ) : (
             <span className="text-muted-foreground">
               {t("attributes.not_set")}
             </span>
           )}
         </p>
+      ) : attr.multiple ? (
+        <MultiValueSelect
+          id={`attr-${attr.name}`}
+          values={multiDraft}
+          allowedValues={attr.allowed_values}
+          onChange={handleMultiChange}
+          disabled={isMutating}
+        />
       ) : hasEnum ? (
         <div className="flex gap-2">
           <Select
-            value={attr.value ?? CLEAR_VALUE}
+            value={current || CLEAR_VALUE}
             onValueChange={handleSelectChange}
             disabled={isMutating}
           >
@@ -157,7 +188,7 @@ const AttributeRow = ({
               <SelectValue placeholder={t("attributes.not_set_placeholder")} />
             </SelectTrigger>
             <SelectContent className="z-[300]">
-              {(canClear || !attr.value) && (
+              {(canClear || !current) && (
                 <SelectItem value={CLEAR_VALUE}>
                   {t("attributes.not_set_option")}
                 </SelectItem>
@@ -182,7 +213,7 @@ const AttributeRow = ({
             disabled={isMutating}
             placeholder={t("attributes.not_set_placeholder")}
           />
-          {attr.value && canClear && (
+          {current && canClear && (
             <Button
               variant="outline"
               onClick={() => {

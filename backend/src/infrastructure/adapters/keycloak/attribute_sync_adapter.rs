@@ -76,9 +76,10 @@ impl AttributeSyncPort for KeycloakAttributeSyncAdapter {
         &self,
         subject: &IdpSubject,
         attr: &AttributeName,
-        value: &AttributeValue,
+        values: &[AttributeValue],
     ) -> Result<(), AttributeSyncError> {
-        let payload = serde_json::json!({ attr.as_str(): [value.as_str()] });
+        let values: Vec<&str> = values.iter().map(AttributeValue::as_str).collect();
+        let payload = serde_json::json!({ attr.as_str(): values });
         self.client
             .update_user_attributes(&subject.0, payload)
             .await

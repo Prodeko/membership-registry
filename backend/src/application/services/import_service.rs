@@ -10,8 +10,8 @@ use crate::application::services::errors::ServiceResult;
 use crate::application::services::member_service::MemberService;
 use crate::application::services::role_service::RoleService;
 use crate::domain::{
-    AttributeDefinition, AttributeName, AttributeValue, EditableBy, Email, NewPerson, Person,
-    PersonId, UpdatePersonData,
+    same_values, AttributeDefinition, AttributeName, AttributeValue, EditableBy, Email, NewPerson,
+    Person, PersonId, UpdatePersonData,
 };
 use uuid::Uuid;
 
@@ -80,7 +80,7 @@ pub(crate) struct MemberColumns {
     pub home_municipality: Option<usize>,
     pub language: Option<usize>,
     pub email_notifications: Option<usize>,
-    pub attributes: Vec<(usize, AttributeName)>,
+    pub attributes: Vec<(usize, AttributeDefinition)>,
 }
 
 pub(crate) fn resolve_member_columns(
@@ -96,9 +96,12 @@ pub(crate) fn resolve_member_columns(
         if KNOWN_MEMBER_COLUMNS.contains(&h.to_ascii_lowercase().as_str()) {
             continue;
         }
-        match AttributeName::new(h.clone()) {
-            Ok(name) if defs.iter().any(|d| d.name() == &name) => attributes.push((i, name)),
-            _ => unknown.push(h.clone()),
+        match AttributeName::new(h.clone())
+            .ok()
+            .and_then(|name| defs.iter().find(|d| d.name() == &name))
+        {
+            Some(def) => attributes.push((i, def.clone())),
+            None => unknown.push(h.clone()),
         }
     }
     if !unknown.is_empty() {
@@ -114,6 +117,43 @@ pub(crate) fn resolve_member_columns(
         email_notifications: idx_of("email_notifications"),
         attributes,
     })
+}
+
+/// Separates the values of a `multiple` attribute within one CSV cell, e.g.
+/// `fi; en`. Single-valued attributes take the cell verbatim, so their values
+/// may still contain the separator.
+pub(crate) const MULTI_VALUE_SEPARATOR: char = ';';
+
+/// Parses and validates one attribute cell (already known to be neither
+/// empty nor `null`) against its definition.
+pub(crate) fn parse_cell_values(
+    def: &AttributeDefinition,
+    raw: &str,
+) -> Result<Vec<AttributeValue>, String> {
+    let name = def.name().as_str();
+    let pieces: Vec<&str> = if def.multiple() {
+        raw.split(MULTI_VALUE_SEPARATOR)
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+            .collect()
+    } else {
+        vec![raw]
+    };
+    let values = pieces
+        .into_iter()
+        .map(|p| AttributeValue::new(p).map_err(|e| format!("invalid value for '{name}': {e:?}")))
+        .collect::<Result<Vec<_>, _>>()?;
+    def.validate(&values)
+        .map_err(|e| format!("value '{raw}' not allowed for '{name}': {e:?}"))?;
+    Ok(values)
+}
+
+fn display_values(values: &[AttributeValue]) -> String {
+    values
+        .iter()
+        .map(AttributeValue::as_str)
+        .collect::<Vec<_>>()
+        .join("; ")
 }
 
 pub(crate) fn cell(idx: Option<usize>, rec: &[String]) -> Option<&str> {
@@ -290,25 +330,18 @@ impl ImportService {
         }
 
         // Attribute cells: empty = no-op, "null" = clear, else validated.
-        for (idx, name) in &cols.attributes {
+        for (idx, def) in &cols.attributes {
             let value = &rec[*idx];
             if value.is_empty() || value == "null" {
                 continue;
             }
-            let def = defs
-                .iter()
-                .find(|d| d.name() == name)
-                .ok_or_else(|| format!("unknown attribute '{}'", name.as_str()))?;
             if def.editable_by() == EditableBy::User {
                 return Err(format!(
                     "attribute '{}' is user-editable and cannot be set via import",
-                    name.as_str()
+                    def.name().as_str()
                 ));
             }
-            let parsed = AttributeValue::new(value.clone())
-                .map_err(|e| format!("invalid value for '{}': {e:?}", name.as_str()))?;
-            def.validate(&parsed)
-                .map_err(|_| format!("value '{value}' not allowed for '{}'", name.as_str()))?;
+            parse_cell_values(def, value)?;
         }
 
         if let Some(v) = cell(cols.email_notifications, rec) {
@@ -400,7 +433,8 @@ impl ImportService {
                 .fetch_for_member(current.id.clone())
                 .await
                 .map_err(|e| format!("attribute lookup failed: {e:?}"))?;
-            for (idx, name) in &cols.attributes {
+            for (idx, def) in &cols.attributes {
+                let name = def.name();
                 let value = rec[*idx].as_str();
                 if value.is_empty() {
                     continue;
@@ -408,16 +442,25 @@ impl ImportService {
                 let old = current_values
                     .iter()
                     .find(|a| &a.name == name)
-                    .map(|a| a.value.as_str());
+                    .map(|a| a.values.as_slice());
                 if value == "null" {
                     if let Some(old) = old {
-                        changes.push(format!("{}: {old} → (cleared)", name.as_str()));
+                        changes.push(format!(
+                            "{}: {} → (cleared)",
+                            name.as_str(),
+                            display_values(old)
+                        ));
                     }
-                } else if old != Some(value) {
+                } else {
+                    let new = parse_cell_values(def, value)?;
+                    if old.is_some_and(|old| same_values(old, &new)) {
+                        continue;
+                    }
                     changes.push(format!(
-                        "{}: {} → {value}",
+                        "{}: {} → {}",
                         name.as_str(),
-                        old.unwrap_or(EMPTY)
+                        old.map(display_values).as_deref().unwrap_or(EMPTY),
+                        display_values(&new)
                     ));
                 }
             }
@@ -607,7 +650,8 @@ impl ImportService {
         rec: &[String],
         actor: Option<Uuid>,
     ) -> Result<(), String> {
-        for (idx, name) in &cols.attributes {
+        for (idx, def) in &cols.attributes {
+            let name = def.name();
             let value = &rec[*idx];
             if value.is_empty() {
                 continue;
@@ -618,8 +662,7 @@ impl ImportService {
                     .await
                     .map_err(|e| format!("clear '{}' failed: {e:?}", name.as_str()))?;
             } else {
-                let parsed = AttributeValue::new(value.clone())
-                    .map_err(|e| format!("invalid value for '{}': {e:?}", name.as_str()))?;
+                let parsed = parse_cell_values(def, value)?;
                 self.attribute_service
                     .set_as_admin(user_id.clone(), name, parsed, actor)
                     .await
@@ -1006,11 +1049,11 @@ fn resolve_attribute_columns(headers: &[String]) -> Result<AttributeColumns, Str
     })
 }
 
-/// One member's value for one attribute; `value: None` means clear.
+/// One member's values for one attribute; `values: None` means clear.
 struct AttributeRowData {
     user_id: PersonId,
     name: AttributeName,
-    value: Option<AttributeValue>,
+    values: Option<Vec<AttributeValue>>,
 }
 
 impl ImportService {
@@ -1046,21 +1089,15 @@ impl ImportService {
             .map_err(|e| format!("lookup failed: {e:?}"))?
             .ok_or_else(|| "no member with this email".to_string())?;
 
-        let value = match rec[cols.value].trim() {
+        let values = match rec[cols.value].trim() {
             "" => return Err("value required; use null to clear".into()),
             "null" => None,
-            v => {
-                let parsed = AttributeValue::new(v)
-                    .map_err(|e| format!("invalid value for '{raw_name}': {e:?}"))?;
-                def.validate(&parsed)
-                    .map_err(|_| format!("value '{v}' not allowed for '{raw_name}'"))?;
-                Some(parsed)
-            }
+            v => Some(parse_cell_values(def, v)?),
         };
         Ok(AttributeRowData {
             user_id: member.id,
             name,
-            value,
+            values,
         })
     }
 
@@ -1076,22 +1113,25 @@ impl ImportService {
         let old = current_values
             .iter()
             .find(|a| a.name == data.name)
-            .map(|a| a.value.as_str());
+            .map(|a| a.values.as_slice());
         let name = data.name.as_str();
-        Ok(
-            match (data.value.as_ref().map(AttributeValue::as_str), old) {
-                (Some(new), Some(old)) if new == old => (RowAction::Unchanged, vec![]),
-                (Some(new), Some(old)) => {
-                    (RowAction::Update, vec![format!("{name}: {old} → {new}")])
-                }
-                (Some(_), None) => (RowAction::Create, vec![]),
-                (None, Some(old)) => (
-                    RowAction::Update,
-                    vec![format!("{name}: {old} → (cleared)")],
-                ),
-                (None, None) => (RowAction::Unchanged, vec![]),
-            },
-        )
+        Ok(match (data.values.as_deref(), old) {
+            (Some(new), Some(old)) if same_values(new, old) => (RowAction::Unchanged, vec![]),
+            (Some(new), Some(old)) => (
+                RowAction::Update,
+                vec![format!(
+                    "{name}: {} → {}",
+                    display_values(old),
+                    display_values(new)
+                )],
+            ),
+            (Some(_), None) => (RowAction::Create, vec![]),
+            (None, Some(old)) => (
+                RowAction::Update,
+                vec![format!("{name}: {} → (cleared)", display_values(old))],
+            ),
+            (None, None) => (RowAction::Unchanged, vec![]),
+        })
     }
 
     pub async fn preview_attributes(&self, bytes: &[u8]) -> ServiceResult<AttributeImportPreview> {
@@ -1177,13 +1217,13 @@ impl ImportService {
                     Err(e) => (RowOutcome::Skipped(e), vec![]),
                     Ok((RowAction::Unchanged, _)) => (RowOutcome::Unchanged, vec![]),
                     Ok((action, changes)) => {
-                        let write = match &data.value {
-                            Some(v) => {
+                        let write = match &data.values {
+                            Some(vs) => {
                                 self.attribute_service
                                     .set_as_admin(
                                         data.user_id.clone(),
                                         &data.name,
-                                        v.clone(),
+                                        vs.clone(),
                                         actor,
                                     )
                                     .await

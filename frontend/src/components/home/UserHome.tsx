@@ -119,7 +119,7 @@ const UserHome = () => {
   );
   // Admin-only attributes are left out: the member couldn't fill them anyway.
   const missingAttributes = (myAttributes ?? []).filter(
-    (a) => a.required && a.editable && !a.value,
+    (a) => a.required && a.editable && a.values.length === 0,
   );
 
   if (isMemberLoading || isAppsLoading) {

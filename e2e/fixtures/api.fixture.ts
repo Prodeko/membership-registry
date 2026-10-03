@@ -222,6 +222,7 @@ export class AdminApiHelper {
     sync_to_keycloak?: boolean;
     editable_by?: "admin" | "user" | "both";
     required?: boolean;
+    multiple?: boolean;
   }): Promise<void> {
     const resp = await this.request("POST", "/admin/attributes", {
       name: input.name,
@@ -233,6 +234,7 @@ export class AdminApiHelper {
       sync_to_keycloak: input.sync_to_keycloak ?? false,
       editable_by: input.editable_by ?? "admin",
       required: input.required ?? false,
+      multiple: input.multiple ?? false,
     });
     if (!resp.ok && resp.status !== 409) {
       throw new Error(

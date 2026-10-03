@@ -64,6 +64,7 @@ const AttributeFormModal = ({
     initial?.editable_by ?? "admin",
   );
   const [required, setRequired] = useState(initial?.required ?? false);
+  const [multiple, setMultiple] = useState(initial?.multiple ?? false);
   const [nameError, setNameError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,6 +76,7 @@ const AttributeFormModal = ({
       setSyncToKeycloak(initial?.sync_to_keycloak ?? true);
       setEditableBy(initial?.editable_by ?? "admin");
       setRequired(initial?.required ?? false);
+      setMultiple(initial?.multiple ?? false);
       setNameError(null);
     }
   }, [open, initial]);
@@ -101,6 +103,7 @@ const AttributeFormModal = ({
         sync_to_keycloak: syncToKeycloak,
         editable_by: editableBy,
         required,
+        multiple,
       } satisfies CreateAttributeDefinition);
     } else {
       // Build a sparse Patch payload: omit fields that match the loaded
@@ -135,6 +138,9 @@ const AttributeFormModal = ({
       }
       if (required !== (initial?.required ?? false)) {
         patch.required = required;
+      }
+      if (multiple !== (initial?.multiple ?? false)) {
+        patch.multiple = multiple;
       }
       onSubmit(patch);
     }
@@ -283,6 +289,25 @@ const AttributeFormModal = ({
                 can't be submitted without a value, members can't clear it, and
                 members missing it are asked to fill it on their home page.
                 Admin-only attributes are never prompted to members.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="attr-multiple"
+              checked={multiple}
+              onCheckedChange={(c) => setMultiple(c === true)}
+              className="mt-0.5"
+            />
+            <div>
+              <Label htmlFor="attr-multiple">Multiple values</Label>
+              <p className="text-xs text-muted-foreground">
+                Members can hold several values at once, e.g. several languages.
+                With allowed values this is a multichoice; without, any number
+                of free-text values. Turning this off is refused while any
+                member holds more than one value. In CSV imports, separate
+                values with a semicolon (<code>fi; en</code>).
               </p>
             </div>
           </div>

@@ -3,6 +3,7 @@ use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::domain::{AttributeDefinition, AttributeValue, DriftEntry, EditableBy};
+use crate::infrastructure::http::errors::ApiError;
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, TS, PartialEq, Eq)]
 #[ts(export, rename = "EditableBy")]
@@ -43,6 +44,7 @@ pub struct AttributeDefinitionDTO {
     pub sync_to_keycloak: bool,
     pub editable_by: EditableByDTO,
     pub required: bool,
+    pub multiple: bool,
 }
 
 impl From<AttributeDefinition> for AttributeDefinitionDTO {
@@ -55,6 +57,7 @@ impl From<AttributeDefinition> for AttributeDefinitionDTO {
             sync_to_keycloak: d.sync_to_keycloak(),
             editable_by: d.editable_by().into(),
             required: d.required(),
+            multiple: d.multiple(),
             description: d.description().map(str::to_string),
             allowed_values: allowed,
             default_value: default,
@@ -75,6 +78,9 @@ pub struct CreateAttributeDefinitionDTO {
     #[serde(default)]
     #[ts(optional)]
     pub required: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub multiple: Option<bool>,
 }
 
 /// Patch DTO for updating a definition. Each field's wire semantics:
@@ -102,23 +108,30 @@ pub struct UpdateAttributeDefinitionDTO {
     #[serde(default)]
     #[ts(optional)]
     pub required: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub multiple: Option<bool>,
 }
 
 #[derive(Debug, Serialize, TS)]
 #[ts(export, rename = "MemberAttribute")]
 pub struct MemberAttributeDTO {
     pub name: String,
-    pub value: Option<String>,
+    /// Empty when the member holds no value.
+    pub values: Vec<String>,
     pub editable: bool,
     pub allowed_values: Option<Vec<String>>,
     pub description: Option<String>,
     pub required: bool,
+    pub multiple: bool,
 }
 
 #[derive(Debug, Deserialize, TS)]
 #[ts(export, rename = "SetMemberAttribute")]
 pub struct SetMemberAttributeDTO {
-    pub value: String,
+    /// Non-empty; one element unless the attribute is `multiple`. Clearing
+    /// is a DELETE.
+    pub values: Vec<String>,
 }
 
 /// Tagged-union wire form for a single drift observation.
@@ -130,24 +143,24 @@ pub enum DriftEntryDTO {
         user_id: Uuid,
         idp_subject: String,
         attribute: String,
-        value: String,
+        values: Vec<String>,
     },
     RegistryUnlinked {
         user_id: Uuid,
         attribute: String,
-        value: String,
+        values: Vec<String>,
     },
     KeycloakOnly {
         idp_subject: String,
         attribute: String,
-        value: String,
+        values: Vec<String>,
     },
     ValueMismatch {
         user_id: Uuid,
         idp_subject: String,
         attribute: String,
-        registry_value: String,
-        keycloak_value: String,
+        registry_values: Vec<String>,
+        keycloak_values: Vec<String>,
     },
     KeycloakMultivalued {
         idp_subject: String,
@@ -163,43 +176,43 @@ impl From<DriftEntry> for DriftEntryDTO {
                 user_id,
                 idp_subject,
                 attribute,
-                value,
+                values,
             } => Self::RegistryOnly {
                 user_id: user_id.0,
                 idp_subject: idp_subject.0,
                 attribute: attribute.into_inner(),
-                value: value.into_inner(),
+                values: into_strings(values),
             },
             DriftEntry::RegistryUnlinked {
                 user_id,
                 attribute,
-                value,
+                values,
             } => Self::RegistryUnlinked {
                 user_id: user_id.0,
                 attribute: attribute.into_inner(),
-                value: value.into_inner(),
+                values: into_strings(values),
             },
             DriftEntry::KeycloakOnly {
                 idp_subject,
                 attribute,
-                value,
+                values,
             } => Self::KeycloakOnly {
                 idp_subject: idp_subject.0,
                 attribute: attribute.into_inner(),
-                value: value.into_inner(),
+                values: into_strings(values),
             },
             DriftEntry::ValueMismatch {
                 user_id,
                 idp_subject,
                 attribute,
-                registry_value,
-                keycloak_value,
+                registry_values,
+                keycloak_values,
             } => Self::ValueMismatch {
                 user_id: user_id.0,
                 idp_subject: idp_subject.0,
                 attribute: attribute.into_inner(),
-                registry_value: registry_value.into_inner(),
-                keycloak_value: keycloak_value.into_inner(),
+                registry_values: into_strings(registry_values),
+                keycloak_values: into_strings(keycloak_values),
             },
             DriftEntry::KeycloakMultivalued {
                 idp_subject,
@@ -208,10 +221,14 @@ impl From<DriftEntry> for DriftEntryDTO {
             } => Self::KeycloakMultivalued {
                 idp_subject: idp_subject.0,
                 attribute: attribute.into_inner(),
-                values: values.into_iter().map(AttributeValue::into_inner).collect(),
+                values: into_strings(values),
             },
         }
     }
+}
+
+fn into_strings(values: Vec<AttributeValue>) -> Vec<String> {
+    values.into_iter().map(AttributeValue::into_inner).collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, TS)]
@@ -287,13 +304,13 @@ mod tests {
         let entry = DriftEntry::RegistryUnlinked {
             user_id: PersonId(uuid::Uuid::nil()),
             attribute: AttributeName::new("xq-year").unwrap(),
-            value: av("IV"),
+            values: vec![av("IV")],
         };
         let dto: DriftEntryDTO = entry.into();
         let json = serde_json::to_value(&dto).unwrap();
         assert_eq!(json["type"], "registry_unlinked");
         assert_eq!(json["attribute"], "xq-year");
-        assert_eq!(json["value"], "IV");
+        assert_eq!(json["values"], serde_json::json!(["IV"]));
     }
 
     #[test]
@@ -302,14 +319,14 @@ mod tests {
             user_id: PersonId(uuid::Uuid::nil()),
             idp_subject: IdpSubject("kc-1".to_string()),
             attribute: AttributeName::new("xq-year").unwrap(),
-            registry_value: av("IV"),
-            keycloak_value: av("II"),
+            registry_values: vec![av("IV")],
+            keycloak_values: vec![av("II")],
         };
         let dto: DriftEntryDTO = entry.into();
         let json = serde_json::to_value(&dto).unwrap();
         assert_eq!(json["type"], "value_mismatch");
-        assert_eq!(json["registry_value"], "IV");
-        assert_eq!(json["keycloak_value"], "II");
+        assert_eq!(json["registry_values"], serde_json::json!(["IV"]));
+        assert_eq!(json["keycloak_values"], serde_json::json!(["II"]));
     }
 
     #[test]
@@ -317,7 +334,7 @@ mod tests {
         let entries: Vec<DriftEntry> = vec![DriftEntry::KeycloakOnly {
             idp_subject: IdpSubject("kc-1".to_string()),
             attribute: AttributeName::new("xq-year").unwrap(),
-            value: av("IV"),
+            values: vec![av("IV")],
         }];
         let dto: AttributeSyncStatusDTO = entries.into();
         let json = serde_json::to_value(&dto).unwrap();
@@ -369,6 +386,15 @@ pub fn editable_for_self(d: &AttributeDefinition) -> bool {
 /// passed through verbatim. Callers that treat empty as "no constraint" must
 /// collapse `Some(vec![])` to `None` themselves — `AttributeDefinition::new`
 /// rejects it as invalid.
+/// Parse a wire-level list of member values. Element validity only — the
+/// count and allowed-values rules belong to the definition, checked in the
+/// service.
+pub fn parse_values(raw: Vec<String>) -> Result<Vec<AttributeValue>, ApiError> {
+    raw.into_iter()
+        .map(|v| AttributeValue::new(v).map_err(|_| ApiError::BadRequest))
+        .collect()
+}
+
 pub fn parse_allowed_values(
     raw: Option<Vec<String>>,
 ) -> Result<Option<Vec<AttributeValue>>, crate::domain::InvalidAttributeValue> {

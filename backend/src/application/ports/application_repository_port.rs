@@ -23,7 +23,7 @@ pub struct ApplicationWithMember {
     pub application_text: Option<String>,
     pub status: ApplicationStatus,
     /// The applicant's current member attribute values, keyed by name.
-    pub attributes: BTreeMap<String, String>,
+    pub attributes: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Debug)]

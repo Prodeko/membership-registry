@@ -107,7 +107,8 @@
     "not_set_option": "— ei asetettu —",
     "not_set_placeholder": "Ei asetettu",
     "clear": "Tyhjennä",
-    "required": "Pakollinen"
+    "required": "Pakollinen",
+    "multi_add_placeholder": "Kirjoita arvo ja paina Enter"
   },
   "application": {
     "form": {

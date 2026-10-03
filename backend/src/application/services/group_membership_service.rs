@@ -101,10 +101,12 @@ impl MemberState {
             .language
             .as_ref()
             .is_none_or(|l| l.eq_ignore_ascii_case(&self.person.language));
+        // A multichoice attribute meets the condition when any of its values
+        // matches.
         let attribute_ok = rule.attribute.as_ref().is_none_or(|cond| {
-            self.attributes
-                .iter()
-                .any(|a| a.name.as_str() == cond.name && a.value.as_str() == cond.value)
+            self.attributes.iter().any(|a| {
+                a.name.as_str() == cond.name && a.values.iter().any(|v| v.as_str() == cond.value)
+            })
         });
         has_role && language_ok && attribute_ok
     }

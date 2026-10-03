@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT user_id, value FROM MemberAttribute WHERE attribute_name = $1",
+  "query": "SELECT user_id, value_list FROM MemberAttribute WHERE attribute_name = $1",
   "describe": {
     "columns": [
       {
@@ -16,12 +16,12 @@
       },
       {
         "ordinal": 1,
-        "name": "value",
-        "type_info": "Text",
+        "name": "value_list",
+        "type_info": "TextArray",
         "origin": {
           "Table": {
             "table": "memberattribute",
-            "name": "value"
+            "name": "value_list"
           }
         }
       }
@@ -36,5 +36,5 @@
       false
     ]
   },
-  "hash": "e4d78e1d6657c7dea92bd8cae83b4c61c0e1ff8f8053402bc235c7ccdbc2cea2"
+  "hash": "631e3666d81975fbd032efcbbb5d593d34f49b434bdf1f0695d436a0f3bf3401"
 }

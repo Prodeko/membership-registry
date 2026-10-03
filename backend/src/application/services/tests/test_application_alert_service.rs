@@ -46,11 +46,11 @@ fn queries_never() -> MockApplicationQueryPort {
     queries
 }
 
-fn holder(id: &PersonId, address: &str) -> (PersonId, AttributeValue) {
-    (id.clone(), AttributeValue::new(address).unwrap())
+fn holder(id: &PersonId, address: &str) -> (PersonId, Vec<AttributeValue>) {
+    (id.clone(), vec![AttributeValue::new(address).unwrap()])
 }
 
-fn holders_mock(holders: Vec<(PersonId, AttributeValue)>) -> MockAttributeRepositoryPort {
+fn holders_mock(holders: Vec<(PersonId, Vec<AttributeValue>)>) -> MockAttributeRepositoryPort {
     let mut attributes = MockAttributeRepositoryPort::new();
     attributes
         .expect_fetch_all_values_for()
