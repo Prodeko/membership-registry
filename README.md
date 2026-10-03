@@ -97,7 +97,7 @@ If both are unset the backend refuses to start. Keycloak itself also sends mail 
 
 ## Mailchimp configuration
 
-`MarketingListPort` syncs members tagged for marketing to a Mailchimp audience. Both variables must be set together, or both empty — a half-configuration makes the backend refuse to start.
+`MarketingListPort` keeps a Mailchimp audience in sync with membership: membership roles are the application-targetable roles (the ones members apply for and buy each year). Whenever such a role is granted, extended, renewed, deleted or expires, the user is subscribed (if they hold a membership role on that day and aren't a contact yet) or archived (if they no longer do). Members who unsubscribed themselves are never re-added, and only active members can use the profile page's subscribe button. Creating an account no longer subscribes anyone. `MAILCHIMP_API_KEY` and `MAILCHIMP_LIST_ID` must be set together, or both empty — a half-configuration makes the backend refuse to start.
 
 In `backend/.env`:
 

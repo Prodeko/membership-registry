@@ -20,7 +20,8 @@ impl From<SubscriptionState> for SubscriptionStateDTO {
             SubscriptionState::Subscribed => Self::Subscribed,
             SubscriptionState::Pending => Self::Pending,
             SubscriptionState::Unsubscribed => Self::Unsubscribed,
-            SubscriptionState::NotAContact => Self::NotAContact,
+            // To the user an archived contact is simply not on the list.
+            SubscriptionState::NotAContact | SubscriptionState::Archived => Self::NotAContact,
         }
     }
 }

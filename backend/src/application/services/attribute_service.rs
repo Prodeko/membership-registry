@@ -51,6 +51,7 @@ pub struct UpdateAttributeDefinitionPatch {
     pub default_value: Patch<AttributeValue>,
     pub sync_to_keycloak: Option<bool>,
     pub editable_by: Option<EditableBy>,
+    pub required: Option<bool>,
 }
 
 /// Per-provider outcome of a KC push initiated after a successful DB write.
@@ -184,6 +185,7 @@ impl AttributeService {
 
         let name_str = input.name.as_str().to_string();
         let editable_by = input.editable_by;
+        let required = input.required;
         let sync_flag = input.sync_to_keycloak;
 
         // DB first; KC mapper add is the side-effect that gets rolled back
@@ -221,6 +223,7 @@ impl AttributeService {
                 Some(serde_json::json!({
                     "sync_to_keycloak": sync_flag,
                     "editable_by": editable_by.as_str(),
+                    "required": required,
                 })),
             )
             .await;
@@ -252,6 +255,7 @@ impl AttributeService {
             .sync_to_keycloak
             .unwrap_or(existing.sync_to_keycloak());
         let editable_by = patch.editable_by.unwrap_or(existing.editable_by());
+        let required = patch.required.unwrap_or(existing.required());
 
         // Reject Some(empty) at the boundary so the domain invariant holds.
         if matches!(&allowed_values, Some(v) if v.is_empty()) {
@@ -295,6 +299,7 @@ impl AttributeService {
             default_value,
             sync_to_keycloak,
             editable_by,
+            required,
         };
         let updated = self.repo.update_definition(name, resolved).await?;
 
@@ -344,6 +349,7 @@ impl AttributeService {
                 Some(serde_json::json!({
                     "sync_to_keycloak": sync_to_keycloak,
                     "editable_by": editable_by.as_str(),
+                    "required": required,
                     "auto_pushed_applied": push_summary.as_ref().map(|s| s.applied),
                     "auto_pushed_failed": push_summary.as_ref().map(|s| s.failures.len()),
                 })),
@@ -550,8 +556,53 @@ impl AttributeService {
         if def.editable_by() == EditableBy::Admin {
             return Err(ServiceError::Forbidden);
         }
+        if def.required() {
+            return Err(ServiceError::Constraint(format!(
+                "attribute {:?} is required and cannot be cleared",
+                name.as_str()
+            )));
+        }
         let actor = Some(user_id.0);
         self.clear_inner(&def, user_id, actor, "self").await
+    }
+
+    /// The `required` attributes among `names` that the member would still
+    /// lack after `provided` is written: neither submitted now nor already
+    /// held.
+    pub async fn missing_required(
+        &self,
+        user_id: PersonId,
+        names: &[AttributeName],
+        provided: &[AttributeName],
+    ) -> ServiceResult<Vec<AttributeName>> {
+        let candidates: Vec<&AttributeName> =
+            names.iter().filter(|n| !provided.contains(n)).collect();
+        if candidates.is_empty() {
+            return Ok(Vec::new());
+        }
+        let required: HashSet<AttributeName> = self
+            .repo
+            .fetch_all_definitions()
+            .await?
+            .into_iter()
+            .filter(AttributeDefinition::required)
+            .map(|d| d.name().clone())
+            .collect();
+        if !candidates.iter().any(|n| required.contains(*n)) {
+            return Ok(Vec::new());
+        }
+        let held: HashSet<AttributeName> = self
+            .repo
+            .fetch_member_values(&user_id)
+            .await?
+            .into_iter()
+            .map(|a| a.name)
+            .collect();
+        Ok(candidates
+            .into_iter()
+            .filter(|n| required.contains(*n) && !held.contains(*n))
+            .cloned()
+            .collect())
     }
 
     pub async fn fetch_for_member(&self, user_id: PersonId) -> ServiceResult<Vec<MemberAttribute>> {

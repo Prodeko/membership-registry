@@ -15,6 +15,14 @@ pub struct RoleMembership {
     pub renewal_deadline: Option<NaiveDate>,
 }
 
+impl RoleMembership {
+    /// Whether the membership is in force on `date`: started, and not past
+    /// `valid_until` (inclusive). Mirrors the SQL used for "active" filters.
+    pub fn is_active_on(&self, date: NaiveDate) -> bool {
+        self.valid_from <= date && self.valid_until.is_none_or(|until| until >= date)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct RoleStats {
     pub name: RoleName,

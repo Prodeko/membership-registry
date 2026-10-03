@@ -51,7 +51,7 @@ async fn upsert_translation_valid_placeholders() {
             "welcome",
             "fi",
             "{name} got {role_name}",
-            "<p>{name}</p>",
+            "<p>{name}, expires in {expires_in} days ({valid_until})</p>",
             None,
         )
         .await;

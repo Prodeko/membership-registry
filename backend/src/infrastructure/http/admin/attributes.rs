@@ -95,6 +95,7 @@ async fn create_definition(
                 default_value,
                 sync_to_keycloak: body.sync_to_keycloak,
                 editable_by: body.editable_by.into(),
+                required: body.required.unwrap_or(false),
             },
             actor_id,
         )
@@ -143,6 +144,7 @@ async fn update_definition(
                 default_value: default_value_patch,
                 sync_to_keycloak: body.sync_to_keycloak,
                 editable_by: body.editable_by.map(Into::into),
+                required: body.required,
             },
             actor_id,
         )
@@ -217,6 +219,7 @@ async fn get_member_attributes_admin(
                 .allowed_values()
                 .map(|vs| vs.iter().map(|v| v.as_str().to_string()).collect()),
             description: d.description().map(str::to_string),
+            required: d.required(),
             name: d.name().clone().into_inner(),
         })
         .collect();

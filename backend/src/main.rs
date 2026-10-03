@@ -40,6 +40,7 @@ use application::{
         user_admin_port::UserAdminPort,
     },
     services::{
+        application_alert_service::ApplicationAlertService,
         application_digest_service::ApplicationDigestService,
         application_service::ApplicationService, attribute_service::AttributeService,
         audit_log_service::AuditLogService, authentication_service::AuthenticationService,
@@ -235,6 +236,8 @@ impl Services {
                     Arc::clone(port),
                     Arc::clone(&member_repo),
                     Arc::clone(&marketing_tag_repo),
+                    Arc::clone(&role_repo),
+                    Arc::clone(&targetable_roles),
                 ))
             });
 
@@ -251,7 +254,6 @@ impl Services {
             Arc::clone(&user_admin),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
-            marketing_service.clone(),
             Arc::clone(&attribute_service)
                 as Arc<
                     dyn crate::application::ports::attribute_bootstrap_port::AttributeBootstrapPort,
@@ -263,12 +265,20 @@ impl Services {
             Arc::clone(&role_sync),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
-        );
+        )
+        .with_marketing(marketing_service.clone());
         let role_group_service = RoleGroupService::new(
             Arc::clone(&role_group_repo),
             Arc::clone(&role_sync),
             Arc::clone(&auth_provider_repo),
             audit_log_service.clone(),
+        );
+        let application_alert_service = ApplicationAlertService::new(
+            Arc::clone(&application_queries),
+            Arc::clone(&attribute_repo),
+            Arc::clone(&role_repo),
+            email_port.clone(),
+            config.frontend_url.clone(),
         );
         let application_service = ApplicationService::new(
             application_commands,
@@ -278,6 +288,7 @@ impl Services {
             Arc::clone(&attribute_service),
             audit_log_service.clone(),
             notification_service.clone(),
+            application_alert_service,
         );
         let application_digest_service = ApplicationDigestService::new(
             Arc::clone(&application_queries),
@@ -285,6 +296,7 @@ impl Services {
             Arc::clone(&role_repo),
             email_port,
             config.frontend_url.clone(),
+            config.application_digest_stale_days,
         );
 
         let renewal_repo: Arc<dyn RoleRenewalRepositoryPort> = Arc::new(repo.role_renewal);
@@ -295,7 +307,8 @@ impl Services {
             Arc::clone(&auth_provider_repo),
             notification_service.clone(),
             audit_log_service.clone(),
-        );
+        )
+        .with_marketing(marketing_service.clone());
 
         let saved_filter_repo: Arc<dyn SavedFilterRepositoryPort> = Arc::new(repo.saved_filter);
         let saved_filter_service = SavedFilterService::new(saved_filter_repo);

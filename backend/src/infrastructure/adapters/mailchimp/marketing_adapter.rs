@@ -47,6 +47,42 @@ impl MailchimpMarketingAdapter {
     fn tags_url(&self, email: &str) -> String {
         format!("{}/tags", self.member_url(email))
     }
+
+    /// Upsert the contact with `status` for existing contacts; new contacts
+    /// are always created as `subscribed`.
+    async fn put_member(
+        &self,
+        identity: &ContactIdentity,
+        status: &str,
+    ) -> Result<(), MarketingListError> {
+        let payload = serde_json::json!({
+            "email_address": identity.email,
+            "status": status,
+            "status_if_new": "subscribed",
+            "language": identity.language,
+            "merge_fields": {
+                "FNAME": identity.first_name,
+                "LNAME": identity.last_name,
+            },
+        });
+
+        let resp = self
+            .http
+            .put(self.member_url(&identity.email))
+            .bearer_auth(&self.config.api_key)
+            .json(&payload)
+            .send()
+            .await
+            .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
+
+        if resp.status().is_success() {
+            Ok(())
+        } else {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            Err(MarketingListError::ApiError { status, body })
+        }
+    }
 }
 
 /// Parse the `{status, tags}` JSON payload returned by Mailchimp into a
@@ -56,6 +92,7 @@ fn parse_preferences(body: &serde_json::Value, known_tags: &[String]) -> Marketi
     let state = match body.get("status").and_then(|s| s.as_str()) {
         Some("subscribed") => SubscriptionState::Subscribed,
         Some("pending") => SubscriptionState::Pending,
+        Some("archived") => SubscriptionState::Archived,
         Some("unsubscribed") | Some("cleaned") | Some("transactional") => {
             SubscriptionState::Unsubscribed
         }
@@ -141,27 +178,28 @@ impl MarketingListPort for MailchimpMarketingAdapter {
         // Mailchimp's compliance block refuses to flip an unsubscribed
         // contact back to `subscribed` via API, so `pending` is the only
         // way through and it triggers Mailchimp's confirmation email.
-        let payload = serde_json::json!({
-            "email_address": identity.email,
-            "status": "pending",
-            "status_if_new": "subscribed",
-            "language": identity.language,
-            "merge_fields": {
-                "FNAME": identity.first_name,
-                "LNAME": identity.last_name,
-            },
-        });
+        self.put_member(identity, "pending").await
+    }
 
+    async fn restore(&self, identity: &ContactIdentity) -> Result<(), MarketingListError> {
+        // Archived contacts count as existing, so `status_if_new` would not
+        // apply; set `subscribed` explicitly. Not blocked by compliance
+        // because contacts we archive were never unsubscribed.
+        self.put_member(identity, "subscribed").await
+    }
+
+    async fn archive(&self, email: &str) -> Result<(), MarketingListError> {
+        // DELETE on a list member archives it (permanent deletion is a
+        // separate `delete-permanent` action we never use).
         let resp = self
             .http
-            .put(self.member_url(&identity.email))
+            .delete(self.member_url(email))
             .bearer_auth(&self.config.api_key)
-            .json(&payload)
             .send()
             .await
             .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
 
-        if resp.status().is_success() {
+        if resp.status().is_success() || resp.status().as_u16() == 404 {
             Ok(())
         } else {
             let status = resp.status().as_u16();
@@ -265,6 +303,13 @@ mod tests {
         let body = serde_json::json!({ "status": "unsubscribed", "tags": [] });
         let prefs = parse_preferences(&body, &known_tags());
         assert_eq!(prefs.state, SubscriptionState::Unsubscribed);
+    }
+
+    #[test]
+    fn parse_preferences_archived() {
+        let body = serde_json::json!({ "status": "archived", "tags": [] });
+        let prefs = parse_preferences(&body, &known_tags());
+        assert_eq!(prefs.state, SubscriptionState::Archived);
     }
 
     #[test]

@@ -230,6 +230,8 @@ mock! {
     impl MarketingListPort for MarketingListPort {
         async fn fetch_preferences(&self, email: &str, known_tags: &[String]) -> Result<MarketingPreferences, MarketingListError>;
         async fn subscribe(&self, identity: &ContactIdentity) -> Result<(), MarketingListError>;
+        async fn archive(&self, email: &str) -> Result<(), MarketingListError>;
+        async fn restore(&self, identity: &ContactIdentity) -> Result<(), MarketingListError>;
         async fn set_tags(&self, identity: &ContactIdentity, tag_updates: &[TagPreference]) -> Result<(), MarketingListError>;
     }
 }

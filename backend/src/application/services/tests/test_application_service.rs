@@ -7,6 +7,7 @@ use crate::application::ports::{
     application_repository_port::ApplicationTargetableRole, repository_error::RepositoryError,
 };
 use crate::application::services::{
+    application_alert_service::ApplicationAlertService,
     application_service::{ApplicationService, CreateApplicationParams},
     attribute_service::AttributeService,
     member_service::MemberService,
@@ -64,6 +65,25 @@ fn build_notification_service() -> NotificationService {
     NotificationService::new(None, Arc::new(template_repo), Arc::new(renderer))
 }
 
+/// Admin alert service with no subscribed admins. Each alert looks up
+/// recipients exactly once and stops there, so `times` is the number of
+/// alerts the test expects; `None` accepts any number.
+fn build_admin_alerts(times: Option<usize>) -> ApplicationAlertService {
+    let mut attributes = MockAttributeRepositoryPort::new();
+    let expectation = attributes.expect_fetch_all_values_for();
+    if let Some(n) = times {
+        expectation.times(n);
+    }
+    expectation.returning(|_| Ok(vec![]));
+    ApplicationAlertService::new(
+        Arc::new(MockApplicationQueryPort::new()),
+        Arc::new(attributes),
+        Arc::new(MockRoleRepositoryPort::new()),
+        None,
+        "http://localhost".to_string(),
+    )
+}
+
 fn build_role_service() -> RoleService {
     let role_repo = MockRoleRepositoryPort::new();
     let member_repo = MockMemberRepositoryPort::new();
@@ -76,7 +96,6 @@ fn build_role_service() -> RoleService {
         Arc::new(user_admin),
         Arc::new(auth_provider_repo),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
@@ -112,6 +131,37 @@ fn build_service_with_attribute(
     targetable: MockTargetableRolePort,
     attribute_service: Arc<AttributeService>,
 ) -> ApplicationService {
+    build_service_full(
+        commands,
+        queries,
+        targetable,
+        attribute_service,
+        build_admin_alerts(None),
+    )
+}
+
+fn build_service_with_alerts(
+    commands: MockApplicationCommandPort,
+    queries: MockApplicationQueryPort,
+    targetable: MockTargetableRolePort,
+    expected_alerts: usize,
+) -> ApplicationService {
+    build_service_full(
+        commands,
+        queries,
+        targetable,
+        build_attribute_service(),
+        build_admin_alerts(Some(expected_alerts)),
+    )
+}
+
+fn build_service_full(
+    commands: MockApplicationCommandPort,
+    queries: MockApplicationQueryPort,
+    targetable: MockTargetableRolePort,
+    attribute_service: Arc<AttributeService>,
+    admin_alerts: ApplicationAlertService,
+) -> ApplicationService {
     ApplicationService::new(
         Arc::new(commands),
         Arc::new(queries),
@@ -120,6 +170,7 @@ fn build_service_with_attribute(
         attribute_service,
         noop_audit_log(),
         build_notification_service(),
+        admin_alerts,
     )
 }
 
@@ -147,7 +198,8 @@ async fn create_application_happy_path() {
         )))
     });
 
-    let svc = build_service(commands, queries, targetable);
+    // No payment required: the application is Pending at once and alerts.
+    let svc = build_service_with_alerts(commands, queries, targetable, 1);
     let result = svc
         .create_application(
             CreateApplicationParams {
@@ -305,7 +357,8 @@ async fn create_application_payment_required_sets_unpaid() {
         )))
     });
 
-    let svc = build_service(commands, queries, targetable);
+    // Unpaid: the alert waits for the payment.
+    let svc = build_service_with_alerts(commands, queries, targetable, 0);
     let result = svc
         .create_application(
             CreateApplicationParams {
@@ -378,7 +431,6 @@ async fn update_status_approve_calls_role_assignment() {
         Arc::new(user_admin),
         Arc::new(MockAuthProviderRepo::new()),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
@@ -398,6 +450,7 @@ async fn update_status_approve_calls_role_assignment() {
         build_attribute_service(),
         noop_audit_log(),
         build_notification_service(),
+        build_admin_alerts(Some(0)),
     );
 
     let result = svc
@@ -471,7 +524,6 @@ async fn update_status_approve_succeeds_when_idp_sync_fails() {
         Arc::new(user_admin),
         Arc::new(MockAuthProviderRepo::new()),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
@@ -491,6 +543,7 @@ async fn update_status_approve_succeeds_when_idp_sync_fails() {
         build_attribute_service(),
         noop_audit_log(),
         build_notification_service(),
+        build_admin_alerts(Some(0)),
     );
 
     let result = svc
@@ -542,7 +595,6 @@ async fn update_status_reject_does_not_assign_role() {
         Arc::new(user_admin),
         Arc::new(MockAuthProviderRepo::new()),
         noop_audit_log(),
-        None,
         noop_attribute_bootstrap(),
     );
 
@@ -562,6 +614,7 @@ async fn update_status_reject_does_not_assign_role() {
         build_attribute_service(),
         noop_audit_log(),
         build_notification_service(),
+        build_admin_alerts(Some(0)),
     );
 
     let result = svc
@@ -586,7 +639,7 @@ async fn update_status_payment_received() {
         .withf(|_, status| *status == ApplicationStatus::Pending)
         .returning(|_, _| Ok(()));
 
-    let svc = build_service(commands, queries, targetable);
+    let svc = build_service_with_alerts(commands, queries, targetable, 1);
     let result = svc
         .update_application_status(Uuid::new_v4(), ApplicationAction::PaymentReceived, None)
         .await;
@@ -634,6 +687,52 @@ async fn update_status_invalid_action() {
         result,
         Err(crate::application::services::errors::ServiceError::InvalidStatus)
     ));
+}
+
+// --- update_payment_id ---
+
+#[tokio::test]
+async fn update_payment_id_alerts_admins_once_pending() {
+    let mut commands = MockApplicationCommandPort::new();
+    let mut queries = MockApplicationQueryPort::new();
+
+    queries
+        .expect_fetch_one()
+        .returning(move |_| Ok(test_application(ApplicationStatus::Unpaid)));
+
+    commands
+        .expect_update_payment_id()
+        .withf(|_, payment_id, status| {
+            payment_id == "pi_123" && *status == ApplicationStatus::Pending
+        })
+        .times(1)
+        .returning(|_, _, _| Ok(()));
+
+    let svc = build_service_with_alerts(commands, queries, MockTargetableRolePort::new(), 1);
+    let result = svc
+        .update_payment_id(Uuid::new_v4(), "pi_123".to_string())
+        .await;
+
+    assert!(result.is_ok());
+}
+
+#[tokio::test]
+async fn update_payment_id_replayed_webhook_does_not_alert_again() {
+    let commands = MockApplicationCommandPort::new();
+    let mut queries = MockApplicationQueryPort::new();
+
+    queries.expect_fetch_one().returning(move |_| {
+        let mut app = test_application(ApplicationStatus::Pending);
+        app.stripe_payment_id = Some("pi_123".to_string());
+        Ok(app)
+    });
+
+    let svc = build_service_with_alerts(commands, queries, MockTargetableRolePort::new(), 0);
+    let result = svc
+        .update_payment_id(Uuid::new_v4(), "pi_123".to_string())
+        .await;
+
+    assert!(result.is_ok());
 }
 
 // --- delete_application ---
@@ -753,6 +852,7 @@ async fn create_application_writes_submitted_attribute_to_member() {
                 None,
                 false,
                 EditableBy::Admin, // admin-only on profile, but form bypasses
+                false,
             )
             .unwrap(),
         ))
@@ -802,4 +902,118 @@ async fn create_application_writes_submitted_attribute_to_member() {
         recorded,
         vec![("major-subject".to_string(), "iem".to_string())]
     );
+}
+
+/// Application whose form lists `pora-membership`, which is defined as
+/// required. `held` is what the member already has stored.
+fn build_required_attribute_service(
+    commands: MockApplicationCommandPort,
+    held: Vec<&'static str>,
+) -> ApplicationService {
+    use crate::application::ports::application_repository_port::ApplicationTargetableRole;
+    use crate::domain::{
+        AttributeDefinition, AttributeName, AttributeValue, EditableBy, MemberAttribute,
+    };
+
+    let mut queries = MockApplicationQueryPort::new();
+    let mut targetable = MockTargetableRolePort::new();
+
+    queries
+        .expect_fetch_existing()
+        .returning(|_, _, _| Err(RepositoryError::NotFound));
+
+    targetable.expect_fetch_targetable_role().returning(|_, _| {
+        Ok(ApplicationTargetableRole {
+            role_name: "test-role".to_string(),
+            valid_until: valid_until(),
+            active: true,
+            optional_roles: None,
+            payment_link: None,
+            approved_email_template: None,
+            rejected_email_template: None,
+            form_attributes: vec![AttributeName::new("pora-membership").unwrap()],
+        })
+    });
+
+    let mut attr_repo = MockAttributeRepositoryPort::new();
+    attr_repo.expect_fetch_all_definitions().returning(|| {
+        Ok(vec![AttributeDefinition::new(
+            AttributeName::new("pora-membership").unwrap(),
+            None,
+            None,
+            None,
+            false,
+            EditableBy::Both,
+            true,
+        )
+        .unwrap()])
+    });
+    attr_repo
+        .expect_fetch_member_values()
+        .returning(move |uid| {
+            Ok(held
+                .iter()
+                .map(|name| MemberAttribute {
+                    user_id: uid.clone(),
+                    name: AttributeName::new(*name).unwrap(),
+                    value: AttributeValue::new("yes").unwrap(),
+                })
+                .collect())
+        });
+
+    let attr_service = Arc::new(AttributeService::new(
+        Arc::new(attr_repo),
+        Arc::new(MockAttributeSyncPort::new()),
+        Arc::new(MockAuthProviderRepo::new()),
+        noop_audit_log(),
+    ));
+
+    build_service_with_attribute(commands, queries, targetable, attr_service)
+}
+
+fn params_without_attributes(user_id: Uuid) -> CreateApplicationParams {
+    CreateApplicationParams {
+        user_id,
+        role_name: "test-role".to_string(),
+        valid_until: valid_until(),
+        stripe_payment_id: None,
+        optional_roles: None,
+        application_text: None,
+        frontend_url: "http://localhost".to_string(),
+        attributes: vec![],
+    }
+}
+
+#[tokio::test]
+async fn create_application_rejects_missing_required_attribute() {
+    // No expect_create: the application must be rejected before it is stored.
+    let svc = build_required_attribute_service(MockApplicationCommandPort::new(), vec![]);
+
+    let result = svc
+        .create_application(params_without_attributes(Uuid::new_v4()), None)
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(crate::application::services::errors::ServiceError::Constraint(_))
+    ));
+}
+
+#[tokio::test]
+async fn create_application_accepts_required_attribute_already_held() {
+    let mut commands = MockApplicationCommandPort::new();
+    commands.expect_create().returning(|new| {
+        Ok(Application::from((
+            ApplicationId(Uuid::new_v4()),
+            Utc::now(),
+            new.clone(),
+        )))
+    });
+    let svc = build_required_attribute_service(commands, vec!["pora-membership"]);
+
+    let result = svc
+        .create_application(params_without_attributes(Uuid::new_v4()), None)
+        .await;
+
+    assert!(result.is_ok());
 }

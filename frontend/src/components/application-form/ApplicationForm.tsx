@@ -85,15 +85,22 @@ const ApplicationForm = () => {
         name,
         description: def?.description ?? null,
         allowed_values: def?.allowed_values ?? null,
+        required: def?.required ?? false,
         currentValue: def?.value ?? "",
       };
     });
   }, [selectedTargetable, memberAttributes]);
 
+  const missingRequired = formAttributeDefs.filter(
+    ({ name, required, currentValue }) =>
+      required && !(attributeValues[name] ?? currentValue),
+  );
+
   const onSubmit = async (values: FormValues) => {
     if (!currentMember) {
       throw new Error("Current member not found");
     }
+    if (missingRequired.length > 0) return;
 
     const submittedAttributes = formAttributeDefs
       .map(({ name, currentValue }) => ({
@@ -243,6 +250,14 @@ const ApplicationForm = () => {
                     <div key={attr.name} className="space-y-1">
                       <Label htmlFor={id} className="font-mono text-sm">
                         {attr.name}
+                        {attr.required && (
+                          <span
+                            className="ml-0.5 text-destructive"
+                            title={t("attributes.required")}
+                          >
+                            *
+                          </span>
+                        )}
                       </Label>
                       {attr.description && (
                         <p className="text-xs text-muted-foreground">
@@ -300,7 +315,21 @@ const ApplicationForm = () => {
                 </FormItem>
               )}
             />
-            <Button type="submit" data-testid="submit-application-button">
+            {missingRequired.length > 0 && (
+              <p
+                className="text-sm text-destructive"
+                data-testid="application-required-missing"
+              >
+                {t("application.form.required_missing", {
+                  names: missingRequired.map((a) => a.name).join(", "),
+                })}
+              </p>
+            )}
+            <Button
+              type="submit"
+              disabled={missingRequired.length > 0}
+              data-testid="submit-application-button"
+            >
               {paymentLink
                 ? t("application.form.proceed_payment")
                 : t("application.form.submit")}

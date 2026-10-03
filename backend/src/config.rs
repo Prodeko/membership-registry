@@ -18,9 +18,15 @@ pub struct Config {
     pub frontend_url: String,
 
     /// 6-field cron expression (seconds first) for the daily admin digest of
-    /// pending applications, evaluated in Europe/Helsinki.
+    /// stale applications, evaluated in Europe/Helsinki.
     #[envconfig(from = "APPLICATION_DIGEST_CRON", default = "0 0 7 * * *")]
     pub application_digest_cron: String,
+
+    /// Days an application must have been waiting before the daily digest
+    /// lists it. New applications are alerted individually as they arrive;
+    /// the digest only re-surfaces the ones nobody has acted on.
+    #[envconfig(from = "APPLICATION_DIGEST_STALE_DAYS", default = "3")]
+    pub application_digest_stale_days: u32,
 
     #[envconfig(from = "KEYCLOAK_URL")]
     #[validate(length(min = 1, max = 1024))]

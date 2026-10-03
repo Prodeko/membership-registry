@@ -23,11 +23,13 @@ test.describe("Application form attributes", () => {
     await adminApi.createRole(testRole.name);
     // Internal-only attribute (sync_to_keycloak=false) so the test doesn't
     // need a Keycloak mapper round trip. Both editable so the form-time
-    // bypass and the post-registration profile path both work.
+    // bypass and the post-registration profile path both work. Required, so
+    // the form can't be submitted until it's filled.
     await adminApi.createAttributeDefinition({
       name: attr,
       allowed_values: ["iem", "other"],
       editable_by: "both",
+      required: true,
     });
     await adminApi.createTargetableRole(
       testRole.name,
@@ -70,7 +72,15 @@ test.describe("Application form attributes", () => {
     // load-bearing UI behavior the targetable-role's form_attributes drives.
     await expect(page.getByTestId(`application-attr-${attr}`)).toBeVisible();
 
+    // Required and still empty: submit is blocked until it's filled.
+    const submit = page.getByTestId("submit-application-button");
+    await expect(submit).toBeDisabled();
+    await expect(
+      page.getByTestId("application-required-missing"),
+    ).toBeVisible();
+
     await appForm.setAttribute(attr, "iem");
+    await expect(submit).toBeEnabled();
     await appForm.fillApplicationText("E2E form-attribute test");
     await appForm.submit();
 

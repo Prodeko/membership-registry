@@ -20,7 +20,8 @@ fn pending_app(full_name: &str, email: &str, role_name: &str) -> ApplicationWith
         language: Some("fi".to_string()),
         role_name: role_name.to_string(),
         valid_until: chrono::NaiveDate::from_ymd_opt(2027, 7, 31).unwrap(),
-        created_at: Utc::now(),
+        // Past the 3-day stale threshold `service` configures.
+        created_at: Utc::now() - chrono::Duration::days(10),
         stripe_payment_id: None,
         optional_roles: None,
         application_text: None,
@@ -100,6 +101,7 @@ fn service(
         Arc::new(roles),
         email.map(|e| Arc::new(e) as Arc<dyn crate::application::ports::email_port::EmailPort>),
         "https://rekisteri.prodeko.org".to_string(),
+        3,
     )
 }
 
@@ -109,6 +111,57 @@ async fn no_pending_applications_sends_nothing() {
     queries
         .expect_fetch_with_user_filtered()
         .returning(|_, _| Ok(vec![]));
+    let mut attributes = MockAttributeRepositoryPort::new();
+    attributes.expect_fetch_all_values_for().never();
+    let mut email = MockEmailPort::new();
+    email.expect_send_email().never();
+
+    service(queries, attributes, roles_never(), Some(email))
+        .send_pending_digest()
+        .await;
+}
+
+#[tokio::test]
+async fn fresh_applications_are_left_out() {
+    let mut fresh = pending_app("Uusi Hakija", "uusi@example.com", "member");
+    fresh.created_at = Utc::now() - chrono::Duration::days(1);
+    let mut fresh_unpaid = unpaid_app("Uusi Maksamaton", "uusi2@example.com", "member");
+    fresh_unpaid.created_at = Utc::now();
+    let queries = queries_returning(
+        vec![
+            fresh,
+            pending_app("Vanha Hakija", "vanha@example.com", "member"),
+        ],
+        vec![fresh_unpaid],
+    );
+    let id = PersonId(Uuid::new_v4());
+    let holders = vec![holder(&id, "a@prodeko.org")];
+    let mut attributes = MockAttributeRepositoryPort::new();
+    attributes
+        .expect_fetch_all_values_for()
+        .returning(move |_| Ok(holders.clone()));
+    let mut email = MockEmailPort::new();
+    email
+        .expect_send_email()
+        .times(1)
+        .withf(|_, subject, body| {
+            subject == "1 membership application still awaiting action"
+                && body.contains("Vanha Hakija")
+                && !body.contains("Uusi Hakija")
+                && !body.contains("Uusi Maksamaton")
+        })
+        .returning(|_, _, _| Ok(()));
+
+    service(queries, attributes, admins_of(&[id]), Some(email))
+        .send_pending_digest()
+        .await;
+}
+
+#[tokio::test]
+async fn only_fresh_applications_sends_nothing() {
+    let mut fresh = pending_app("Uusi Hakija", "uusi@example.com", "member");
+    fresh.created_at = Utc::now();
+    let queries = queries_returning(vec![fresh], vec![]);
     let mut attributes = MockAttributeRepositoryPort::new();
     attributes.expect_fetch_all_values_for().never();
     let mut email = MockEmailPort::new();
@@ -166,7 +219,7 @@ async fn happy_path_sends_digest_to_each_recipient() {
         .times(2)
         .withf(|to, subject, body| {
             (to == "a@prodeko.org" || to == "b@prodeko.org")
-                && subject == "2 membership applications awaiting action"
+                && subject == "2 membership applications still awaiting action"
                 && body.contains("Testi Hakija")
                 && body.contains("toinen@example.com")
                 && body.contains("alumni")
@@ -200,7 +253,7 @@ async fn unpaid_only_applications_trigger_digest() {
         .expect_send_email()
         .times(1)
         .withf(|_, subject, body| {
-            subject == "1 membership application awaiting action"
+            subject == "1 membership application still awaiting action"
                 && body.contains("Maksamaton Hakija")
                 && body.contains("Unpaid")
         })
@@ -236,7 +289,7 @@ async fn mixed_statuses_render_status_column_pending_first() {
         .expect_send_email()
         .times(1)
         .withf(|_, subject, body| {
-            subject == "2 membership applications awaiting action"
+            subject == "2 membership applications still awaiting action"
                 && body.contains("<th>Status</th>")
                 && body.contains("Pending")
                 && body.contains("Unpaid")
@@ -265,7 +318,7 @@ async fn single_application_uses_singular_subject() {
     email
         .expect_send_email()
         .times(1)
-        .withf(|_, subject, _| subject == "1 membership application awaiting action")
+        .withf(|_, subject, _| subject == "1 membership application still awaiting action")
         .returning(|_, _, _| Ok(()));
 
     service(queries, attributes, admins_of(&[id]), Some(email))

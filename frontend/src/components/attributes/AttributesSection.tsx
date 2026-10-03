@@ -24,6 +24,8 @@ interface Props {
   heading?: string;
   /** When true, render an empty-state message instead of nothing if there are no defined attributes. */
   emptyMessage?: string;
+  /** Offer clearing required attributes too. Only admins may clear them. */
+  canClearRequired?: boolean;
 }
 
 const AttributesSection = ({
@@ -34,6 +36,7 @@ const AttributesSection = ({
   isMutating,
   heading,
   emptyMessage,
+  canClearRequired,
 }: Props) => {
   const { t } = useTranslation();
   if (isLoading) {
@@ -63,6 +66,7 @@ const AttributesSection = ({
             onSet={onSet}
             onDelete={onDelete}
             isMutating={!!isMutating}
+            canClear={!attr.required || !!canClearRequired}
           />
         ))}
       </div>
@@ -75,9 +79,16 @@ interface RowProps {
   onSet: (input: { name: string; value: string }) => void;
   onDelete: (name: string) => void;
   isMutating: boolean;
+  canClear: boolean;
 }
 
-const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
+const AttributeRow = ({
+  attr,
+  onSet,
+  onDelete,
+  isMutating,
+  canClear,
+}: RowProps) => {
   const { t } = useTranslation();
   const [draft, setDraft] = useState<string>(attr.value ?? "");
 
@@ -108,6 +119,14 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
       <div className="flex items-baseline justify-between">
         <Label htmlFor={`attr-${attr.name}`} className="font-mono text-sm">
           {attr.name}
+          {attr.required && (
+            <span
+              className="ml-0.5 text-destructive"
+              title={t("attributes.required")}
+            >
+              *
+            </span>
+          )}
         </Label>
         {!attr.editable && (
           <span className="text-xs text-muted-foreground italic">
@@ -138,9 +157,11 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
               <SelectValue placeholder={t("attributes.not_set_placeholder")} />
             </SelectTrigger>
             <SelectContent className="z-[300]">
-              <SelectItem value={CLEAR_VALUE}>
-                {t("attributes.not_set_option")}
-              </SelectItem>
+              {(canClear || !attr.value) && (
+                <SelectItem value={CLEAR_VALUE}>
+                  {t("attributes.not_set_option")}
+                </SelectItem>
+              )}
               {attr.allowed_values?.map((v) => (
                 <SelectItem key={v} value={v}>
                   {v}
@@ -161,7 +182,7 @@ const AttributeRow = ({ attr, onSet, onDelete, isMutating }: RowProps) => {
             disabled={isMutating}
             placeholder={t("attributes.not_set_placeholder")}
           />
-          {attr.value && (
+          {attr.value && canClear && (
             <Button
               variant="outline"
               onClick={() => {
