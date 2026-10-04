@@ -1,9 +1,9 @@
-import { QueryKey, useGetApplications } from "@/lib/api";
+import { QueryKey, useGetApplications, useGetTargetableRoles } from "@/lib/api";
 import { DataTable } from "../ui/data-table";
-import { columns } from "./columns";
+import { attributeColumn, columns } from "./columns";
 import { APPLICATION_STATUSES } from "@/lib/constants";
 import { Badge } from "../ui/badge";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { capitalizeFirstLetter } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
@@ -21,6 +21,23 @@ const Applications = () => {
     setSearchParams({ status }, { replace: true });
 
   const queryClient = useQueryClient();
+
+  // One column per attribute asked on any targetable role's form, in the
+  // order they first appear, slotted in before the actions column.
+  const { data: targetableRoles } = useGetTargetableRoles();
+  const tableColumns = useMemo(() => {
+    const names = [
+      ...new Set((targetableRoles ?? []).flatMap((r) => r.form_attributes)),
+    ];
+    const actionsIndex = columns.findIndex(
+      (c) => "accessorKey" in c && c.accessorKey === "actions",
+    );
+    return [
+      ...columns.slice(0, actionsIndex),
+      ...names.map(attributeColumn),
+      ...columns.slice(actionsIndex),
+    ];
+  }, [targetableRoles]);
 
   useEffect(() => {
     queryClient.invalidateQueries({ queryKey: [QueryKey.APPLICATIONS] });
@@ -57,7 +74,7 @@ const Applications = () => {
         ))}
       </div>
       <DataTable
-        columns={columns}
+        columns={tableColumns}
         useFetchData={useGetApplications}
         initialColumnVisibility={{
           application_id: false,

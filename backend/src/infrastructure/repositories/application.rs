@@ -84,6 +84,9 @@ struct ApplicationWithMemberDAO {
     optional_roles: Option<Vec<String>>,
     application_text: Option<String>,
     status: ApplicationStatusDAO,
+    // Parallel arrays, both ordered by attribute name.
+    attribute_names: Vec<String>,
+    attribute_values: Vec<String>,
 }
 
 impl From<ApplicationWithMemberDAO> for PortWithMember {
@@ -101,6 +104,11 @@ impl From<ApplicationWithMemberDAO> for PortWithMember {
             optional_roles: row.optional_roles,
             application_text: row.application_text,
             status: row.status.into(),
+            attributes: row
+                .attribute_names
+                .into_iter()
+                .zip(row.attribute_values)
+                .collect(),
         }
     }
 }
@@ -241,7 +249,9 @@ impl ApplicationQueryPort for ApplicationRepo {
         let row = sqlx::query_as!(
             ApplicationWithMemberDAO,
             r#"
-            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO"
+            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO",
+                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as "attribute_names!",
+                ARRAY(SELECT ma.value FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as "attribute_values!"
             FROM Application a
             JOIN Member m ON a.user_id = m.user_id
             WHERE a.application_id = $1
@@ -263,7 +273,9 @@ impl ApplicationQueryPort for ApplicationRepo {
         let rows = sqlx::query_as!(
             ApplicationWithMemberDAO,
             r#"
-            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO"
+            SELECT a.application_id, a.user_id, m.full_name, m.email, m.language, a.role_name, a.valid_until, a.timestamp, a.stripe_payment_id, a.optional_roles, a.application_text, a.status as "status!: ApplicationStatusDAO",
+                ARRAY(SELECT ma.attribute_name FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as "attribute_names!",
+                ARRAY(SELECT ma.value FROM MemberAttribute ma WHERE ma.user_id = a.user_id ORDER BY ma.attribute_name) as "attribute_values!"
             FROM Application a
             JOIN Member m ON a.user_id = m.user_id
             WHERE ($1::application_status IS NULL OR a.status = $1)

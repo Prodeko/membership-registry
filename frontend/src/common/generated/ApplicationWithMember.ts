@@ -2,4 +2,9 @@
 import type { ApplicationId } from "./ApplicationId";
 import type { ApplicationStatus } from "./ApplicationStatus";
 
-export type ApplicationWithMember = { application_id: ApplicationId, user_id: string, full_name: string | null, email: string | null, role_name: string, valid_until: string, created_at: string, stripe_payment_id: string | null, optional_roles: Array<string> | null, application_text: string | null, status: ApplicationStatus, };
+export type ApplicationWithMember = { application_id: ApplicationId, user_id: string, full_name: string | null, email: string | null, role_name: string, valid_until: string, created_at: string, stripe_payment_id: string | null, optional_roles: Array<string> | null, application_text: string | null, status: ApplicationStatus, 
+/**
+ * The applicant's current member attribute values, keyed by name.
+ * Current values, not a snapshot from when the application was made.
+ */
+attributes: { [key in string]: string }, };

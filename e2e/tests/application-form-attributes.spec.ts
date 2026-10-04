@@ -53,7 +53,7 @@ test.describe("Application form attributes", () => {
   // Fresh login — beforeEach removed the test user.
   test.use({ storageState: { cookies: [], origins: [] } });
 
-  test("applicant fills a form attribute, the value lands in MemberAttribute and admin sees it on the application", async ({
+  test("applicant fills a form attribute, the value lands in MemberAttribute and admin sees it on the application and in the list", async ({
     browser,
     page,
     db,
@@ -126,6 +126,19 @@ test.describe("Application form attributes", () => {
       await expect(
         adminPage.getByTestId(`application-attr-value-${attr}`),
       ).toHaveText("iem");
+
+      // The application list has a column for the form attribute, and the
+      // applicant's row shows the submitted value in it.
+      await adminPage.goto(`${APP_BASE_URL}/applications?status=pending`);
+      await expect(
+        adminPage.getByRole("columnheader", { name: attr }),
+      ).toBeVisible();
+      const row = adminPage.getByRole("row").filter({
+        has: adminPage.locator(
+          `a[href="/applications/${dbApp!.application_id}"]`,
+        ),
+      });
+      await expect(row).toContainText("iem");
     } finally {
       await adminContext.close();
     }
