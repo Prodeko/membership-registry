@@ -6,7 +6,7 @@ use axum::{
     routing::{get, post, put},
     Extension, Json, Router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
 use crate::{
@@ -29,6 +29,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/", get(get_roles))
         .route("/", post(post_role))
         .route("/stats", get(get_roles_stats))
+        .route("/stats/count", get(count_roles))
         .route("/export", post(export_roles))
         .route("/cleanup-expired", post(cleanup_expired_roles))
         .route("/{id}", get(get_role))
@@ -102,6 +103,27 @@ async fn get_roles_stats(
         .collect();
 
     Ok(Json(result))
+}
+
+#[derive(Deserialize, Debug, TS)]
+#[ts(export, rename = "RolesCountQuery")]
+struct RolesCountQueryDTO {
+    search: Option<String>,
+}
+
+#[derive(Serialize, Debug, TS)]
+#[ts(export, rename = "RolesCount")]
+struct RolesCountDTO {
+    total: i64,
+}
+
+#[debug_handler]
+async fn count_roles(
+    State(state): State<AppState>,
+    Query(query): Query<RolesCountQueryDTO>,
+) -> ApiResult<Json<RolesCountDTO>> {
+    let total = state.role_service.count_roles(query.search).await?;
+    Ok(Json(RolesCountDTO { total }))
 }
 
 #[derive(Deserialize, Debug, TS)]

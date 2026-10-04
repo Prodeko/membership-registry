@@ -488,6 +488,20 @@ impl RoleRepositoryPort for RoleRepo {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
+    async fn count_roles(&self, search: Option<String>) -> Result<i64, RepositoryError> {
+        let count: i64 = sqlx::query_scalar!(
+            r#"-- sql
+            SELECT COUNT(*)::bigint AS "count!"
+            FROM Role
+            WHERE $1::varchar IS NULL OR Role.name ILIKE '%' || $1 || '%'
+            "#,
+            search,
+        )
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(count)
+    }
+
     async fn fetch_renewal_prompts(
         &self,
         role_name: &str,

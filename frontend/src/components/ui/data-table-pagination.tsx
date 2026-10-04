@@ -22,6 +22,10 @@ interface DataTablePaginationProps<TData> {
 export function DataTablePagination<TData>({
   table,
 }: DataTablePaginationProps<TData>) {
+  // -1 means the total is unknown (the current page was exactly full).
+  const pageCount = table.getPageCount()
+  const pageCountKnown = pageCount >= 0
+
   return (
     <div className="flex items-center justify-between px-2 flex-wrap">
       <div className="flex-1 text-sm text-muted-foreground">
@@ -50,8 +54,8 @@ export function DataTablePagination<TData>({
           </Select>
         </div>
         <div className="flex w-[100px] items-center justify-center text-sm font-medium">
-          Page {table.getState().pagination.pageIndex + 1} of{" "}
-          {table.getPageCount()}
+          Page {table.getState().pagination.pageIndex + 1}
+          {pageCountKnown && ` of ${pageCount}`}
         </div>
         <div className="flex items-center space-x-2">
           <Button
@@ -84,8 +88,8 @@ export function DataTablePagination<TData>({
           <Button
             variant="outline"
             className="hidden h-8 w-8 p-0 lg:flex"
-            onClick={() => table.setPageIndex(table.getPageCount() - 1)}
-            disabled={!table.getCanNextPage()}
+            onClick={() => table.setPageIndex(pageCount - 1)}
+            disabled={!pageCountKnown || !table.getCanNextPage()}
           >
             <span className="sr-only">Go to last page</span>
             <DoubleArrowRightIcon className="h-4 w-4" />
