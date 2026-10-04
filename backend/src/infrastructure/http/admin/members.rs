@@ -53,6 +53,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/roles/export", post(export_members_with_roles))
         .route("/keycloak-sync-status", get(get_keycloak_sync_status))
         .route("/keycloak-sync", post(post_keycloak_sync))
+        .route("/google-groups", get(get_google_groups))
+        .route("/google-groups/backfill", post(post_google_groups_backfill))
         .route("/{user_id}", delete(delete_member))
         .route("/{user_id}", put(update_member))
         .route("/{user_id}/roles", post(add_role))
@@ -402,6 +404,77 @@ async fn post_keycloak_sync(
         removed: summary.removed,
         remove_failed: summary.remove_failed,
         users_processed: summary.users_processed,
+    }))
+}
+
+#[derive(serde::Serialize)]
+struct GoogleGroupsStatusDTO {
+    configured: bool,
+    groups: Vec<String>,
+}
+
+#[debug_handler]
+async fn get_google_groups(State(state): State<AppState>) -> Json<GoogleGroupsStatusDTO> {
+    let groups = state
+        .group_membership_service
+        .as_ref()
+        .map(|g| g.groups())
+        .unwrap_or_default();
+    Json(GoogleGroupsStatusDTO {
+        configured: state.group_membership_service.is_some(),
+        groups,
+    })
+}
+
+#[derive(serde::Deserialize, Default)]
+struct GoogleGroupsBackfillRequestDTO {
+    #[serde(default)]
+    remove: bool,
+}
+
+#[derive(serde::Serialize)]
+struct GoogleGroupsBackfillResponseDTO {
+    users_processed: u32,
+    added: u32,
+    removed: u32,
+    failed: u32,
+}
+
+#[debug_handler]
+async fn post_google_groups_backfill(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+    body: Option<Json<GoogleGroupsBackfillRequestDTO>>,
+) -> ApiResult<Json<GoogleGroupsBackfillResponseDTO>> {
+    let groups = state
+        .group_membership_service
+        .as_ref()
+        .ok_or(ApiError::ServiceUnavailable)?;
+    let remove = body.map(|b| b.remove).unwrap_or(false);
+    let summary = groups.backfill(remove).await?;
+
+    state
+        .audit_log_service
+        .log(
+            user_info.map(|u| u.user_id),
+            "google_groups.backfill",
+            "google_groups",
+            "all",
+            Some(serde_json::json!({
+                "remove": remove,
+                "users_processed": summary.users_processed,
+                "added": summary.added,
+                "removed": summary.removed,
+                "failed": summary.failed,
+            })),
+        )
+        .await;
+
+    Ok(Json(GoogleGroupsBackfillResponseDTO {
+        users_processed: summary.users_processed,
+        added: summary.added,
+        removed: summary.removed,
+        failed: summary.failed,
     }))
 }
 

@@ -9,6 +9,7 @@ pub mod ports {
     pub mod auth_provider_repo_port;
     pub mod data_export_port;
     pub mod email_port;
+    pub mod group_membership_port;
     pub mod html_sanitizer_port;
     pub mod marketing_list_port;
     pub mod marketing_tag_repository_port;

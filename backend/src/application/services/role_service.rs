@@ -17,6 +17,7 @@ use uuid::Uuid;
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
+    group_membership_service::GroupMembershipService,
     marketing_service::MarketingService,
     member_service::MemberService,
 };
@@ -61,6 +62,9 @@ pub struct RoleService {
     /// `None` where Mailchimp is not configured (dev/e2e). When set, every
     /// change to a membership role re-syncs the user's list membership.
     marketing: Option<Arc<MarketingService>>,
+    /// `None` where Google Groups sync is not configured. When set, every
+    /// change to a role named in a group rule re-syncs that group.
+    groups: Option<Arc<GroupMembershipService>>,
 }
 
 impl RoleService {
@@ -82,6 +86,7 @@ impl RoleService {
                 .time_to_live(Duration::from_secs(60))
                 .build(),
             marketing: None,
+            groups: None,
         }
     }
 
@@ -90,14 +95,23 @@ impl RoleService {
         self
     }
 
+    pub fn with_groups(mut self, groups: Option<Arc<GroupMembershipService>>) -> Self {
+        self.groups = groups;
+        self
+    }
+
     fn invalidate_sync_cache(&self) {
         self.keycloak_sync_cache.invalidate_all();
     }
 
-    /// Best-effort Mailchimp re-sync after `role_name` changed for `user_id`.
-    async fn sync_marketing(&self, user_id: Uuid, role_name: &str) {
+    /// Best-effort Mailchimp and Google Groups re-sync after `role_name`
+    /// changed for `user_id`.
+    async fn sync_mailing_lists(&self, user_id: Uuid, role_name: &str) {
         if let Some(marketing) = &self.marketing {
             marketing.sync_after_role_change(user_id, role_name).await;
+        }
+        if let Some(groups) = &self.groups {
+            groups.sync_after_role_change(user_id, role_name).await;
         }
     }
 
@@ -275,7 +289,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
-        self.sync_marketing(user_id, role_name).await;
+        self.sync_mailing_lists(user_id, role_name).await;
         Ok(())
     }
 
@@ -325,7 +339,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
-        self.sync_marketing(user_id, role_name).await;
+        self.sync_mailing_lists(user_id, role_name).await;
         Ok(())
     }
 
@@ -396,7 +410,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
-        self.sync_marketing(user_id, role_name).await;
+        self.sync_mailing_lists(user_id, role_name).await;
         Ok(())
     }
 
@@ -545,7 +559,7 @@ impl RoleService {
         self.invalidate_sync_cache();
         for role_name in &role_names {
             for user_id in &user_ids {
-                self.sync_marketing(*user_id, role_name).await;
+                self.sync_mailing_lists(*user_id, role_name).await;
             }
         }
         Ok(())
@@ -579,7 +593,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
-        self.sync_marketing(user_id, role_name).await;
+        self.sync_mailing_lists(user_id, role_name).await;
         Ok(())
     }
 
@@ -634,7 +648,7 @@ impl RoleService {
             .await;
 
         self.invalidate_sync_cache();
-        self.sync_marketing(user_id, role_name).await;
+        self.sync_mailing_lists(user_id, role_name).await;
         Ok(())
     }
 
@@ -721,7 +735,7 @@ impl RoleService {
                 )
                 .await;
 
-            self.sync_marketing(membership.user_id, &membership.role_name.0)
+            self.sync_mailing_lists(membership.user_id, &membership.role_name.0)
                 .await;
 
             synced += 1;

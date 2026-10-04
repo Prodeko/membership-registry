@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "../ui/card";
 import AttributeImportPanel from "./AttributeImportPanel";
+import GoogleGroupsSyncCard from "./GoogleGroupsSyncCard";
 import MemberImportPanel from "./MemberImportPanel";
 import RoleImportPanel from "./RoleImportPanel";
 import SyncRolesCard from "./SyncRolesCard";
@@ -108,7 +109,12 @@ const DataManagement = () => {
           <AttributeImportPanel />
         </div>
       )}
-      {activeTab === "sync" && <SyncRolesCard />}
+      {activeTab === "sync" && (
+        <div className="grid grid-cols-1 gap-4">
+          <SyncRolesCard />
+          <GoogleGroupsSyncCard />
+        </div>
+      )}
     </div>
   );
 };

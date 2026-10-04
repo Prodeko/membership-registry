@@ -12,6 +12,7 @@ use uuid::Uuid;
 use super::{
     audit_log_service::AuditLogService,
     errors::{ServiceError, ServiceResult},
+    group_membership_service::GroupMembershipService,
 };
 
 #[derive(Clone)]
@@ -23,6 +24,9 @@ pub struct MemberService {
     /// Hook for writing registration-time attribute defaults. Centralised
     /// here so every `create_member` path picks up the defaults.
     pub attribute_bootstrap: Arc<dyn AttributeBootstrapPort>,
+    /// `None` where Google Groups sync is not configured. When set, email
+    /// changes and deletions are mirrored to the groups.
+    groups: Option<Arc<GroupMembershipService>>,
 }
 
 impl MemberService {
@@ -39,6 +43,37 @@ impl MemberService {
             auth_provider_repo,
             audit_log,
             attribute_bootstrap,
+            groups: None,
+        }
+    }
+
+    pub fn with_groups(mut self, groups: Option<Arc<GroupMembershipService>>) -> Self {
+        self.groups = groups;
+        self
+    }
+
+    /// Emails of members about to be deleted, so they can be taken off the
+    /// groups afterwards. Empty when group sync is off; members that fail to
+    /// load are skipped (and logged) rather than blocking the delete.
+    async fn emails_for_group_removal(&self, ids: &[Uuid]) -> Vec<(Uuid, String)> {
+        if self.groups.is_none() {
+            return Vec::new();
+        }
+        let mut emails = Vec::with_capacity(ids.len());
+        for &id in ids {
+            match self.member_repo.fetch_one(id).await {
+                Ok(person) => emails.push((id, person.email.into_inner())),
+                Err(e) => tracing::error!(user_id = %id, "Group removal skipped: {e:?}"),
+            }
+        }
+        emails
+    }
+
+    async fn remove_from_groups(&self, emails: Vec<(Uuid, String)>) {
+        if let Some(groups) = &self.groups {
+            for (id, email) in emails {
+                groups.remove_from_all(id, &email).await;
+            }
         }
     }
 
@@ -236,6 +271,18 @@ impl MemberService {
             )
             .await;
 
+        // An email change re-evaluates every group, which also covers a
+        // language change made in the same update.
+        if let Some(groups) = &self.groups {
+            if email_changed {
+                groups
+                    .sync_after_email_change(user_id, current.email.as_str())
+                    .await;
+            } else if current.language != updated.language {
+                groups.sync_after_language_change(user_id).await;
+            }
+        }
+
         // Fire-and-forget sync of profile + locale to Keycloak
         let auth_providers = self
             .auth_provider_repo
@@ -275,6 +322,7 @@ impl MemberService {
     }
 
     pub async fn delete_member(&self, id: Uuid, actor_user_id: Option<Uuid>) -> ServiceResult<()> {
+        let group_emails = self.emails_for_group_removal(&[id]).await;
         self.member_repo
             .delete(id)
             .await
@@ -290,6 +338,7 @@ impl MemberService {
             )
             .await;
 
+        self.remove_from_groups(group_emails).await;
         Ok(())
     }
 
@@ -298,6 +347,7 @@ impl MemberService {
         ids: Vec<Uuid>,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
+        let group_emails = self.emails_for_group_removal(&ids).await;
         self.member_repo
             .delete_many(ids.clone())
             .await
@@ -313,6 +363,7 @@ impl MemberService {
             )
             .await;
 
+        self.remove_from_groups(group_emails).await;
         Ok(())
     }
 
