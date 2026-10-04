@@ -106,6 +106,9 @@ pub trait RoleRepositoryPort: Send + Sync {
         params: RolesWithStatsParams,
     ) -> Result<Vec<RoleStats>, RepositoryError>;
 
+    /// Total number of roles matching `search`, for pagination.
+    async fn count_roles(&self, search: Option<String>) -> Result<i64, RepositoryError>;
+
     async fn fetch_expired_unsynced(&self) -> Result<Vec<RoleMembership>, RepositoryError>;
 
     async fn mark_keycloak_synced(
