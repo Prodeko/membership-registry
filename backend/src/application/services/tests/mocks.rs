@@ -25,7 +25,8 @@ use crate::application::ports::{
     email_port::{EmailError, EmailPort},
     group_membership_port::{GroupMembershipError, GroupMembershipPort},
     marketing_list_port::{
-        ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences, TagPreference,
+        ContactIdentity, ListContact, MarketingListError, MarketingListPort, MarketingPreferences,
+        TagPreference,
     },
     marketing_tag_repository_port::MarketingTagRepositoryPort,
     member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
@@ -242,6 +243,7 @@ mock! {
 
     #[async_trait::async_trait]
     impl MarketingListPort for MarketingListPort {
+        async fn list_contacts(&self) -> Result<Vec<ListContact>, MarketingListError>;
         async fn fetch_preferences(&self, email: &str, known_tags: &[String]) -> Result<MarketingPreferences, MarketingListError>;
         async fn subscribe(&self, identity: &ContactIdentity) -> Result<(), MarketingListError>;
         async fn archive(&self, email: &str) -> Result<(), MarketingListError>;

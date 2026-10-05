@@ -1,6 +1,8 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
+use chrono::{Datelike, NaiveDate};
+use futures_util::{stream, StreamExt, TryStreamExt};
 use uuid::Uuid;
 
 use crate::application::ports::application_repository_port::TargetableRolePort;
@@ -9,7 +11,7 @@ use crate::application::ports::marketing_list_port::{
 };
 use crate::application::ports::marketing_tag_repository_port::MarketingTagRepositoryPort;
 use crate::application::ports::member_repository_port::MemberRepositoryPort;
-use crate::application::ports::role_repository_port::RoleRepositoryPort;
+use crate::application::ports::role_repository_port::{RoleMembership, RoleRepositoryPort};
 use crate::domain::{MarketingTag, Person};
 
 use super::errors::{ServiceError, ServiceResult};
@@ -35,6 +37,51 @@ pub struct UserMarketingTag {
 pub struct UserMarketingPreferences {
     pub state: SubscriptionState,
     pub tags: Vec<UserMarketingTag>,
+}
+
+/// Requests in flight at once during a resync. Mailchimp allows 10
+/// simultaneous connections per account; this leaves room for live traffic.
+const RESYNC_CONCURRENCY: usize = 4;
+
+/// Outcome of [`MarketingService::resync`]. `failed` counts contacts and
+/// members whose calls errored; they are left as they were.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct MarketingResyncSummary {
+    /// Contacts on the list before the run, archived ones included.
+    pub contacts_checked: u32,
+    /// Subscribed or pending contacts archived for not qualifying.
+    pub archived: u32,
+    /// Registry members who qualify for the list.
+    pub members_qualifying: u32,
+    /// Qualifying members who weren't contacts and were subscribed.
+    pub added: u32,
+    /// Qualifying members restored from the archive.
+    pub restored: u32,
+    /// Qualifying members who unsubscribed themselves and were left alone.
+    pub skipped_unsubscribed: u32,
+    pub failed: u32,
+}
+
+/// What a resync did for one qualifying member.
+enum ResyncOutcome {
+    Added,
+    Restored,
+    SkippedUnsubscribed,
+    AlreadyOnList,
+}
+
+/// Whether `m` covers any day of one of `years`. Open-ended memberships
+/// cover every year from `valid_from` on.
+fn covers_any_year(m: &RoleMembership, years: &[i32]) -> bool {
+    years.iter().any(|&year| {
+        let (Some(start), Some(end)) = (
+            NaiveDate::from_ymd_opt(year, 1, 1),
+            NaiveDate::from_ymd_opt(year, 12, 31),
+        ) else {
+            return false;
+        };
+        m.valid_from <= end && m.valid_until.is_none_or(|until| until >= start)
+    })
 }
 
 /// Orchestrates marketing list operations. Owns the business rules
@@ -261,6 +308,136 @@ impl MarketingService {
             _ => {}
         }
         Ok(())
+    }
+
+    /// Rebuild the list from the registry: the list should hold exactly the
+    /// members whose membership covers one of `years`. First every
+    /// subscribed or pending contact that isn't such a member is archived —
+    /// including contacts unknown to the registry — then qualifying members
+    /// who aren't on the list are subscribed, or restored if archived.
+    /// Members who unsubscribed themselves are never re-added.
+    ///
+    /// Refuses to run when no member qualifies, so a wrong year can't empty
+    /// the list, and aborts before touching Mailchimp if any member's roles
+    /// fail to load.
+    pub async fn resync(&self, years: &[i32]) -> ServiceResult<MarketingResyncSummary> {
+        let membership_roles = self.membership_roles().await?;
+        let members = self
+            .member_repo
+            .fetch_all()
+            .await
+            .map_err(ServiceError::from)?;
+
+        let membership_roles = &membership_roles;
+        let qualifying: Vec<ContactIdentity> = stream::iter(members)
+            .map(|person| async move {
+                let memberships = self
+                    .role_repo
+                    .fetch_roles_by_member(&person.id.0)
+                    .await
+                    .map_err(ServiceError::from)?;
+                let qualifies = memberships.iter().any(|m| {
+                    membership_roles.contains(&m.role_name.0) && covers_any_year(m, years)
+                });
+                Ok::<_, ServiceError>(qualifies.then(|| Self::identity_from(person)))
+            })
+            .buffer_unordered(RESYNC_CONCURRENCY)
+            .try_filter_map(|identity| async move { Ok(identity) })
+            .try_collect()
+            .await?;
+        if qualifying.is_empty() {
+            return Err(ServiceError::InvalidInput);
+        }
+
+        let contacts = self.marketing_port.list_contacts().await?;
+        let mut summary = MarketingResyncSummary {
+            contacts_checked: contacts.len() as u32,
+            members_qualifying: qualifying.len() as u32,
+            ..Default::default()
+        };
+
+        let keep: HashSet<String> = qualifying.iter().map(|i| i.email.to_lowercase()).collect();
+        let states: HashMap<String, SubscriptionState> = contacts
+            .iter()
+            .map(|c| (c.email.to_lowercase(), c.state))
+            .collect();
+
+        let to_archive: Vec<String> = contacts
+            .into_iter()
+            .filter(|c| {
+                matches!(
+                    c.state,
+                    SubscriptionState::Subscribed | SubscriptionState::Pending
+                ) && !keep.contains(&c.email.to_lowercase())
+            })
+            .map(|c| c.email)
+            .collect();
+        let archive_results: Vec<_> = stream::iter(to_archive)
+            .map(|email| async move {
+                let result = self.marketing_port.archive(&email).await;
+                if let Err(e) = &result {
+                    tracing::error!(email = %email, "Mailchimp resync failed to archive: {e:?}");
+                }
+                result.is_ok()
+            })
+            .buffer_unordered(RESYNC_CONCURRENCY)
+            .collect()
+            .await;
+        for ok in archive_results {
+            if ok {
+                summary.archived += 1;
+            } else {
+                summary.failed += 1;
+            }
+        }
+
+        let catalog = self.load_catalog().await?;
+        let catalog = &catalog;
+        let states = &states;
+        let outcomes: Vec<_> = stream::iter(qualifying)
+            .map(|identity| async move {
+                let state = states
+                    .get(&identity.email.to_lowercase())
+                    .copied()
+                    .unwrap_or(SubscriptionState::NotAContact);
+                let result = match state {
+                    SubscriptionState::NotAContact => self
+                        .subscribe_with_defaults(&identity, catalog)
+                        .await
+                        .map(|()| ResyncOutcome::Added),
+                    SubscriptionState::Archived => {
+                        match self.marketing_port.restore(&identity).await {
+                            Ok(()) => self
+                                .apply_default_tags(&identity, catalog)
+                                .await
+                                .map(|()| ResyncOutcome::Restored),
+                            Err(e) => Err(e),
+                        }
+                    }
+                    SubscriptionState::Unsubscribed => Ok(ResyncOutcome::SkippedUnsubscribed),
+                    SubscriptionState::Subscribed | SubscriptionState::Pending => {
+                        Ok(ResyncOutcome::AlreadyOnList)
+                    }
+                };
+                if let Err(e) = &result {
+                    tracing::error!(email = %identity.email, "Mailchimp resync failed to add: {e:?}");
+                }
+                result
+            })
+            .buffer_unordered(RESYNC_CONCURRENCY)
+            .collect()
+            .await;
+        for outcome in outcomes {
+            match outcome {
+                Ok(ResyncOutcome::Added) => summary.added += 1,
+                Ok(ResyncOutcome::Restored) => summary.restored += 1,
+                Ok(ResyncOutcome::SkippedUnsubscribed) => summary.skipped_unsubscribed += 1,
+                Ok(ResyncOutcome::AlreadyOnList) => {}
+                Err(_) => summary.failed += 1,
+            }
+        }
+
+        Ok(summary)
     }
 
     async fn subscribe_with_defaults(

@@ -1,11 +1,14 @@
 use md5::{Digest, Md5};
 
 use crate::application::ports::marketing_list_port::{
-    ContactIdentity, MarketingListError, MarketingListPort, MarketingPreferences,
+    ContactIdentity, ListContact, MarketingListError, MarketingListPort, MarketingPreferences,
     SubscriptionState, TagPreference,
 };
 
 use super::config::MailchimpConfig;
+
+/// Contacts fetched per page when listing the audience (Mailchimp's max).
+const LIST_PAGE_SIZE: usize = 1000;
 
 pub struct MailchimpMarketingAdapter {
     config: MailchimpConfig,
@@ -85,19 +88,40 @@ impl MailchimpMarketingAdapter {
     }
 }
 
+/// Map a Mailchimp member `status` to a `SubscriptionState`. Unknown or
+/// missing statuses count as unsubscribed, so they are never re-added.
+fn parse_state(body: &serde_json::Value) -> SubscriptionState {
+    match body.get("status").and_then(|s| s.as_str()) {
+        Some("subscribed") => SubscriptionState::Subscribed,
+        Some("pending") => SubscriptionState::Pending,
+        Some("archived") => SubscriptionState::Archived,
+        _ => SubscriptionState::Unsubscribed,
+    }
+}
+
+/// Parse one page of `GET /lists/{id}/members` into contacts.
+fn parse_contacts_page(body: &serde_json::Value) -> Vec<ListContact> {
+    body.get("members")
+        .and_then(|m| m.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|m| {
+                    let email = m.get("email_address")?.as_str()?.to_string();
+                    Some(ListContact {
+                        email,
+                        state: parse_state(m),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 /// Parse the `{status, tags}` JSON payload returned by Mailchimp into a
 /// `MarketingPreferences`. Extracted as a pure function so it's directly
 /// unit-testable without HTTP mocking.
 fn parse_preferences(body: &serde_json::Value, known_tags: &[String]) -> MarketingPreferences {
-    let state = match body.get("status").and_then(|s| s.as_str()) {
-        Some("subscribed") => SubscriptionState::Subscribed,
-        Some("pending") => SubscriptionState::Pending,
-        Some("archived") => SubscriptionState::Archived,
-        Some("unsubscribed") | Some("cleaned") | Some("transactional") => {
-            SubscriptionState::Unsubscribed
-        }
-        _ => SubscriptionState::Unsubscribed,
-    };
+    let state = parse_state(body);
 
     let contact_tag_names: std::collections::HashSet<String> = body
         .get("tags")
@@ -135,6 +159,50 @@ fn not_a_contact_preferences(known_tags: &[String]) -> MarketingPreferences {
 
 #[async_trait::async_trait]
 impl MarketingListPort for MailchimpMarketingAdapter {
+    async fn list_contacts(&self) -> Result<Vec<ListContact>, MarketingListError> {
+        let url = format!(
+            "{}/lists/{}/members",
+            self.config.base_url(),
+            self.config.list_id
+        );
+        let mut contacts = Vec::new();
+        loop {
+            let resp = self
+                .http
+                .get(&url)
+                .bearer_auth(&self.config.api_key)
+                .query(&[
+                    ("fields", "members.email_address,members.status,total_items"),
+                    ("count", &LIST_PAGE_SIZE.to_string()),
+                    ("offset", &contacts.len().to_string()),
+                ])
+                .send()
+                .await
+                .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
+
+            if !resp.status().is_success() {
+                let status = resp.status().as_u16();
+                let body = resp.text().await.unwrap_or_default();
+                return Err(MarketingListError::ApiError { status, body });
+            }
+
+            let body: serde_json::Value = resp
+                .json()
+                .await
+                .map_err(|e| MarketingListError::RequestFailed(e.to_string()))?;
+            let page = parse_contacts_page(&body);
+            let total = body
+                .get("total_items")
+                .and_then(|t| t.as_u64())
+                .unwrap_or(0) as usize;
+            let page_len = page.len();
+            contacts.extend(page);
+            if page_len == 0 || contacts.len() >= total {
+                return Ok(contacts);
+            }
+        }
+    }
+
     async fn fetch_preferences(
         &self,
         email: &str,
@@ -324,6 +392,36 @@ mod tests {
         let prefs = parse_preferences(&body, &known_tags());
         assert_eq!(prefs.tags.len(), 2);
         assert!(prefs.tags.iter().all(|t| t.name != "legacy_role_tag"));
+    }
+
+    #[test]
+    fn parse_contacts_page_reads_email_and_status() {
+        let body = serde_json::json!({
+            "members": [
+                {"email_address": "a@x.fi", "status": "subscribed"},
+                {"email_address": "b@x.fi", "status": "archived"},
+                {"email_address": "c@x.fi", "status": "cleaned"},
+                {"status": "pending"},
+            ],
+            "total_items": 4,
+        });
+        assert_eq!(
+            parse_contacts_page(&body),
+            vec![
+                ListContact {
+                    email: "a@x.fi".to_string(),
+                    state: SubscriptionState::Subscribed,
+                },
+                ListContact {
+                    email: "b@x.fi".to_string(),
+                    state: SubscriptionState::Archived,
+                },
+                ListContact {
+                    email: "c@x.fi".to_string(),
+                    state: SubscriptionState::Unsubscribed,
+                },
+            ]
+        );
     }
 
     #[test]

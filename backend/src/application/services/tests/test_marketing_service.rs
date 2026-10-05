@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::application::ports::application_repository_port::ApplicationTargetableRole;
 use crate::application::ports::marketing_list_port::{
-    MarketingPreferences, SubscriptionState, TagPreference,
+    ListContact, MarketingListError, MarketingPreferences, SubscriptionState, TagPreference,
 };
 use crate::application::ports::role_repository_port::RoleMembership;
 use crate::application::services::errors::ServiceError;
@@ -688,4 +688,212 @@ async fn set_tags_happy_path_writes_and_returns_joined_view() {
     assert_eq!(prefs.tags[0].label, "weekly_newsletter");
     assert_eq!(prefs.tags[1].label, "events");
     assert!(prefs.tags.iter().all(|t| t.active));
+}
+
+// --- resync ---
+
+fn date(y: i32, m: u32, d: u32) -> NaiveDate {
+    NaiveDate::from_ymd_opt(y, m, d).unwrap()
+}
+
+fn person_with_email(user_id: Uuid, email: &str) -> Person {
+    Person {
+        email: Email::new_unchecked(email.to_string()),
+        ..test_person(user_id)
+    }
+}
+
+fn contact(email: &str, state: SubscriptionState) -> ListContact {
+    ListContact {
+        email: email.to_string(),
+        state,
+    }
+}
+
+/// Members keyed by email, each with its own memberships.
+fn build_resync_service(
+    mc: MockMarketingListPort,
+    members: Vec<(&str, Vec<(&'static str, NaiveDate, Option<NaiveDate>)>)>,
+) -> MarketingService {
+    let mut people = Vec::new();
+    let mut roles_by_user: std::collections::HashMap<Uuid, Vec<RoleMembership>> =
+        Default::default();
+    for (email, roles) in members {
+        let id = Uuid::new_v4();
+        people.push(person_with_email(id, email));
+        roles_by_user.insert(
+            id,
+            roles
+                .into_iter()
+                .map(|(role, from, until)| membership(id, role, from, until))
+                .collect(),
+        );
+    }
+
+    let mut member_repo = MockMemberRepositoryPort::new();
+    member_repo
+        .expect_fetch_all()
+        .returning(move || Ok(people.clone()));
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo
+        .expect_fetch_roles_by_member()
+        .returning(move |id| Ok(roles_by_user.get(id).cloned().unwrap_or_default()));
+    let mut tag_repo = MockMarketingTagRepositoryPort::new();
+    tag_repo
+        .expect_fetch_all()
+        .returning(|| Ok(vec![tag("weekly_newsletter", 10, true)]));
+
+    MarketingService::new(
+        Arc::new(mc),
+        Arc::new(member_repo),
+        Arc::new(tag_repo),
+        Arc::new(role_repo),
+        Arc::new(targetable_roles()),
+    )
+}
+
+#[tokio::test]
+async fn resync_archives_non_qualifying_contacts_and_adds_qualifying_members() {
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_list_contacts().times(1).returning(|| {
+        Ok(vec![
+            // Qualifies, already on the list: untouched.
+            contact("Current@x.fi", SubscriptionState::Subscribed),
+            // 2025 member only: archived.
+            contact("old@x.fi", SubscriptionState::Subscribed),
+            // Not in the registry at all: archived.
+            contact("stranger@x.fi", SubscriptionState::Pending),
+            // Not qualifying but already off the list: untouched.
+            contact("gone@x.fi", SubscriptionState::Unsubscribed),
+            // Qualifies, archived earlier: restored.
+            contact("returning@x.fi", SubscriptionState::Archived),
+            // Qualifies, opted out: left alone.
+            contact("optout@x.fi", SubscriptionState::Unsubscribed),
+        ])
+    });
+    mc.expect_archive()
+        .withf(|e| e == "old@x.fi" || e == "stranger@x.fi")
+        .times(2)
+        .returning(|_| Ok(()));
+    mc.expect_restore()
+        .withf(|i| i.email == "returning@x.fi")
+        .times(1)
+        .returning(|_| Ok(()));
+    mc.expect_subscribe()
+        .withf(|i| i.email == "new2027@x.fi")
+        .times(1)
+        .returning(|_| Ok(()));
+    mc.expect_set_tags()
+        .withf(|i, _| i.email == "returning@x.fi" || i.email == "new2027@x.fi")
+        .times(2)
+        .returning(|_, _| Ok(()));
+
+    let svc = build_resync_service(
+        mc,
+        vec![
+            (
+                "current@x.fi",
+                vec![(MEMBERSHIP_ROLE, date(2026, 1, 1), Some(date(2026, 12, 31)))],
+            ),
+            (
+                "old@x.fi",
+                vec![(MEMBERSHIP_ROLE, date(2025, 1, 1), Some(date(2025, 12, 31)))],
+            ),
+            (
+                "returning@x.fi",
+                vec![(MEMBERSHIP_ROLE, date(2026, 1, 1), Some(date(2026, 12, 31)))],
+            ),
+            (
+                "optout@x.fi",
+                vec![(MEMBERSHIP_ROLE, date(2026, 1, 1), Some(date(2026, 12, 31)))],
+            ),
+            // Starts next year: qualifies through 2027.
+            (
+                "new2027@x.fi",
+                vec![(MEMBERSHIP_ROLE, date(2027, 1, 1), Some(date(2027, 12, 31)))],
+            ),
+            // A non-membership role in 2026 doesn't count.
+            (
+                "board@x.fi",
+                vec![(OTHER_ROLE, date(2026, 1, 1), Some(date(2026, 12, 31)))],
+            ),
+        ],
+    );
+
+    let summary = svc.resync(&[2026, 2027]).await.unwrap();
+    assert_eq!(summary.contacts_checked, 6);
+    assert_eq!(summary.archived, 2);
+    assert_eq!(summary.members_qualifying, 4);
+    assert_eq!(summary.added, 1);
+    assert_eq!(summary.restored, 1);
+    assert_eq!(summary.skipped_unsubscribed, 1);
+    assert_eq!(summary.failed, 0);
+}
+
+#[tokio::test]
+async fn resync_counts_open_ended_memberships() {
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_list_contacts()
+        .returning(|| Ok(vec![contact("life@x.fi", SubscriptionState::Subscribed)]));
+    mc.expect_archive().never();
+
+    let svc = build_resync_service(
+        mc,
+        vec![("life@x.fi", vec![(MEMBERSHIP_ROLE, date(2010, 1, 1), None)])],
+    );
+
+    let summary = svc.resync(&[2026, 2027]).await.unwrap();
+    assert_eq!(summary.members_qualifying, 1);
+    assert_eq!(summary.archived, 0);
+}
+
+#[tokio::test]
+async fn resync_refuses_when_no_member_qualifies() {
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_list_contacts().never();
+    mc.expect_archive().never();
+
+    let svc = build_resync_service(
+        mc,
+        vec![(
+            "old@x.fi",
+            vec![(MEMBERSHIP_ROLE, date(2025, 1, 1), Some(date(2025, 12, 31)))],
+        )],
+    );
+
+    assert!(matches!(
+        svc.resync(&[2226]).await,
+        Err(ServiceError::InvalidInput)
+    ));
+}
+
+#[tokio::test]
+async fn resync_counts_failed_archives_and_continues() {
+    let mut mc = MockMarketingListPort::new();
+    mc.expect_list_contacts().returning(|| {
+        Ok(vec![
+            contact("a@x.fi", SubscriptionState::Subscribed),
+            contact("b@x.fi", SubscriptionState::Subscribed),
+            contact("keep@x.fi", SubscriptionState::Subscribed),
+        ])
+    });
+    mc.expect_archive().returning(|e| {
+        if e == "a@x.fi" {
+            Err(MarketingListError::RequestFailed("boom".to_string()))
+        } else {
+            Ok(())
+        }
+    });
+
+    let svc = build_resync_service(
+        mc,
+        vec![(
+            "keep@x.fi",
+            vec![(MEMBERSHIP_ROLE, date(2026, 1, 1), Some(date(2026, 12, 31)))],
+        )],
+    );
+
+    let summary = svc.resync(&[2026]).await.unwrap();
+    assert_eq!(summary.archived, 1);
+    assert_eq!(summary.failed, 1);
 }

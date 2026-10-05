@@ -55,6 +55,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/keycloak-sync", post(post_keycloak_sync))
         .route("/google-groups", get(get_google_groups))
         .route("/google-groups/backfill", post(post_google_groups_backfill))
+        .route("/mailchimp", get(get_mailchimp))
+        .route("/mailchimp/resync", post(post_mailchimp_resync))
         .route("/{user_id}", delete(delete_member))
         .route("/{user_id}", put(update_member))
         .route("/{user_id}/roles", post(add_role))
@@ -474,6 +476,84 @@ async fn post_google_groups_backfill(
         users_processed: summary.users_processed,
         added: summary.added,
         removed: summary.removed,
+        failed: summary.failed,
+    }))
+}
+
+#[derive(serde::Serialize)]
+struct MailchimpStatusDTO {
+    configured: bool,
+}
+
+#[debug_handler]
+async fn get_mailchimp(State(state): State<AppState>) -> Json<MailchimpStatusDTO> {
+    Json(MailchimpStatusDTO {
+        configured: state.marketing_service.is_some(),
+    })
+}
+
+#[derive(serde::Deserialize)]
+struct MailchimpResyncRequestDTO {
+    years: Vec<i32>,
+}
+
+#[derive(serde::Serialize)]
+struct MailchimpResyncResponseDTO {
+    contacts_checked: u32,
+    archived: u32,
+    members_qualifying: u32,
+    added: u32,
+    restored: u32,
+    skipped_unsubscribed: u32,
+    failed: u32,
+}
+
+/// Membership years a resync may target. Wide enough for any real year,
+/// narrow enough to reject typos like 226.
+const RESYNC_YEARS: std::ops::RangeInclusive<i32> = 2000..=2100;
+
+#[debug_handler]
+async fn post_mailchimp_resync(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+    Json(body): Json<MailchimpResyncRequestDTO>,
+) -> ApiResult<Json<MailchimpResyncResponseDTO>> {
+    let marketing = state
+        .marketing_service
+        .as_ref()
+        .ok_or(ApiError::ServiceUnavailable)?;
+    if body.years.is_empty() || !body.years.iter().all(|y| RESYNC_YEARS.contains(y)) {
+        return Err(ApiError::BadRequest);
+    }
+    let summary = marketing.resync(&body.years).await?;
+
+    state
+        .audit_log_service
+        .log(
+            user_info.map(|u| u.user_id),
+            "mailchimp.resync",
+            "mailchimp",
+            "all",
+            Some(serde_json::json!({
+                "years": body.years,
+                "contacts_checked": summary.contacts_checked,
+                "archived": summary.archived,
+                "members_qualifying": summary.members_qualifying,
+                "added": summary.added,
+                "restored": summary.restored,
+                "skipped_unsubscribed": summary.skipped_unsubscribed,
+                "failed": summary.failed,
+            })),
+        )
+        .await;
+
+    Ok(Json(MailchimpResyncResponseDTO {
+        contacts_checked: summary.contacts_checked,
+        archived: summary.archived,
+        members_qualifying: summary.members_qualifying,
+        added: summary.added,
+        restored: summary.restored,
+        skipped_unsubscribed: summary.skipped_unsubscribed,
         failed: summary.failed,
     }))
 }
