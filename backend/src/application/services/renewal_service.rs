@@ -10,7 +10,8 @@ use crate::application::ports::{
     rolesync_port::{IdpSubject, RoleSyncPort},
 };
 use crate::domain::{
-    add_months, milestones_due, renewal_payment_url, RenewalStatus, Role, RoleName, RoleRenewal,
+    add_months, format_date_for_language, milestones_due, renewal_payment_url, RenewalStatus, Role,
+    RoleName, RoleRenewal,
 };
 
 use super::{
@@ -214,7 +215,7 @@ impl RenewalService {
             }
 
             let full_payment_link = renewal_payment_url(payment_link, item.renewal_id);
-            let valid_until_str = item.old_valid_until.to_string();
+            let valid_until_str = format_date_for_language(item.old_valid_until, &item.language);
             let expires_in_str = item.days_left.to_string();
 
             self.notification_service
