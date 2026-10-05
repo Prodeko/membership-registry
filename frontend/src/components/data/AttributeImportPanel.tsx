@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { downloadCsv } from "@/lib/utils";
+import ImportInstructions from "./ImportInstructions";
 import {
   useApplyAttributeImport,
   usePreviewAttributeImport,
@@ -63,14 +64,52 @@ export default function AttributeImportPanel() {
     <Card>
       <CardHeader>
         <CardTitle>Import attribute values</CardTitle>
-        <CardDescription>
-          Columns: email, attribute, value (all required). Each row sets one
-          attribute value for an existing member; set value to <code>null</code>{" "}
-          to clear it. The member and the attribute must already exist, and
-          values are validated against the attribute&apos;s allowed values.
+        <CardDescription className="text-base">
+          Sets attribute values for existing members, one attribute per row.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <ImportInstructions
+          columns={[
+            {
+              name: "email",
+              required: "yes",
+              description: "An existing member's email.",
+            },
+            {
+              name: "attribute",
+              required: "yes",
+              description: (
+                <>
+                  The attribute&apos;s name (e.g. <code>study-year</code>).
+                </>
+              ),
+            },
+            {
+              name: "value",
+              required: "yes",
+              description: (
+                <>
+                  The new value. For a multiple-values attribute, separate the
+                  values with <code>;</code> (e.g. <code>fi; en</code>). Write{" "}
+                  <code>null</code> to clear the attribute.
+                </>
+              ),
+            },
+          ]}
+          rules={[
+            <>The member and the attribute must already exist.</>,
+            <>
+              Values must be among the attribute&apos;s allowed values, apart
+              from one own answer if &quot;Other&quot; is on. Attributes only
+              members can edit can&apos;t be imported.
+            </>,
+            <>Each member and attribute pair may appear only once in a file.</>,
+          ]}
+          example={
+            "email,attribute,value\nmaija.meikalainen@example.com,study-year,2024\nmaija.meikalainen@example.com,languages,fi; en"
+          }
+        />
         <Input
           type="file"
           accept=".csv"

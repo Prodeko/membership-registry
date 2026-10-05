@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { downloadCsv } from "@/lib/utils";
+import ImportInstructions from "./ImportInstructions";
 import {
   useApplyRoleImport,
   usePreviewRoleImport,
@@ -63,13 +64,59 @@ export default function RoleImportPanel() {
     <Card>
       <CardHeader>
         <CardTitle>Import role assignments</CardTitle>
-        <CardDescription>
-          Columns: email, role_name, valid_from (YYYY-MM-DD), valid_until
-          (optional). The member and role must already exist. Re-importing the
-          same email/role/valid_from overwrites valid_until.
+        <CardDescription className="text-base">
+          Gives existing members roles, one role per row.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <ImportInstructions
+          columns={[
+            {
+              name: "email",
+              required: "yes",
+              description: "An existing member's email.",
+            },
+            {
+              name: "role_name",
+              required: "yes",
+              description: (
+                <>
+                  An existing role&apos;s name (e.g.{" "}
+                  <code>prodeko-full-member</code>).
+                </>
+              ),
+            },
+            {
+              name: "valid_from",
+              required: "yes",
+              description: (
+                <>
+                  Start date as <code>YYYY-MM-DD</code>.
+                </>
+              ),
+            },
+            {
+              name: "valid_until",
+              required: "no",
+              description: (
+                <>
+                  End date as <code>YYYY-MM-DD</code>. Leave empty for no end
+                  date.
+                </>
+              ),
+            },
+          ]}
+          rules={[
+            <>The member and the role must already exist.</>,
+            <>
+              Importing the same email, role and valid_from again updates
+              valid_until.
+            </>,
+          ]}
+          example={
+            "email,role_name,valid_from,valid_until\nmaija.meikalainen@example.com,prodeko-full-member,2026-01-01,2026-12-31"
+          }
+        />
         <Input
           type="file"
           accept=".csv"

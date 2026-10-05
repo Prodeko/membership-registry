@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { downloadCsv } from "@/lib/utils";
+import ImportInstructions from "./ImportInstructions";
 import {
   useApplyMemberImport,
   usePreviewMemberImport,
@@ -69,16 +70,82 @@ export default function MemberImportPanel() {
     <Card>
       <CardHeader>
         <CardTitle>Import members</CardTitle>
-        <CardDescription>
-          Columns: email (required), first_name, last_name, home_municipality,
-          language, email_notifications, plus any attribute key as its own
-          column. Existing members (matched by email) are updated; unknown
-          emails create a Keycloak account. Set an attribute cell to{" "}
-          <code>null</code> to clear it. language (fi/en, default fi) also picks
-          the invite email language.
+        <CardDescription className="text-base">
+          Adds new members and updates existing ones.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        <ImportInstructions
+          columns={[
+            {
+              name: "email",
+              required: "yes",
+              description:
+                "Matches an existing member, who is updated. A new email creates a new member and their login account.",
+            },
+            {
+              name: "first_name",
+              required: "for new members",
+              description: "First name.",
+            },
+            {
+              name: "last_name",
+              required: "for new members",
+              description: "Last name.",
+            },
+            {
+              name: "home_municipality",
+              required: "no",
+              description: "Home municipality.",
+            },
+            {
+              name: "language",
+              required: "no",
+              description: (
+                <>
+                  <code>fi</code> or <code>en</code> (default <code>fi</code>).
+                  Also the language of the set-password invite.
+                </>
+              ),
+            },
+            {
+              name: "email_notifications",
+              required: "no",
+              description: (
+                <>
+                  <code>true</code> or <code>false</code>.
+                </>
+              ),
+            },
+            {
+              name: "<attribute name>",
+              required: "no",
+              description: (
+                <>
+                  One column per attribute, named exactly like the attribute
+                  (e.g. <code>study-year</code>). For a multiple-values
+                  attribute, separate the values with <code>;</code> (e.g.{" "}
+                  <code>fi; en</code>).
+                </>
+              ),
+            },
+          ]}
+          rules={[
+            <>An empty cell leaves that field as it is.</>,
+            <>
+              Write <code>null</code> in an attribute cell to clear that
+              attribute.
+            </>,
+            <>
+              Attribute values must be among the attribute&apos;s allowed
+              values, apart from one own answer if &quot;Other&quot; is on.
+              Attributes only members can edit can&apos;t be imported.
+            </>,
+          ]}
+          example={
+            "email,first_name,last_name,language,study-year\nmaija.meikalainen@example.com,Maija,Meikäläinen,fi,2024"
+          }
+        />
         <Input
           type="file"
           accept=".csv"
