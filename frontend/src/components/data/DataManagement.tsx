@@ -5,7 +5,7 @@ import {
   useExportRoles,
 } from "@/lib/api";
 import { UseMutationResult } from "@tanstack/react-query";
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { Button } from "../ui/button";
 import {
   Card,
@@ -25,28 +25,101 @@ type Tab = "export" | "import" | "sync";
 interface ExportConfig {
   title: string;
   description: string;
+  columns: string[];
+  notes: ReactNode[];
   useExport: () => UseMutationResult<void, Error, void>;
 }
 
 const exportConfigs: ExportConfig[] = [
   {
     title: "Members",
-    description: "Export all members with their roles",
+    description: "Every member, one row per member.",
+    columns: [
+      "user_id",
+      "first_name",
+      "last_name",
+      "full_name",
+      "home_municipality",
+      "email_notifications",
+      "email",
+      "role_names",
+    ],
+    notes: [
+      <>
+        <code>role_names</code>: every role the member has had, including ended
+        ones, comma-separated.
+      </>,
+      <>
+        Language and attribute values are not included, so this file can&apos;t
+        be imported back as is.
+      </>,
+    ],
     useExport: useExportAllMembers,
   },
   {
     title: "Applications",
-    description: "Export all membership applications",
+    description: "Every membership application, one row per application.",
+    columns: [
+      "application_id",
+      "user_id",
+      "full_name",
+      "email",
+      "role_name",
+      "valid_until",
+      "created_at",
+      "status",
+      "stripe_payment_id",
+      "optional_roles",
+      "application_text",
+    ],
+    notes: [
+      <>
+        <code>status</code>: Unpaid, Pending, Approved or Rejected.
+      </>,
+      <>
+        <code>created_at</code> is an ISO 8601 timestamp in UTC (e.g.{" "}
+        <code>2026-10-05T09:30:00+00:00</code>).
+      </>,
+    ],
     useExport: useExportApplications,
   },
   {
     title: "Audit Logs",
-    description: "Export all audit log entries",
+    description: "Every audit log entry: who changed what and when.",
+    columns: [
+      "id",
+      "actor_user_id",
+      "actor_name",
+      "action",
+      "entity_type",
+      "entity_id",
+      "details",
+      "created_at",
+    ],
+    notes: [
+      <>
+        <code>details</code> holds the change as JSON. An empty actor means the
+        system did it (e.g. a scheduled job).
+      </>,
+    ],
     useExport: useExportAuditLogs,
   },
   {
     title: "Roles",
-    description: "Export all roles with member counts",
+    description: "Every role with its member counts, one row per role.",
+    columns: [
+      "name",
+      "color",
+      "description",
+      "member_count",
+      "active_member_count",
+    ],
+    notes: [
+      <>
+        <code>member_count</code>: everyone who has ever held the role.{" "}
+        <code>active_member_count</code>: memberships valid today.
+      </>,
+    ],
     useExport: useExportRoles,
   },
 ];
@@ -55,15 +128,36 @@ function ExportCard({ config }: { config: ExportConfig }) {
   const { mutate, isPending } = config.useExport();
 
   return (
-    <Card>
+    <Card className="flex flex-col">
       <CardHeader>
         <CardTitle>{config.title}</CardTitle>
-        <CardDescription>{config.description}</CardDescription>
+        <CardDescription className="text-base">
+          {config.description}
+        </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Button onClick={() => mutate()} disabled={isPending}>
-          {isPending ? "Exporting..." : "Export CSV"}
-        </Button>
+      <CardContent className="flex flex-1 flex-col gap-4 text-base">
+        <div className="space-y-2">
+          <p className="text-sm font-medium">
+            CSV file (comma-separated) with these columns:
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {config.columns.map((c) => (
+              <code key={c} className="rounded bg-muted px-1.5 py-0.5 text-sm">
+                {c}
+              </code>
+            ))}
+          </div>
+        </div>
+        <ul className="list-disc space-y-1 pl-5">
+          {config.notes.map((note, i) => (
+            <li key={i}>{note}</li>
+          ))}
+        </ul>
+        <div className="mt-auto">
+          <Button onClick={() => mutate()} disabled={isPending}>
+            {isPending ? "Exporting..." : "Export CSV"}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );
