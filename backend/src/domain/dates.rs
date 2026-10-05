@@ -26,9 +26,28 @@ pub fn add_months(date: NaiveDate, months: i32) -> NaiveDate {
         .unwrap_or(date)
 }
 
+/// A date as shown in an email in `language`: Finnish style (`31.12.2026`,
+/// `1.1.2027`) for Finnish, ISO (`2026-12-31`) otherwise.
+pub fn format_date_for_language(date: NaiveDate, language: &str) -> String {
+    if language.eq_ignore_ascii_case("fi") {
+        date.format("%-d.%-m.%Y").to_string()
+    } else {
+        date.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn format_date_for_language_uses_finnish_style_for_finnish() {
+        let end = NaiveDate::from_ymd_opt(2026, 12, 31).unwrap();
+        let start = NaiveDate::from_ymd_opt(2027, 1, 1).unwrap();
+        assert_eq!(format_date_for_language(end, "fi"), "31.12.2026");
+        assert_eq!(format_date_for_language(start, "fi"), "1.1.2027");
+        assert_eq!(format_date_for_language(end, "en"), "2026-12-31");
+    }
 
     #[test]
     fn test_add_months_basic() {

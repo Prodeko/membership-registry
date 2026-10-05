@@ -327,3 +327,119 @@ async fn allows_renewal_during_grace_period() {
 
     assert!(svc.start_member_renewal(user_id, ROLE).await.is_ok());
 }
+
+// ---------------------------------------------------------------------------
+// Reminder email variables
+// ---------------------------------------------------------------------------
+
+/// Runs one reminder round for a single pending renewal of a member speaking
+/// `language`, and returns the variables the email template was rendered
+/// with.
+async fn reminder_variables(language: &str) -> (Uuid, Vec<(String, String)>) {
+    use crate::application::ports::role_renewal_repository_port::PendingNotification;
+    use crate::domain::EmailTemplateTranslation;
+    use std::sync::Mutex;
+
+    let renewal_id = Uuid::new_v4();
+    let language = language.to_string();
+    let pending = move || PendingNotification {
+        renewal_id,
+        user_id: Uuid::nil(),
+        email: "maija@example.com".to_string(),
+        first_name: "Maija".to_string(),
+        last_name: "Meikäläinen".to_string(),
+        language: language.clone(),
+        role_name: ROLE.to_string(),
+        old_valid_until: chrono::NaiveDate::from_ymd_opt(2026, 12, 31).unwrap(),
+        days_left: 7,
+        notified_days: vec![30],
+    };
+
+    let mut renewal_repo = MockRoleRenewalRepositoryPort::new();
+    renewal_repo
+        .expect_find_expiring_renewable()
+        .returning(|| Ok(vec![]));
+    renewal_repo
+        .expect_find_overdue_pending()
+        .returning(|| Ok(vec![]));
+    renewal_repo
+        .expect_find_pending_needing_notification()
+        .returning(move |_, _| Ok(vec![pending()]));
+    renewal_repo
+        .expect_mark_notified()
+        .withf(move |id, days| *id == renewal_id && *days == 7)
+        .times(1)
+        .returning(|_, _| Ok(()));
+
+    let mut role_repo = MockRoleRepositoryPort::new();
+    role_repo.expect_fetch_all().returning(|| {
+        Ok(vec![Role {
+            renewal_email_template: Some("role_expires".to_string()),
+            ..renewable_role(30, 0)
+        }])
+    });
+
+    let mut templates = MockTemplateRepositoryPort::new();
+    templates
+        .expect_fetch_translation()
+        .returning(|name, locale| {
+            Ok(EmailTemplateTranslation {
+                template_name: name.to_string(),
+                locale: locale.to_string(),
+                subject: "subject".to_string(),
+                body_html: "body".to_string(),
+            })
+        });
+
+    let seen: Arc<Mutex<Vec<(String, String)>>> = Arc::new(Mutex::new(Vec::new()));
+    let seen_by_renderer = Arc::clone(&seen);
+    let mut renderer = MockTemplateRendererPort::new();
+    renderer.expect_render().returning(move |template, vars| {
+        *seen_by_renderer.lock().unwrap() = vars
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        template.to_string()
+    });
+
+    let mut audit_repo = MockAuditLogRepositoryPort::new();
+    audit_repo.expect_create().returning(|_| Ok(()));
+    let svc = RenewalService::new(
+        Arc::new(renewal_repo),
+        Arc::new(role_repo),
+        Arc::new(MockRoleSyncPort::new()),
+        Arc::new(MockAuthProviderRepo::new()),
+        NotificationService::new(None, Arc::new(templates), Arc::new(renderer)),
+        AuditLogService::new(Arc::new(audit_repo)),
+    );
+    svc.process_pending_renewals().await.unwrap();
+
+    let vars = seen.lock().unwrap().clone();
+    (renewal_id, vars)
+}
+
+fn var<'a>(vars: &'a [(String, String)], key: &str) -> &'a str {
+    vars.iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v.as_str())
+        .unwrap_or_else(|| panic!("no {key} in {vars:?}"))
+}
+
+#[tokio::test]
+async fn reminder_fills_every_placeholder() {
+    let (renewal_id, vars) = reminder_variables("en").await;
+    assert_eq!(var(&vars, "name"), "Maija Meikäläinen");
+    assert_eq!(var(&vars, "role_name"), ROLE);
+    assert_eq!(
+        var(&vars, "payment_link"),
+        format!("https://buy.stripe.com/test?client_reference_id={renewal_id}")
+    );
+    assert_eq!(var(&vars, "valid_until"), "2026-12-31");
+    assert_eq!(var(&vars, "expires_in"), "7");
+}
+
+#[tokio::test]
+async fn reminder_shows_valid_until_finnish_style_for_finnish_members() {
+    let (_, vars) = reminder_variables("fi").await;
+    assert_eq!(var(&vars, "valid_until"), "31.12.2026");
+}
