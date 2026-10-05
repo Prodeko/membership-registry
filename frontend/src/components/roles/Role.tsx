@@ -237,7 +237,8 @@ const Role = () => {
                 </Select>
                 <p className="text-xs text-muted-foreground">
                   Available placeholders: {"{name}"}, {"{role_name}"},{" "}
-                  {"{payment_link}"}, {"{valid_until}"}
+                  {"{payment_link}"}, {"{valid_until}"}, {"{expires_in}"} (days
+                  until the membership ends)
                 </p>
               </div>
 

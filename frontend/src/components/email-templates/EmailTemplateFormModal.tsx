@@ -205,9 +205,16 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
                 rows={8}
               />
             </div>
-            <p className="text-sm text-muted-foreground">
-              Available placeholders: {"{name}"}, {"{role_name}"}
-            </p>
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>
+                Available placeholders: {"{name}"}, {"{role_name}"}
+              </p>
+              <p>
+                In renewal reminder emails also: {"{payment_link}"},{" "}
+                {"{valid_until}"} (current membership end date),{" "}
+                {"{expires_in}"} (days until it ends)
+              </p>
+            </div>
             <div className="flex gap-2">
               <Button
                 onClick={() => handleSaveTranslation(activeLocale)}
