@@ -14,6 +14,7 @@ import MultipleSelector, { Option } from "../ui/multiple-selector";
 import { getColumns } from "./columns";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
+import { Switch } from "../ui/switch";
 import { TooltipProvider } from "../ui/tooltip";
 import BulkCommandDock from "./BulkCommandDock";
 import MemberDrawer from "./MemberDrawer";
@@ -21,6 +22,8 @@ import { MemberWithRoles } from "@/common/types";
 
 type FilterState = {
   roles: Option[];
+  // When off, roles are listed regardless of their validity dates.
+  dateFilterOn: boolean;
   validFrom: Date;
   validUntil: Date;
 };
@@ -36,6 +39,7 @@ const startOfToday = () => {
 // the calendar year) hides every role that starts or ends inside it (#145).
 const defaultFilterState = (): FilterState => ({
   roles: [],
+  dateFilterOn: true,
   validFrom: startOfToday(),
   validUntil: startOfToday(),
 });
@@ -60,8 +64,8 @@ const Members: React.FC = () => {
 
   const customFilters = {
     roles: applied.roles.map((r) => r.value),
-    valid_until: applied.validUntil,
-    valid_from: applied.validFrom,
+    valid_until: applied.dateFilterOn ? applied.validUntil : undefined,
+    valid_from: applied.dateFilterOn ? applied.validFrom : undefined,
   };
 
   const { data: countData } = useGetMembersCount({ customFilters });
@@ -71,6 +75,7 @@ const Members: React.FC = () => {
   const hasPendingChanges =
     JSON.stringify(draft.roles.map((r) => r.value).sort()) !==
       JSON.stringify(applied.roles.map((r) => r.value).sort()) ||
+    draft.dateFilterOn !== applied.dateFilterOn ||
     draft.validFrom.getTime() !== applied.validFrom.getTime() ||
     draft.validUntil.getTime() !== applied.validUntil.getTime();
 
@@ -138,22 +143,34 @@ const Members: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-muted-foreground">
-                  Valid
-                </span>
-                <DateRangePicker
-                  onUpdate={({ range }) =>
-                    setDraft((d) => ({
-                      ...d,
-                      validUntil: range.to ?? range.from,
-                      validFrom: range.from,
-                    }))
+                <Switch
+                  id="members-date-filter"
+                  checked={draft.dateFilterOn}
+                  onCheckedChange={(on) =>
+                    setDraft((d) => ({ ...d, dateFilterOn: on }))
                   }
-                  initialDateFrom={draft.validFrom}
-                  initialDateTo={draft.validUntil}
-                  locale="fi"
-                  showCompare={false}
                 />
+                <label
+                  htmlFor="members-date-filter"
+                  className="text-xs font-medium text-muted-foreground"
+                >
+                  {draft.dateFilterOn ? "Valid" : "Any validity"}
+                </label>
+                {draft.dateFilterOn && (
+                  <DateRangePicker
+                    onUpdate={({ range }) =>
+                      setDraft((d) => ({
+                        ...d,
+                        validUntil: range.to ?? range.from,
+                        validFrom: range.from,
+                      }))
+                    }
+                    initialDateFrom={draft.validFrom}
+                    initialDateTo={draft.validUntil}
+                    locale="fi"
+                    showCompare={false}
+                  />
+                )}
               </div>
 
               <div className="flex items-center gap-2 ml-auto">
@@ -180,6 +197,8 @@ const Members: React.FC = () => {
           setCustomFilters={(filters) => {
             const next: FilterState = {
               roles: stringsToOptions(filters?.roles ?? []),
+              // A filter saved with the date filter off has no dates.
+              dateFilterOn: Boolean(filters?.valid_from),
               validFrom: filters?.valid_from
                 ? new Date(filters.valid_from as string)
                 : startOfToday(),

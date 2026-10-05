@@ -108,19 +108,24 @@ export function DataTable<TData, TValue>({
     pageIndex: 0,
   });
 
+  // A response longer than pageSize means the endpoint ignores paging and
+  // returned every row at once; page those rows here so the page size and
+  // page controls still work. Server-paged endpoints never return more than
+  // pageSize rows, so they are unaffected.
+  const pagedLocally = tableData.length > pagination.pageSize;
+  const pageStart = pagination.pageIndex * pagination.pageSize;
+  const pageRows = pagedLocally
+    ? tableData.slice(pageStart, pageStart + pagination.pageSize)
+    : tableData;
+
   // Without a total, infer the page count from the page we got back. A short
-  // page is the last one; a page longer than pageSize means the endpoint
-  // ignores paging and returned everything at once. Only an exactly full
-  // page leaves the count unknown (-1).
+  // page is the last one. Only an exactly full page leaves the count unknown
+  // (-1).
   const inferredPageCount =
-    tableData.length < pagination.pageSize
-      ? pagination.pageIndex + 1
-      : tableData.length > pagination.pageSize
-        ? 1
-        : -1;
+    tableData.length < pagination.pageSize ? pagination.pageIndex + 1 : -1;
 
   const table = useReactTable({
-    data: tableData,
+    data: pageRows,
     columns,
     state: {
       sorting,
@@ -133,8 +138,9 @@ export function DataTable<TData, TValue>({
     manualFiltering: true,
     manualSorting: true,
     // When a real total is known, let the table derive the page count from it.
-    rowCount,
-    pageCount: rowCount === undefined ? inferredPageCount : undefined,
+    rowCount: pagedLocally ? tableData.length : rowCount,
+    pageCount:
+      pagedLocally || rowCount !== undefined ? undefined : inferredPageCount,
     initialState: {
       columnVisibility: initialColumnVisibility,
     },
