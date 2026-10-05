@@ -42,8 +42,20 @@ pub struct ContactIdentity {
     pub language: String,
 }
 
+/// A contact on the list and its subscription state, as returned by
+/// [`MarketingListPort::list_contacts`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ListContact {
+    pub email: String,
+    pub state: SubscriptionState,
+}
+
 #[async_trait::async_trait]
 pub trait MarketingListPort: Send + Sync {
+    /// Every contact on the list with its subscription state, including
+    /// contacts that are not in the registry.
+    async fn list_contacts(&self) -> Result<Vec<ListContact>, MarketingListError>;
+
     /// Fetch a contact's current subscription state and tag assignments.
     /// Returns `NotAContact` if the email has never been added to the list.
     async fn fetch_preferences(

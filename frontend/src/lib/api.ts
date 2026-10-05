@@ -64,6 +64,7 @@ export enum QueryKey {
   PUBLIC_CONFIG = "public_config",
   KEYCLOAK_SYNC_STATUS = "keycloak_sync_status",
   GOOGLE_GROUPS = "google_groups",
+  MAILCHIMP = "mailchimp",
   MARKETING_PREFERENCES = "marketing_preferences",
   MARKETING_TAGS = "marketing_tags",
   ATTRIBUTE_DEFINITIONS = "attribute_definitions",
@@ -444,6 +445,44 @@ export const useBackfillGoogleGroups = () => {
           "/members/google-groups/backfill",
           { remove },
         );
+      return response.data;
+    },
+  });
+};
+
+export interface MailchimpStatus {
+  configured: boolean;
+}
+
+export function useGetMailchimp() {
+  return useQuery<MailchimpStatus>({
+    queryKey: [QueryKey.MAILCHIMP],
+    queryFn: async () => {
+      const response =
+        await admin_axios_client.get<MailchimpStatus>("/members/mailchimp");
+      return response.data;
+    },
+    staleTime: 60_000,
+  });
+}
+
+export interface MailchimpResyncResponse {
+  contacts_checked: number;
+  archived: number;
+  members_qualifying: number;
+  added: number;
+  restored: number;
+  skipped_unsubscribed: number;
+  failed: number;
+}
+
+export const useResyncMailchimp = () => {
+  return useMutation<MailchimpResyncResponse, Error, { years: number[] }>({
+    mutationFn: async ({ years }) => {
+      const response = await admin_axios_client.post<MailchimpResyncResponse>(
+        "/members/mailchimp/resync",
+        { years },
+      );
       return response.data;
     },
   });
