@@ -181,6 +181,19 @@ export function DataTableToolbar<TData>({
               </span>
             );
           })}
+          {selectedSavedFilter && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-6 px-2 text-xs"
+              onClick={() => {
+                onSelectedSavedFilterChange?.(null);
+                onClearFilters?.();
+              }}
+            >
+              Clear filter <Cross2Icon className="ml-1 h-3 w-3" />
+            </Button>
+          )}
           <CreateSavedFilterModal
             newSavedFilter={newSavedFilter}
             refetchSavedFilters={savedFilters.refetch}
