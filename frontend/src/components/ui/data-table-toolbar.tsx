@@ -11,6 +11,14 @@ import { Input } from "@/components/ui/input";
 import { useDeleteSavedFilter, useGetSavedFilters } from "@/lib/api";
 import { NewSavedFilter, SavedFilter } from "@/common/types";
 import CreateSavedFilterModal from "../saved-filter/CreateSavedFilterModal";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ReactNode, useState } from "react";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +33,12 @@ interface DataTableToolbarProps<TData> {
   setFilterVisible?: (v: boolean) => void;
   filterContent?: ReactNode;
   enableSavedFilters?: boolean;
+  // Name of the saved filter currently applied, if any. Owned by the page so
+  // its own "Clear filters" / "Apply filters" can deselect the chip.
+  selectedSavedFilter?: string | null;
+  onSelectedSavedFilterChange?: (name: string | null) => void;
+  // Returns search, sorting and the page's filters to their defaults.
+  onClearFilters?: () => void;
 }
 
 export function DataTableToolbar<TData>({
@@ -37,10 +51,11 @@ export function DataTableToolbar<TData>({
   setFilterVisible,
   filterContent,
   enableSavedFilters = false,
+  selectedSavedFilter = null,
+  onSelectedSavedFilterChange,
+  onClearFilters,
 }: DataTableToolbarProps<TData>) {
-  const [selectedFilter, setSelectedFilter] = useState<SavedFilter | null>(
-    null,
-  );
+  const [filterToDelete, setFilterToDelete] = useState<string | null>(null);
   const isFiltered = table.getState().columnFilters.length > 0;
   const savedFilters = useGetSavedFilters(modelName);
   const deleteSavedFilter = useDeleteSavedFilter();
@@ -57,9 +72,27 @@ export function DataTableToolbar<TData>({
     custom_filters: customFilters ?? null,
   };
 
+  // Clicking the active chip again turns it off and restores the defaults.
   const handleFilterSelection = (filter: SavedFilter) => {
+    if (selectedSavedFilter === filter.name) {
+      onSelectedSavedFilterChange?.(null);
+      onClearFilters?.();
+      return;
+    }
     setFilter(filter);
-    setSelectedFilter(filter);
+    onSelectedSavedFilterChange?.(filter.name);
+  };
+
+  const confirmDelete = () => {
+    const name = filterToDelete;
+    if (!name) return;
+    deleteSavedFilter.mutate(name, {
+      onSuccess: () => {
+        if (selectedSavedFilter === name) onSelectedSavedFilterChange?.(null);
+        savedFilters.refetch();
+        setFilterToDelete(null);
+      },
+    });
   };
 
   return (
@@ -119,11 +152,16 @@ export function DataTableToolbar<TData>({
       {enableSavedFilters && (
         <div className="flex items-center gap-1.5 flex-wrap">
           {savedFilters.data?.map((filter) => {
-            const isActive = selectedFilter?.name === filter.name;
+            const isActive = selectedSavedFilter === filter.name;
             return (
               <span
                 key={filter.name}
                 onClick={() => handleFilterSelection(filter)}
+                title={
+                  isActive
+                    ? "Click to turn this filter off"
+                    : "Click to apply this filter"
+                }
                 className={cn(
                   "group inline-flex items-center gap-1 px-3 py-0.5 rounded-full text-xs font-medium cursor-pointer border transition-all select-none",
                   isActive
@@ -134,11 +172,10 @@ export function DataTableToolbar<TData>({
                 {filter.name}
                 <Cross2Icon
                   className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 transition-opacity"
+                  aria-label={`Delete saved filter ${filter.name}`}
                   onClick={(e) => {
                     e.stopPropagation();
-                    deleteSavedFilter.mutate(filter.name, {
-                      onSuccess: () => savedFilters.refetch(),
-                    });
+                    setFilterToDelete(filter.name);
                   }}
                 />
               </span>
@@ -155,6 +192,34 @@ export function DataTableToolbar<TData>({
           />
         </div>
       )}
+
+      <Dialog
+        open={filterToDelete !== null}
+        onOpenChange={(open) => !open && setFilterToDelete(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete saved filter?</DialogTitle>
+            <DialogDescription>
+              "{filterToDelete}" will be deleted for everyone who uses it. This
+              can't be undone. Only the person who saved a filter can delete
+              it.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFilterToDelete(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDelete}
+              disabled={deleteSavedFilter.isPending}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
