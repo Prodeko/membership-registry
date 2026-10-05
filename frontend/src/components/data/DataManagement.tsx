@@ -1,5 +1,4 @@
 import {
-  useExportAllMembers,
   useExportApplications,
   useExportAuditLogs,
   useExportRoles,
@@ -17,6 +16,7 @@ import {
 import AttributeImportPanel from "./AttributeImportPanel";
 import GoogleGroupsSyncCard from "./GoogleGroupsSyncCard";
 import MailchimpResyncCard from "./MailchimpResyncCard";
+import MemberExportCard from "./MemberExportCard";
 import MemberImportPanel from "./MemberImportPanel";
 import RoleImportPanel from "./RoleImportPanel";
 import SyncRolesCard from "./SyncRolesCard";
@@ -32,31 +32,6 @@ interface ExportConfig {
 }
 
 const exportConfigs: ExportConfig[] = [
-  {
-    title: "Members",
-    description: "Every member, one row per member.",
-    columns: [
-      "user_id",
-      "first_name",
-      "last_name",
-      "full_name",
-      "home_municipality",
-      "email_notifications",
-      "email",
-      "role_names",
-    ],
-    notes: [
-      <>
-        <code>role_names</code>: every role the member has had, including ended
-        ones, comma-separated.
-      </>,
-      <>
-        Language and attribute values are not included, so this file can&apos;t
-        be imported back as is.
-      </>,
-    ],
-    useExport: useExportAllMembers,
-  },
   {
     title: "Applications",
     description: "Every membership application, one row per application.",
@@ -192,6 +167,7 @@ const DataManagement = () => {
       </div>
       {activeTab === "export" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <MemberExportCard />
           {exportConfigs.map((config) => (
             <ExportCard key={config.title} config={config} />
           ))}

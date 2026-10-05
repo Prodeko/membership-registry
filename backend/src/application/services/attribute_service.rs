@@ -523,6 +523,15 @@ impl AttributeService {
         Ok(())
     }
 
+    /// Every member's values for one attribute (members without a value are
+    /// left out). Used by the member export.
+    pub async fn all_values_for(
+        &self,
+        name: &AttributeName,
+    ) -> ServiceResult<Vec<(PersonId, Vec<AttributeValue>)>> {
+        Ok(self.repo.fetch_all_values_for(name).await?)
+    }
+
     pub async fn list_definitions(&self) -> ServiceResult<Vec<AttributeDefinition>> {
         Ok(self.repo.fetch_all_definitions().await?)
     }

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use axum::{
     body::Body,
     debug_handler,
@@ -13,9 +15,13 @@ use uuid::Uuid;
 
 use crate::{
     application::{
-        ports::data_export_port::ExportedData, services::authentication_service::AuthenticatedUser,
+        ports::data_export_port::ExportedData,
+        services::{
+            authentication_service::AuthenticatedUser,
+            export_service::{member_export_table, MemberExportColumn},
+        },
     },
-    domain::UpdatePersonData,
+    domain::{AttributeName, AttributeValue, UpdatePersonData},
     infrastructure::http::{
         dto::{
             member::{
@@ -169,12 +175,58 @@ async fn count_members_with_roles(
     Ok(Json(MembersCountDTO { total }))
 }
 
+/// Columns for the member export, as `MemberExportColumn` keys: fixed
+/// column names or `attribute:<name>`. Omitted: the default columns.
+#[derive(Debug, Deserialize, TS)]
+#[ts(export, rename = "MemberExportRequest")]
+struct MemberExportRequestDTO {
+    columns: Vec<String>,
+}
+
 #[debug_handler]
 async fn export_members_with_roles(
     Extension(user_info): Extension<Option<AuthenticatedUser>>,
     State(state): State<AppState>,
     Query(query): Query<MembersWithRolesQueryDTO>,
+    body: Option<Json<MemberExportRequestDTO>>,
 ) -> ApiResult<Response<Body>> {
+    let columns = match body {
+        None => MemberExportColumn::defaults(),
+        Some(Json(req)) => req
+            .columns
+            .iter()
+            .map(|key| MemberExportColumn::parse(key))
+            .collect::<Option<Vec<_>>>()
+            .filter(|cols| !cols.is_empty())
+            .ok_or(ApiError::BadRequest)?,
+    };
+
+    // Attribute values, fetched only for the attribute columns asked for.
+    let mut attributes: HashMap<String, HashMap<Uuid, Vec<String>>> = HashMap::new();
+    for column in &columns {
+        if let MemberExportColumn::Attribute(name) = column {
+            let attr = AttributeName::new(name.clone()).map_err(|_| ApiError::BadRequest)?;
+            state
+                .attribute_service
+                .get_definition(&attr)
+                .await?
+                .ok_or(ApiError::BadRequest)?;
+            let values = state.attribute_service.all_values_for(&attr).await?;
+            attributes.insert(
+                name.clone(),
+                values
+                    .into_iter()
+                    .map(|(id, vs)| {
+                        (
+                            id.0,
+                            vs.into_iter().map(AttributeValue::into_inner).collect(),
+                        )
+                    })
+                    .collect(),
+            );
+        }
+    }
+
     let actor_id = user_info.map(|u| u.user_id);
     state.member_service.log_export(actor_id).await;
 
@@ -199,7 +251,8 @@ async fn export_members_with_roles(
         )
         .await?;
 
-    let exported = state.export_service.export(&members)?;
+    let table = member_export_table(&members, &columns, &attributes);
+    let exported = state.export_service.export_table(&table)?;
     build_export_response(exported)
 }
 
