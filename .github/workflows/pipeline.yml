@@ -24,6 +24,13 @@ jobs:
     name: Build and deploy
     needs: [ci, e2e]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # One deploy at a time, newest last. Both runs push the `latest` tag and
+    # restart the app, so two merges deploying in parallel could leave the
+    # older commit live if its push finished second. A deploy waits for the
+    # running one; a newer one replaces any still waiting.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
