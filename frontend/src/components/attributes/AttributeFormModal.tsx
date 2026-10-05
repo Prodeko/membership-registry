@@ -233,9 +233,16 @@ const AttributeFormModal = ({
               />
             )}
             <p className="text-xs text-muted-foreground">
-              Applied to newly registered users. Existing members are not
-              touched. Must satisfy allowed values when both are set.
+              Applied to newly registered users, for admin-only attributes only:
+              attributes members fill in themselves start empty, so they answer
+              them on their own. Existing members are not touched. Must satisfy
+              allowed values when both are set.
             </p>
+            {defaultValue && editableBy !== "admin" && (
+              <p className="text-xs text-destructive">
+                Not applied: members can edit this attribute.
+              </p>
+            )}
           </div>
 
           <div className="flex items-center justify-between">

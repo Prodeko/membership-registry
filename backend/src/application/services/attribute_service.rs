@@ -628,8 +628,12 @@ impl AttributeService {
         Ok(self.repo.fetch_member_values(&user_id).await?)
     }
 
-    /// Write every definition's `default_value` to MemberAttribute for a
-    /// freshly created user. Best-effort: failures are logged but never
+    /// Write the `default_value` of every admin-only definition to
+    /// MemberAttribute for a freshly created user. Attributes members fill in
+    /// themselves (editable by `user` or `both`) are skipped: a stored default
+    /// would look like the member's own answer, prefill their forms and
+    /// satisfy `required` without them ever choosing it.
+    /// Best-effort: failures are logged but never
     /// abort registration. Existing values on the user (if any) are
     /// overwritten by the default — the contract is "fresh user, no
     /// pre-existing values" so callers must invoke this only at
@@ -648,6 +652,9 @@ impl AttributeService {
             }
         };
         for def in defs {
+            if def.editable_by() != EditableBy::Admin {
+                continue;
+            }
             let Some(default) = def.default_value().cloned() else {
                 continue;
             };
