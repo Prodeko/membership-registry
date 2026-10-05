@@ -51,6 +51,7 @@ const Members: React.FC = () => {
   const [draft, setDraft] = React.useState<FilterState>(defaultFilterState);
   const [applied, setApplied] = React.useState<FilterState>(defaultFilterState);
   const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [savedFilter, setSavedFilter] = React.useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
   const editUserId = searchParams.get("edit");
 
@@ -85,12 +86,21 @@ const Members: React.FC = () => {
 
   const clearSelection = () => setRowSelection({});
 
-  const applyFilters = () => setApplied(draft);
+  // Changing the filters by hand means the saved filter no longer applies.
+  const applyFilters = () => {
+    setApplied(draft);
+    setSavedFilter(null);
+  };
 
-  const clearAllFilters = () => {
+  const resetFilters = () => {
     const next = defaultFilterState();
     setDraft(next);
     setApplied(next);
+  };
+
+  const clearAllFilters = () => {
+    resetFilters();
+    setSavedFilter(null);
   };
 
   if (isLoading) {
@@ -213,6 +223,9 @@ const Members: React.FC = () => {
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           enableSavedFilters={true}
+          selectedSavedFilter={savedFilter}
+          onSelectedSavedFilterChange={setSavedFilter}
+          resetCustomFilters={resetFilters}
           onRowClick={openDrawer}
         />
 

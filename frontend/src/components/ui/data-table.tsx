@@ -65,6 +65,10 @@ interface DataTableProps<TData, TValue> {
   rowSelection?: RowSelectionState;
   onRowSelectionChange?: (s: RowSelectionState) => void;
   enableSavedFilters?: boolean;
+  selectedSavedFilter?: string | null;
+  onSelectedSavedFilterChange?: (name: string | null) => void;
+  // Resets the page's own filters; search and sorting are reset here.
+  resetCustomFilters?: () => void;
   onRowClick?: (row: TData) => void;
 }
 
@@ -84,6 +88,9 @@ export function DataTable<TData, TValue>({
   rowSelection: controlledRowSelection,
   onRowSelectionChange,
   enableSavedFilters = false,
+  selectedSavedFilter,
+  onSelectedSavedFilterChange,
+  resetCustomFilters,
   onRowClick,
 }: DataTableProps<TData, TValue>) {
   const [tableData, setTableData] = React.useState<TData[]>([]);
@@ -195,6 +202,12 @@ export function DataTable<TData, TValue>({
     }
   }
 
+  const clearFilters = () => {
+    if (searchColumn) table.getColumn(searchColumn)?.setFilterValue("");
+    table.setSorting([]);
+    resetCustomFilters?.();
+  };
+
   React.useEffect(() => {
     if (fetchedData) {
       setTableData(fetchedData);
@@ -221,6 +234,9 @@ export function DataTable<TData, TValue>({
         setFilterVisible={setFilterVisible}
         filterContent={filterContent}
         enableSavedFilters={enableSavedFilters}
+        selectedSavedFilter={selectedSavedFilter}
+        onSelectedSavedFilterChange={onSelectedSavedFilterChange}
+        onClearFilters={clearFilters}
       />
       <div className="rounded-md border">
         <Table>
