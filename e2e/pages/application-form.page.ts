@@ -40,6 +40,16 @@ export class ApplicationFormPage {
     }
   }
 
+  /**
+   * Pick "Other…" on a single-valued attribute's Select and type a free-text
+   * answer. The answer is committed when the input loses focus.
+   */
+  async setOtherAttribute(name: string, text: string): Promise<void> {
+    await this.page.getByTestId(`application-attr-${name}`).click();
+    await this.page.getByRole("option", { name: /^(Other|Muu)…$/ }).click();
+    await this.fillOther(name, text);
+  }
+
   /** Pick each of `values` in a multichoice attribute's selector. */
   async chooseMany(name: string, values: string[]): Promise<void> {
     const input = this.page
@@ -50,6 +60,13 @@ export class ApplicationFormPage {
       await this.page.getByRole("option", { name: value, exact: true }).click();
     }
     await input.press("Escape");
+  }
+
+  /** Type into an attribute's "other" input and commit it by blurring. */
+  async fillOther(name: string, text: string): Promise<void> {
+    const other = this.page.getByTestId(`application-attr-${name}-other`);
+    await other.fill(text);
+    await other.blur();
   }
 
   async submit(): Promise<void> {

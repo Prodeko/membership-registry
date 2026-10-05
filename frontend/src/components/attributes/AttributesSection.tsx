@@ -5,15 +5,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import MultiValueSelect from "./MultiValueSelect";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
-
-const CLEAR_VALUE = "__attribute_clear__";
+import SingleValueSelect from "./SingleValueSelect";
 
 interface Props {
   attributes: MemberAttribute[] | undefined;
@@ -109,7 +101,7 @@ const AttributeRow = ({
   };
 
   const handleSelectChange = (v: string) => {
-    if (v === CLEAR_VALUE) {
+    if (!v) {
       setDraft("");
       if (current) onDelete(attr.name);
       return;
@@ -174,33 +166,24 @@ const AttributeRow = ({
           id={`attr-${attr.name}`}
           values={multiDraft}
           allowedValues={attr.allowed_values}
+          allowOther={attr.allow_other}
           onChange={handleMultiChange}
           disabled={isMutating}
         />
       ) : hasEnum ? (
-        <div className="flex gap-2">
-          <Select
-            value={current || CLEAR_VALUE}
-            onValueChange={handleSelectChange}
-            disabled={isMutating}
-          >
-            <SelectTrigger id={`attr-${attr.name}`} className="w-64">
-              <SelectValue placeholder={t("attributes.not_set_placeholder")} />
-            </SelectTrigger>
-            <SelectContent className="z-[300]">
-              {(canClear || !current) && (
-                <SelectItem value={CLEAR_VALUE}>
-                  {t("attributes.not_set_option")}
-                </SelectItem>
-              )}
-              {attr.allowed_values?.map((v) => (
-                <SelectItem key={v} value={v}>
-                  {v}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <SingleValueSelect
+          id={`attr-${attr.name}`}
+          value={current}
+          allowedValues={attr.allowed_values ?? []}
+          allowOther={attr.allow_other}
+          onChange={handleSelectChange}
+          clearLabel={
+            canClear || !current ? t("attributes.not_set_option") : undefined
+          }
+          placeholder={t("attributes.not_set_placeholder")}
+          contentClassName="z-[300]"
+          disabled={isMutating}
+        />
       ) : (
         <div className="flex gap-2">
           <Input

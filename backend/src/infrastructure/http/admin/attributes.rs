@@ -97,6 +97,7 @@ async fn create_definition(
                 editable_by: body.editable_by.into(),
                 required: body.required.unwrap_or(false),
                 multiple: body.multiple.unwrap_or(false),
+                allow_other: body.allow_other.unwrap_or(false),
             },
             actor_id,
         )
@@ -147,6 +148,7 @@ async fn update_definition(
                 editable_by: body.editable_by.map(Into::into),
                 required: body.required,
                 multiple: body.multiple,
+                allow_other: body.allow_other,
             },
             actor_id,
         )
@@ -228,6 +230,7 @@ async fn get_member_attributes_admin(
             description: d.description().map(str::to_string),
             required: d.required(),
             multiple: d.multiple(),
+            allow_other: d.allow_other(),
             name: d.name().clone().into_inner(),
         })
         .collect();

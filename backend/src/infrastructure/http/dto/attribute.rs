@@ -45,6 +45,7 @@ pub struct AttributeDefinitionDTO {
     pub editable_by: EditableByDTO,
     pub required: bool,
     pub multiple: bool,
+    pub allow_other: bool,
 }
 
 impl From<AttributeDefinition> for AttributeDefinitionDTO {
@@ -58,6 +59,7 @@ impl From<AttributeDefinition> for AttributeDefinitionDTO {
             editable_by: d.editable_by().into(),
             required: d.required(),
             multiple: d.multiple(),
+            allow_other: d.allow_other(),
             description: d.description().map(str::to_string),
             allowed_values: allowed,
             default_value: default,
@@ -81,6 +83,9 @@ pub struct CreateAttributeDefinitionDTO {
     #[serde(default)]
     #[ts(optional)]
     pub multiple: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub allow_other: Option<bool>,
 }
 
 /// Patch DTO for updating a definition. Each field's wire semantics:
@@ -111,6 +116,9 @@ pub struct UpdateAttributeDefinitionDTO {
     #[serde(default)]
     #[ts(optional)]
     pub multiple: Option<bool>,
+    #[serde(default)]
+    #[ts(optional)]
+    pub allow_other: Option<bool>,
 }
 
 #[derive(Debug, Serialize, TS)]
@@ -124,6 +132,7 @@ pub struct MemberAttributeDTO {
     pub description: Option<String>,
     pub required: bool,
     pub multiple: bool,
+    pub allow_other: bool,
 }
 
 #[derive(Debug, Deserialize, TS)]

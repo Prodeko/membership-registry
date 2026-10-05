@@ -65,6 +65,7 @@ const AttributeFormModal = ({
   );
   const [required, setRequired] = useState(initial?.required ?? false);
   const [multiple, setMultiple] = useState(initial?.multiple ?? false);
+  const [allowOther, setAllowOther] = useState(initial?.allow_other ?? false);
   const [nameError, setNameError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -77,6 +78,7 @@ const AttributeFormModal = ({
       setEditableBy(initial?.editable_by ?? "admin");
       setRequired(initial?.required ?? false);
       setMultiple(initial?.multiple ?? false);
+      setAllowOther(initial?.allow_other ?? false);
       setNameError(null);
     }
   }, [open, initial]);
@@ -87,6 +89,8 @@ const AttributeFormModal = ({
       .map((s) => s.trim())
       .filter((s) => s.length > 0);
     const default_value = defaultValue.trim() || null;
+    // "Other" only means something next to a list of allowed values.
+    const allow_other = allowOther && allowed_values.length > 0;
 
     if (mode === "create") {
       if (!NAME_RE.test(name)) {
@@ -104,6 +108,7 @@ const AttributeFormModal = ({
         editable_by: editableBy,
         required,
         multiple,
+        allow_other,
       } satisfies CreateAttributeDefinition);
     } else {
       // Build a sparse Patch payload: omit fields that match the loaded
@@ -141,6 +146,9 @@ const AttributeFormModal = ({
       }
       if (multiple !== (initial?.multiple ?? false)) {
         patch.multiple = multiple;
+      }
+      if (allow_other !== (initial?.allow_other ?? false)) {
+        patch.allow_other = allow_other;
       }
       onSubmit(patch);
     }
@@ -308,6 +316,26 @@ const AttributeFormModal = ({
                 of free-text values. Turning this off is refused while any
                 member holds more than one value. In CSV imports, separate
                 values with a semicolon (<code>fi; en</code>).
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-3">
+            <Checkbox
+              id="attr-allow-other"
+              checked={allowOther && allowedValuesList.length > 0}
+              onCheckedChange={(c) => setAllowOther(c === true)}
+              disabled={allowedValuesList.length === 0}
+              className="mt-0.5"
+            />
+            <div>
+              <Label htmlFor="attr-allow-other">"Other" option</Label>
+              <p className="text-xs text-muted-foreground">
+                Members can type their own answer when none of the allowed
+                values fit. One such value per member; with multiple values it
+                sits alongside the chosen ones. Needs allowed values. Turning
+                this off is refused while any member holds a value outside the
+                list.
               </p>
             </div>
           </div>

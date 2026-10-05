@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT name, description, allowed_values, default_value,\n                      sync_to_keycloak,\n                      editable_by AS \"editable_by: EditableByDAO\", required, multiple\n               FROM AttributeDefinition ORDER BY name",
+  "query": "UPDATE AttributeDefinition\n               SET description = $2, allowed_values = $3, default_value = $4,\n                   sync_to_keycloak = $5, editable_by = $6, required = $7,\n                   multiple = $8, allow_other = $9\n               WHERE name = $1\n               RETURNING name, description, allowed_values, default_value,\n                         sync_to_keycloak,\n                         editable_by AS \"editable_by: EditableByDAO\", required, multiple, allow_other",
   "describe": {
     "columns": [
       {
@@ -101,10 +101,42 @@
             "name": "multiple"
           }
         }
+      },
+      {
+        "ordinal": 8,
+        "name": "allow_other",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "attributedefinition",
+            "name": "allow_other"
+          }
+        }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Text",
+        "Text",
+        "TextArray",
+        "Text",
+        "Bool",
+        {
+          "Custom": {
+            "name": "attribute_editable_by",
+            "kind": {
+              "Enum": [
+                "admin",
+                "user",
+                "both"
+              ]
+            }
+          }
+        },
+        "Bool",
+        "Bool",
+        "Bool"
+      ]
     },
     "nullable": [
       false,
@@ -114,8 +146,9 @@
       false,
       false,
       false,
+      false,
       false
     ]
   },
-  "hash": "76d12503d01e92aa717ce1adef2b49b95b44fe656b9a239ab6bbbbe957fdfcdc"
+  "hash": "c4df55bf83e1792492c8c5e13e712884848b57beffe550c48d62448ea469aac1"
 }

@@ -54,6 +54,7 @@ pub struct UpdateAttributeDefinitionPatch {
     pub editable_by: Option<EditableBy>,
     pub required: Option<bool>,
     pub multiple: Option<bool>,
+    pub allow_other: Option<bool>,
 }
 
 /// Per-provider outcome of a KC push initiated after a successful DB write.
@@ -194,6 +195,7 @@ impl AttributeService {
                 "allowed_values must be non-empty (or null for no constraint)".to_string(),
             ));
         }
+        check_allow_other(input.allow_other, input.allowed_values.as_deref())?;
         if let (Some(allowed), Some(default)) = (&input.allowed_values, &input.default_value) {
             if !allowed.iter().any(|v| v == default) {
                 return Err(ServiceError::Constraint(format!(
@@ -207,6 +209,7 @@ impl AttributeService {
         let editable_by = input.editable_by;
         let required = input.required;
         let multiple = input.multiple;
+        let allow_other = input.allow_other;
         let sync_flag = input.sync_to_keycloak;
 
         // DB first; KC mapper add is the side-effect that gets rolled back
@@ -246,6 +249,7 @@ impl AttributeService {
                     "editable_by": editable_by.as_str(),
                     "required": required,
                     "multiple": multiple,
+                    "allow_other": allow_other,
                 })),
             )
             .await;
@@ -279,6 +283,7 @@ impl AttributeService {
         let editable_by = patch.editable_by.unwrap_or(existing.editable_by());
         let required = patch.required.unwrap_or(existing.required());
         let multiple = patch.multiple.unwrap_or(existing.multiple());
+        let allow_other = patch.allow_other.unwrap_or(existing.allow_other());
 
         // Reject Some(empty) at the boundary so the domain invariant holds.
         if matches!(&allowed_values, Some(v) if v.is_empty()) {
@@ -286,6 +291,7 @@ impl AttributeService {
                 "allowed_values must be non-empty (or null to clear)".to_string(),
             ));
         }
+        check_allow_other(allow_other, allowed_values.as_deref())?;
 
         // The resolved (allowed_values, default_value) pair must be consistent.
         // Otherwise an admin could clear allowed_values while leaving a stale
@@ -300,9 +306,11 @@ impl AttributeService {
             }
         }
 
-        // If allowed_values is being tightened, or a multichoice attribute is
-        // being made single-valued, verify no existing user value is now
-        // invalid. Silently truncating a member's choices would lose data.
+        // If allowed_values is being tightened, "other" turned off, or a
+        // multichoice attribute made single-valued, verify no existing user
+        // value is now invalid. Silently truncating a member's choices would
+        // lose data. With allow_other, one value per member may sit outside
+        // the list.
         let narrowing_to_single = !multiple && existing.multiple();
         if allowed_values.is_some() || narrowing_to_single {
             let allowed_set: Option<HashSet<&str>> = allowed_values
@@ -318,7 +326,11 @@ impl AttributeService {
                     )));
                 }
                 if let Some(allowed_set) = &allowed_set {
-                    if let Some(val) = vals.iter().find(|v| !allowed_set.contains(v.as_str())) {
+                    let mut outside = vals.iter().filter(|v| !allowed_set.contains(v.as_str()));
+                    let first = outside.next();
+                    let second = outside.next();
+                    let offending = if allow_other { second } else { first };
+                    if let Some(val) = offending {
                         return Err(ServiceError::Constraint(format!(
                             "user {} has value {:?} which is not in allowed_values",
                             uid.0,
@@ -338,6 +350,7 @@ impl AttributeService {
             editable_by,
             required,
             multiple,
+            allow_other,
         };
         let updated = self.repo.update_definition(name, resolved).await?;
 
@@ -389,6 +402,7 @@ impl AttributeService {
                     "editable_by": editable_by.as_str(),
                     "required": required,
                     "multiple": multiple,
+                    "allow_other": allow_other,
                     "auto_pushed_applied": push_summary.as_ref().map(|s| s.applied),
                     "auto_pushed_failed": push_summary.as_ref().map(|s| s.failures.len()),
                 })),
@@ -731,6 +745,9 @@ impl AttributeService {
                 }
                 AttributeValidationError::NotInAllowedValues(v) => {
                     format!("value {:?} is not in allowed_values", v.as_str())
+                }
+                AttributeValidationError::TooManyOtherValues => {
+                    "only one value outside allowed_values is accepted".to_string()
                 }
             }));
         }
@@ -1163,6 +1180,20 @@ impl AttributeBootstrapPort for AttributeService {
     async fn apply_defaults_for_new_user(&self, user_id: PersonId) {
         AttributeService::apply_defaults_for_new_user(self, user_id).await;
     }
+}
+
+/// "Other" means "a value outside the list", so it needs a list to be
+/// outside of. Without `allowed_values` any value is already accepted.
+fn check_allow_other(
+    allow_other: bool,
+    allowed_values: Option<&[AttributeValue]>,
+) -> ServiceResult<()> {
+    if allow_other && allowed_values.is_none() {
+        return Err(ServiceError::Constraint(
+            "allow_other requires allowed_values".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn map_sync_err(e: AttributeSyncError) -> ServiceError {

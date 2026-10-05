@@ -926,12 +926,14 @@ async fn create_application_writes_submitted_attribute_to_member() {
 }
 
 #[tokio::test]
-async fn create_application_writes_multichoice_values_to_member() {
-    // All values land in one upsert.
-    let def = admin_only_choice("languages", &["fi", "sv", "en"]).with_multiple(true);
+async fn create_application_writes_multichoice_values_with_other_to_member() {
+    // All values land in one upsert, the "other" answer included.
+    let def = admin_only_choice("languages", &["fi", "sv", "en"])
+        .with_multiple(true)
+        .with_allow_other(true);
     assert_eq!(
-        submit_form_attribute(def, &["fi", "en"]).await,
-        vec![("languages".to_string(), strings(&["fi", "en"]))]
+        submit_form_attribute(def, &["fi", "en", "kurdish"]).await,
+        vec![("languages".to_string(), strings(&["fi", "en", "kurdish"]))]
     );
 }
 

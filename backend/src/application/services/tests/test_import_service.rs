@@ -791,14 +791,16 @@ async fn apply_roles_skips_upsert_for_unchanged_assignment() {
 }
 
 // ---------------------------------------------------------------------------
-// Multichoice attribute cells
+// Multichoice and "other" attribute cells
 // ---------------------------------------------------------------------------
 
-/// `languages` (fi/sv/en) is multichoice; `guild` is a plain single-valued
-/// enum.
+/// `languages` (fi/sv/en) is multichoice with an "other" option; `guild` is a
+/// plain single-valued enum.
 fn choice_defs() -> Vec<AttributeDefinition> {
     vec![
-        def("languages", Some(vec!["fi", "sv", "en"]), EditableBy::Admin).with_multiple(true),
+        def("languages", Some(vec!["fi", "sv", "en"]), EditableBy::Admin)
+            .with_multiple(true)
+            .with_allow_other(true),
         def("guild", Some(vec!["prodeko", "athene"]), EditableBy::Admin),
     ]
 }
@@ -814,18 +816,18 @@ fn multichoice_cell_splits_on_semicolon_and_trims() {
         unreachable!()
     };
     assert_eq!(
-        cell_values(languages, " fi ;en;; sv "),
-        Ok(vec!["fi".to_string(), "en".to_string(), "sv".to_string()])
+        cell_values(languages, " fi ;en;; de "),
+        Ok(vec!["fi".to_string(), "en".to_string(), "de".to_string()])
     );
 }
 
 #[test]
-fn multichoice_cell_rejects_duplicates_and_unlisted_values() {
+fn multichoice_cell_rejects_duplicates_and_a_second_other_value() {
     let [languages, _] = &choice_defs()[..] else {
         unreachable!()
     };
     assert!(cell_values(languages, "fi; fi").is_err());
-    assert!(cell_values(languages, "fi; de").is_err());
+    assert!(cell_values(languages, "fi; de; fr").is_err());
 }
 
 #[test]
@@ -864,11 +866,13 @@ async fn preview_attribute_values_compares_multichoice_cells_as_sets() {
     let csv = b"email,attribute,value\n\
 a@x.com,languages,en; fi\n\
 b@x.com,languages,fi; sv\n\
-c@x.com,languages,fi; de\n";
+c@x.com,languages,fi; de\n\
+d@x.com,languages,fi; de; fr\n";
     let preview = svc.preview_attributes(csv).await.unwrap();
 
     assert_eq!(preview.fatal_error, None);
     assert_eq!(preview.rows[0].result, Ok(RowAction::Unchanged)); // reordered
     assert_eq!(preview.rows[1].result, Ok(RowAction::Update));
-    assert!(preview.rows[2].result.is_err()); // "de" not allowed
+    assert_eq!(preview.rows[2].result, Ok(RowAction::Update)); // one "other" value
+    assert!(preview.rows[3].result.is_err()); // two "other" values
 }

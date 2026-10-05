@@ -13,6 +13,7 @@ pub struct CreateAttributeDefinition {
     pub editable_by: EditableBy,
     pub required: bool,
     pub multiple: bool,
+    pub allow_other: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -24,6 +25,7 @@ pub struct UpdateAttributeDefinition {
     pub editable_by: EditableBy,
     pub required: bool,
     pub multiple: bool,
+    pub allow_other: bool,
 }
 
 #[async_trait::async_trait]

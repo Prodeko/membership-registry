@@ -108,7 +108,9 @@
     "not_set_placeholder": "Ei asetettu",
     "clear": "Tyhjennä",
     "required": "Pakollinen",
-    "multi_add_placeholder": "Kirjoita arvo ja paina Enter"
+    "multi_add_placeholder": "Kirjoita arvo ja paina Enter",
+    "other_option": "Muu…",
+    "other_placeholder": "Kirjoita oma vastauksesi"
   },
   "application": {
     "form": {

@@ -4,4 +4,4 @@ export type MemberAttribute = { name: string,
 /**
  * Empty when the member holds no value.
  */
-values: Array<string>, editable: boolean, allowed_values: Array<string> | null, description: string | null, required: boolean, multiple: boolean, };
+values: Array<string>, editable: boolean, allowed_values: Array<string> | null, description: string | null, required: boolean, multiple: boolean, allow_other: boolean, };
