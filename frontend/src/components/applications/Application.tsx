@@ -70,13 +70,13 @@ const Application = () => {
   const formAttributes = formAttributeNames.map(
     (name) =>
       attributesByName.get(name) ??
-      ({ name, value: null, required: false } as Pick<
+      ({ name, values: [], required: false } as Pick<
         MemberAttribute,
-        "name" | "value" | "required"
+        "name" | "values" | "required"
       >),
   );
   const otherAttributes = (memberAttributes ?? []).filter(
-    (a) => a.value && !formAttributeNames.includes(a.name),
+    (a) => a.values.length > 0 && !formAttributeNames.includes(a.name),
   );
 
   const handleStatusUpdate = (action: "approve" | "reject") => {
@@ -217,7 +217,7 @@ const Application = () => {
 const AttributeRow = ({
   attr,
 }: {
-  attr: Pick<MemberAttribute, "name" | "value" | "required">;
+  attr: Pick<MemberAttribute, "name" | "values" | "required">;
 }) => (
   <>
     <span className="font-mono">
@@ -225,8 +225,8 @@ const AttributeRow = ({
       {attr.required && <span className="ml-0.5 text-destructive">*</span>}
     </span>
     <span data-testid={`application-attr-value-${attr.name}`}>
-      {attr.value ? (
-        attr.value
+      {attr.values.length > 0 ? (
+        attr.values.join(", ")
       ) : (
         <span className="text-muted-foreground italic">Not set</span>
       )}

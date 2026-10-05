@@ -32,13 +32,14 @@ import { capitalizeFirstLetter } from "@/lib/utils";
 import ApplicationLink from "./ApplicationLink";
 
 /**
- * A column showing the applicant's current value for one member attribute.
+ * A column showing the applicant's current value(s) for one member
+ * attribute; a multichoice attribute's values are comma-separated.
  */
 export const attributeColumn = (
   name: string,
 ): ColumnDef<ApplicationWithMember> => ({
   id: `attribute:${name}`,
-  accessorFn: (application) => application.attributes[name] ?? null,
+  accessorFn: (application) => application.attributes[name]?.join(", ") || null,
   header: ({ column }) => (
     <DataTableColumnHeader column={column} title={name} />
   ),

@@ -32,13 +32,13 @@ pub trait AttributeSyncPort: Send + Sync {
         attr: &AttributeName,
     ) -> Result<(), AttributeSyncError>;
 
-    /// Set a single user attribute on a Keycloak user, preserving any other
-    /// attributes the user already has.
+    /// Set one user attribute (all of its values) on a Keycloak user,
+    /// preserving any other attributes the user already has.
     async fn set_user_attribute(
         &self,
         subject: &IdpSubject,
         attr: &AttributeName,
-        value: &AttributeValue,
+        values: &[AttributeValue],
     ) -> Result<(), AttributeSyncError>;
 
     async fn clear_user_attribute(

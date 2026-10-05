@@ -7,6 +7,7 @@ use crate::application::ports::application_repository_port::{
 use crate::application::ports::attribute_repository_port::AttributeRepositoryPort;
 use crate::application::ports::email_port::EmailPort;
 use crate::application::ports::role_repository_port::RoleRepositoryPort;
+use crate::domain::attribute::AttributeValue;
 use crate::domain::well_known::{
     admin_notifications_email_attribute, ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE, ADMIN_ROLE_NAME,
 };
@@ -171,7 +172,7 @@ impl ApplicationDigestService {
         let addresses: BTreeSet<String> = holders
             .into_iter()
             .filter(|(id, _)| admin_ids.contains(&id.0))
-            .map(|(_, value)| value.into_inner())
+            .flat_map(|(_, values)| values.into_iter().map(AttributeValue::into_inner))
             .collect();
         if addresses.is_empty() {
             tracing::info!(

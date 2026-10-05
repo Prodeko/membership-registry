@@ -16,8 +16,8 @@ use crate::application::ports::{
     auth_provider_repo_port::AuthProviderRepositoryPort,
 };
 use crate::domain::{
-    AttributeDefinition, AttributeName, AttributeValidationError, AttributeValue, DriftEntry,
-    EditableBy, IdpSubject, MemberAttribute, Patch, PersonId,
+    same_values, AttributeDefinition, AttributeName, AttributeValidationError, AttributeValue,
+    DriftEntry, EditableBy, IdpSubject, MemberAttribute, Patch, PersonId,
 };
 
 use super::{
@@ -53,6 +53,8 @@ pub struct UpdateAttributeDefinitionPatch {
     pub sync_to_keycloak: Option<bool>,
     pub editable_by: Option<EditableBy>,
     pub required: Option<bool>,
+    pub multiple: Option<bool>,
+    pub allow_other: Option<bool>,
 }
 
 /// Per-provider outcome of a KC push initiated after a successful DB write.
@@ -193,6 +195,7 @@ impl AttributeService {
                 "allowed_values must be non-empty (or null for no constraint)".to_string(),
             ));
         }
+        check_allow_other(input.allow_other, input.allowed_values.as_deref())?;
         if let (Some(allowed), Some(default)) = (&input.allowed_values, &input.default_value) {
             if !allowed.iter().any(|v| v == default) {
                 return Err(ServiceError::Constraint(format!(
@@ -205,6 +208,8 @@ impl AttributeService {
         let name_str = input.name.as_str().to_string();
         let editable_by = input.editable_by;
         let required = input.required;
+        let multiple = input.multiple;
+        let allow_other = input.allow_other;
         let sync_flag = input.sync_to_keycloak;
 
         // DB first; KC mapper add is the side-effect that gets rolled back
@@ -243,6 +248,8 @@ impl AttributeService {
                     "sync_to_keycloak": sync_flag,
                     "editable_by": editable_by.as_str(),
                     "required": required,
+                    "multiple": multiple,
+                    "allow_other": allow_other,
                 })),
             )
             .await;
@@ -275,6 +282,8 @@ impl AttributeService {
             .unwrap_or(existing.sync_to_keycloak());
         let editable_by = patch.editable_by.unwrap_or(existing.editable_by());
         let required = patch.required.unwrap_or(existing.required());
+        let multiple = patch.multiple.unwrap_or(existing.multiple());
+        let allow_other = patch.allow_other.unwrap_or(existing.allow_other());
 
         // Reject Some(empty) at the boundary so the domain invariant holds.
         if matches!(&allowed_values, Some(v) if v.is_empty()) {
@@ -282,6 +291,7 @@ impl AttributeService {
                 "allowed_values must be non-empty (or null to clear)".to_string(),
             ));
         }
+        check_allow_other(allow_other, allowed_values.as_deref())?;
 
         // The resolved (allowed_values, default_value) pair must be consistent.
         // Otherwise an admin could clear allowed_values while leaving a stale
@@ -296,17 +306,37 @@ impl AttributeService {
             }
         }
 
-        // If allowed_values is being tightened, verify no existing user value is now invalid.
-        if let Some(allowed) = &allowed_values {
-            let allowed_set: HashSet<&str> = allowed.iter().map(AttributeValue::as_str).collect();
+        // If allowed_values is being tightened, "other" turned off, or a
+        // multichoice attribute made single-valued, verify no existing user
+        // value is now invalid. Silently truncating a member's choices would
+        // lose data. With allow_other, one value per member may sit outside
+        // the list.
+        let narrowing_to_single = !multiple && existing.multiple();
+        if allowed_values.is_some() || narrowing_to_single {
+            let allowed_set: Option<HashSet<&str>> = allowed_values
+                .as_ref()
+                .map(|vs| vs.iter().map(AttributeValue::as_str).collect());
             let rows = self.repo.fetch_all_values_for(name).await?;
-            for (uid, val) in rows {
-                if !allowed_set.contains(val.as_str()) {
+            for (uid, vals) in rows {
+                if !multiple && vals.len() > 1 {
                     return Err(ServiceError::Constraint(format!(
-                        "user {} has value {:?} which is not in allowed_values",
+                        "user {} holds {} values; reduce them to one before turning off multiple",
                         uid.0,
-                        val.as_str()
+                        vals.len()
                     )));
+                }
+                if let Some(allowed_set) = &allowed_set {
+                    let mut outside = vals.iter().filter(|v| !allowed_set.contains(v.as_str()));
+                    let first = outside.next();
+                    let second = outside.next();
+                    let offending = if allow_other { second } else { first };
+                    if let Some(val) = offending {
+                        return Err(ServiceError::Constraint(format!(
+                            "user {} has value {:?} which is not in allowed_values",
+                            uid.0,
+                            val.as_str()
+                        )));
+                    }
                 }
             }
         }
@@ -319,6 +349,8 @@ impl AttributeService {
             sync_to_keycloak,
             editable_by,
             required,
+            multiple,
+            allow_other,
         };
         let updated = self.repo.update_definition(name, resolved).await?;
 
@@ -369,6 +401,8 @@ impl AttributeService {
                     "sync_to_keycloak": sync_to_keycloak,
                     "editable_by": editable_by.as_str(),
                     "required": required,
+                    "multiple": multiple,
+                    "allow_other": allow_other,
                     "auto_pushed_applied": push_summary.as_ref().map(|s| s.applied),
                     "auto_pushed_failed": push_summary.as_ref().map(|s| s.failures.len()),
                 })),
@@ -510,7 +544,7 @@ impl AttributeService {
         &self,
         user_id: PersonId,
         name: &AttributeName,
-        value: AttributeValue,
+        values: Vec<AttributeValue>,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         let def = self
@@ -521,7 +555,7 @@ impl AttributeService {
         if def.editable_by() == EditableBy::User {
             return Err(ServiceError::Forbidden);
         }
-        self.set_inner(&def, user_id, &value, actor_user_id, "admin")
+        self.set_inner(&def, user_id, &values, actor_user_id, "admin")
             .await
     }
 
@@ -530,7 +564,7 @@ impl AttributeService {
         &self,
         user_id: PersonId,
         name: &AttributeName,
-        value: AttributeValue,
+        values: Vec<AttributeValue>,
     ) -> ServiceResult<()> {
         let def = self
             .repo
@@ -541,7 +575,7 @@ impl AttributeService {
             return Err(ServiceError::Forbidden);
         }
         let actor = Some(user_id.0);
-        self.set_inner(&def, user_id, &value, actor, "self").await
+        self.set_inner(&def, user_id, &values, actor, "self").await
     }
 
     pub async fn clear_as_admin(
@@ -659,7 +693,13 @@ impl AttributeService {
                 continue;
             };
             if let Err(e) = self
-                .set_inner(&def, user_id.clone(), &default, None, "system")
+                .set_inner(
+                    &def,
+                    user_id.clone(),
+                    std::slice::from_ref(&default),
+                    None,
+                    "system",
+                )
                 .await
             {
                 tracing::error!(
@@ -681,7 +721,7 @@ impl AttributeService {
         &self,
         user_id: PersonId,
         name: &AttributeName,
-        value: AttributeValue,
+        values: Vec<AttributeValue>,
         actor_user_id: Option<Uuid>,
     ) -> ServiceResult<()> {
         let def = self
@@ -689,7 +729,7 @@ impl AttributeService {
             .fetch_definition(name)
             .await?
             .ok_or(ServiceError::NotFound)?;
-        self.set_inner(&def, user_id, &value, actor_user_id, "application_form")
+        self.set_inner(&def, user_id, &values, actor_user_id, "application_form")
             .await
     }
 
@@ -697,27 +737,38 @@ impl AttributeService {
         &self,
         def: &AttributeDefinition,
         user_id: PersonId,
-        value: &AttributeValue,
+        values: &[AttributeValue],
         actor_user_id: Option<Uuid>,
         actor_kind: &'static str,
     ) -> ServiceResult<()> {
-        if let Err(AttributeValidationError::NotInAllowedValues) = def.validate(value) {
-            return Err(ServiceError::Constraint(format!(
-                "value {:?} is not in allowed_values",
-                value.as_str()
-            )));
+        if let Err(e) = def.validate(values) {
+            return Err(ServiceError::Constraint(match e {
+                AttributeValidationError::Empty => "at least one value is required".to_string(),
+                AttributeValidationError::TooManyValues => {
+                    format!("attribute {:?} accepts only one value", def.name().as_str())
+                }
+                AttributeValidationError::DuplicateValue(v) => {
+                    format!("value {:?} is given more than once", v.as_str())
+                }
+                AttributeValidationError::NotInAllowedValues(v) => {
+                    format!("value {:?} is not in allowed_values", v.as_str())
+                }
+                AttributeValidationError::TooManyOtherValues => {
+                    "only one value outside allowed_values is accepted".to_string()
+                }
+            }));
         }
 
         // Registry is the source of truth: write DB first. If the DB write
         // fails the caller can retry idempotently; KC isn't touched.
         self.repo
-            .upsert_member_value(&user_id, def.name(), value)
+            .upsert_member_value(&user_id, def.name(), values)
             .await?;
 
         // Then push to KC. Collect partial failures so the caller knows the
         // registry is ahead and which providers need reconciliation.
         let kc_outcome = if def.sync_to_keycloak() {
-            self.push_to_kc_set(&user_id, def.name(), value).await?
+            self.push_to_kc_set(&user_id, def.name(), values).await?
         } else {
             KcPushOutcome::default()
         };
@@ -732,7 +783,7 @@ impl AttributeService {
                 &format!("{}:{}", user_id.0, def.name().as_str()),
                 Some(serde_json::json!({
                     "actor_kind": actor_kind,
-                    "value": value.as_str(),
+                    "values": values.iter().map(AttributeValue::as_str).collect::<Vec<_>>(),
                     "kc_applied": kc_outcome.applied,
                     "kc_failed_providers": kc_failed_providers,
                 })),
@@ -784,7 +835,7 @@ impl AttributeService {
         &self,
         user_id: &PersonId,
         name: &AttributeName,
-        value: &AttributeValue,
+        values: &[AttributeValue],
     ) -> ServiceResult<KcPushOutcome> {
         let providers = self
             .auth_provider_repo
@@ -795,7 +846,7 @@ impl AttributeService {
         for p in &providers {
             match self
                 .sync
-                .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), name, value)
+                .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), name, values)
                 .await
             {
                 Ok(()) => outcome.applied.push(p.provider_user_id.clone()),
@@ -886,7 +937,7 @@ impl AttributeService {
         // N×M find_by_user_id roundtrips (N attributes × M users); the
         // first call after cache invalidation could stall the admin UI as
         // the registry grows.
-        let mut rows_by_def: HashMap<String, Vec<(PersonId, AttributeValue)>> = HashMap::new();
+        let mut rows_by_def: HashMap<String, Vec<(PersonId, Vec<AttributeValue>)>> = HashMap::new();
         let mut all_user_ids: HashSet<Uuid> = HashSet::new();
         for def in &synced_defs {
             let rows = self.repo.fetch_all_values_for(def.name()).await?;
@@ -916,25 +967,30 @@ impl AttributeService {
             // Map registry user_ids → IdP subjects for diffing. Registry rows
             // with no linked provider are surfaced as RegistryUnlinked so
             // they don't silently disappear from drift detection.
-            let mut registry_by_kc: HashMap<String, (PersonId, AttributeValue)> = HashMap::new();
-            for (uid, val) in &registry_rows {
+            let mut registry_by_kc: HashMap<String, (PersonId, Vec<AttributeValue>)> =
+                HashMap::new();
+            for (uid, vals) in &registry_rows {
                 match providers_by_user.get(&uid.0) {
                     Some(pids) if !pids.is_empty() => {
                         for pid in pids {
-                            registry_by_kc.insert(pid.clone(), (uid.clone(), val.clone()));
+                            registry_by_kc.insert(pid.clone(), (uid.clone(), vals.clone()));
                         }
                     }
                     _ => {
                         entries.push(DriftEntry::RegistryUnlinked {
                             user_id: uid.clone(),
                             attribute: def.name().clone(),
-                            value: val.clone(),
+                            values: vals.clone(),
                         });
                     }
                 }
             }
 
-            for (kc_id, (uid, reg_val)) in &registry_by_kc {
+            // KC holding several values is only an anomaly for single-valued
+            // attributes; for multichoice ones it's the expected shape.
+            let kc_multivalued = |vs: &[AttributeValue]| !def.multiple() && vs.len() > 1;
+
+            for (kc_id, (uid, reg_vals)) in &registry_by_kc {
                 let kc_vals = kc_map
                     .get(kc_id)
                     .and_then(|attrs| attrs.get(def.name().as_str()));
@@ -943,22 +999,23 @@ impl AttributeService {
                         user_id: uid.clone(),
                         idp_subject: IdpSubject(kc_id.clone()),
                         attribute: def.name().clone(),
-                        value: reg_val.clone(),
+                        values: reg_vals.clone(),
                     }),
-                    Some(vs) if vs.len() > 1 => entries.push(DriftEntry::KeycloakMultivalued {
-                        idp_subject: IdpSubject(kc_id.clone()),
-                        attribute: def.name().clone(),
-                        values: vs.clone(),
-                    }),
+                    Some(vs) if kc_multivalued(vs) => {
+                        entries.push(DriftEntry::KeycloakMultivalued {
+                            idp_subject: IdpSubject(kc_id.clone()),
+                            attribute: def.name().clone(),
+                            values: vs.clone(),
+                        })
+                    }
                     Some(vs) => {
-                        let v = &vs[0];
-                        if v != reg_val {
+                        if !same_values(vs, reg_vals) {
                             entries.push(DriftEntry::ValueMismatch {
                                 user_id: uid.clone(),
                                 idp_subject: IdpSubject(kc_id.clone()),
                                 attribute: def.name().clone(),
-                                registry_value: reg_val.clone(),
-                                keycloak_value: v.clone(),
+                                registry_values: reg_vals.clone(),
+                                keycloak_values: vs.clone(),
                             });
                         }
                     }
@@ -967,7 +1024,7 @@ impl AttributeService {
             for (kc_id, attrs) in &kc_map {
                 if let Some(vs) = attrs.get(def.name().as_str()) {
                     if !registry_by_kc.contains_key(kc_id) {
-                        if vs.len() > 1 {
+                        if kc_multivalued(vs) {
                             entries.push(DriftEntry::KeycloakMultivalued {
                                 idp_subject: IdpSubject(kc_id.clone()),
                                 attribute: def.name().clone(),
@@ -977,7 +1034,7 @@ impl AttributeService {
                             entries.push(DriftEntry::KeycloakOnly {
                                 idp_subject: IdpSubject(kc_id.clone()),
                                 attribute: def.name().clone(),
-                                value: vs[0].clone(),
+                                values: vs.clone(),
                             });
                         }
                     }
@@ -998,15 +1055,15 @@ impl AttributeService {
                 DriftEntry::RegistryOnly {
                     user_id,
                     attribute,
-                    value,
+                    values,
                     ..
                 }
                 | DriftEntry::ValueMismatch {
                     user_id,
                     attribute,
-                    registry_value: value,
+                    registry_values: values,
                     ..
-                } => match self.push_one(user_id, attribute, value).await {
+                } => match self.push_one(user_id, attribute, values).await {
                     Ok(()) => applied += 1,
                     Err(reason) => failures.push(SyncMissingFailure {
                         user_id: user_id.0,
@@ -1058,8 +1115,8 @@ impl AttributeService {
         let rows = self.repo.fetch_all_values_for(name).await?;
         let mut applied = 0u32;
         let mut failures = Vec::new();
-        for (uid, val) in rows {
-            match self.push_one(&uid, name, &val).await {
+        for (uid, vals) in rows {
+            match self.push_one(&uid, name, &vals).await {
                 Ok(()) => applied += 1,
                 Err(reason) => failures.push(SyncMissingFailure {
                     user_id: uid.0,
@@ -1076,7 +1133,7 @@ impl AttributeService {
         })
     }
 
-    /// Push a single (user, attribute, value) to every linked KC provider.
+    /// Push one member's values for an attribute to every linked KC provider.
     /// Returns Err with a human-readable reason if any step failed; the
     /// reason is suitable for surfacing in admin UI / logs (the underlying
     /// error categories are also logged at error level).
@@ -1084,7 +1141,7 @@ impl AttributeService {
         &self,
         user_id: &PersonId,
         name: &AttributeName,
-        value: &AttributeValue,
+        values: &[AttributeValue],
     ) -> Result<(), String> {
         let providers = self
             .auth_provider_repo
@@ -1105,7 +1162,7 @@ impl AttributeService {
         for p in providers {
             if let Err(e) = self
                 .sync
-                .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), name, value)
+                .set_user_attribute(&IdpSubject(p.provider_user_id.clone()), name, values)
                 .await
             {
                 tracing::error!(
@@ -1130,6 +1187,20 @@ impl AttributeBootstrapPort for AttributeService {
     async fn apply_defaults_for_new_user(&self, user_id: PersonId) {
         AttributeService::apply_defaults_for_new_user(self, user_id).await;
     }
+}
+
+/// "Other" means "a value outside the list", so it needs a list to be
+/// outside of. Without `allowed_values` any value is already accepted.
+fn check_allow_other(
+    allow_other: bool,
+    allowed_values: Option<&[AttributeValue]>,
+) -> ServiceResult<()> {
+    if allow_other && allowed_values.is_none() {
+        return Err(ServiceError::Constraint(
+            "allow_other requires allowed_values".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 fn map_sync_err(e: AttributeSyncError) -> ServiceError {
