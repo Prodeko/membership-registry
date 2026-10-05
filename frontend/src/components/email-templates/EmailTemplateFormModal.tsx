@@ -4,6 +4,8 @@ import {
   useGetEmailTemplateTranslations,
   useUpsertEmailTemplateTranslation,
   useDeleteEmailTemplateTranslation,
+  useGetRoles,
+  useGetTargetableRoles,
 } from "@/lib/api";
 import {
   Dialog,
@@ -24,6 +26,10 @@ import { Badge } from "../ui/badge";
 import { Trash2 } from "lucide-react";
 
 const LOCALES = ["fi", "en"] as const;
+
+// Filled only when the template is sent as a renewal reminder; anywhere
+// else they reach the recipient as literal text.
+const RENEWAL_ONLY_PLACEHOLDERS = ["payment_link", "valid_until", "expires_in"];
 
 interface Props {
   template?: EmailTemplate;
@@ -47,6 +53,40 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
     template?.name ?? "",
   );
   const queryClient = useQueryClient();
+  const { data: roles } = useGetRoles();
+  const { data: targetableRoles } = useGetTargetableRoles();
+
+  // Where this template is used, to warn about renewal-only placeholders in
+  // emails that never fill them.
+  const templateName = template?.name ?? name;
+  const renewalRoles = (roles ?? [])
+    .filter((r) => r.renewal_email_template === templateName)
+    .map((r) => r.name);
+  const applicationUses = [
+    ...new Set(
+      (targetableRoles ?? []).flatMap((r) => [
+        ...(r.approved_email_template === templateName
+          ? [`${r.role_name} approval`]
+          : []),
+        ...(r.rejected_email_template === templateName
+          ? [`${r.role_name} rejection`]
+          : []),
+      ]),
+    ),
+  ];
+  const renewalOnlyUsed = RENEWAL_ONLY_PLACEHOLDERS.filter((p) =>
+    Object.values(translations).some(
+      (t) => t.subject.includes(`{${p}}`) || t.body_html.includes(`{${p}}`),
+    ),
+  );
+  const placeholderWarning =
+    renewalOnlyUsed.length === 0
+      ? null
+      : applicationUses.length > 0
+        ? `This template is also used for application emails (${applicationUses.join(", ")}), where ${renewalOnlyUsed.map((p) => `{${p}}`).join(", ")} ${renewalOnlyUsed.length === 1 ? "is" : "are"} not filled in: recipients would see the placeholder as plain text.`
+        : renewalRoles.length === 0
+          ? `${renewalOnlyUsed.map((p) => `{${p}}`).join(", ")} ${renewalOnlyUsed.length === 1 ? "is" : "are"} only filled in renewal reminders, and this template isn't any role's renewal email. Wherever else it's used, recipients would see the placeholder as plain text.`
+          : null;
 
   const dialogOpen = isEdit ? open : internalOpen;
   const setDialogOpen = isEdit ? (onOpenChange ?? (() => {})) : setInternalOpen;
@@ -214,7 +254,24 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
                 {"{valid_until}"} (current membership end date),{" "}
                 {"{expires_in}"} (days until it ends)
               </p>
+              {(renewalRoles.length > 0 || applicationUses.length > 0) && (
+                <p>
+                  Used as:{" "}
+                  {[
+                    ...renewalRoles.map((r) => `${r} renewal reminder`),
+                    ...applicationUses,
+                  ].join(", ")}
+                </p>
+              )}
             </div>
+            {placeholderWarning && (
+              <p
+                role="alert"
+                className="rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
+              >
+                {placeholderWarning}
+              </p>
+            )}
             <div className="flex gap-2">
               <Button
                 onClick={() => handleSaveTranslation(activeLocale)}
