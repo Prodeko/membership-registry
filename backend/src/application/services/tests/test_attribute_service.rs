@@ -991,14 +991,15 @@ async fn sync_missing_surfaces_keycloak_multivalued_as_failure() {
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
-async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
+async fn apply_defaults_for_new_user_writes_only_admin_only_defaults() {
     use std::sync::Mutex;
 
     let user_id = PersonId(uuid::Uuid::new_v4());
 
-    // Two definitions with defaults, one without — only the first two should
-    // produce upserts. Mixing sync_to_keycloak true/false guards against the
-    // KC path silently swallowing a missing provider lookup for the synced one.
+    // Admin-only definitions with defaults are written; a member-editable one
+    // with a default and one without a default are not. Mixing
+    // sync_to_keycloak true/false guards against the KC path silently
+    // swallowing a missing provider lookup for the synced one.
     let def_with_default_synced = AttributeDefinition::new(
         AttributeName::new("membership-type").unwrap(),
         None,
@@ -1019,6 +1020,16 @@ async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
         false,
     )
     .unwrap();
+    let def_with_default_admin_internal = AttributeDefinition::new(
+        AttributeName::new("internal-tag").unwrap(),
+        None,
+        None,
+        Some(av("none")),
+        false,
+        EditableBy::Admin,
+        false,
+    )
+    .unwrap();
     let def_without_default = AttributeDefinition::new(
         AttributeName::new("note").unwrap(),
         None,
@@ -1034,6 +1045,7 @@ async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
     let defs = vec![
         def_with_default_synced.clone(),
         def_with_default_internal.clone(),
+        def_with_default_admin_internal.clone(),
         def_without_default.clone(),
     ];
     repo.expect_fetch_all_definitions()
@@ -1068,10 +1080,10 @@ async fn apply_defaults_for_new_user_writes_each_definition_with_default() {
     assert_eq!(
         recorded.len(),
         2,
-        "exactly the two defaults must be upserted"
+        "exactly the two admin-only defaults must be upserted"
     );
     assert!(recorded.contains(&("membership-type".to_string(), "external".to_string())));
-    assert!(recorded.contains(&("major-subject".to_string(), "other".to_string())));
+    assert!(recorded.contains(&("internal-tag".to_string(), "none".to_string())));
 }
 
 #[tokio::test]
