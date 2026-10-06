@@ -90,6 +90,21 @@ async fn upsert_translation_invalid_placeholder_in_body() {
 }
 
 #[tokio::test]
+async fn upsert_translation_rejects_hyphenated_placeholder() {
+    let repo = MockTemplateRepositoryPort::new();
+    let svc = build_service(repo);
+
+    let result = svc
+        .upsert_translation("test", "fi", "Hello", "<p>{valid-until}</p>", None)
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(TemplateAdminError::InvalidPlaceholder(ref p)) if p == "valid-until"
+    ));
+}
+
+#[tokio::test]
 async fn upsert_translation_no_placeholders() {
     let mut repo = MockTemplateRepositoryPort::new();
     repo.expect_upsert_translation()
