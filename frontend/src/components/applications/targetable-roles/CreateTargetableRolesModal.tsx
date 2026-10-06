@@ -51,12 +51,11 @@ const CreateTargetableRolesModal = () => {
 
   const handleSubmit = () => {
     if (selectedRole && selectedValidUntil) {
-      // TODO: Add validation for payment link
       createTargetableRole(
         {
           role_name: selectedRole,
           valid_until: selectedValidUntil.toISOString().split("T")[0],
-          payment_link: selectedPaymentLink || null,
+          payment_link: selectedPaymentLink.trim() || null,
           approved_email_template: approvedTemplate || null,
           rejected_email_template: rejectedTemplate || null,
           form_attributes: formAttributes,

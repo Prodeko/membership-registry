@@ -455,6 +455,9 @@ impl ApplicationService {
         // and the admin gets no useful feedback.
         self.validate_form_attributes_exist(&form_attributes)
             .await?;
+        if let Some(link) = &payment_link {
+            validate_payment_link(link)?;
+        }
 
         let attr_count = form_attributes.len();
         self.targetable_roles
@@ -505,6 +508,9 @@ impl ApplicationService {
     ) -> ServiceResult<()> {
         if let Some(attrs) = &patch.form_attributes {
             self.validate_form_attributes_exist(attrs).await?;
+        }
+        if let Patch::Set(link) = &patch.payment_link {
+            validate_payment_link(link)?;
         }
 
         // Fetch the existing row so we can resolve Patch::Leave fields
@@ -638,4 +644,20 @@ impl ApplicationService {
 
         Ok(())
     }
+}
+
+/// Applicants are redirected to a role's payment link right after applying,
+/// so a malformed one strands them after they have already applied. Only
+/// accept a full `https://` address with a host.
+pub fn validate_payment_link(link: &str) -> ServiceResult<()> {
+    let host = link
+        .strip_prefix("https://")
+        .and_then(|rest| rest.split(['/', '?', '#']).next())
+        .unwrap_or_default();
+    if host.is_empty() || !host.contains('.') || link.chars().any(char::is_whitespace) {
+        return Err(E::Constraint(format!(
+            "Payment link {link:?} is not a valid https:// address. Paste the full link from Stripe, e.g. https://buy.stripe.com/..."
+        )));
+    }
+    Ok(())
 }
