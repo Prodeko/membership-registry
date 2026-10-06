@@ -1050,3 +1050,104 @@ async fn create_application_accepts_required_attribute_already_held() {
 
     assert!(result.is_ok());
 }
+
+// --- Payment link validation ---
+
+#[test]
+fn validate_payment_link_accepts_https_links() {
+    use crate::application::services::application_service::validate_payment_link;
+
+    for link in [
+        "https://buy.stripe.com/test_abc123",
+        "https://buy.stripe.com/abc?prefilled_email=x",
+        "https://example.org",
+    ] {
+        assert!(
+            validate_payment_link(link).is_ok(),
+            "{link} should be valid"
+        );
+    }
+}
+
+#[test]
+fn validate_payment_link_rejects_malformed_links() {
+    use crate::application::services::application_service::validate_payment_link;
+
+    for link in [
+        "",
+        "buy.stripe.com/abc",
+        "http://buy.stripe.com/abc",
+        "https://",
+        "https:///abc",
+        "https://localhost/abc",
+        "https://buy.stripe.com/abc def",
+        " https://buy.stripe.com/abc",
+        "javascript:alert(1)",
+    ] {
+        assert!(
+            matches!(
+                validate_payment_link(link),
+                Err(crate::application::services::errors::ServiceError::Constraint(_))
+            ),
+            "{link:?} should be rejected"
+        );
+    }
+}
+
+#[tokio::test]
+async fn create_targetable_role_rejects_invalid_payment_link() {
+    // No repository expectations: the role must not be saved.
+    let svc = build_service(
+        MockApplicationCommandPort::new(),
+        MockApplicationQueryPort::new(),
+        MockTargetableRolePort::new(),
+    );
+
+    let result = svc
+        .create_targetable_role(
+            "test-role".to_string(),
+            valid_until(),
+            None,
+            Some("buy.stripe.com/abc".to_string()),
+            None,
+            None,
+            vec![],
+            None,
+        )
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(crate::application::services::errors::ServiceError::Constraint(_))
+    ));
+}
+
+#[tokio::test]
+async fn update_targetable_role_rejects_invalid_payment_link() {
+    use crate::application::services::application_service::UpdateTargetableRolePatch;
+    use crate::domain::Patch;
+
+    // No repository expectations: the role must not be fetched or saved.
+    let svc = build_service(
+        MockApplicationCommandPort::new(),
+        MockApplicationQueryPort::new(),
+        MockTargetableRolePort::new(),
+    );
+
+    let result = svc
+        .update_targetable_role(
+            "test-role".to_string(),
+            valid_until(),
+            UpdateTargetableRolePatch {
+                payment_link: Patch::Set("not a link".to_string()),
+                ..Default::default()
+            },
+            None,
+        )
+        .await;
+
+    assert!(matches!(
+        result,
+        Err(crate::application::services::errors::ServiceError::Constraint(_))
+    ));
+}
