@@ -152,7 +152,7 @@
   "applications": {
     "existing": {
       "title": "Olemassa olevat hakemukset",
-      "tooltip": "Tässä osiossa näkyvät lähettämäsi jäsenyyshakemukset. Jos haluat poistaa hakemuksen, ota yhteyttä mediakeisari@prodeko.org.",
+      "tooltip": "Tässä osiossa näkyvät lähettämäsi jäsenyyshakemukset. Jos haluat poistaa hakemuksen, ota yhteyttä {{contact}}.",
       "role_validity": "{{role_name}} - Rooli voimassa: {{date}}",
       "status_label": "Tila:",
       "pay_fee": "Maksa jäsenmaksu"

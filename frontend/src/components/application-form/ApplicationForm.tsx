@@ -47,6 +47,9 @@ const formSchema = z.object({
 
 type FormValues = z.infer<typeof formSchema>;
 
+const targetableRoleKey = (role: { role_name: string; valid_until: string }) =>
+  `${role.role_name}|${role.valid_until}`;
+
 const ApplicationForm = () => {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -69,10 +72,12 @@ const ApplicationForm = () => {
     Record<string, string[]>
   >({});
 
-  const selectedRole = form.watch("role_name");
+  // The same role can be open for several periods, so a select option is
+  // identified by role name + valid_until rather than by the name alone.
+  const [selectedKey, setSelectedKey] = useState<string>();
   const selectedTargetable = useMemo(
-    () => targetableRoles?.find((r) => r.role_name === selectedRole),
-    [targetableRoles, selectedRole],
+    () => targetableRoles?.find((r) => targetableRoleKey(r) === selectedKey),
+    [targetableRoles, selectedKey],
   );
 
   // Look each form attribute up against the user's attribute catalog so we
@@ -183,22 +188,25 @@ const ApplicationForm = () => {
                     </InfoTooltip>
                   </FormLabel>
                   <Select
-                    onValueChange={(value) => {
+                    value={selectedKey}
+                    onValueChange={(key) => {
                       const targetableRole = targetableRoles?.find(
-                        (role) => role.role_name === value,
+                        (role) => targetableRoleKey(role) === key,
                       );
-                      const validUntil = targetableRole?.valid_until;
-                      const paymentLink = targetableRole?.payment_link;
 
-                      if (!validUntil) {
+                      if (!targetableRole) {
                         throw new Error(
-                          `Role ${value} not found in targetable roles`,
+                          `Role ${key} not found in targetable roles`,
                         );
                       }
 
-                      setPaymentLink(paymentLink ?? null);
-                      form.setValue("valid_until", new Date(validUntil));
-                      return field.onChange(value);
+                      setSelectedKey(key);
+                      setPaymentLink(targetableRole.payment_link ?? null);
+                      form.setValue(
+                        "valid_until",
+                        new Date(targetableRole.valid_until),
+                      );
+                      return field.onChange(targetableRole.role_name);
                     }}
                   >
                     <FormControl>
@@ -218,8 +226,8 @@ const ApplicationForm = () => {
                         );
                         return (
                           <SelectItem
-                            value={role.role_name}
-                            key={role.role_name + role.valid_until}
+                            value={targetableRoleKey(role)}
+                            key={targetableRoleKey(role)}
                             disabled={!!existing}
                           >
                             {kebabCaseToTitleCase(role.role_name)}{" "}

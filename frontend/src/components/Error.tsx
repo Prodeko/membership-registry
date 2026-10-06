@@ -5,6 +5,7 @@ import {
   useParams,
   useRouteError,
 } from "react-router";
+import { ADMIN_CONTACT_EMAIL } from "@/lib/constants";
 
 interface ErrorDetails {
   title: string;
@@ -20,7 +21,7 @@ const errorDetails = new Map<number, ErrorDetails>([
         <>
           <p>
             You are not authorized to view this page. Please login again. If the
-            issue persists please contact mediakeisari@prodeko.org
+            issue persists please contact {ADMIN_CONTACT_EMAIL}
           </p>
           <Link
             className="bg-primary text-white px-4 py-2 rounded w-fit text-xl"
@@ -40,7 +41,7 @@ const errorDetails = new Map<number, ErrorDetails>([
         <div>
           <p>
             You don't have permission to view this page. If you think this is a
-            mistake, please contact mediakeisari@prodeko.org
+            mistake, please contact {ADMIN_CONTACT_EMAIL}
           </p>
         </div>
       ),

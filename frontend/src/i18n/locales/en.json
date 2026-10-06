@@ -152,7 +152,7 @@
   "applications": {
     "existing": {
       "title": "Existing applications",
-      "tooltip": "This section shows the applications you have submitted for role memberships. If you want to delete an application, please contact mediakeisari@prodeko.org.",
+      "tooltip": "This section shows the applications you have submitted for role memberships. If you want to delete an application, please contact {{contact}}.",
       "role_validity": "{{role_name}} - Role valid until: {{date}}",
       "status_label": "Status:",
       "pay_fee": "Pay the fee"

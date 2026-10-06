@@ -530,3 +530,7 @@ export const APPLICATION_STATUSES = [
   "approved",
   "rejected",
 ] as const;
+
+/** Who users are told to contact about access problems and application changes. */
+export const ADMIN_CONTACT_EMAIL =
+  import.meta.env.VITE_ADMIN_CONTACT_EMAIL || "mediakeisari@prodeko.org";
