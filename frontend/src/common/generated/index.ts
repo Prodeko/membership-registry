@@ -42,6 +42,7 @@ export type { MemberKeycloakSyncStatus } from "./MemberKeycloakSyncStatus";
 export type { Member } from "./Member";
 export type { MembersQuery } from "./MembersQuery";
 export type { MembersWithRolesQuery } from "./MembersWithRolesQuery";
+export type { MemberExportRequest } from "./MemberExportRequest";
 export type { MemberWithRoles } from "./MemberWithRoles";
 export type { CreateApplicationRequest } from "./CreateApplicationRequest";
 export type { NewMember } from "./NewMember";

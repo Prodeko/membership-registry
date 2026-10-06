@@ -40,6 +40,7 @@ import {
   StartRenewalResponse,
   UpdateMember,
   UpdateRole,
+  MemberExportRequest,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import axios, { AxiosError, AxiosResponse } from "axios";
@@ -188,12 +189,14 @@ export function useGetKeycloakSyncStatus() {
   });
 }
 
+/** Exports members; `columns` picks the CSV's columns (default set if omitted). */
 export function useExportAllMembers() {
   return useMutation({
-    mutationFn: async () => {
+    mutationFn: async (columns?: string[]) => {
+      const body: MemberExportRequest | null = columns ? { columns } : null;
       const response = await admin_axios_client.post(
         "/members/roles/export",
-        null,
+        body,
         { responseType: "blob" },
       );
       return downloadCsv(
