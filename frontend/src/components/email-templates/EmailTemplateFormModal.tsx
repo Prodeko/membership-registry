@@ -23,8 +23,9 @@ import { Label } from "../ui/label";
 import { useQueryClient } from "@tanstack/react-query";
 import { EmailTemplate } from "@/common/types";
 import { Badge } from "../ui/badge";
-import { Check, Loader2, Trash2 } from "lucide-react";
+import { AlertTriangle, Check, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { describeError } from "@/lib/utils";
 
 const LOCALES = ["fi", "en"] as const;
 
@@ -163,7 +164,7 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
         },
         onError: (e) =>
           toast.error(
-            `Saving the ${locale.toUpperCase()} version failed: ${e.message}`,
+            `Saving the ${locale.toUpperCase()} version failed: ${describeError(e)}`,
           ),
       },
     );
@@ -310,12 +311,13 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
               )}
             </div>
             {placeholderWarning && (
-              <p
+              <div
                 role="alert"
-                className="rounded-md border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
+                className="flex gap-2 rounded-md border border-amber-500/70 bg-amber-500/15 px-3 py-2 text-sm text-foreground"
               >
-                {placeholderWarning}
-              </p>
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+                <p>{placeholderWarning}</p>
+              </div>
             )}
             <div className="flex gap-2">
               <Button

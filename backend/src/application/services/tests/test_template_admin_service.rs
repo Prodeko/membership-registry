@@ -204,3 +204,22 @@ async fn delete_translation_happy_path() {
 
     assert!(result.is_ok());
 }
+
+#[test]
+fn invalid_placeholder_message_suggests_the_underscore_name() {
+    use crate::application::services::template_admin_service::invalid_placeholder_message;
+    let msg = invalid_placeholder_message("valid-until");
+    assert!(
+        msg.starts_with("Unknown placeholder {valid-until}."),
+        "{msg}"
+    );
+    assert!(msg.contains("Did you mean {valid_until}?"), "{msg}");
+    assert!(msg.contains("{expires_in}"), "{msg}");
+
+    let unknown = invalid_placeholder_message("first_name");
+    assert!(!unknown.contains("Did you mean"), "{unknown}");
+    assert!(
+        unknown.contains("Allowed placeholders: {name}, {role_name}"),
+        "{unknown}"
+    );
+}

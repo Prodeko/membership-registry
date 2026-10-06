@@ -5,7 +5,9 @@ use axum::{
 
 use crate::application::ports::repository_error::RepositoryError;
 use crate::application::services::errors::{ServiceError, ServiceResult};
-use crate::application::services::template_admin_service::TemplateAdminError;
+use crate::application::services::template_admin_service::{
+    invalid_placeholder_message, TemplateAdminError,
+};
 
 pub enum ApiError {
     ServiceError(ServiceError),
@@ -164,7 +166,9 @@ impl From<ServiceError> for ApiError {
 impl From<TemplateAdminError> for ApiError {
     fn from(err: TemplateAdminError) -> Self {
         match err {
-            TemplateAdminError::InvalidPlaceholder(_) => ApiError::BadRequest,
+            TemplateAdminError::InvalidPlaceholder(name) => {
+                ApiError::ServiceError(ServiceError::Constraint(invalid_placeholder_message(&name)))
+            }
             TemplateAdminError::Repository(repo_err) => match repo_err {
                 RepositoryError::NotFound => ApiError::NotFound,
                 RepositoryError::AlreadyExists => {
