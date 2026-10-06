@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "../ui/table";
 import AttributeFormModal from "./AttributeFormModal";
+import PageHelp from "../ui/page-help";
 
 const Attributes = () => {
   const { data: definitions, isLoading } = useGetAttributeDefinitions();
@@ -82,6 +83,47 @@ const Attributes = () => {
         <h1 className="text-4xl">Attributes</h1>
         <Button onClick={() => setCreateOpen(true)}>New attribute</Button>
       </div>
+
+      <PageHelp id="attributes">
+        <p>
+          <strong>Attributes</strong> are extra fields about members, such as
+          study year or PoRa membership. Each attribute is defined here; the
+          members&apos; values are set on their profile, on the application form
+          or by an admin in the member drawer.
+        </p>
+        <ul>
+          <li>
+            <strong>Editable by</strong> decides who can change the value:
+            admins only, the member only, or both.
+          </li>
+          <li>
+            <strong>Allowed values</strong> turns the field into a choice list.{" "}
+            <strong>Multiple values</strong> lets members pick several, and{" "}
+            <strong>&quot;Other&quot; option</strong> lets them type one answer
+            of their own.
+          </li>
+          <li>
+            <strong>Required</strong> attributes must be filled in before an
+            application can be sent, and members missing one are asked to fill
+            it on their home page.
+          </li>
+          <li>
+            To ask an attribute on the application form, add it to the role
+            under <strong>Application targetable roles</strong> (button on the
+            Applications page).
+          </li>
+          <li>
+            A <strong>default value</strong> is given to new members, but only
+            for attributes only admins edit; the ones members fill in start
+            empty.
+          </li>
+          <li>
+            <strong>Sync to Keycloak</strong> puts the value in the login token,
+            so apps using Prodeko login can read it. The panel below shows
+            values that differ between the registry and Keycloak.
+          </li>
+        </ul>
+      </PageHelp>
 
       <SyncStatusPanel />
 
