@@ -18,9 +18,11 @@ const ALLOWED_PLACEHOLDERS: &[&str] = &[
     "valid_until",
     "expires_in",
 ];
+/// Matches `{name}`, and also `{valid-until}` style typos so they are
+/// rejected instead of reaching members unreplaced.
 #[allow(clippy::expect_used)] // Regex literal, cannot fail
 static PLACEHOLDER_RE: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\{(\w+)\}").expect("valid regex"));
+    LazyLock::new(|| Regex::new(r"\{([\w-]+)\}").expect("valid regex"));
 
 #[derive(Debug)]
 pub enum TemplateAdminError {
