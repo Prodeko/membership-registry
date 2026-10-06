@@ -164,7 +164,12 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
   ) => {
     setTranslations((prev) => ({
       ...prev,
-      [locale]: { ...prev[locale], [field]: value },
+      // A translation typed into for the first time has only the edited
+      // field; start from empty strings so the other one is never undefined.
+      [locale]: {
+        ...(prev[locale] ?? { subject: "", body_html: "" }),
+        [field]: value,
+      },
     }));
   };
 
