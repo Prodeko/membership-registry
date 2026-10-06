@@ -67,9 +67,6 @@ const Header = () => {
             </NavigationMenuLink>
           </NavigationMenuItem>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
-            <Link to="/logs">Logs</Link>
-          </NavigationMenuLink>
-          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
             <Link to="/email-templates">Templates</Link>
           </NavigationMenuLink>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
@@ -77,6 +74,9 @@ const Header = () => {
           </NavigationMenuLink>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
             <Link to="/data">Data</Link>
+          </NavigationMenuLink>
+          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+            <Link to="/logs">Logs</Link>
           </NavigationMenuLink>
           {config?.keycloak_admin_url && (
             <NavigationMenuLink
