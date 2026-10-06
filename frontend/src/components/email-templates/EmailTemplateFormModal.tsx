@@ -23,7 +23,8 @@ import { Label } from "../ui/label";
 import { useQueryClient } from "@tanstack/react-query";
 import { EmailTemplate } from "@/common/types";
 import { Badge } from "../ui/badge";
-import { Trash2 } from "lucide-react";
+import { Check, Loader2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 const LOCALES = ["fi", "en"] as const;
 
@@ -47,7 +48,12 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
   >({});
 
   const { mutate: createTemplate } = useCreateEmailTemplate();
-  const { mutate: upsertTranslation } = useUpsertEmailTemplateTranslation();
+  const { mutate: upsertTranslation, isPending: saving } =
+    useUpsertEmailTemplateTranslation();
+  // What is stored on the server per locale, to tell saved from edited.
+  const [saved, setSaved] = useState<
+    Record<string, { subject: string; body_html: string }>
+  >({});
   const { mutate: deleteTranslation } = useDeleteEmailTemplateTranslation();
   const { data: existingTranslations } = useGetEmailTemplateTranslations(
     template?.name ?? "",
@@ -98,6 +104,7 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
         map[t.locale] = { subject: t.subject, body_html: t.body_html };
       }
       setTranslations(map);
+      setSaved(map);
     }
   }, [existingTranslations]);
 
@@ -124,10 +131,22 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
     );
   };
 
+  const isDirty = (locale: string) => {
+    const t = translations[locale];
+    const s = saved[locale];
+    return (
+      (t?.subject ?? "") !== (s?.subject ?? "") ||
+      (t?.body_html ?? "") !== (s?.body_html ?? "")
+    );
+  };
+
   const handleSaveTranslation = (locale: string) => {
     if (!template) return;
     const t = translations[locale];
-    if (!t?.subject || !t?.body_html) return;
+    if (!t?.subject || !t?.body_html) {
+      toast.error("Fill in both the subject and the body before saving.");
+      return;
+    }
 
     upsertTranslation(
       {
@@ -136,7 +155,17 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
         subject: t.subject,
         body_html: t.body_html,
       },
-      { onSuccess: invalidate },
+      {
+        onSuccess: () => {
+          setSaved((prev) => ({ ...prev, [locale]: { ...t } }));
+          toast.success(`${locale.toUpperCase()} version saved`);
+          invalidate();
+        },
+        onError: (e) =>
+          toast.error(
+            `Saving the ${locale.toUpperCase()} version failed: ${e.message}`,
+          ),
+      },
     );
   };
 
@@ -146,11 +175,15 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
       { name: template.name, locale },
       {
         onSuccess: () => {
-          setTranslations((prev) => {
+          const drop = (
+            prev: Record<string, { subject: string; body_html: string }>,
+          ) => {
             const next = { ...prev };
             delete next[locale];
             return next;
-          });
+          };
+          setTranslations(drop);
+          setSaved(drop);
           invalidate();
         },
       },
@@ -218,10 +251,17 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
                   onClick={() => setActiveLocale(locale)}
                 >
                   {locale.toUpperCase()}
-                  {translations[locale] && (
-                    <Badge variant="secondary" className="ml-1 text-xs">
-                      ✓
-                    </Badge>
+                  {isDirty(locale) ? (
+                    <span
+                      className="ml-1 h-2 w-2 rounded-full bg-amber-500"
+                      title="Unsaved changes"
+                    />
+                  ) : (
+                    saved[locale] && (
+                      <Badge variant="secondary" className="ml-1 text-xs">
+                        ✓
+                      </Badge>
+                    )
                   )}
                 </Button>
               ))}
@@ -281,8 +321,22 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
               <Button
                 onClick={() => handleSaveTranslation(activeLocale)}
                 className="flex-1"
+                variant={isDirty(activeLocale) ? "default" : "secondary"}
+                disabled={saving || !isDirty(activeLocale)}
               >
-                Save {activeLocale.toUpperCase()}
+                {saving ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Saving…
+                  </>
+                ) : isDirty(activeLocale) ? (
+                  `Save ${activeLocale.toUpperCase()}`
+                ) : (
+                  <>
+                    <Check className="mr-2 h-4 w-4" />
+                    Saved
+                  </>
+                )}
               </Button>
               {translations[activeLocale] && (
                 <Button
