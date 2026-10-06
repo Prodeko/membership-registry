@@ -24,6 +24,23 @@ const ALLOWED_PLACEHOLDERS: &[&str] = &[
 static PLACEHOLDER_RE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\{([\w-]+)\}").expect("valid regex"));
 
+/// What an admin sees when a template uses an unknown placeholder: which one,
+/// the likely intended one for a `-`/`_` mix-up, and the allowed list.
+pub fn invalid_placeholder_message(name: &str) -> String {
+    let allowed = ALLOWED_PLACEHOLDERS
+        .iter()
+        .map(|p| format!("{{{p}}}"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let fixed = name.replace('-', "_");
+    let hint = if fixed != name && ALLOWED_PLACEHOLDERS.contains(&fixed.as_str()) {
+        format!(" Did you mean {{{fixed}}}?")
+    } else {
+        String::new()
+    };
+    format!("Unknown placeholder {{{name}}}.{hint} Allowed placeholders: {allowed}.")
+}
+
 #[derive(Debug)]
 pub enum TemplateAdminError {
     InvalidPlaceholder(String),
@@ -62,7 +79,7 @@ impl TemplateAdminService {
         for cap in PLACEHOLDER_RE.captures_iter(text) {
             let name = &cap[1];
             if !ALLOWED_PLACEHOLDERS.contains(&name) {
-                tracing::error!("Invalid placeholder in template: {{{name}}}");
+                tracing::debug!("Invalid placeholder in template: {{{name}}}");
                 return Err(TemplateAdminError::InvalidPlaceholder(name.to_string()));
             }
         }
