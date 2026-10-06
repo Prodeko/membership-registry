@@ -1,4 +1,3 @@
-use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 
 use uuid::Uuid;
@@ -9,10 +8,10 @@ use crate::application::ports::application_repository_port::{
 use crate::application::ports::attribute_repository_port::AttributeRepositoryPort;
 use crate::application::ports::email_port::EmailPort;
 use crate::application::ports::role_repository_port::RoleRepositoryPort;
-use crate::domain::attribute::AttributeValue;
-use crate::domain::well_known::{
-    admin_notifications_email_attribute, ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE, ADMIN_ROLE_NAME,
-};
+
+use super::admin_notifications::{html_escape, resolve_recipients, send_to_each};
+
+const LABEL: &str = "Application alert";
 
 /// Emails admins once per membership application, at the moment it starts
 /// awaiting an admin decision: on submission for roles without payment, or
@@ -50,7 +49,9 @@ impl ApplicationAlertService {
     pub async fn notify_new_application(&self, application_id: Uuid) {
         // Recipients first: when nobody is subscribed there is no reason to
         // load the applicant.
-        let Some(addresses) = self.resolve_recipients().await else {
+        let Some(addresses) =
+            resolve_recipients(&*self.attribute_repo, &*self.role_repo, LABEL).await
+        else {
             return;
         };
 
@@ -71,24 +72,18 @@ impl ApplicationAlertService {
 
         let alert = build_alert(&application, &self.frontend_url);
 
-        let Some(port) = &self.email_port else {
-            tracing::warn!(
-                "Application alert: email is not configured, alert not delivered. \
-                 [MOCK EMAIL] To: {addresses:?}, Subject: {}",
-                alert.subject
-            );
+        let total = addresses.len();
+        let Some(sent) = send_to_each(
+            self.email_port.as_deref(),
+            addresses,
+            &alert.subject,
+            &alert.body,
+            LABEL,
+        )
+        .await
+        else {
             return;
         };
-        let total = addresses.len();
-        let mut sent = 0usize;
-        for to in addresses {
-            match port.send_email(&to, &alert.subject, &alert.body).await {
-                Ok(()) => sent += 1,
-                Err(e) => {
-                    tracing::error!("Application alert: failed to send to {to}: {e:?}");
-                }
-            }
-        }
         if sent == 0 {
             tracing::error!(
                 %application_id,
@@ -103,67 +98,6 @@ impl ApplicationAlertService {
                 "Application alert delivered"
             );
         }
-    }
-
-    /// Resolves alert recipient addresses: members holding the
-    /// notifications attribute, restricted to those who also hold the admin
-    /// role so the attribute alone cannot subscribe anyone to applicant
-    /// data. Returns `None` when there is no one to send to.
-    async fn resolve_recipients(&self) -> Option<BTreeSet<String>> {
-        let holders = match self
-            .attribute_repo
-            .fetch_all_values_for(&admin_notifications_email_attribute())
-            .await
-        {
-            Ok(values) => values,
-            Err(e) => {
-                tracing::error!("Application alert: failed to fetch recipients: {e:?}");
-                return None;
-            }
-        };
-        if holders.is_empty() {
-            tracing::info!(
-                "Application alert: no members have the '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' \
-                 attribute set"
-            );
-            return None;
-        }
-
-        let admins = match self.role_repo.fetch_members_by_role(ADMIN_ROLE_NAME).await {
-            Ok(members) => members,
-            Err(e) => {
-                tracing::error!("Application alert: failed to fetch admin members: {e:?}");
-                return None;
-            }
-        };
-        let admin_ids: HashSet<uuid::Uuid> = admins.into_iter().map(|p| p.id.0).collect();
-
-        let skipped = holders
-            .iter()
-            .filter(|(id, _)| !admin_ids.contains(&id.0))
-            .count();
-        if skipped > 0 {
-            tracing::warn!(
-                skipped,
-                "Application alert: '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' is set on members \
-                 without the '{ADMIN_ROLE_NAME}' role; not sending to them"
-            );
-        }
-
-        // BTreeSet: dedup addresses shared between members, deterministic order.
-        let addresses: BTreeSet<String> = holders
-            .into_iter()
-            .filter(|(id, _)| admin_ids.contains(&id.0))
-            .flat_map(|(_, values)| values.into_iter().map(AttributeValue::into_inner))
-            .collect();
-        if addresses.is_empty() {
-            tracing::info!(
-                "Application alert: no '{ADMIN_ROLE_NAME}' members have the \
-                 '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' attribute set"
-            );
-            return None;
-        }
-        Some(addresses)
     }
 }
 
@@ -196,11 +130,4 @@ fn build_alert(app: &ApplicationWithMember, frontend_url: &str) -> AlertEmail {
          <p><a href=\"{frontend_url}/applications\">Open the applications view</a></p>"
     );
     AlertEmail { subject, body }
-}
-
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }
