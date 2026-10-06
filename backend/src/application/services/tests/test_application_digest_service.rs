@@ -4,12 +4,14 @@ use chrono::{TimeZone, Utc};
 use uuid::Uuid;
 
 use crate::application::ports::application_repository_port::ApplicationWithMember;
-use crate::application::ports::email_port::EmailError;
 use crate::application::ports::repository_error::RepositoryError;
 use crate::application::services::application_digest_service::ApplicationDigestService;
 use crate::domain::{ApplicationId, ApplicationStatus, AttributeValue, Email, Person, PersonId};
 
 use super::mocks::*;
+
+// Recipient lookup and per-recipient delivery are shared with the alert
+// service (`admin_notifications`) and tested in test_application_alert_service.
 
 fn pending_app(full_name: &str, email: &str, role_name: &str) -> ApplicationWithMember {
     ApplicationWithMember {
@@ -174,28 +176,6 @@ async fn only_fresh_applications_sends_nothing() {
 }
 
 #[tokio::test]
-async fn no_attribute_holders_sends_nothing() {
-    let mut queries = MockApplicationQueryPort::new();
-    queries.expect_fetch_with_user_filtered().returning(|_, _| {
-        Ok(vec![pending_app(
-            "Testi Hakija",
-            "testi@example.com",
-            "member",
-        )])
-    });
-    let mut attributes = MockAttributeRepositoryPort::new();
-    attributes
-        .expect_fetch_all_values_for()
-        .returning(|_| Ok(vec![]));
-    let mut email = MockEmailPort::new();
-    email.expect_send_email().never();
-
-    service(queries, attributes, roles_never(), Some(email))
-        .send_pending_digest()
-        .await;
-}
-
-#[tokio::test]
 async fn happy_path_sends_digest_to_each_recipient() {
     let queries = queries_returning(
         vec![
@@ -328,126 +308,6 @@ async fn single_application_uses_singular_subject() {
 }
 
 #[tokio::test]
-async fn duplicate_recipient_addresses_get_one_copy() {
-    let mut queries = MockApplicationQueryPort::new();
-    queries.expect_fetch_with_user_filtered().returning(|_, _| {
-        Ok(vec![pending_app(
-            "Testi Hakija",
-            "testi@example.com",
-            "member",
-        )])
-    });
-    let (id_a, id_b) = (PersonId(Uuid::new_v4()), PersonId(Uuid::new_v4()));
-    let holders = vec![
-        holder(&id_a, "shared@prodeko.org"),
-        holder(&id_b, "shared@prodeko.org"),
-    ];
-    let mut attributes = MockAttributeRepositoryPort::new();
-    attributes
-        .expect_fetch_all_values_for()
-        .returning(move |_| Ok(holders.clone()));
-    let mut email = MockEmailPort::new();
-    email
-        .expect_send_email()
-        .times(1)
-        .withf(|to, _, _| to == "shared@prodeko.org")
-        .returning(|_, _, _| Ok(()));
-
-    service(queries, attributes, admins_of(&[id_a, id_b]), Some(email))
-        .send_pending_digest()
-        .await;
-}
-
-#[tokio::test]
-async fn non_admin_attribute_holders_are_excluded() {
-    let mut queries = MockApplicationQueryPort::new();
-    queries.expect_fetch_with_user_filtered().returning(|_, _| {
-        Ok(vec![pending_app(
-            "Testi Hakija",
-            "testi@example.com",
-            "member",
-        )])
-    });
-    let (admin_id, other_id) = (PersonId(Uuid::new_v4()), PersonId(Uuid::new_v4()));
-    let holders = vec![
-        holder(&admin_id, "admin@prodeko.org"),
-        holder(&other_id, "snoop@example.com"),
-    ];
-    let mut attributes = MockAttributeRepositoryPort::new();
-    attributes
-        .expect_fetch_all_values_for()
-        .returning(move |_| Ok(holders.clone()));
-    let mut email = MockEmailPort::new();
-    email
-        .expect_send_email()
-        .times(1)
-        .withf(|to, _, _| to == "admin@prodeko.org")
-        .returning(|_, _, _| Ok(()));
-
-    service(queries, attributes, admins_of(&[admin_id]), Some(email))
-        .send_pending_digest()
-        .await;
-}
-
-#[tokio::test]
-async fn no_admin_attribute_holders_sends_nothing() {
-    let mut queries = MockApplicationQueryPort::new();
-    queries.expect_fetch_with_user_filtered().returning(|_, _| {
-        Ok(vec![pending_app(
-            "Testi Hakija",
-            "testi@example.com",
-            "member",
-        )])
-    });
-    let non_admin = PersonId(Uuid::new_v4());
-    let holders = vec![holder(&non_admin, "snoop@example.com")];
-    let mut attributes = MockAttributeRepositoryPort::new();
-    attributes
-        .expect_fetch_all_values_for()
-        .returning(move |_| Ok(holders.clone()));
-    let mut email = MockEmailPort::new();
-    email.expect_send_email().never();
-
-    service(queries, attributes, admins_of(&[]), Some(email))
-        .send_pending_digest()
-        .await;
-}
-
-#[tokio::test]
-async fn send_failure_does_not_stop_remaining_recipients() {
-    let mut queries = MockApplicationQueryPort::new();
-    queries.expect_fetch_with_user_filtered().returning(|_, _| {
-        Ok(vec![pending_app(
-            "Testi Hakija",
-            "testi@example.com",
-            "member",
-        )])
-    });
-    let (id_a, id_b) = (PersonId(Uuid::new_v4()), PersonId(Uuid::new_v4()));
-    let holders = vec![
-        holder(&id_a, "a@prodeko.org"),
-        holder(&id_b, "b@prodeko.org"),
-    ];
-    let mut attributes = MockAttributeRepositoryPort::new();
-    attributes
-        .expect_fetch_all_values_for()
-        .returning(move |_| Ok(holders.clone()));
-    let mut email = MockEmailPort::new();
-    // One recipient fails; `.times(2)` proves the loop still reaches the other.
-    email.expect_send_email().times(2).returning(|to, _, _| {
-        if to == "a@prodeko.org" {
-            Err(EmailError::SendFailed("boom".to_string()))
-        } else {
-            Ok(())
-        }
-    });
-
-    service(queries, attributes, admins_of(&[id_a, id_b]), Some(email))
-        .send_pending_digest()
-        .await;
-}
-
-#[tokio::test]
 async fn pending_fetch_error_is_swallowed() {
     let mut queries = MockApplicationQueryPort::new();
     queries
@@ -486,56 +346,6 @@ async fn unpaid_fetch_error_is_swallowed() {
     email.expect_send_email().never();
 
     service(queries, attributes, roles_never(), Some(email))
-        .send_pending_digest()
-        .await;
-}
-
-#[tokio::test]
-async fn recipients_fetch_error_is_swallowed() {
-    let mut queries = MockApplicationQueryPort::new();
-    queries.expect_fetch_with_user_filtered().returning(|_, _| {
-        Ok(vec![pending_app(
-            "Testi Hakija",
-            "testi@example.com",
-            "member",
-        )])
-    });
-    let mut attributes = MockAttributeRepositoryPort::new();
-    attributes
-        .expect_fetch_all_values_for()
-        .returning(|_| Err(RepositoryError::Unexpected("db down".to_string())));
-    let mut email = MockEmailPort::new();
-    email.expect_send_email().never();
-
-    service(queries, attributes, roles_never(), Some(email))
-        .send_pending_digest()
-        .await;
-}
-
-#[tokio::test]
-async fn admin_fetch_error_is_swallowed() {
-    let mut queries = MockApplicationQueryPort::new();
-    queries.expect_fetch_with_user_filtered().returning(|_, _| {
-        Ok(vec![pending_app(
-            "Testi Hakija",
-            "testi@example.com",
-            "member",
-        )])
-    });
-    let id = PersonId(Uuid::new_v4());
-    let holders = vec![holder(&id, "a@prodeko.org")];
-    let mut attributes = MockAttributeRepositoryPort::new();
-    attributes
-        .expect_fetch_all_values_for()
-        .returning(move |_| Ok(holders.clone()));
-    let mut roles = MockRoleRepositoryPort::new();
-    roles
-        .expect_fetch_members_by_role()
-        .returning(|_| Err(RepositoryError::Unexpected("db down".to_string())));
-    let mut email = MockEmailPort::new();
-    email.expect_send_email().never();
-
-    service(queries, attributes, roles, Some(email))
         .send_pending_digest()
         .await;
 }

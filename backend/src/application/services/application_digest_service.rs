@@ -1,4 +1,3 @@
-use std::collections::{BTreeSet, HashSet};
 use std::sync::Arc;
 
 use crate::application::ports::application_repository_port::{
@@ -7,11 +6,11 @@ use crate::application::ports::application_repository_port::{
 use crate::application::ports::attribute_repository_port::AttributeRepositoryPort;
 use crate::application::ports::email_port::EmailPort;
 use crate::application::ports::role_repository_port::RoleRepositoryPort;
-use crate::domain::attribute::AttributeValue;
-use crate::domain::well_known::{
-    admin_notifications_email_attribute, ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE, ADMIN_ROLE_NAME,
-};
 use crate::domain::ApplicationStatus;
+
+use super::admin_notifications::{html_escape, resolve_recipients, send_to_each};
+
+const LABEL: &str = "Application digest";
 
 /// Sends admins a daily digest email listing membership applications that
 /// have awaited admin action for at least `stale_after_days`: pending ones
@@ -70,30 +69,26 @@ impl ApplicationDigestService {
             return;
         }
 
-        let Some(addresses) = self.resolve_recipients(applications.len()).await else {
+        let Some(addresses) =
+            resolve_recipients(&*self.attribute_repo, &*self.role_repo, LABEL).await
+        else {
             return;
         };
 
         let digest = build_digest(&applications, &self.frontend_url);
 
-        let Some(port) = &self.email_port else {
-            tracing::warn!(
-                "Application digest: email is not configured, digest not delivered. \
-                 [MOCK EMAIL] To: {addresses:?}, Subject: {}",
-                digest.subject
-            );
+        let total = addresses.len();
+        let Some(sent) = send_to_each(
+            self.email_port.as_deref(),
+            addresses,
+            &digest.subject,
+            &digest.body,
+            LABEL,
+        )
+        .await
+        else {
             return;
         };
-        let total = addresses.len();
-        let mut sent = 0usize;
-        for to in addresses {
-            match port.send_email(&to, &digest.subject, &digest.body).await {
-                Ok(()) => sent += 1,
-                Err(e) => {
-                    tracing::error!("Application digest: failed to send to {to}: {e:?}");
-                }
-            }
-        }
         if sent == 0 {
             tracing::error!(
                 recipients = total,
@@ -121,68 +116,6 @@ impl ApplicationDigestService {
                 None
             }
         }
-    }
-
-    /// Resolves digest recipient addresses: members holding the
-    /// notifications attribute, restricted to those who also hold the admin
-    /// role so the attribute alone cannot subscribe anyone to applicant
-    /// data. Returns `None` when there is no one to send to.
-    async fn resolve_recipients(&self, application_count: usize) -> Option<BTreeSet<String>> {
-        let holders = match self
-            .attribute_repo
-            .fetch_all_values_for(&admin_notifications_email_attribute())
-            .await
-        {
-            Ok(values) => values,
-            Err(e) => {
-                tracing::error!("Application digest: failed to fetch recipients: {e:?}");
-                return None;
-            }
-        };
-        if holders.is_empty() {
-            tracing::info!(
-                "Application digest: {application_count} application(s) awaiting action but no \
-                 members have the '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' attribute set"
-            );
-            return None;
-        }
-
-        let admins = match self.role_repo.fetch_members_by_role(ADMIN_ROLE_NAME).await {
-            Ok(members) => members,
-            Err(e) => {
-                tracing::error!("Application digest: failed to fetch admin members: {e:?}");
-                return None;
-            }
-        };
-        let admin_ids: HashSet<uuid::Uuid> = admins.into_iter().map(|p| p.id.0).collect();
-
-        let skipped = holders
-            .iter()
-            .filter(|(id, _)| !admin_ids.contains(&id.0))
-            .count();
-        if skipped > 0 {
-            tracing::warn!(
-                skipped,
-                "Application digest: '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' is set on members \
-                 without the '{ADMIN_ROLE_NAME}' role; not sending to them"
-            );
-        }
-
-        // BTreeSet: dedup addresses shared between members, deterministic order.
-        let addresses: BTreeSet<String> = holders
-            .into_iter()
-            .filter(|(id, _)| admin_ids.contains(&id.0))
-            .flat_map(|(_, values)| values.into_iter().map(AttributeValue::into_inner))
-            .collect();
-        if addresses.is_empty() {
-            tracing::info!(
-                "Application digest: {application_count} application(s) awaiting action but no \
-                 '{ADMIN_ROLE_NAME}' members have the '{ADMIN_NOTIFICATIONS_EMAIL_ATTRIBUTE}' \
-                 attribute set"
-            );
-            return None;
-        }
-        Some(addresses)
     }
 }
 
@@ -229,11 +162,4 @@ fn status_label(status: &ApplicationStatus) -> &'static str {
         ApplicationStatus::Approved => "Approved",
         ApplicationStatus::Rejected => "Rejected",
     }
-}
-
-fn html_escape(s: &str) -> String {
-    s.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
 }
