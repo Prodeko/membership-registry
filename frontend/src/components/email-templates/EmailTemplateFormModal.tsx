@@ -86,13 +86,29 @@ const EmailTemplateFormModal = ({ template, open, onOpenChange }: Props) => {
       (t) => t.subject.includes(`{${p}}`) || t.body_html.includes(`{${p}}`),
     ),
   );
+  // "a", "a and b", "a, b and c"
+  const listed = (items: string[]) =>
+    items.length <= 1
+      ? (items[0] ?? "")
+      : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+  const applicationEmails = (targetableRoles ?? []).flatMap((r) => [
+    ...(r.approved_email_template === templateName
+      ? [`the approval email of the "${r.role_name}" role`]
+      : []),
+    ...(r.rejected_email_template === templateName
+      ? [`the rejection email of the "${r.role_name}" role`]
+      : []),
+  ]);
+  const placeholders = listed(renewalOnlyUsed.map((p) => `{${p}}`));
+  const quoted = listed(renewalOnlyUsed.map((p) => `"{${p}}"`));
+  const one = renewalOnlyUsed.length === 1;
   const placeholderWarning =
     renewalOnlyUsed.length === 0
       ? null
-      : applicationUses.length > 0
-        ? `This template is also used for application emails (${applicationUses.join(", ")}), where ${renewalOnlyUsed.map((p) => `{${p}}`).join(", ")} ${renewalOnlyUsed.length === 1 ? "is" : "are"} not filled in: recipients would see the placeholder as plain text.`
+      : applicationEmails.length > 0
+        ? `${placeholders} won't be filled in here: this template is used as ${listed(applicationEmails)}, and ${applicationEmails.length === 1 ? "that email only fills" : "those emails only fill"} {name} and {role_name}. Recipients would see ${quoted} as plain text. Remove ${one ? "it" : "them"}, or use a separate template for renewal reminders.`
         : renewalRoles.length === 0
-          ? `${renewalOnlyUsed.map((p) => `{${p}}`).join(", ")} ${renewalOnlyUsed.length === 1 ? "is" : "are"} only filled in renewal reminders, and this template isn't any role's renewal email. Wherever else it's used, recipients would see the placeholder as plain text.`
+          ? `${placeholders} ${one ? "is" : "are"} only filled in renewal reminders, and this template isn't any role's renewal reminder. Wherever else it's used, recipients would see ${quoted} as plain text.`
           : null;
 
   const dialogOpen = isEdit ? open : internalOpen;
