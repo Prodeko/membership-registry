@@ -16,6 +16,7 @@ import {
 } from "../ui/tooltip";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import PageHelp from "../ui/page-help";
 
 const Roles = () => {
   const queryClient = useQueryClient();
@@ -79,6 +80,40 @@ const Roles = () => {
           <CreateRoleModal />
         </div>
       </div>
+      <PageHelp id="roles">
+        <p>
+          A <strong>role</strong> is a membership or position a member can hold,
+          such as a membership type or the board. A member holds a role for a
+          period (valid from / valid until); click a member&apos;s row on the
+          member list to add or end roles.
+        </p>
+        <ul>
+          <li>
+            Roles are mirrored to Keycloak, so apps that use Prodeko login see
+            who holds which role. Creating a role here also creates it in
+            Keycloak.
+          </li>
+          <li>
+            <strong>Member count</strong> is everyone who has ever held the
+            role; <strong>active</strong> counts memberships valid today.
+          </li>
+          <li>
+            Expired memberships are removed from Keycloak automatically once a
+            day. <strong>Clean up expired</strong> does it right away.
+          </li>
+          <li>
+            Open a role to set up <strong>renewal</strong>: a Stripe payment
+            link, how long a renewal lasts, when members can renew, reminder
+            emails and the banner on the member home page.
+          </li>
+          <li>
+            Which roles people can <strong>apply</strong> for is set under{" "}
+            <strong>Application targetable roles</strong> (button above). Those
+            roles also decide who is on the Mailchimp list.
+          </li>
+        </ul>
+      </PageHelp>
+
       <DataTable
         columns={columns}
         useFetchData={useGetRolesStats}
