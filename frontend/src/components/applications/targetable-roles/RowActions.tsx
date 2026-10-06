@@ -61,9 +61,12 @@ const RowActions = ({ role }: { role: ApplicationTargetableRole }) => {
           </DropdownMenuItem>
           {role.payment_link && (
             <DropdownMenuItem className="flex items-center justify-between">
-              {/* TODO fix the url */}
-              <a href={`/roles/${role.role_name}`}>
-                View payment link in Stripe
+              <a
+                href={role.payment_link}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Open payment link
               </a>
               <DollarSignIcon className="w-4 h-4 ml-2" />
             </DropdownMenuItem>
