@@ -6,6 +6,7 @@ COPY frontend/package.json frontend/pnpm-lock.yaml frontend/pnpm-workspace.yaml 
 RUN pnpm install --frozen-lockfile
 COPY frontend/ .
 ARG VITE_API_BASE_URL=/api
+ARG VITE_ADMIN_CONTACT_EMAIL=mediakeisari@prodeko.org
 RUN pnpm run build
 
 # Stage 2: Backend build

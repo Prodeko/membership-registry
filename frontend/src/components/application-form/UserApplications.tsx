@@ -1,4 +1,5 @@
 import { useGetTargetableRoles, useGetUserApplications } from "@/lib/api";
+import { ADMIN_CONTACT_EMAIL } from "@/lib/constants";
 import { kebabCaseToTitleCase } from "@/lib/utils";
 import { useTranslation } from "react-i18next";
 import {
@@ -27,7 +28,11 @@ const UserApplications = () => {
           <span>
             {t("applications.existing.title")}
             <InfoTooltip>
-              <p>{t("applications.existing.tooltip")}</p>
+              <p>
+                {t("applications.existing.tooltip", {
+                  contact: ADMIN_CONTACT_EMAIL,
+                })}
+              </p>
             </InfoTooltip>
           </span>
         </AccordionTrigger>
