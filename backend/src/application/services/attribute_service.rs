@@ -10,7 +10,8 @@ use uuid::Uuid;
 use crate::application::ports::{
     attribute_bootstrap_port::AttributeBootstrapPort,
     attribute_repository_port::{
-        AttributeRepositoryPort, CreateAttributeDefinition, UpdateAttributeDefinition,
+        AttributeRepositoryPort, AutoDefaultValue, CreateAttributeDefinition,
+        UpdateAttributeDefinition,
     },
     attribute_sync_port::{AttributeSyncError, AttributeSyncPort},
     auth_provider_repo_port::AuthProviderRepositoryPort,
@@ -25,6 +26,18 @@ use super::{
     errors::{ServiceError, ServiceResult},
     group_membership_service::GroupMembershipService,
 };
+
+/// Outcome of `clear_auto_default_values`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct AutoDefaultCleanupSummary {
+    /// Values removed from the registry.
+    pub cleared: u32,
+    /// Of those, how many could not be cleared in Keycloak too.
+    pub keycloak_failed: u32,
+    /// Values left in place because clearing failed.
+    pub failed: u32,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -718,6 +731,71 @@ impl AttributeService {
                 );
             }
         }
+    }
+
+    /// Member-filled values that still hold the default registration wrote
+    /// for them, before defaults were limited to admin-only attributes.
+    pub async fn auto_default_values(&self) -> ServiceResult<Vec<AutoDefaultValue>> {
+        Ok(self.repo.fetch_auto_default_values().await?)
+    }
+
+    /// Clears every value `auto_default_values` lists, so members fill those
+    /// attributes in themselves. The list is recomputed here rather than
+    /// taken from the caller. Each clear goes the usual way (Keycloak, audit
+    /// log, Google groups); member-only attributes are cleared too, since
+    /// the system, not the member, set them.
+    pub async fn clear_auto_default_values(
+        &self,
+        actor_user_id: Option<Uuid>,
+    ) -> ServiceResult<AutoDefaultCleanupSummary> {
+        let rows = self.repo.fetch_auto_default_values().await?;
+        let mut defs: HashMap<String, Option<AttributeDefinition>> = HashMap::new();
+        let mut summary = AutoDefaultCleanupSummary::default();
+        for row in rows {
+            let key = row.attribute.as_str().to_string();
+            if !defs.contains_key(&key) {
+                let def = self.repo.fetch_definition(&row.attribute).await?;
+                defs.insert(key.clone(), def);
+            }
+            let Some(def) = defs.get(&key).and_then(Option::as_ref) else {
+                summary.failed += 1;
+                continue;
+            };
+            match self
+                .clear_inner(def, row.user_id.clone(), actor_user_id, "default_cleanup")
+                .await
+            {
+                Ok(()) => summary.cleared += 1,
+                // The registry value is gone; only the Keycloak push failed.
+                Err(ServiceError::PartialSync(_)) => {
+                    summary.cleared += 1;
+                    summary.keycloak_failed += 1;
+                }
+                Err(e) => {
+                    tracing::error!(
+                        user_id = %row.user_id.0,
+                        attribute = %key,
+                        "Failed to clear auto-filled default: {e:?}"
+                    );
+                    summary.failed += 1;
+                }
+            }
+        }
+        self.audit_log
+            .log(
+                actor_user_id,
+                "attribute.default_cleanup",
+                "member_attribute",
+                "all",
+                Some(serde_json::json!({
+                    "cleared": summary.cleared,
+                    "keycloak_failed": summary.keycloak_failed,
+                    "failed": summary.failed,
+                })),
+            )
+            .await;
+        self.invalidate_sync_cache();
+        Ok(summary)
     }
 
     /// Set a member's value via an application-form submission. Bypasses

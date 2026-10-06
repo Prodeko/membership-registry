@@ -28,6 +28,22 @@ pub struct UpdateAttributeDefinition {
     pub allow_other: bool,
 }
 
+/// A member-filled attribute value (editable by `user` or `both`) that
+/// registration wrote as the attribute's default, and that still is that
+/// default. Found from the audit log (`actor_kind = system`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutoDefaultValue {
+    pub user_id: PersonId,
+    pub email: String,
+    pub full_name: String,
+    pub attribute: AttributeName,
+    pub values: Vec<AttributeValue>,
+    /// Written again later with the same value, e.g. by sending the
+    /// application form with the prefilled answer; may or may not be the
+    /// member's own choice.
+    pub resubmitted: bool,
+}
+
 #[async_trait::async_trait]
 pub trait AttributeRepositoryPort: Send + Sync {
     // --- Definition CRUD ---
@@ -79,4 +95,8 @@ pub trait AttributeRepositoryPort: Send + Sync {
         &self,
         name: &AttributeName,
     ) -> Result<Vec<(PersonId, Vec<AttributeValue>)>, RepositoryError>;
+
+    /// Member-filled values still holding the default registration wrote
+    /// (see `AutoDefaultValue`), ordered by email and attribute.
+    async fn fetch_auto_default_values(&self) -> Result<Vec<AutoDefaultValue>, RepositoryError>;
 }

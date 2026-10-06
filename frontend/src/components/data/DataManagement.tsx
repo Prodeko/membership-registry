@@ -15,6 +15,7 @@ import {
 } from "../ui/card";
 import AttributeImportPanel from "./AttributeImportPanel";
 import GoogleGroupsSyncCard from "./GoogleGroupsSyncCard";
+import AutoDefaultsCleanupCard from "./AutoDefaultsCleanupCard";
 import MailchimpResyncCard from "./MailchimpResyncCard";
 import MemberExportCard from "./MemberExportCard";
 import MemberImportPanel from "./MemberImportPanel";
@@ -185,6 +186,7 @@ const DataManagement = () => {
           <SyncRolesCard />
           <GoogleGroupsSyncCard />
           <MailchimpResyncCard />
+          <AutoDefaultsCleanupCard />
         </div>
       )}
     </div>

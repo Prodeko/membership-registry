@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
 use crate::application::ports::attribute_repository_port::{
-    AttributeRepositoryPort, CreateAttributeDefinition, UpdateAttributeDefinition,
+    AttributeRepositoryPort, AutoDefaultValue, CreateAttributeDefinition, UpdateAttributeDefinition,
 };
 use crate::application::ports::repository_error::RepositoryError;
 use crate::domain::{
@@ -267,6 +267,75 @@ impl AttributeRepositoryPort for AttributeRepo {
         Ok(rows
             .into_iter()
             .map(|r| (PersonId(r.user_id), unchecked_values(r.value_list)))
+            .collect())
+    }
+
+    async fn fetch_auto_default_values(&self) -> Result<Vec<AutoDefaultValue>, RepositoryError> {
+        // The first `system` write per member and attribute is the default
+        // registration applied. A value still qualifies if nothing touched it
+        // since, or every later write set the same values again. Audit
+        // entries carry `value` (before multichoice) or `values` (after).
+        let rows = sqlx::query!(
+            r#"
+            WITH events AS (
+                SELECT split_part(entity_id, ':', 1)::uuid AS user_id,
+                       split_part(entity_id, ':', 2)       AS attribute_name,
+                       action,
+                       details->>'actor_kind'              AS actor_kind,
+                       CASE WHEN details ? 'values'
+                            THEN ARRAY(SELECT jsonb_array_elements_text(details->'values'))
+                            ELSE ARRAY[details->>'value'] END AS vals,
+                       created_at
+                FROM audit_log
+                WHERE entity_type = 'member_attribute'
+                  AND action IN ('member_attribute.set', 'member_attribute.clear')
+            ),
+            defaults AS (
+                SELECT DISTINCT ON (user_id, attribute_name)
+                       user_id, attribute_name, vals AS default_vals, created_at AS defaulted_at
+                FROM events
+                WHERE action = 'member_attribute.set' AND actor_kind = 'system'
+                ORDER BY user_id, attribute_name, created_at
+            ),
+            later AS (
+                SELECT d.user_id, d.attribute_name,
+                       count(*) FILTER (WHERE e.created_at > d.defaulted_at) AS later_writes,
+                       bool_and(e.action = 'member_attribute.set' AND e.vals = d.default_vals)
+                           FILTER (WHERE e.created_at > d.defaulted_at) AS later_all_same
+                FROM defaults d
+                JOIN events e USING (user_id, attribute_name)
+                GROUP BY d.user_id, d.attribute_name
+            )
+            SELECT d.user_id AS "user_id!",
+                   m.email,
+                   m.full_name AS "full_name?",
+                   d.attribute_name AS "attribute_name!",
+                   ma.value_list,
+                   (l.later_writes > 0) AS "resubmitted!"
+            FROM defaults d
+            JOIN later l USING (user_id, attribute_name)
+            JOIN AttributeDefinition ad
+              ON ad.name = d.attribute_name AND ad.editable_by <> 'admin'
+            JOIN MemberAttribute ma
+              ON ma.user_id = d.user_id AND ma.attribute_name = d.attribute_name
+             AND ma.value_list = d.default_vals
+            JOIN Member m ON m.user_id = d.user_id
+            WHERE l.later_writes = 0 OR l.later_all_same
+            ORDER BY m.email, d.attribute_name
+            "#
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows
+            .into_iter()
+            .map(|r| AutoDefaultValue {
+                user_id: PersonId(r.user_id),
+                email: r.email,
+                full_name: r.full_name.unwrap_or_default(),
+                attribute: AttributeName::new_unchecked(r.attribute_name),
+                values: unchecked_values(r.value_list),
+                resubmitted: r.resubmitted,
+            })
             .collect())
     }
 }

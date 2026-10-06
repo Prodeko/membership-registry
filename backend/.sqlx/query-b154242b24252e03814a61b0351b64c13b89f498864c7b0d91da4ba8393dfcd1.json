@@ -1,0 +1,71 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            WITH events AS (\n                SELECT split_part(entity_id, ':', 1)::uuid AS user_id,\n                       split_part(entity_id, ':', 2)       AS attribute_name,\n                       action,\n                       details->>'actor_kind'              AS actor_kind,\n                       CASE WHEN details ? 'values'\n                            THEN ARRAY(SELECT jsonb_array_elements_text(details->'values'))\n                            ELSE ARRAY[details->>'value'] END AS vals,\n                       created_at\n                FROM audit_log\n                WHERE entity_type = 'member_attribute'\n                  AND action IN ('member_attribute.set', 'member_attribute.clear')\n            ),\n            defaults AS (\n                SELECT DISTINCT ON (user_id, attribute_name)\n                       user_id, attribute_name, vals AS default_vals, created_at AS defaulted_at\n                FROM events\n                WHERE action = 'member_attribute.set' AND actor_kind = 'system'\n                ORDER BY user_id, attribute_name, created_at\n            ),\n            later AS (\n                SELECT d.user_id, d.attribute_name,\n                       count(*) FILTER (WHERE e.created_at > d.defaulted_at) AS later_writes,\n                       bool_and(e.action = 'member_attribute.set' AND e.vals = d.default_vals)\n                           FILTER (WHERE e.created_at > d.defaulted_at) AS later_all_same\n                FROM defaults d\n                JOIN events e USING (user_id, attribute_name)\n                GROUP BY d.user_id, d.attribute_name\n            )\n            SELECT d.user_id AS \"user_id!\",\n                   m.email,\n                   m.full_name AS \"full_name?\",\n                   d.attribute_name AS \"attribute_name!\",\n                   ma.value_list,\n                   (l.later_writes > 0) AS \"resubmitted!\"\n            FROM defaults d\n            JOIN later l USING (user_id, attribute_name)\n            JOIN AttributeDefinition ad\n              ON ad.name = d.attribute_name AND ad.editable_by <> 'admin'\n            JOIN MemberAttribute ma\n              ON ma.user_id = d.user_id AND ma.attribute_name = d.attribute_name\n             AND ma.value_list = d.default_vals\n            JOIN Member m ON m.user_id = d.user_id\n            WHERE l.later_writes = 0 OR l.later_all_same\n            ORDER BY m.email, d.attribute_name\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "user_id!",
+        "type_info": "Uuid",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 1,
+        "name": "email",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "member",
+            "name": "email"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "full_name?",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "member",
+            "name": "full_name"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "attribute_name!",
+        "type_info": "Text",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "value_list",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "memberattribute",
+            "name": "value_list"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "resubmitted!",
+        "type_info": "Bool",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      null,
+      false,
+      true,
+      null,
+      false,
+      null
+    ]
+  },
+  "hash": "b154242b24252e03814a61b0351b64c13b89f498864c7b0d91da4ba8393dfcd1"
+}
