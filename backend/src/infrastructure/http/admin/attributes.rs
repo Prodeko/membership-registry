@@ -7,13 +7,18 @@ use axum::{
     routing::{get, post},
     Extension, Json, Router,
 };
+use serde::Serialize;
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{
     application::{
         ports::attribute_repository_port::CreateAttributeDefinition,
         services::{
-            attribute_service::{SyncMissingAttributesSummary, UpdateAttributeDefinitionPatch},
+            attribute_service::{
+                AutoDefaultCleanupSummary, SyncMissingAttributesSummary,
+                UpdateAttributeDefinitionPatch,
+            },
             authentication_service::AuthenticatedUser,
         },
     },
@@ -35,6 +40,8 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/", get(list_definitions).post(create_definition))
         .route("/sync-status", get(get_sync_status))
         .route("/sync-missing", post(sync_missing))
+        .route("/auto-defaults", get(list_auto_defaults))
+        .route("/auto-defaults/clear", post(clear_auto_defaults))
         .route(
             "/{name}",
             get(get_definition)
@@ -183,6 +190,57 @@ async fn sync_missing(
 ) -> ApiResult<Json<SyncMissingAttributesSummary>> {
     Ok(Json(
         state.attribute_service.sync_missing_to_keycloak().await?,
+    ))
+}
+
+/// One member-filled value still holding the default registration wrote.
+#[derive(Debug, Serialize, TS)]
+#[ts(export, rename = "AutoDefaultValue")]
+struct AutoDefaultValueDTO {
+    user_id: Uuid,
+    email: String,
+    full_name: String,
+    attribute: String,
+    values: Vec<String>,
+    /// Written again later with the same value (e.g. via the application
+    /// form), so it may be the member's own choice.
+    resubmitted: bool,
+}
+
+#[debug_handler]
+async fn list_auto_defaults(
+    State(state): State<AppState>,
+) -> ApiResult<Json<Vec<AutoDefaultValueDTO>>> {
+    let rows = state.attribute_service.auto_default_values().await?;
+    Ok(Json(
+        rows.into_iter()
+            .map(|r| AutoDefaultValueDTO {
+                user_id: r.user_id.0,
+                email: r.email,
+                full_name: r.full_name,
+                attribute: r.attribute.into_inner(),
+                values: r
+                    .values
+                    .into_iter()
+                    .map(AttributeValue::into_inner)
+                    .collect(),
+                resubmitted: r.resubmitted,
+            })
+            .collect(),
+    ))
+}
+
+#[debug_handler]
+async fn clear_auto_defaults(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+) -> ApiResult<Json<AutoDefaultCleanupSummary>> {
+    let actor_id = user_info.map(|u| u.user_id);
+    Ok(Json(
+        state
+            .attribute_service
+            .clear_auto_default_values(actor_id)
+            .await?,
     ))
 }
 

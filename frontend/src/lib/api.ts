@@ -25,6 +25,8 @@ import {
   MemberAttribute,
   SetMemberAttribute,
   SyncMissingAttributesSummary,
+  AutoDefaultCleanupSummary,
+  AutoDefaultValue,
   UpdateAttributeDefinition,
   NewMember,
   NewSavedFilter,
@@ -70,6 +72,7 @@ export enum QueryKey {
   MARKETING_TAGS = "marketing_tags",
   ATTRIBUTE_DEFINITIONS = "attribute_definitions",
   ATTRIBUTES_SYNC_STATUS = "attributes_sync_status",
+  AUTO_DEFAULT_VALUES = "auto_default_values",
   MEMBER_ATTRIBUTES = "member_attributes",
   MY_ATTRIBUTES = "my_attributes",
 }
@@ -1299,6 +1302,39 @@ export const useGetAttributesSyncStatus = () => {
         "/attributes/sync-status",
       );
       return response.data;
+    },
+  });
+};
+
+/** Member-filled values still holding the default registration wrote. */
+export const useGetAutoDefaultValues = () => {
+  return useQuery<AutoDefaultValue[]>({
+    queryKey: [QueryKey.AUTO_DEFAULT_VALUES],
+    queryFn: async () => {
+      const response = await admin_axios_client.get<AutoDefaultValue[]>(
+        "/attributes/auto-defaults",
+      );
+      return response.data;
+    },
+  });
+};
+
+export const useClearAutoDefaultValues = () => {
+  const queryClient = useQueryClient();
+  return useMutation<AutoDefaultCleanupSummary, Error>({
+    mutationFn: async () => {
+      const response = await admin_axios_client.post<AutoDefaultCleanupSummary>(
+        "/attributes/auto-defaults/clear",
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.AUTO_DEFAULT_VALUES],
+      });
+      queryClient.invalidateQueries({
+        queryKey: [QueryKey.ATTRIBUTES_SYNC_STATUS],
+      });
     },
   });
 };

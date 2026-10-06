@@ -15,6 +15,8 @@ export type {
   MemberAttribute,
   SetMemberAttribute,
   SyncMissingAttributesSummary,
+  AutoDefaultCleanupSummary,
+  AutoDefaultValue,
   SyncMissingFailure,
   UpdateAttributeDefinition,
   CreateApplicationResponse,

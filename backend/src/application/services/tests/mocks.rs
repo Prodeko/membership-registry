@@ -12,7 +12,8 @@ use crate::application::ports::{
     },
     attribute_bootstrap_port::AttributeBootstrapPort,
     attribute_repository_port::{
-        AttributeRepositoryPort, CreateAttributeDefinition, UpdateAttributeDefinition,
+        AttributeRepositoryPort, AutoDefaultValue, CreateAttributeDefinition,
+        UpdateAttributeDefinition,
     },
     attribute_sync_port::{AttributeSyncError, AttributeSyncPort},
     audit_log_repository_port::{
@@ -317,6 +318,7 @@ mock! {
         async fn delete_member_value(&self, user_id: &PersonId, name: &AttributeName) -> Result<(), RepositoryError>;
         async fn fetch_member_values(&self, user_id: &PersonId) -> Result<Vec<MemberAttribute>, RepositoryError>;
         async fn fetch_all_values_for(&self, name: &AttributeName) -> Result<Vec<(PersonId, Vec<AttributeValue>)>, RepositoryError>;
+        async fn fetch_auto_default_values(&self) -> Result<Vec<AutoDefaultValue>, RepositoryError>;
     }
 }
 

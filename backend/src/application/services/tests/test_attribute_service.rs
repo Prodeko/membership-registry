@@ -1212,3 +1212,53 @@ async fn setting_rule_attribute_resyncs_its_group() {
     .await
     .unwrap();
 }
+
+// ---------------------------------------------------------------------------
+// Clearing auto-filled defaults
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn clear_auto_default_values_clears_member_only_attributes_and_counts_failures() {
+    use crate::application::ports::attribute_repository_port::AutoDefaultValue;
+    use std::sync::Mutex;
+
+    let row = |uid: u128, attr: &str| AutoDefaultValue {
+        user_id: PersonId(uuid::Uuid::from_u128(uid)),
+        email: format!("{uid}@x.fi"),
+        full_name: String::new(),
+        attribute: AttributeName::new(attr).unwrap(),
+        values: vec![av("x")],
+        resubmitted: false,
+    };
+    let mut repo = MockAttributeRepositoryPort::new();
+    repo.expect_fetch_auto_default_values()
+        .returning(move || Ok(vec![row(1, "pora"), row(2, "pora"), row(3, "gone")]));
+    // pora is member-only: an admin can't clear it by hand, the cleanup can.
+    // `gone` no longer exists, so its value is reported as failed.
+    repo.expect_fetch_definition().returning(|name| {
+        Ok((name.as_str() == "pora").then(|| def("pora", false, EditableBy::User)))
+    });
+    let deleted: Arc<Mutex<Vec<u128>>> = Arc::new(Mutex::new(Vec::new()));
+    let deleted_by_repo = Arc::clone(&deleted);
+    repo.expect_delete_member_value().returning(move |uid, _| {
+        deleted_by_repo.lock().unwrap().push(uid.0.as_u128());
+        Ok(())
+    });
+
+    let svc = build_service(
+        repo,
+        MockAttributeSyncPort::new(),
+        MockAuthProviderRepo::new(),
+    );
+    let summary = svc.clear_auto_default_values(None).await.unwrap();
+
+    assert_eq!(
+        summary,
+        crate::application::services::attribute_service::AutoDefaultCleanupSummary {
+            cleared: 2,
+            keycloak_failed: 0,
+            failed: 1,
+        }
+    );
+    assert_eq!(*deleted.lock().unwrap(), vec![1, 2]);
+}
