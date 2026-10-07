@@ -61,6 +61,7 @@ python setup.py
 - `KC_SKIP_TEST_USERS` — set to `true` to skip creating test users
 - `KC_PASSWORD_POLICY` — Keycloak password policy string; defaults to 8+ chars with upper, lower and digit (see `config/realm.py`). The dev `.env` sets `length(8)` so test-user passwords stay valid. The login theme lists these rules on the registration page.
 - `KC_AUTH_REDIRECT_URIS`, `KC_AUTH_WEB_ORIGINS` — JSON arrays for the auth client
+- `KC_PTER_CLIENT_SECRET`, `KC_PTER_REDIRECT_URIS`, `KC_PTER_WEB_ORIGINS` — the PTER app's client (`pter`). In production use a generated secret, `["https://pter.prodeko.org/api/auth/callback/keycloak"]` and `["https://pter.prodeko.org"]`. The app reads the realm roles `membership` and `pter-admin` from the access token.
 - `SENDGRID_API_KEY`, `SMTP_FROM`, `SMTP_FROM_NAME` — SendGrid SMTP for emails sent by Keycloak itself (password reset, verification). Leave blank in dev.
 
 ## Linting and type checking
