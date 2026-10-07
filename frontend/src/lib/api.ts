@@ -580,6 +580,20 @@ export const useUpdateRole = () => {
   });
 };
 
+export const useDeleteRole = () => {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: async (roleName) => {
+      await admin_axios_client.delete(`/roles/${encodeURIComponent(roleName)}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [QueryKey.ROLES] });
+      // Targetable roles of the deleted role are removed with it.
+      queryClient.invalidateQueries({ queryKey: [QueryKey.TARGETABLE_ROLES] });
+    },
+  });
+};
+
 export const useGetTargetableRoles = () => {
   return useQuery<ApplicationTargetableRole[]>({
     queryKey: [QueryKey.TARGETABLE_ROLES],

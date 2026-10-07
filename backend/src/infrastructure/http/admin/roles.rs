@@ -3,7 +3,7 @@ use axum::{
     debug_handler,
     extract::{Path, Query, State},
     http::Response,
-    routing::{get, post, put},
+    routing::{delete, get, post, put},
     Extension, Json, Router,
 };
 use serde::{Deserialize, Serialize};
@@ -34,6 +34,7 @@ pub fn router(state: AppState) -> Router<AppState> {
         .route("/cleanup-expired", post(cleanup_expired_roles))
         .route("/{id}", get(get_role))
         .route("/{id}", put(update_role))
+        .route("/{id}", delete(delete_role))
         .route("/{id}/members", get(get_role_members))
         .with_state(state)
 }
@@ -160,6 +161,18 @@ async fn post_role(
         .map(Json)?;
 
     Ok(role)
+}
+
+/// Deletes a role nobody holds or has held; refused with 400 otherwise.
+#[debug_handler]
+async fn delete_role(
+    Extension(user_info): Extension<Option<AuthenticatedUser>>,
+    State(state): State<AppState>,
+    Path(path): Path<RolePath>,
+) -> ApiResult<()> {
+    let actor_id = user_info.map(|u| u.user_id);
+    state.role_service.delete_role(&path.id, actor_id).await?;
+    Ok(())
 }
 
 #[debug_handler]
