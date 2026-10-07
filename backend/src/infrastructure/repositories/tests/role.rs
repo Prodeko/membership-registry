@@ -88,6 +88,53 @@ mod test_role {
     }
 
     #[tokio::test]
+    async fn test_delete_role_with_open_applications() {
+        let (repo, db_url) = setup_test_db().await;
+
+        repo.role
+            .create(&Role {
+                name: RoleName("applied-role".to_string()),
+                color: None,
+                description: None,
+                renewable: false,
+                renewal_payment_link: None,
+                renewal_period_months: None,
+                renewal_email_template: None,
+                renewal_notification_days: vec![30, 7, 1],
+                renewal_window_days: 30,
+                grace_period_days: 0,
+            })
+            .await
+            .unwrap();
+        let application_id: Uuid = sqlx::query_scalar(
+            "INSERT INTO Application (user_id, role_name, valid_until, timestamp, status)
+             VALUES ($1, 'applied-role', '2027-07-31', now(), 'unpaid')
+             RETURNING application_id",
+        )
+        .bind(_get_user_id())
+        .fetch_one(&repo.role.pool)
+        .await
+        .unwrap();
+
+        // An unpaid application could never be approved once the role is gone.
+        let blocked = repo.role.delete("applied-role").await;
+        assert!(
+            matches!(blocked, Err(RepositoryError::Constraint(ref msg)) if msg.contains("1 open application")),
+            "expected an open applications constraint error, got {blocked:?}"
+        );
+
+        // Rejected applications are history and don't block deletion.
+        sqlx::query("UPDATE Application SET status = 'rejected' WHERE application_id = $1")
+            .bind(application_id)
+            .execute(&repo.role.pool)
+            .await
+            .unwrap();
+        assert!(repo.role.delete("applied-role").await.is_ok());
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    #[tokio::test]
     async fn test_create_role_member() {
         let (repo, db_url) = setup_test_db().await;
 

@@ -183,6 +183,22 @@ impl RoleRepositoryPort for RoleRepo {
     }
 
     async fn delete(&self, role_name: &str) -> Result<(), RepositoryError> {
+        // Application has no foreign key to Role, so an open application for
+        // a deleted role would stay listed but could never be approved.
+        let open_applications: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM Application \
+             WHERE role_name = $1 AND status IN ('pending', 'unpaid')",
+        )
+        .bind(role_name)
+        .fetch_one(&self.pool)
+        .await?;
+        if open_applications > 0 {
+            return Err(RepositoryError::Constraint(format!(
+                "role {role_name:?} has {open_applications} open application(s); \
+                 approve or reject them before deleting the role"
+            )));
+        }
+
         // RoleMember's foreign key has no ON DELETE CASCADE, so a role that
         // anyone holds or has held cannot be deleted.
         let result = sqlx::query("DELETE FROM Role WHERE name = $1")
