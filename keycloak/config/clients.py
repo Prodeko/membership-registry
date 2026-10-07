@@ -185,3 +185,55 @@ def configure_m2m_client(kc: KeycloakAdmin) -> None:
         print(f"  Created client '{client_id_str}'.")
 
     _assign_service_account_roles(kc, client_id_str, existing_id)
+
+
+def configure_pter_client(kc: KeycloakAdmin) -> None:
+    """Configure the PTER app's client (pter.prodeko.org).
+
+    The app signs members in with the standard flow and reads the realm roles
+    `membership` and `pter-admin` from the access token, so the client keeps the
+    default scopes (roles, profile, email) and full scope.
+    """
+    client_id_str = "pter"
+    print(f"Configuring client '{client_id_str}'...")
+
+    client_payload: dict[str, Any] = {
+        "clientId": client_id_str,
+        "name": "PTER",
+        "enabled": True,
+        "publicClient": False,
+        "secret": os.environ.get("KC_PTER_CLIENT_SECRET", "dev-secret-pter"),
+        "redirectUris": _env_json_list("KC_PTER_REDIRECT_URIS", [
+            "http://localhost:3000/*",
+        ]),
+        "webOrigins": _env_json_list("KC_PTER_WEB_ORIGINS", [
+            "http://localhost:3000",
+        ]),
+        "standardFlowEnabled": True,
+        "directAccessGrantsEnabled": False,
+        "protocol": "openid-connect",
+        "fullScopeAllowed": True,
+        "protocolMappers": [
+            {
+                "name": "locale",
+                "protocol": "openid-connect",
+                "protocolMapper": "oidc-usermodel-attribute-mapper",
+                "config": {
+                    "claim.name": "locale",
+                    "user.attribute": "locale",
+                    "id.token.claim": "true",
+                    "access.token.claim": "true",
+                    "userinfo.token.claim": "true",
+                    "jsonType.label": "String",
+                },
+            },
+        ],
+    }
+
+    existing_id = _find_client_id(kc, client_id_str)
+    if existing_id:
+        kc.put(f"/clients/{existing_id}", client_payload)
+        print(f"  Updated client '{client_id_str}'.")
+    else:
+        kc.post("/clients", client_payload)
+        print(f"  Created client '{client_id_str}'.")
