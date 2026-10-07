@@ -183,10 +183,24 @@ impl RoleRepositoryPort for RoleRepo {
     }
 
     async fn delete(&self, role_name: &str) -> Result<(), RepositoryError> {
-        sqlx::query("DELETE FROM Role WHERE name = $1")
+        // RoleMember's foreign key has no ON DELETE CASCADE, so a role that
+        // anyone holds or has held cannot be deleted.
+        let result = sqlx::query("DELETE FROM Role WHERE name = $1")
             .bind(role_name)
             .execute(&self.pool)
-            .await?;
+            .await
+            .map_err(|e| match e {
+                sqlx::Error::Database(ref db_err) if db_err.is_foreign_key_violation() => {
+                    RepositoryError::Constraint(format!(
+                        "role {role_name:?} still has members, including expired \
+                         memberships; remove them before deleting the role"
+                    ))
+                }
+                other => other.into(),
+            })?;
+        if result.rows_affected() == 0 {
+            return Err(RepositoryError::NotFound);
+        }
         Ok(())
     }
 

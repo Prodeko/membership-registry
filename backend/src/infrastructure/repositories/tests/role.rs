@@ -3,6 +3,7 @@ mod test_role {
     use chrono::NaiveDate;
     use uuid::Uuid;
 
+    use crate::application::ports::repository_error::RepositoryError;
     use crate::application::ports::role_repository_port::{
         RoleRepositoryPort, RolesWithStatsParams,
     };
@@ -47,7 +48,10 @@ mod test_role {
         let role = repo.role.delete(ROLE_NAME).await;
 
         // Role has members, so it should not be deleted
-        assert!(role.is_err());
+        assert!(
+            matches!(role, Err(RepositoryError::Constraint(ref msg)) if msg.contains("still has members")),
+            "expected a members constraint error, got {role:?}"
+        );
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }
@@ -76,6 +80,9 @@ mod test_role {
 
         // Role has no members, so it should be deleted
         assert!(role.is_ok());
+
+        let again = repo.role.delete("test-role").await;
+        assert!(matches!(again, Err(RepositoryError::NotFound)));
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }

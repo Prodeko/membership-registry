@@ -17,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { RoleStats } from "@/common/types";
+import DeleteRoleMenuItem from "./DeleteRoleMenuItem";
 
 export const columns: ColumnDef<unknown, unknown>[] = [
   {
@@ -104,6 +105,8 @@ export const columns: ColumnDef<unknown, unknown>[] = [
               <Link to={`/roles/${roleStats.name}`}>View role</Link>
               <FileIcon className="w-4 h-4 ml-2" />
             </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DeleteRoleMenuItem role={roleStats} />
           </DropdownMenuContent>
         </DropdownMenu>
       );
