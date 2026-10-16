@@ -1,13 +1,21 @@
 use uuid::Uuid;
 
 use super::repository_error::RepositoryError;
-use crate::domain::{NewPerson, Person, UpdatePersonData};
+use crate::domain::{AttributeName, AttributeValue, NewPerson, Person, UpdatePersonData};
 
 #[derive(Debug)]
 pub struct MemberWithRoles {
     pub person: Person,
     pub role_names: Vec<String>,
     pub group_names: Vec<String>,
+}
+
+/// Keeps members holding attribute `name` with at least one of `values`.
+/// Empty `values` keeps everyone holding the attribute at all.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AttributeFilter {
+    pub name: AttributeName,
+    pub values: Vec<AttributeValue>,
 }
 
 #[derive(Default)]
@@ -20,6 +28,8 @@ pub struct MembersWithRolesParams {
     pub order_desc: Option<bool>,
     pub page_size: Option<u64>,
     pub offset: Option<u64>,
+    /// Every filter must match.
+    pub attributes: Vec<AttributeFilter>,
 }
 
 #[async_trait::async_trait]

@@ -15,7 +15,7 @@ use uuid::Uuid;
 
 use crate::{
     application::{
-        ports::data_export_port::ExportedData,
+        ports::{data_export_port::ExportedData, member_repository_port::AttributeFilter},
         services::{
             authentication_service::AuthenticatedUser,
             export_service::{member_export_table, MemberExportColumn},
@@ -115,6 +115,46 @@ struct MembersWithRolesQueryDTO {
     roles: Option<String>,
     valid_from: Option<chrono::NaiveDate>,
     valid_until: Option<chrono::NaiveDate>,
+    /// JSON list of `MemberAttributeFilter`; every filter must match.
+    attributes: Option<String>,
+}
+
+/// Keeps members holding attribute `name` with any of `values`, or with
+/// any value at all when `values` is empty.
+#[derive(Deserialize, Debug, TS)]
+#[ts(export, rename = "MemberAttributeFilter")]
+struct MemberAttributeFilterDTO {
+    name: String,
+    values: Vec<String>,
+}
+
+impl MembersWithRolesQueryDTO {
+    fn role_list(&self) -> Option<Vec<String>> {
+        self.roles
+            .as_ref()
+            .map(|roles| roles.split(',').map(str::to_string).collect())
+    }
+
+    fn attribute_filters(&self) -> Result<Vec<AttributeFilter>, ApiError> {
+        let Some(raw) = &self.attributes else {
+            return Ok(Vec::new());
+        };
+        let filters: Vec<MemberAttributeFilterDTO> =
+            serde_json::from_str(raw).map_err(|_| ApiError::BadRequest)?;
+        filters
+            .into_iter()
+            .map(|f| {
+                Ok(AttributeFilter {
+                    name: AttributeName::new(f.name).map_err(|_| ApiError::BadRequest)?,
+                    values: f
+                        .values
+                        .into_iter()
+                        .map(|v| AttributeValue::new(v).map_err(|_| ApiError::BadRequest))
+                        .collect::<Result<_, _>>()?,
+                })
+            })
+            .collect()
+    }
 }
 
 #[debug_handler]
@@ -122,12 +162,8 @@ async fn get_members_with_roles(
     State(state): State<AppState>,
     Query(query): Query<MembersWithRolesQueryDTO>,
 ) -> ApiResult<Json<Vec<MemberWithRolesDTO>>> {
-    let roles = query.roles.clone().map(|roles| {
-        roles
-            .split(',')
-            .map(|role| role.to_string())
-            .collect::<Vec<String>>()
-    });
+    let roles = query.role_list();
+    let attributes = query.attribute_filters()?;
 
     let members: Vec<MemberWithRolesDTO> = state
         .member_service
@@ -140,6 +176,7 @@ async fn get_members_with_roles(
             query.sort_desc,
             query.valid_from,
             query.valid_until,
+            attributes,
         )
         .await?
         .into_iter()
@@ -160,16 +197,18 @@ async fn count_members_with_roles(
     State(state): State<AppState>,
     Query(query): Query<MembersWithRolesQueryDTO>,
 ) -> ApiResult<Json<MembersCountDTO>> {
-    let roles = query.roles.clone().map(|roles| {
-        roles
-            .split(',')
-            .map(|role| role.to_string())
-            .collect::<Vec<String>>()
-    });
+    let roles = query.role_list();
+    let attributes = query.attribute_filters()?;
 
     let total = state
         .member_service
-        .count_members_with_roles(roles, query.search, query.valid_from, query.valid_until)
+        .count_members_with_roles(
+            roles,
+            query.search,
+            query.valid_from,
+            query.valid_until,
+            attributes,
+        )
         .await?;
 
     Ok(Json(MembersCountDTO { total }))
@@ -230,12 +269,8 @@ async fn export_members_with_roles(
     let actor_id = user_info.map(|u| u.user_id);
     state.member_service.log_export(actor_id).await;
 
-    let roles = query.roles.clone().map(|roles| {
-        roles
-            .split(',')
-            .map(|role| role.to_string())
-            .collect::<Vec<String>>()
-    });
+    let roles = query.role_list();
+    let attribute_filters = query.attribute_filters()?;
 
     let members = state
         .member_service
@@ -248,6 +283,7 @@ async fn export_members_with_roles(
             query.sort_desc,
             query.valid_from,
             query.valid_until,
+            attribute_filters,
         )
         .await?;
 

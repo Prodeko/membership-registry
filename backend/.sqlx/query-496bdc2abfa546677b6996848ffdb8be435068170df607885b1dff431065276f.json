@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "--sql\n            SELECT COUNT(*)::bigint AS \"count!\"\n            FROM (\n                SELECT Member.user_id\n                FROM Member\n                LEFT JOIN RoleMember\n                    ON Member.user_id = RoleMember.user_id\n                    AND ($4::date IS NULL OR RoleMember.valid_until IS NULL OR RoleMember.valid_until >= $4)\n                    AND ($3::date IS NULL OR RoleMember.valid_from <= $3)\n                WHERE (\n                    $2::varchar IS NULL OR\n                    Member.full_name ILIKE '%' || $2 || '%' OR\n                    Member.email ILIKE '%' || $2 || '%'\n                )\n                AND (\n                    $5::text[] IS NULL OR\n                    NOT EXISTS (\n                        SELECT 1\n                        FROM unnest($5::text[], $6::text[]) AS f(name, value)\n                        GROUP BY f.name\n                        HAVING NOT EXISTS (\n                            SELECT 1 FROM MemberAttribute ma\n                            WHERE ma.user_id = Member.user_id\n                              AND ma.attribute_name = f.name\n                              AND ('' = ANY(array_agg(f.value)) OR ma.value_list && array_agg(f.value))\n                        )\n                    )\n                )\n                GROUP BY Member.user_id\n                HAVING\n                    $1::varchar[] IS NULL OR\n                    EXISTS (\n                        SELECT 1\n                        FROM unnest($1::varchar[]) AS filter_role\n                        WHERE filter_role = ANY(array_agg(RoleMember.role_name))\n                    )\n            ) AS filtered\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "count!",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "VarcharArray",
+        "Varchar",
+        "Date",
+        "Date",
+        "TextArray",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "496bdc2abfa546677b6996848ffdb8be435068170df607885b1dff431065276f"
+}

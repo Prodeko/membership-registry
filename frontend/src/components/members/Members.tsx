@@ -18,7 +18,8 @@ import { Switch } from "../ui/switch";
 import { TooltipProvider } from "../ui/tooltip";
 import BulkCommandDock from "./BulkCommandDock";
 import MemberDrawer from "./MemberDrawer";
-import { MemberWithRoles } from "@/common/types";
+import { MemberAttributeFilter, MemberWithRoles } from "@/common/types";
+import AttributeFilters from "./AttributeFilters";
 
 type FilterState = {
   roles: Option[];
@@ -26,6 +27,7 @@ type FilterState = {
   dateFilterOn: boolean;
   validFrom: Date;
   validUntil: Date;
+  attributes: MemberAttributeFilter[];
 };
 
 const startOfToday = () => {
@@ -42,6 +44,7 @@ const defaultFilterState = (): FilterState => ({
   dateFilterOn: true,
   validFrom: startOfToday(),
   validUntil: startOfToday(),
+  attributes: [],
 });
 
 const Members: React.FC = () => {
@@ -67,6 +70,7 @@ const Members: React.FC = () => {
     roles: applied.roles.map((r) => r.value),
     valid_until: applied.dateFilterOn ? applied.validUntil : undefined,
     valid_from: applied.dateFilterOn ? applied.validFrom : undefined,
+    attributes: applied.attributes,
   };
 
   const { data: countData } = useGetMembersCount({ customFilters });
@@ -78,7 +82,8 @@ const Members: React.FC = () => {
       JSON.stringify(applied.roles.map((r) => r.value).sort()) ||
     draft.dateFilterOn !== applied.dateFilterOn ||
     draft.validFrom.getTime() !== applied.validFrom.getTime() ||
-    draft.validUntil.getTime() !== applied.validUntil.getTime();
+    draft.validUntil.getTime() !== applied.validUntil.getTime() ||
+    JSON.stringify(draft.attributes) !== JSON.stringify(applied.attributes);
 
   const selectedIds = Object.entries(rowSelection)
     .filter(([, selected]) => selected)
@@ -183,6 +188,13 @@ const Members: React.FC = () => {
                 )}
               </div>
 
+              <AttributeFilters
+                value={draft.attributes}
+                onChange={(attributes) =>
+                  setDraft((d) => ({ ...d, attributes }))
+                }
+              />
+
               <div className="flex items-center gap-2 ml-auto">
                 <Button
                   size="sm"
@@ -215,6 +227,7 @@ const Members: React.FC = () => {
               validUntil: filters?.valid_until
                 ? new Date(filters.valid_until as string)
                 : startOfToday(),
+              attributes: filters?.attributes ?? [],
             };
             setDraft(next);
             setApplied(next);

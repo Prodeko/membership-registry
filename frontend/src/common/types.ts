@@ -29,6 +29,7 @@ export type {
   MarketingPreferencesUpdate,
   MarketingTag,
   Member,
+  MemberAttributeFilter,
   MemberExportRequest,
   MemberKeycloakSyncStatus,
   MemberWithRoles,

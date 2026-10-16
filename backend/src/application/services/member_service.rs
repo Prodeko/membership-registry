@@ -3,7 +3,9 @@ use std::sync::Arc;
 use crate::application::ports::{
     attribute_bootstrap_port::AttributeBootstrapPort,
     auth_provider_repo_port::AuthProviderRepositoryPort,
-    member_repository_port::{MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams},
+    member_repository_port::{
+        AttributeFilter, MemberRepositoryPort, MemberWithRoles, MembersWithRolesParams,
+    },
     user_admin_port::UserAdminPort,
 };
 use crate::domain::{Email, NewPerson, Person, UpdatePersonData};
@@ -378,6 +380,7 @@ impl MemberService {
         order_desc: Option<bool>,
         valid_from: Option<chrono::NaiveDate>,
         valid_until: Option<chrono::NaiveDate>,
+        attributes: Vec<AttributeFilter>,
     ) -> ServiceResult<Vec<MemberWithRoles>> {
         self.member_repo
             .fetch_members_with_roles(MembersWithRolesParams {
@@ -389,6 +392,7 @@ impl MemberService {
                 search,
                 order_by,
                 order_desc,
+                attributes,
             })
             .await
             .map_err(ServiceError::from)
@@ -401,6 +405,7 @@ impl MemberService {
         search: Option<String>,
         valid_from: Option<chrono::NaiveDate>,
         valid_until: Option<chrono::NaiveDate>,
+        attributes: Vec<AttributeFilter>,
     ) -> ServiceResult<i64> {
         self.member_repo
             .count_members_with_roles(MembersWithRolesParams {
@@ -408,6 +413,7 @@ impl MemberService {
                 valid_until,
                 roles,
                 search,
+                attributes,
                 ..Default::default()
             })
             .await

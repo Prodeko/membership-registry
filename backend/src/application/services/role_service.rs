@@ -1052,19 +1052,30 @@ impl RoleService {
                 None,
                 Some(today),
                 Some(today),
+                Vec::new(),
             )
             .await?;
 
         // 5b. All registry role memberships regardless of validity (to detect expired records).
         let all_members_with_roles = self
             .member_service
-            .get_members_with_roles(None, None, Some(role_names), None, None, None, None, None)
+            .get_members_with_roles(
+                None,
+                None,
+                Some(role_names),
+                None,
+                None,
+                None,
+                None,
+                None,
+                Vec::new(),
+            )
             .await?;
 
         // 5c. All members (no role filter) — to enumerate every known user_id.
         let all_members = self
             .member_service
-            .get_members_with_roles(None, None, None, None, None, None, None, None)
+            .get_members_with_roles(None, None, None, None, None, None, None, None, Vec::new())
             .await?;
 
         let mut active_registry_roles_by_user: HashMap<Uuid, HashSet<String>> = HashMap::new();

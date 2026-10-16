@@ -2,10 +2,14 @@
 mod test_member {
     use uuid::Uuid;
 
+    use sqlx::PgPool;
+
     use crate::application::ports::member_repository_port::{
-        MemberRepositoryPort, MembersWithRolesParams,
+        AttributeFilter, MemberRepositoryPort, MembersWithRolesParams,
     };
-    use crate::domain::{Email, NewPerson, PersonId, UpdatePersonData};
+    use crate::domain::{
+        AttributeName, AttributeValue, Email, NewPerson, PersonId, UpdatePersonData,
+    };
     use crate::infrastructure::repositories::tests::{cleanup_test_db, setup_test_db};
 
     fn _get_new_member() -> NewPerson {
@@ -283,6 +287,149 @@ mod test_member {
             members[0].person.id.0,
             Uuid::parse_str("9707582e-c149-45a7-bae1-4b0f4de4b06f").unwrap()
         );
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    const TANELI: &str = "3e1ab0ea-c56a-457f-961f-13938954bb2b";
+    const JOHANNA: &str = "11880220-c535-4afe-87a2-c59e213f87f4";
+    const JUHA: &str = "ffbf88de-758d-498c-b6b4-6968162f2086";
+
+    /// Seeds `start-year` (single-valued) and `interests` (multi-valued):
+    /// Taneli 2026 + {sports, music}, Johanna 2026 + {music}, Juha 2025.
+    async fn seed_attributes(pool: &PgPool) {
+        sqlx::query(
+            "INSERT INTO AttributeDefinition (name, sync_to_keycloak, editable_by, multiple) VALUES
+             ('start-year', false, 'admin', false),
+             ('interests', false, 'admin', true)",
+        )
+        .execute(pool)
+        .await
+        .unwrap();
+        for (user, name, values) in [
+            (TANELI, "start-year", vec!["2026"]),
+            (JOHANNA, "start-year", vec!["2026"]),
+            (JUHA, "start-year", vec!["2025"]),
+            (TANELI, "interests", vec!["sports", "music"]),
+            (JOHANNA, "interests", vec!["music"]),
+        ] {
+            sqlx::query(
+                "INSERT INTO MemberAttribute (user_id, attribute_name, value_list)
+                 VALUES ($1::uuid, $2, $3)",
+            )
+            .bind(user)
+            .bind(name)
+            .bind(values)
+            .execute(pool)
+            .await
+            .unwrap();
+        }
+    }
+
+    fn filter(name: &str, values: &[&str]) -> AttributeFilter {
+        AttributeFilter {
+            name: AttributeName::new(name).unwrap(),
+            values: values
+                .iter()
+                .map(|v| AttributeValue::new(*v).unwrap())
+                .collect(),
+        }
+    }
+
+    /// Member ids (sorted) and the count for `filters`.
+    async fn matching(
+        repo: &crate::infrastructure::repositories::PostgresRepo,
+        filters: Vec<AttributeFilter>,
+    ) -> (Vec<String>, i64) {
+        let mut ids: Vec<String> = repo
+            .member
+            .fetch_members_with_roles(MembersWithRolesParams {
+                attributes: filters.clone(),
+                ..Default::default()
+            })
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|m| m.person.id.0.to_string())
+            .collect();
+        ids.sort();
+        let count = repo
+            .member
+            .count_members_with_roles(MembersWithRolesParams {
+                attributes: filters,
+                ..Default::default()
+            })
+            .await
+            .unwrap();
+        (ids, count)
+    }
+
+    fn sorted(ids: &[&str]) -> Vec<String> {
+        let mut v: Vec<String> = ids.iter().map(|s| s.to_string()).collect();
+        v.sort();
+        v
+    }
+
+    #[tokio::test]
+    async fn attribute_filter_matches_value() {
+        let (repo, db_url) = setup_test_db().await;
+        seed_attributes(&repo.member.pool).await;
+
+        let (ids, count) = matching(&repo, vec![filter("start-year", &["2026"])]).await;
+        assert_eq!(ids, sorted(&[TANELI, JOHANNA]));
+        assert_eq!(count, 2);
+
+        // Any of several values.
+        let (ids, count) = matching(&repo, vec![filter("start-year", &["2025", "2026"])]).await;
+        assert_eq!(ids, sorted(&[TANELI, JOHANNA, JUHA]));
+        assert_eq!(count, 3);
+
+        // A value nobody has.
+        let (ids, count) = matching(&repo, vec![filter("start-year", &["2020"])]).await;
+        assert!(ids.is_empty());
+        assert_eq!(count, 0);
+
+        cleanup_test_db(repo.member.pool, &db_url).await;
+    }
+
+    #[tokio::test]
+    async fn attribute_filters_combine_and_match_any_value() {
+        let (repo, db_url) = setup_test_db().await;
+        seed_attributes(&repo.member.pool).await;
+
+        // Multi-valued attribute: any overlap matches.
+        let (ids, _) = matching(&repo, vec![filter("interests", &["sports"])]).await;
+        assert_eq!(ids, sorted(&[TANELI]));
+
+        // Filters on different attributes must all match.
+        let (ids, count) = matching(
+            &repo,
+            vec![
+                filter("start-year", &["2026"]),
+                filter("interests", &["music"]),
+            ],
+        )
+        .await;
+        assert_eq!(ids, sorted(&[TANELI, JOHANNA]));
+        assert_eq!(count, 2);
+        let (ids, _) = matching(
+            &repo,
+            vec![
+                filter("start-year", &["2025"]),
+                filter("interests", &["music"]),
+            ],
+        )
+        .await;
+        assert!(ids.is_empty());
+
+        // No values: anyone holding the attribute.
+        let (ids, count) = matching(&repo, vec![filter("interests", &[])]).await;
+        assert_eq!(ids, sorted(&[TANELI, JOHANNA]));
+        assert_eq!(count, 2);
+
+        // No filters: everyone, as before.
+        let (_, count) = matching(&repo, vec![]).await;
+        assert_eq!(count, 10);
 
         cleanup_test_db(repo.member.pool, &db_url).await;
     }
