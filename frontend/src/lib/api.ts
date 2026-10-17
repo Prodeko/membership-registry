@@ -42,6 +42,7 @@ import {
   StartRenewalResponse,
   UpdateMember,
   UpdateRole,
+  MemberAttributeFilter,
   MemberExportRequest,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -118,6 +119,10 @@ admin_axios_client.interceptors.response.use(
   },
 );
 
+/** The members endpoints take attribute filters as a JSON query param. */
+const attributeFiltersParam = (filters?: MemberAttributeFilter[]) =>
+  filters && filters.length > 0 ? JSON.stringify(filters) : undefined;
+
 interface PaginatedQueryParams {
   pageSize: number;
   offset: number;
@@ -150,6 +155,7 @@ export function useGetMembersCount(params: MemberCountParams) {
             getDateAsString(params.customFilters?.valid_from) || undefined,
           valid_until:
             getDateAsString(params.customFilters?.valid_until) || undefined,
+          attributes: attributeFiltersParam(params.customFilters?.attributes),
         },
       });
       return response.data;
@@ -169,6 +175,7 @@ export function useGetAllMembersWithRoles(params: PaginatedQueryParams) {
             getDateAsString(params.customFilters?.valid_from) || undefined,
           valid_until:
             getDateAsString(params.customFilters?.valid_until) || undefined,
+          attributes: attributeFiltersParam(params.customFilters?.attributes),
           page_size: params.pageSize,
           customFilters: undefined,
         },

@@ -2,7 +2,8 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::application::ports::member_repository_port::{
-    MemberRepositoryPort, MemberWithRoles as PortMemberWithRoles, MembersWithRolesParams,
+    AttributeFilter, MemberRepositoryPort, MemberWithRoles as PortMemberWithRoles,
+    MembersWithRolesParams,
 };
 use crate::application::ports::repository_error::RepositoryError;
 use crate::domain::{Email, NewPerson, Person, PersonId, UpdatePersonData};
@@ -222,6 +223,7 @@ impl MemberRepositoryPort for MemberRepo {
         &self,
         params: MembersWithRolesParams,
     ) -> Result<Vec<PortMemberWithRoles>, RepositoryError> {
+        let (attribute_names, attribute_values) = attribute_filter_arrays(&params.attributes);
         let rows = sqlx::query_as!(
             MemberWithRolesDAO,
             r#"--sql
@@ -245,6 +247,22 @@ impl MemberRepositoryPort for MemberRepo {
                 $4::varchar IS NULL OR
                 Member.full_name ILIKE '%' || $4 || '%' OR
                 Member.email ILIKE '%' || $4 || '%'
+            )
+            AND (
+                $9::text[] IS NULL OR
+                NOT EXISTS (
+                    -- An attribute filter the member fails. '' stands for
+                    -- "any value" (real values are never empty).
+                    SELECT 1
+                    FROM unnest($9::text[], $10::text[]) AS f(name, value)
+                    GROUP BY f.name
+                    HAVING NOT EXISTS (
+                        SELECT 1 FROM MemberAttribute ma
+                        WHERE ma.user_id = Member.user_id
+                          AND ma.attribute_name = f.name
+                          AND ('' = ANY(array_agg(f.value)) OR ma.value_list && array_agg(f.value))
+                    )
+                )
             )
             GROUP BY
                 Member.user_id, Member.first_name, Member.last_name, Member.home_municipality, Member.email_notifications, Member.language
@@ -285,7 +303,9 @@ impl MemberRepositoryPort for MemberRepo {
             params.order_by,
             if params.order_desc.unwrap_or(false) { "DESC" } else { "ASC" },
             params.valid_from,
-            params.valid_until
+            params.valid_until,
+            attribute_names.as_deref(),
+            attribute_values.as_deref()
         )
         .fetch_all(&self.pool)
         .await?;
@@ -297,6 +317,7 @@ impl MemberRepositoryPort for MemberRepo {
         &self,
         params: MembersWithRolesParams,
     ) -> Result<i64, RepositoryError> {
+        let (attribute_names, attribute_values) = attribute_filter_arrays(&params.attributes);
         let count: i64 = sqlx::query_scalar!(
             r#"--sql
             SELECT COUNT(*)::bigint AS "count!"
@@ -312,6 +333,20 @@ impl MemberRepositoryPort for MemberRepo {
                     Member.full_name ILIKE '%' || $2 || '%' OR
                     Member.email ILIKE '%' || $2 || '%'
                 )
+                AND (
+                    $5::text[] IS NULL OR
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM unnest($5::text[], $6::text[]) AS f(name, value)
+                        GROUP BY f.name
+                        HAVING NOT EXISTS (
+                            SELECT 1 FROM MemberAttribute ma
+                            WHERE ma.user_id = Member.user_id
+                              AND ma.attribute_name = f.name
+                              AND ('' = ANY(array_agg(f.value)) OR ma.value_list && array_agg(f.value))
+                        )
+                    )
+                )
                 GROUP BY Member.user_id
                 HAVING
                     $1::varchar[] IS NULL OR
@@ -326,10 +361,36 @@ impl MemberRepositoryPort for MemberRepo {
             params.search,
             params.valid_from,
             params.valid_until,
+            attribute_names.as_deref(),
+            attribute_values.as_deref(),
         )
         .fetch_one(&self.pool)
         .await?;
 
         Ok(count)
     }
+}
+
+/// Flattens attribute filters into parallel `(name, value)` arrays for SQL,
+/// with `""` as the value of a filter that accepts any value. `None` when
+/// there are no filters.
+fn attribute_filter_arrays(
+    filters: &[AttributeFilter],
+) -> (Option<Vec<String>>, Option<Vec<String>>) {
+    if filters.is_empty() {
+        return (None, None);
+    }
+    let mut names = Vec::new();
+    let mut values = Vec::new();
+    for filter in filters {
+        if filter.values.is_empty() {
+            names.push(filter.name.as_str().to_string());
+            values.push(String::new());
+        }
+        for value in &filter.values {
+            names.push(filter.name.as_str().to_string());
+            values.push(value.as_str().to_string());
+        }
+    }
+    (Some(names), Some(values))
 }
