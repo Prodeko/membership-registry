@@ -67,6 +67,6 @@
     "tw-animate-css": "^1.0.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.65.0",
-    "vite": "^8.1.5"
+    "vite": "^8.1.6"
   }
 }
