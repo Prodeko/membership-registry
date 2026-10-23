@@ -1,3 +1,4 @@
+mod access_control;
 mod attribute;
 mod audit_log;
 mod member;

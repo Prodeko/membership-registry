@@ -41,6 +41,7 @@ use application::{
         user_admin_port::UserAdminPort,
     },
     services::{
+        access_control_service::AccessControlService,
         application_alert_service::ApplicationAlertService,
         application_digest_service::ApplicationDigestService,
         application_service::ApplicationService,
@@ -65,6 +66,7 @@ use config::Config;
 use helpers::create_pg_pool;
 use infrastructure::{
     adapters::{
+        access_pass_adapter::JwtAccessPassAdapter,
         ammonia_sanitizer::AmmoniaSanitizer,
         csv_adapter::CsvAdapter,
         csv_parse_adapter::CsvParseAdapter,
@@ -78,6 +80,7 @@ use infrastructure::{
         smtp::{SmtpConfig, SmtpEmailAdapter},
         stripe::StripeWebhookAdapter,
         template::renderer::SimpleTemplateRenderer,
+        xlsx_adapter::XlsxAdapter,
     },
     http::serve,
     repositories::PostgresRepo,
@@ -85,6 +88,7 @@ use infrastructure::{
 };
 
 pub struct Services {
+    pub access_control_service: AccessControlService,
     pub member_service: MemberService,
     pub application_service: ApplicationService,
     pub attribute_service: Arc<AttributeService>,
@@ -263,6 +267,14 @@ impl Services {
 
         let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member);
         let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role);
+        let access_control_service = AccessControlService::new(
+            Arc::new(repo.access_control),
+            Arc::new(JwtAccessPassAdapter::with_random_key()),
+            Arc::clone(&role_repo),
+            Arc::clone(&member_repo),
+            Arc::new(XlsxAdapter),
+            audit_log_service.clone(),
+        );
         let role_group_repo: Arc<dyn RoleGroupRepositoryPort> = Arc::new(repo.role_group);
         let attribute_repo: Arc<dyn AttributeRepositoryPort> = Arc::new(repo.attribute);
         let application_commands: Arc<dyn ApplicationCommandPort> =
@@ -388,6 +400,7 @@ impl Services {
         );
 
         Self {
+            access_control_service,
             member_service,
             application_service,
             attribute_service,

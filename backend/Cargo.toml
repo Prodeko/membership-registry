@@ -60,6 +60,7 @@ validator = { version = "0.20", features = ["derive"] }
 tower_governor = "0.8"
 tokio-cron-scheduler = "0.15.1"
 chrono-tz = "0.10.4"
+rust_xlsxwriter = { version = "0.101.0", default-features = false }
 
 [dev-dependencies]
 mockall = "0.15"

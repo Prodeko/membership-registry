@@ -202,6 +202,16 @@ impl AuthenticationService {
         user.roles.iter().any(|r| r == &self.admin_role_name.0)
     }
 
+    /// Whether the identity may run meeting access control: admins, and
+    /// holders of the door-staff role.
+    pub fn is_access_controller(&self, user: &AuthenticatedUser) -> bool {
+        self.is_admin(user)
+            || user
+                .roles
+                .iter()
+                .any(|r| r == crate::domain::well_known::ACCESS_CONTROLLER_ROLE_NAME)
+    }
+
     pub async fn unlink_provider(
         &self,
         user_id: Uuid,

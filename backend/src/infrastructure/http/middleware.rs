@@ -113,6 +113,24 @@ pub async fn check_permission(
     }
 }
 
+/// Lets through admins and door staff (the access-controller role).
+pub async fn check_access_control_permission(
+    State(state): State<AppState>,
+    Extension(userinfo): Extension<Option<AuthenticatedUser>>,
+    req: Request,
+    next: Next,
+) -> Response<Body> {
+    let Some(userinfo) = userinfo else {
+        return StatusCode::UNAUTHORIZED.into_response();
+    };
+
+    if state.authentication_service.is_access_controller(&userinfo) {
+        next.run(req).await
+    } else {
+        StatusCode::FORBIDDEN.into_response()
+    }
+}
+
 pub async fn check_member_access(
     Extension(userinfo): Extension<Option<AuthenticatedUser>>,
     Path((user_id,)): Path<(Uuid,)>,

@@ -12,6 +12,7 @@ mod users;
 
 pub fn router(state: AppState) -> Router<AppState> {
     Router::new()
+        .nest("/access-pass", super::access_control::pass_router())
         .nest("/account", account::router(state.clone()))
         .nest("/applications", applications::router(state.clone()))
         .nest("/attributes", attributes::router(state.clone()))

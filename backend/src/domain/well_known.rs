@@ -11,6 +11,10 @@ pub fn admin_role_name() -> RoleName {
     RoleName(ADMIN_ROLE_NAME.to_string())
 }
 
+/// Registry role for door staff ("kulunvalvoja"): runs meeting access
+/// control (scanning, attendance list, export) without other admin rights.
+pub const ACCESS_CONTROLLER_ROLE_NAME: &str = "kulunvalvoja";
+
 /// Member attribute holding the address that receives admin notification
 /// emails (e.g. the new-application alert). Notifications go to the
 /// attribute's value, and only for members who also hold [`ADMIN_ROLE_NAME`]

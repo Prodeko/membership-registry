@@ -43,3 +43,16 @@ pub struct ExportedData {
     pub content_type: String,
     pub file_extension: String,
 }
+
+/// One named sheet of a workbook export.
+pub struct Sheet {
+    pub name: String,
+    pub data: TabularData,
+}
+
+/// Writes several tables as one spreadsheet file, one sheet each.
+pub trait WorkbookExportPort: Send + Sync {
+    fn write(&self, sheets: &[Sheet]) -> Result<Vec<u8>, DataExportError>;
+    fn content_type(&self) -> &str;
+    fn file_extension(&self) -> &str;
+}
