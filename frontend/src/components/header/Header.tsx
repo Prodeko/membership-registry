@@ -100,7 +100,10 @@ const Header = () => {
           <DropdownMenuTrigger className="p-4">
             <PersonIcon className="h-6 w-6" />
           </DropdownMenuTrigger>
-          <DropdownMenuContent>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild>
+              <Link to="/home">My page</Link>
+            </DropdownMenuItem>
             <DropdownMenuItem>
               <Logout />
             </DropdownMenuItem>

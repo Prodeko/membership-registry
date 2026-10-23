@@ -57,6 +57,11 @@
     },
     "profile": {
       "title": "Profile"
+    },
+    "menu": {
+      "label": "Account menu",
+      "admin_view": "Admin view",
+      "logout": "Log out"
     }
   },
   "profile": {
