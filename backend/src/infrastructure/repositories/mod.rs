@@ -23,6 +23,8 @@ impl From<sqlx::Error> for RepositoryError {
 }
 
 #[allow(clippy::panic)]
+pub mod access_control;
+#[allow(clippy::panic)]
 pub mod application;
 #[allow(clippy::panic)]
 pub mod attribute;
@@ -51,6 +53,7 @@ pub mod tests;
 
 #[derive(Clone)]
 pub struct PostgresRepo {
+    pub access_control: access_control::AccessControlRepo,
     pub member: MemberRepo,
     pub application: ApplicationRepo,
     pub attribute: AttributeRepo,
@@ -67,6 +70,7 @@ pub struct PostgresRepo {
 impl PostgresRepo {
     pub fn new(pool: sqlx::PgPool) -> Self {
         Self {
+            access_control: access_control::AccessControlRepo { pool: pool.clone() },
             member: MemberRepo { pool: pool.clone() },
             application: ApplicationRepo { pool: pool.clone() },
             attribute: AttributeRepo { pool: pool.clone() },

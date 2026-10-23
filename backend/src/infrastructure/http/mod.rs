@@ -19,10 +19,11 @@ use crate::{
     application::{
         ports::payment_webhook_port::PaymentWebhookPort,
         services::{
-            application_service::ApplicationService, attribute_service::AttributeService,
-            audit_log_service::AuditLogService, authentication_service::AuthenticationService,
-            export_service::ExportService, group_membership_service::GroupMembershipService,
-            import_service::ImportService, marketing_service::MarketingService,
+            access_control_service::AccessControlService, application_service::ApplicationService,
+            attribute_service::AttributeService, audit_log_service::AuditLogService,
+            authentication_service::AuthenticationService, export_service::ExportService,
+            group_membership_service::GroupMembershipService, import_service::ImportService,
+            marketing_service::MarketingService,
             marketing_tag_admin_service::MarketingTagAdminService, member_service::MemberService,
             notification_service::NotificationService, renewal_service::RenewalService,
             role_group_service::RoleGroupService, role_service::RoleService,
@@ -33,6 +34,7 @@ use crate::{
     Services,
 };
 
+mod access_control;
 mod admin;
 pub(crate) mod dto;
 mod errors;
@@ -45,6 +47,7 @@ pub(crate) mod types;
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
+    pub access_control_service: Arc<AccessControlService>,
     pub member_service: Arc<MemberService>,
     pub application_service: Arc<ApplicationService>,
     pub attribute_service: Arc<AttributeService>,
@@ -99,6 +102,7 @@ pub async fn serve(config: Config, services: Services, cancel: CancellationToken
 
     let state = AppState {
         config: Arc::new(config),
+        access_control_service: Arc::new(services.access_control_service),
         member_service: Arc::new(services.member_service),
         application_service: Arc::new(services.application_service),
         attribute_service: services.attribute_service,
@@ -165,6 +169,7 @@ fn router(state: AppState) -> Router<AppState> {
     Router::new()
         .route("/api/health", axum::routing::get(|| async { "ok" }))
         .nest("/api/admin", admin::router(state.clone()))
+        .nest("/api/access-control", access_control::router(state.clone()))
         .nest("/api", protected::router(state.clone()))
         .nest("/api", public::router(state.clone()))
         .merge(static_files::router())

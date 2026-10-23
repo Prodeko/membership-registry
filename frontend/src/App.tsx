@@ -30,6 +30,9 @@ import { ThemeProvider } from "./components/theme-provider";
 import Success from "./components/application-form/Success";
 import PaymentSuccess from "./components/payment/PaymentSuccess";
 import UserHome from "./components/home/UserHome";
+import AccessEvents from "./components/access-control/AccessEvents";
+import AccessEventView from "./components/access-control/AccessEventView";
+import Scanner from "./components/access-control/Scanner";
 import ProfileEdit from "./components/profile/ProfileEdit";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { Toaster } from "./components/ui/sonner";
@@ -208,6 +211,31 @@ const router = createBrowserRouter([
         <Layout>
           <DataManagement />
         </Layout>
+      </RequireOnboarded>
+    ),
+  },
+  // Door staff aren't admins, so these pages skip the admin layout.
+  {
+    path: "/access-control",
+    element: (
+      <RequireOnboarded>
+        <AccessEvents />
+      </RequireOnboarded>
+    ),
+  },
+  {
+    path: "/access-control/:id",
+    element: (
+      <RequireOnboarded>
+        <AccessEventView />
+      </RequireOnboarded>
+    ),
+  },
+  {
+    path: "/access-control/:id/scan",
+    element: (
+      <RequireOnboarded>
+        <Scanner />
       </RequireOnboarded>
     ),
   },

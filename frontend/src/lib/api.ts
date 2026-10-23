@@ -43,6 +43,15 @@ import {
   UpdateMember,
   UpdateRole,
   MemberAttributeFilter,
+  AccessDirection,
+  AccessEvent,
+  AccessEventDetail,
+  AccessEventStatus,
+  AccessSnapshot,
+  DoorSearchResult,
+  MemberAccessPass,
+  SaveAccessEvent,
+  ScanResult,
   MemberExportRequest,
 } from "@/common/types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -76,6 +85,8 @@ export enum QueryKey {
   AUTO_DEFAULT_VALUES = "auto_default_values",
   MEMBER_ATTRIBUTES = "member_attributes",
   MY_ATTRIBUTES = "my_attributes",
+  ACCESS_PASS = "access_pass",
+  ACCESS_EVENTS = "access_events",
 }
 
 export const axios_client = axios.create({
@@ -1678,3 +1689,186 @@ export const useApplyRoleImport = () => {
     },
   });
 };
+
+// --- Access control ("kulunvalvonta") ---
+
+const access_axios_client = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL + "/access-control",
+  headers: { "Content-Type": "application/json" },
+  withCredentials: true,
+});
+
+access_axios_client.interceptors.response.use(
+  (response: AxiosResponse) => response,
+  (error: AxiosError) => {
+    if (error.response?.status === 401) {
+      window.location.href = `${import.meta.env.VITE_API_BASE_URL}/auth/login`;
+      return new Promise(() => {}); // halt chain during redirect
+    }
+    return Promise.reject(error);
+  },
+);
+
+/** Passes expire after a minute, so refresh well before that. */
+const ACCESS_PASS_REFRESH_MS = 30_000;
+
+/** The member's rotating pass, refreshed while the page is open. */
+export const useGetAccessPass = () =>
+  useQuery<MemberAccessPass>({
+    queryKey: [QueryKey.ACCESS_PASS],
+    queryFn: async () =>
+      (await axios_client.get<MemberAccessPass>("/access-pass")).data,
+    refetchInterval: ACCESS_PASS_REFRESH_MS,
+    refetchIntervalInBackground: false,
+  });
+
+export const useGetAccessEvents = () =>
+  useQuery<AccessEvent[]>({
+    queryKey: [QueryKey.ACCESS_EVENTS],
+    queryFn: async () =>
+      (await access_axios_client.get<AccessEvent[]>("/events")).data,
+  });
+
+/** Polled so every door and the admin see the same list. */
+export const useGetAccessEvent = (id: string, refetchMs = 5_000) =>
+  useQuery<AccessEventDetail>({
+    queryKey: [QueryKey.ACCESS_EVENTS, id],
+    queryFn: async () =>
+      (await access_axios_client.get<AccessEventDetail>(`/events/${id}`)).data,
+    refetchInterval: refetchMs,
+  });
+
+const useInvalidateAccessEvents = () => {
+  const queryClient = useQueryClient();
+  return () => {
+    queryClient.invalidateQueries({ queryKey: [QueryKey.ACCESS_EVENTS] });
+    queryClient.invalidateQueries({ queryKey: [QueryKey.ACCESS_PASS] });
+  };
+};
+
+export const useSaveAccessEvent = () => {
+  const invalidate = useInvalidateAccessEvents();
+  return useMutation<
+    AccessEvent,
+    Error,
+    { id?: string; data: SaveAccessEvent }
+  >({
+    mutationFn: async ({ id, data }) =>
+      id
+        ? (await access_axios_client.put<AccessEvent>(`/events/${id}`, data))
+            .data
+        : (await access_axios_client.post<AccessEvent>("/events", data)).data,
+    onSuccess: invalidate,
+  });
+};
+
+export const useDeleteAccessEvent = () => {
+  const invalidate = useInvalidateAccessEvents();
+  return useMutation<void, Error, string>({
+    mutationFn: async (id) => {
+      await access_axios_client.delete(`/events/${id}`);
+    },
+    onSuccess: invalidate,
+  });
+};
+
+export const useChangeAccessEventStatus = () => {
+  const invalidate = useInvalidateAccessEvents();
+  return useMutation<
+    AccessEvent,
+    Error,
+    { id: string; status: AccessEventStatus }
+  >({
+    mutationFn: async ({ id, status }) =>
+      (
+        await access_axios_client.post<AccessEvent>(`/events/${id}/status`, {
+          status,
+        })
+      ).data,
+    onSuccess: invalidate,
+  });
+};
+
+export const useScanAccessPass = (eventId: string) => {
+  const invalidate = useInvalidateAccessEvents();
+  return useMutation<
+    ScanResult,
+    Error,
+    { token: string; direction: AccessDirection }
+  >({
+    mutationFn: async (body) =>
+      (
+        await access_axios_client.post<ScanResult>(
+          `/events/${eventId}/scan`,
+          body,
+        )
+      ).data,
+    onSuccess: invalidate,
+  });
+};
+
+export const useManualAccessEntry = (eventId: string) => {
+  const invalidate = useInvalidateAccessEvents();
+  return useMutation<
+    ScanResult,
+    Error,
+    { user_id: string; direction: AccessDirection }
+  >({
+    mutationFn: async (body) =>
+      (
+        await access_axios_client.post<ScanResult>(
+          `/events/${eventId}/manual`,
+          body,
+        )
+      ).data,
+    onSuccess: invalidate,
+  });
+};
+
+export const useSearchAccessMembers = (eventId: string, query: string) =>
+  useQuery<DoorSearchResult[]>({
+    queryKey: [QueryKey.ACCESS_EVENTS, eventId, "search", query],
+    queryFn: async () =>
+      (
+        await access_axios_client.get<DoorSearchResult[]>(
+          `/events/${eventId}/search`,
+          { params: { q: query } },
+        )
+      ).data,
+    enabled: query.trim().length >= 2,
+  });
+
+export const useDeleteAccessEntry = (eventId: string) => {
+  const invalidate = useInvalidateAccessEvents();
+  return useMutation<void, Error, string>({
+    mutationFn: async (entryId) => {
+      await access_axios_client.delete(`/events/${eventId}/entries/${entryId}`);
+    },
+    onSuccess: invalidate,
+  });
+};
+
+export const useTakeAccessSnapshot = (eventId: string) => {
+  const invalidate = useInvalidateAccessEvents();
+  return useMutation<AccessSnapshot, Error, string | null>({
+    mutationFn: async (label) =>
+      (
+        await access_axios_client.post<AccessSnapshot>(
+          `/events/${eventId}/snapshots`,
+          { label },
+        )
+      ).data,
+    onSuccess: invalidate,
+  });
+};
+
+export const useExportAccessEvent = () =>
+  useMutation<void, Error, AccessEvent>({
+    mutationFn: async (event) => {
+      const response = await access_axios_client.get(
+        `/events/${event.id}/export`,
+        { responseType: "blob" },
+      );
+      downloadCsv(response.data, `kulunvalvonta-${event.event_date}.xlsx`);
+    },
+  });

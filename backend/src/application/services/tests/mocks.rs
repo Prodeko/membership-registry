@@ -6,6 +6,10 @@ use serde_json::Value;
 use uuid::Uuid;
 
 use crate::application::ports::{
+    access_control_port::{
+        AccessControlRepositoryPort, AccessPass, AccessPassError, AccessPassPort, RecordOutcome,
+        StatusChangeOutcome,
+    },
     application_repository_port::{
         ApplicationCommandPort, ApplicationQueryPort, ApplicationTargetableRole,
         ApplicationWithMember, TargetableRolePort, UpdateTargetableRoleResolved,
@@ -23,6 +27,7 @@ use crate::application::ports::{
     auth_provider_repo_port::{
         AuthProviderMapping, AuthProviderRepoError, AuthProviderRepositoryPort,
     },
+    data_export_port::{DataExportError, Sheet, WorkbookExportPort},
     email_port::{EmailError, EmailPort},
     group_membership_port::{GroupMembershipError, GroupMembershipPort},
     marketing_list_port::{
@@ -42,10 +47,11 @@ use crate::application::ports::{
     user_admin_port::{IdpUser, UserAdminError, UserAdminPort},
 };
 use crate::domain::{
-    Application, ApplicationId, ApplicationStatus, AttributeDefinition, AttributeName,
-    AttributeValue, EmailTemplate, EmailTemplateTranslation, MarketingTag, MemberAttribute,
-    NewApplication, NewPerson, Person, PersonId, RenewalPrompt, Role, RoleName, RoleRenewal,
-    UpdatePersonData,
+    AccessDirection, AccessEntry, AccessEvent, AccessEventStatus, AccessMethod, AccessSnapshot,
+    AccessStatusChange, Application, ApplicationId, ApplicationStatus, AttributeDefinition,
+    AttributeName, AttributeValue, EmailTemplate, EmailTemplateTranslation, MarketingTag,
+    MemberAttribute, NewAccessEvent, NewApplication, NewPerson, Person, PersonId, PresentMember,
+    RenewalPrompt, Role, RoleName, RoleRenewal, UpdatePersonData,
 };
 
 use crate::application::services::audit_log_service::AuditLogService;
@@ -399,6 +405,49 @@ pub fn noop_attribute_bootstrap() -> Arc<dyn AttributeBootstrapPort> {
     let mut mock = MockAttributeBootstrap::new();
     mock.expect_apply_defaults_for_new_user().returning(|_| ());
     Arc::new(mock)
+}
+
+// --- Access control ---
+
+mock! {
+    pub AccessControlRepositoryPort {}
+
+    #[async_trait::async_trait]
+    impl AccessControlRepositoryPort for AccessControlRepositoryPort {
+        async fn create_event(&self, new: &NewAccessEvent) -> Result<AccessEvent, RepositoryError>;
+        async fn update_event(&self, id: Uuid, new: &NewAccessEvent) -> Result<AccessEvent, RepositoryError>;
+        async fn delete_event(&self, id: Uuid) -> Result<(), RepositoryError>;
+        async fn list_events(&self) -> Result<Vec<AccessEvent>, RepositoryError>;
+        async fn get_event(&self, id: Uuid) -> Result<AccessEvent, RepositoryError>;
+        async fn active_events(&self) -> Result<Vec<AccessEvent>, RepositoryError>;
+        async fn change_status(&self, id: Uuid, next: AccessEventStatus, actor: Option<Uuid>) -> Result<StatusChangeOutcome, RepositoryError>;
+        async fn record_entry(&self, event_id: Uuid, user_id: Uuid, direction: AccessDirection, method: AccessMethod, actor: Option<Uuid>) -> Result<RecordOutcome, RepositoryError>;
+        async fn delete_entry(&self, event_id: Uuid, entry_id: Uuid) -> Result<(), RepositoryError>;
+        async fn entries(&self, event_id: Uuid) -> Result<Vec<AccessEntry>, RepositoryError>;
+        async fn present(&self, event_id: Uuid) -> Result<Vec<PresentMember>, RepositoryError>;
+        async fn status_changes(&self, event_id: Uuid) -> Result<Vec<AccessStatusChange>, RepositoryError>;
+        async fn take_snapshot(&self, event_id: Uuid, label: Option<String>, actor: Option<Uuid>) -> Result<AccessSnapshot, RepositoryError>;
+        async fn snapshots(&self, event_id: Uuid) -> Result<Vec<AccessSnapshot>, RepositoryError>;
+    }
+}
+
+mock! {
+    pub AccessPassPort {}
+
+    impl AccessPassPort for AccessPassPort {
+        fn issue(&self, user_id: Uuid) -> AccessPass;
+        fn verify(&self, token: &str) -> Result<Uuid, AccessPassError>;
+    }
+}
+
+mock! {
+    pub WorkbookExportPort {}
+
+    impl WorkbookExportPort for WorkbookExportPort {
+        fn write(&self, sheets: &[Sheet]) -> Result<Vec<u8>, DataExportError>;
+        fn content_type(&self) -> &str;
+        fn file_extension(&self) -> &str;
+    }
 }
 
 // --- Helpers ---

@@ -1,3 +1,4 @@
+pub mod access_control_service;
 mod admin_notifications;
 pub mod application_alert_service;
 pub mod application_digest_service;

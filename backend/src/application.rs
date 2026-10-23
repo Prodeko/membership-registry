@@ -1,5 +1,6 @@
 pub mod services;
 pub mod ports {
+    pub mod access_control_port;
     pub mod application_repository_port;
     pub mod attribute_bootstrap_port;
     pub mod attribute_repository_port;

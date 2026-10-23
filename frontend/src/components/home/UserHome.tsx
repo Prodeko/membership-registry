@@ -35,6 +35,7 @@ import {
 import { Separator } from "../ui/separator";
 import { LanguageSwitcher } from "../language-switcher/LanguageSwitcher";
 import RenewalBanner from "./RenewalBanner";
+import AccessPassCard from "./AccessPassCard";
 import MissingAttributesBanner from "./MissingAttributesBanner";
 
 const statusVariant = {
@@ -152,6 +153,8 @@ const UserHome = () => {
           </div>
           <LanguageSwitcher />
         </div>
+
+        <AccessPassCard name={`${member.first_name} ${member.last_name}`} />
 
         {missingAttributes.length > 0 && (
           <MissingAttributesBanner attributes={missingAttributes} />

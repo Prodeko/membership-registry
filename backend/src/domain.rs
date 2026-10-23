@@ -1,3 +1,4 @@
+pub mod access_control;
 pub mod application;
 pub mod attribute;
 pub mod dates;
@@ -12,6 +13,7 @@ pub mod role_group;
 pub mod role_renewal;
 pub mod well_known;
 
+pub use access_control::*;
 pub use application::*;
 pub use attribute::*;
 pub use dates::*;
