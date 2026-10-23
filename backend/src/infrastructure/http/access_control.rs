@@ -380,10 +380,12 @@ pub struct MemberAccessPassDTO {
     events: Vec<PassEventDTO>,
     /// Whether the member may open the door-staff pages.
     can_control: bool,
+    /// Whether the member may also create, edit and delete events.
+    is_admin: bool,
 }
 
 impl MemberAccessPassDTO {
-    fn new(pass: MemberAccessPass, can_control: bool) -> Self {
+    fn new(pass: MemberAccessPass, can_control: bool, is_admin: bool) -> Self {
         Self {
             token: pass.pass.as_ref().map(|p| p.token.clone()),
             expires_at: pass.pass.as_ref().map(|p| p.expires_at),
@@ -405,6 +407,7 @@ impl MemberAccessPassDTO {
                 })
                 .collect(),
             can_control,
+            is_admin,
         }
     }
 }
@@ -628,6 +631,10 @@ async fn get_member_pass(
         .access_control_service
         .member_pass(user.user_id)
         .await?;
-    let can_control = state.authentication_service.is_access_controller(&user);
-    Ok(Json(MemberAccessPassDTO::new(pass, can_control)))
+    let auth = &state.authentication_service;
+    Ok(Json(MemberAccessPassDTO::new(
+        pass,
+        auth.is_access_controller(&user),
+        auth.is_admin(&user),
+    )))
 }

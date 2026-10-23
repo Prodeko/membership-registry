@@ -73,6 +73,9 @@ const Header = () => {
             <Link to="/marketing-tags">Marketing tags</Link>
           </NavigationMenuLink>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
+            <Link to="/access-control">Access control</Link>
+          </NavigationMenuLink>
+          <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
             <Link to="/data">Data</Link>
           </NavigationMenuLink>
           <NavigationMenuLink asChild className={navigationMenuTriggerStyle()}>
