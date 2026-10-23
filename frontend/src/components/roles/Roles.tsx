@@ -6,7 +6,7 @@ import {
 import { DataTable } from "../ui/data-table";
 import { columns } from "./columns";
 import CreateRoleModal from "./CreateRoleModal";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { Button, buttonVariants } from "../ui/button";
 import {
   Tooltip,
@@ -19,6 +19,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import PageHelp from "../ui/page-help";
 
 const Roles = () => {
+  const location = useLocation();
   const queryClient = useQueryClient();
   const cleanupMutation = useCleanupExpiredRoles();
 
@@ -66,6 +67,7 @@ const Roles = () => {
               <TooltipTrigger asChild>
                 <Link
                   to={"/applications/targetable-roles"}
+                  state={{ from: location.pathname + location.search }}
                   className={buttonVariants({ variant: "outline" })}
                 >
                   Application targetable roles
