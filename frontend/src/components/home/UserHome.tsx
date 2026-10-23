@@ -37,6 +37,7 @@ import { LanguageSwitcher } from "../language-switcher/LanguageSwitcher";
 import RenewalBanner from "./RenewalBanner";
 import AccessPassCard from "./AccessPassCard";
 import MissingAttributesBanner from "./MissingAttributesBanner";
+import UserMenu from "./UserMenu";
 
 const statusVariant = {
   approved: "default" as const,
@@ -151,7 +152,10 @@ const UserHome = () => {
             </h1>
             <p className="text-muted-foreground mt-1">{t("home.subtitle")}</p>
           </div>
-          <LanguageSwitcher />
+          <div className="flex items-center gap-1">
+            <LanguageSwitcher />
+            <UserMenu />
+          </div>
         </div>
 
         <AccessPassCard name={`${member.first_name} ${member.last_name}`} />

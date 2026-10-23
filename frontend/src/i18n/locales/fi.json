@@ -57,6 +57,11 @@
     },
     "profile": {
       "title": "Profiili"
+    },
+    "menu": {
+      "label": "Tilivalikko",
+      "admin_view": "Ylläpitonäkymä",
+      "logout": "Kirjaudu ulos"
     }
   },
   "profile": {
