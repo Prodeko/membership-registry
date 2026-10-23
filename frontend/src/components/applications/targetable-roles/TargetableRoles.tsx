@@ -20,10 +20,7 @@ const TargetableRoles = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-4xl">Targetable Roles</h1>
         <div className="flex gap-2">
-          <Link
-            to={backTo}
-            className={buttonVariants({ variant: "outline" })}
-          >
+          <Link to={backTo} className={buttonVariants({ variant: "outline" })}>
             {fromRoles ? "Back to roles" : "Back to applications"}
           </Link>
           <CreateTargetableRolesModal />
