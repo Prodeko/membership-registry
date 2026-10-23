@@ -7,10 +7,11 @@ import { useEffect, useMemo } from "react";
 import { capitalizeFirstLetter } from "@/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
-import { Link, useSearchParams } from "react-router";
+import { Link, useLocation, useSearchParams } from "react-router";
 import { buttonVariants } from "../ui/button";
 
 const Applications = () => {
+  const location = useLocation();
   // The status filter lives in the URL so returning from an application
   // (or reloading) keeps the list the user was viewing.
   const [searchParams, setSearchParams] = useSearchParams();
@@ -51,6 +52,7 @@ const Applications = () => {
           <TooltipTrigger asChild>
             <Link
               to={"/applications/targetable-roles"}
+              state={{ from: location.pathname + location.search }}
               className={buttonVariants({ variant: "outline" })}
             >
               Application targetable roles
