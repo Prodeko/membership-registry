@@ -1,14 +1,12 @@
 import { useLogout } from "@/lib/api";
-import { Button } from "../ui/button";
+import { DropdownMenuItem } from "../ui/dropdown-menu";
 
+/// A plain menu item, so it matches the other items in the person menu.
 export const Logout = () => {
   const { mutate: logout, isPending } = useLogout();
-  const handleLogout = () => {
-    logout();
-  };
   return (
-    <Button variant="ghost" onClick={handleLogout}>
+    <DropdownMenuItem disabled={isPending} onSelect={() => logout()}>
       {isPending ? "wait..." : "Log out"}
-    </Button>
+    </DropdownMenuItem>
   );
 };

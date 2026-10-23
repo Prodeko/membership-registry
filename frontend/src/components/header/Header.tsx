@@ -104,9 +104,7 @@ const Header = () => {
             <DropdownMenuItem asChild>
               <Link to="/home">My page</Link>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <Logout />
-            </DropdownMenuItem>
+            <Logout />
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
