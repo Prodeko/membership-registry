@@ -23,3 +23,27 @@ updates:
       cargo-minor-patch:
         patterns: ["*"]
         update-types: ["minor", "patch"]
+  # Keycloak (#144). Major versions come as their own PR, since they can
+  # change realm/theme behaviour and need a manual check.
+  - package-ecosystem: "docker"
+    directory: "keycloak"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    groups:
+      keycloak-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+  # Local dev Keycloak in docker-compose.yml. Only Keycloak, so Postgres and
+  # the other dev images are not bumped here.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    allow:
+      - dependency-name: "quay.io/keycloak/keycloak"
+    groups:
+      keycloak-compose-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
