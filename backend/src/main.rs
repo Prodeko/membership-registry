@@ -267,15 +267,16 @@ impl Services {
 
         let member_repo: Arc<dyn MemberRepositoryPort> = Arc::new(repo.member);
         let role_repo: Arc<dyn RoleRepositoryPort> = Arc::new(repo.role);
+        let role_group_repo: Arc<dyn RoleGroupRepositoryPort> = Arc::new(repo.role_group);
         let access_control_service = AccessControlService::new(
             Arc::new(repo.access_control),
             Arc::new(JwtAccessPassAdapter::with_random_key()),
             Arc::clone(&role_repo),
+            Arc::clone(&role_group_repo),
             Arc::clone(&member_repo),
             Arc::new(XlsxAdapter),
             audit_log_service.clone(),
         );
-        let role_group_repo: Arc<dyn RoleGroupRepositoryPort> = Arc::new(repo.role_group);
         let attribute_repo: Arc<dyn AttributeRepositoryPort> = Arc::new(repo.attribute);
         let application_commands: Arc<dyn ApplicationCommandPort> =
             Arc::new(repo.application.clone());

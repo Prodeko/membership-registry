@@ -7,6 +7,7 @@ use crate::application::ports::access_control_port::{
     AccessPass, AccessPassError, RecordOutcome, StatusChangeOutcome,
 };
 use crate::application::ports::repository_error::RepositoryError;
+use crate::application::ports::role_group_repository_port::RoleGroupRepositoryPort;
 use crate::application::ports::role_repository_port::RoleMembership;
 use crate::application::services::access_control_service::{
     AccessControlService, Eligibility, ScanOutcome,
@@ -14,7 +15,8 @@ use crate::application::services::access_control_service::{
 use crate::application::services::errors::ServiceError;
 use crate::domain::{
     AccessDirection, AccessEntry, AccessEvent, AccessEventStatus, AccessMethod, AccessStatusChange,
-    Email, NewAccessEvent, Person, PersonId, PresentMember, Role, RoleName,
+    Email, NewAccessEvent, Person, PersonId, PresentMember, Role, RoleGroup, RoleGroupId,
+    RoleGroupMembership, RoleName,
 };
 
 use super::mocks::*;
@@ -76,10 +78,94 @@ fn role(name: &str) -> Role {
     }
 }
 
+/// Role groups and the member's group memberships. Only the lookups
+/// eligibility uses are implemented.
+#[derive(Default)]
+struct StubRoleGroups {
+    groups: Vec<RoleGroup>,
+    memberships: Vec<RoleGroupMembership>,
+}
+
+#[async_trait::async_trait]
+impl RoleGroupRepositoryPort for StubRoleGroups {
+    async fn create(
+        &self,
+        _: &str,
+        _: Option<&str>,
+        _: Option<&str>,
+    ) -> Result<RoleGroup, RepositoryError> {
+        unimplemented!()
+    }
+    async fn update(
+        &self,
+        _: &Uuid,
+        _: &str,
+        _: Option<&str>,
+    ) -> Result<RoleGroup, RepositoryError> {
+        unimplemented!()
+    }
+    async fn delete(&self, _: &Uuid) -> Result<(), RepositoryError> {
+        unimplemented!()
+    }
+    async fn fetch_all(&self) -> Result<Vec<RoleGroup>, RepositoryError> {
+        Ok(self.groups.clone())
+    }
+    async fn fetch_by_id(&self, _: &Uuid) -> Result<RoleGroup, RepositoryError> {
+        unimplemented!()
+    }
+    async fn set_roles(&self, _: &Uuid, _: &[RoleName]) -> Result<(), RepositoryError> {
+        unimplemented!()
+    }
+    async fn create_member(
+        &self,
+        _: &Uuid,
+        _: &Uuid,
+        _: NaiveDate,
+        _: Option<NaiveDate>,
+    ) -> Result<(), RepositoryError> {
+        unimplemented!()
+    }
+    async fn delete_member(&self, _: &Uuid, _: &Uuid, _: NaiveDate) -> Result<(), RepositoryError> {
+        unimplemented!()
+    }
+    async fn fetch_members_by_group(
+        &self,
+        _: &Uuid,
+    ) -> Result<Vec<RoleGroupMembership>, RepositoryError> {
+        unimplemented!()
+    }
+    async fn fetch_groups_by_member(
+        &self,
+        user_id: &Uuid,
+    ) -> Result<Vec<RoleGroupMembership>, RepositoryError> {
+        Ok(self
+            .memberships
+            .iter()
+            .filter(|m| m.user_id == *user_id)
+            .cloned()
+            .collect())
+    }
+    async fn fetch_expired_unsynced(&self) -> Result<Vec<RoleGroupMembership>, RepositoryError> {
+        unimplemented!()
+    }
+    async fn mark_keycloak_synced(
+        &self,
+        _: &Uuid,
+        _: &Uuid,
+        _: NaiveDate,
+    ) -> Result<(), RepositoryError> {
+        unimplemented!()
+    }
+    async fn set_keycloak_group_id(&self, _: &Uuid, _: &str) -> Result<(), RepositoryError> {
+        unimplemented!()
+    }
+}
+
 struct Mocks {
     repo: MockAccessControlRepositoryPort,
     passes: MockAccessPassPort,
     roles: MockRoleRepositoryPort,
+    groups: StubRoleGroups,
     members: MockMemberRepositoryPort,
     workbook: MockWorkbookExportPort,
 }
@@ -90,9 +176,31 @@ impl Mocks {
             repo: MockAccessControlRepositoryPort::new(),
             passes: MockAccessPassPort::new(),
             roles: MockRoleRepositoryPort::new(),
+            groups: StubRoleGroups::default(),
             members: MockMemberRepositoryPort::new(),
             workbook: MockWorkbookExportPort::new(),
         }
+    }
+
+    /// The member belongs to a role group granting `role`, until `until`.
+    fn in_group(&mut self, user_id: Uuid, role: &str, until: Option<NaiveDate>) {
+        let group_id = Uuid::new_v4();
+        self.groups = StubRoleGroups {
+            groups: vec![RoleGroup {
+                id: RoleGroupId(group_id),
+                name: "hallitus".to_string(),
+                description: None,
+                keycloak_group_id: None,
+                role_names: vec![RoleName(role.to_string())],
+            }],
+            memberships: vec![RoleGroupMembership {
+                group_id,
+                group_name: "hallitus".to_string(),
+                user_id,
+                valid_from: today() - Duration::days(30),
+                valid_until: until,
+            }],
+        };
     }
 
     /// Door-side mocks for `event`, a pass for `user_id`, and the member's
@@ -131,6 +239,7 @@ impl Mocks {
             Arc::new(self.repo),
             Arc::new(self.passes),
             Arc::new(self.roles),
+            Arc::new(self.groups),
             Arc::new(self.members),
             Arc::new(self.workbook),
             noop_audit_log(),
@@ -208,6 +317,47 @@ async fn an_expired_membership_is_refused_with_its_end_date() {
         ],
         0,
     );
+    m.repo.expect_record_entry().never();
+
+    let result = m
+        .service()
+        .scan(ev.id, "token", AccessDirection::In, None)
+        .await
+        .unwrap();
+    assert_eq!(
+        result.outcome,
+        ScanOutcome::NotEligible {
+            ended_on: Some(ended)
+        }
+    );
+}
+
+#[tokio::test]
+async fn a_role_from_a_role_group_gets_the_member_in() {
+    let user_id = Uuid::new_v4();
+    let ev = event(AccessEventStatus::Running);
+    let mut m = Mocks::door(ev.clone(), user_id, vec![], 1);
+    m.in_group(user_id, ROLE, None);
+    m.repo
+        .expect_record_entry()
+        .times(1)
+        .returning(|_, _, _, _, _| Ok(RecordOutcome::Recorded));
+
+    let result = m
+        .service()
+        .scan(ev.id, "token", AccessDirection::In, None)
+        .await
+        .unwrap();
+    assert_eq!(result.outcome, ScanOutcome::Recorded);
+}
+
+#[tokio::test]
+async fn an_ended_role_group_membership_is_refused_with_its_end_date() {
+    let user_id = Uuid::new_v4();
+    let ended = today() - Duration::days(3);
+    let ev = event(AccessEventStatus::Running);
+    let mut m = Mocks::door(ev.clone(), user_id, vec![], 0);
+    m.in_group(user_id, ROLE, Some(ended));
     m.repo.expect_record_entry().never();
 
     let result = m

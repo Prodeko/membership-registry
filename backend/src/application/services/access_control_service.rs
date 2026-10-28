@@ -13,7 +13,8 @@ use crate::application::ports::member_repository_port::{
     MemberRepositoryPort, MembersWithRolesParams,
 };
 use crate::application::ports::repository_error::RepositoryError;
-use crate::application::ports::role_repository_port::RoleRepositoryPort;
+use crate::application::ports::role_group_repository_port::RoleGroupRepositoryPort;
+use crate::application::ports::role_repository_port::{RoleMembership, RoleRepositoryPort};
 use crate::domain::{
     AccessDirection, AccessEntry, AccessEvent, AccessEventStatus, AccessMethod, AccessSnapshot,
     AccessStatusChange, NewAccessEvent, PresentMember,
@@ -93,6 +94,7 @@ pub struct AccessControlService {
     repo: Arc<dyn AccessControlRepositoryPort>,
     passes: Arc<dyn AccessPassPort>,
     role_repo: Arc<dyn RoleRepositoryPort>,
+    role_group_repo: Arc<dyn RoleGroupRepositoryPort>,
     member_repo: Arc<dyn MemberRepositoryPort>,
     workbook: Arc<dyn WorkbookExportPort>,
     audit_log: AuditLogService,
@@ -103,6 +105,7 @@ impl AccessControlService {
         repo: Arc<dyn AccessControlRepositoryPort>,
         passes: Arc<dyn AccessPassPort>,
         role_repo: Arc<dyn RoleRepositoryPort>,
+        role_group_repo: Arc<dyn RoleGroupRepositoryPort>,
         member_repo: Arc<dyn MemberRepositoryPort>,
         workbook: Arc<dyn WorkbookExportPort>,
         audit_log: AuditLogService,
@@ -111,6 +114,7 @@ impl AccessControlService {
             repo,
             passes,
             role_repo,
+            role_group_repo,
             member_repo,
             workbook,
             audit_log,
@@ -252,10 +256,41 @@ impl AccessControlService {
         Ok(self.repo.get_event(id).await?)
     }
 
-    /// Whether `user_id` holds one of the event's roles today.
+    /// The member's effective role memberships: their direct ones, plus each
+    /// role of every role group they belong to (e.g. hallitus granting
+    /// ilmo-admin), dated like the group membership.
+    async fn effective_memberships(&self, user_id: Uuid) -> ServiceResult<Vec<RoleMembership>> {
+        let mut memberships = self.role_repo.fetch_roles_by_member(&user_id).await?;
+        let groups = self
+            .role_group_repo
+            .fetch_groups_by_member(&user_id)
+            .await?;
+        if groups.is_empty() {
+            return Ok(memberships);
+        }
+        let all_groups = self.role_group_repo.fetch_all().await?;
+        for gm in groups {
+            let Some(group) = all_groups.iter().find(|g| g.id.0 == gm.group_id) else {
+                continue;
+            };
+            memberships.extend(group.role_names.iter().map(|role_name| RoleMembership {
+                user_id,
+                role_name: role_name.clone(),
+                valid_from: gm.valid_from,
+                valid_until: gm.valid_until,
+                renewable: false,
+                renewal_due: false,
+                renewal_deadline: None,
+            }));
+        }
+        Ok(memberships)
+    }
+
+    /// Whether `user_id` holds one of the event's roles today, directly or
+    /// through a role group.
     async fn eligibility(&self, event: &AccessEvent, user_id: Uuid) -> ServiceResult<Eligibility> {
         let today = Self::today();
-        let memberships = self.role_repo.fetch_roles_by_member(&user_id).await?;
+        let memberships = self.effective_memberships(user_id).await?;
         let relevant = memberships
             .iter()
             .filter(|m| event.allowed_roles.contains(&m.role_name.0));
@@ -357,7 +392,8 @@ impl AccessControlService {
     }
 
     /// Members matching `query` by name or email, with whether each is inside
-    /// and holds one of the event's roles today.
+    /// and holds one of the event's roles today, directly or through a role
+    /// group.
     pub async fn search_members(
         &self,
         event_id: Uuid,
@@ -375,33 +411,29 @@ impl AccessControlService {
             .into_iter()
             .map(|m| m.user_id)
             .collect();
-        let today = Self::today();
-        // With both dates set to today, role_names lists only roles held today.
         let members = self
             .member_repo
             .fetch_members_with_roles(MembersWithRolesParams {
                 search: Some(query.to_string()),
                 page_size: Some(SEARCH_LIMIT),
-                valid_from: Some(today),
-                valid_until: Some(today),
                 ..Default::default()
             })
             .await?;
-        Ok(members
-            .into_iter()
-            .map(|m| {
-                let user_id = m.person.id.0;
-                DoorSearchResult {
-                    eligible: m.role_names.iter().any(|r| event.allowed_roles.contains(r)),
-                    inside: inside.contains(&user_id),
-                    member: PresentMember {
-                        user_id,
-                        name: format!("{} {}", m.person.first_name, m.person.last_name),
-                        email: m.person.email.as_str().to_string(),
-                    },
-                }
-            })
-            .collect())
+        let mut results = Vec::with_capacity(members.len());
+        for m in members {
+            let user_id = m.person.id.0;
+            let eligibility = self.eligibility(&event, user_id).await?;
+            results.push(DoorSearchResult {
+                eligible: eligibility == Eligibility::Eligible,
+                inside: inside.contains(&user_id),
+                member: PresentMember {
+                    user_id,
+                    name: format!("{} {}", m.person.first_name, m.person.last_name),
+                    email: m.person.email.as_str().to_string(),
+                },
+            });
+        }
+        Ok(results)
     }
 
     pub async fn delete_entry(
