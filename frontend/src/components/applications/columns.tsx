@@ -1,5 +1,5 @@
 import { ApplicationWithMember } from "@/common/types";
-import { ColumnDef } from "@tanstack/react-table";
+import { DataTableColumnDef } from "@/components/ui/data-table-features";
 import { Checkbox } from "../ui/checkbox";
 import { DataTableColumnHeader } from "../ui/column-header";
 import {
@@ -37,7 +37,7 @@ import ApplicationLink from "./ApplicationLink";
  */
 export const attributeColumn = (
   name: string,
-): ColumnDef<ApplicationWithMember> => ({
+): DataTableColumnDef<ApplicationWithMember> => ({
   id: `attribute:${name}`,
   accessorFn: (application) => application.attributes[name]?.join(", ") || null,
   header: ({ column }) => (
@@ -53,7 +53,7 @@ export const attributeColumn = (
   },
 });
 
-export const columns: ColumnDef<ApplicationWithMember>[] = [
+export const columns: DataTableColumnDef<ApplicationWithMember>[] = [
   {
     id: "select",
     header: ({ table }) => (

@@ -1,4 +1,4 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { DataTableColumnDef } from "@/components/ui/data-table-features";
 import {
   MoreHorizontal,
   Trash as TrashIcon,
@@ -21,7 +21,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import EmailTemplateFormModal from "./EmailTemplateFormModal";
 
-export const columns: ColumnDef<EmailTemplate>[] = [
+export const columns: DataTableColumnDef<EmailTemplate>[] = [
   {
     id: "select",
     header: ({ table }) => (

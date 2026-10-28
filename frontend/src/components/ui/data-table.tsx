@@ -1,18 +1,13 @@
 "use client";
 
 import {
-  ColumnDef,
+  ColumnVisibilityState,
   PaginationState,
+  RowData,
   RowSelectionState,
   SortingState,
-  VisibilityState,
   flexRender,
-  getCoreRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFilteredRowModel,
-  getSortedRowModel,
-  useReactTable,
+  useTable,
 } from "@tanstack/react-table";
 import * as React from "react";
 
@@ -25,15 +20,18 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import type { Table as TableType } from "@tanstack/react-table";
-
 import { UseQueryResult } from "@tanstack/react-query";
 import { DataTablePagination } from "./data-table-pagination";
 import { DataTableToolbar } from "./data-table-toolbar";
 import { SavedFilter } from "@/common/types";
+import {
+  DataTableColumnDef,
+  DataTableInstance,
+  dataTableFeatures,
+} from "./data-table-features";
 
-export type ActionElement<TData> = (
-  table: TableType<TData>,
+export type ActionElement<TData extends RowData> = (
+  table: DataTableInstance<TData>,
   selectedRows: string[]
 ) => React.ReactNode;
 
@@ -41,9 +39,9 @@ export type ActionElement<TData> = (
 // hooks) when no `useCount` prop is supplied.
 const useNoCount = () =>
   ({ data: undefined }) as UseQueryResult<{ total: number }, Error>;
-interface DataTableProps<TData, TValue> {
+interface DataTableProps<TData extends RowData> {
   modelName: string;
-  columns: ColumnDef<TData, TValue>[];
+  columns: DataTableColumnDef<TData>[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   useFetchData: (x: any) => UseQueryResult<TData[], Error>;
   // Optional hook returning the total row count for the current search/filters.
@@ -51,7 +49,7 @@ interface DataTableProps<TData, TValue> {
   // hardcoded cap.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   useCount?: (x: any) => UseQueryResult<{ total: number }, Error>;
-  initialColumnVisibility?: VisibilityState;
+  initialColumnVisibility?: ColumnVisibilityState;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   customFilters?: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,7 +70,7 @@ interface DataTableProps<TData, TValue> {
   onRowClick?: (row: TData) => void;
 }
 
-export function DataTable<TData, TValue>({
+export function DataTable<TData extends RowData>({
   modelName,
   columns,
   useFetchData,
@@ -92,7 +90,7 @@ export function DataTable<TData, TValue>({
   onSelectedSavedFilterChange,
   resetCustomFilters,
   onRowClick,
-}: DataTableProps<TData, TValue>) {
+}: DataTableProps<TData>) {
   const [tableData, setTableData] = React.useState<TData[]>([]);
   const [internalRowSelection, setInternalRowSelection] = React.useState<RowSelectionState>({});
   const rowSelection = controlledRowSelection ?? internalRowSelection;
@@ -107,7 +105,7 @@ export function DataTable<TData, TValue>({
     else setInternalRowSelection(next);
   };
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>(initialColumnVisibility ?? {});
+    React.useState<ColumnVisibilityState>(initialColumnVisibility ?? {});
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowCount, setRowCount] = React.useState<number | undefined>(undefined);
   const [pagination, setPagination] = React.useState<PaginationState>({
@@ -131,7 +129,8 @@ export function DataTable<TData, TValue>({
   const inferredPageCount =
     tableData.length < pagination.pageSize ? pagination.pageIndex + 1 : -1;
 
-  const table = useReactTable({
+  const table = useTable({
+    features: dataTableFeatures,
     data: pageRows,
     columns,
     state: {
@@ -155,11 +154,6 @@ export function DataTable<TData, TValue>({
     onRowSelectionChange: setRowSelection,
     onSortingChange: setSorting,
     onColumnVisibilityChange: setColumnVisibility,
-    getCoreRowModel: getCoreRowModel(),
-    getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
     getRowId,
   });
 
@@ -168,11 +162,11 @@ export function DataTable<TData, TValue>({
     : undefined;
 
   const { data: fetchedData, error } = useFetchData({
-    pageSize: table.getState().pagination.pageSize,
-    offset: table.getState().pagination.pageIndex,
+    pageSize: table.state.pagination.pageSize,
+    offset: table.state.pagination.pageIndex,
     search,
-    sorting: table.getState().sorting[0]?.id,
-    sort_desc: table.getState().sorting[0]?.desc,
+    sorting: table.state.sorting[0]?.id,
+    sort_desc: table.state.sorting[0]?.desc,
     customFilters,
   });
 

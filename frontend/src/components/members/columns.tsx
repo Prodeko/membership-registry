@@ -3,7 +3,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { QueryKey, useDeleteMember } from "@/lib/api";
 import { CopyIcon } from "@radix-ui/react-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import { ColumnDef } from "@tanstack/react-table";
+import { DataTableColumnDef } from "@/components/ui/data-table-features";
 import { MoreHorizontal, Trash as TrashIcon } from "lucide-react";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 export const getColumns = (
   syncStatus?: KeycloakSyncStatusMap,
-): ColumnDef<MemberWithRoles>[] => [
+): DataTableColumnDef<MemberWithRoles>[] => [
   {
     id: "select",
     header: ({ table }) => (
@@ -172,7 +172,6 @@ export const getColumns = (
       );
     },
     enableSorting: false,
-    size: 48,
   },
   {
     accessorKey: "home_municipality",
