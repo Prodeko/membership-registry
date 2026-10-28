@@ -31,13 +31,17 @@ jobs:
       - uses: actions/checkout@v4
 
       # --- Start Keycloak via docker run (service containers don't support custom commands) ---
+      # The image tag is read from keycloak/Dockerfile, which Dependabot keeps up to date.
       - name: Start Keycloak
         run: |
+          KEYCLOAK_IMAGE=$(sed -n 's/^FROM \(quay\.io\/keycloak\/keycloak:[^ ]*\).*/\1/p' keycloak/Dockerfile | head -n1)
+          test -n "$KEYCLOAK_IMAGE"
+          echo "Using $KEYCLOAK_IMAGE"
           docker run -d --name keycloak \
             -e KEYCLOAK_ADMIN=admin \
             -e KEYCLOAK_ADMIN_PASSWORD=admin \
             -p 8180:8080 \
-            quay.io/keycloak/keycloak:26.5.4 start-dev
+            "$KEYCLOAK_IMAGE" start-dev
 
       # --- Start Mailpit for email capture in e2e tests ---
       - name: Start Mailpit
