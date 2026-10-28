@@ -132,6 +132,13 @@
     font-style: normal;
   }
 
+  /* Phones: everything sized in rem (text and spacing) shrinks by 1/8. */
+  @media (width < 48rem) {
+    html {
+      font-size: 87.5%;
+    }
+  }
+
   * {
     @apply border-border;
   }

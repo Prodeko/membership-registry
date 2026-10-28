@@ -20,7 +20,7 @@ export default function RoleGroups() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap justify-between items-center gap-2">
-        <h1 className="text-4xl">Role Groups</h1>
+        <h1 className="text-2xl md:text-4xl">Role Groups</h1>
         <CreateRoleGroupModal />
       </div>
       <PageHelp id="role-groups">

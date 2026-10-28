@@ -169,7 +169,7 @@ const ApplicationForm = () => {
   return (
     <main className="flex justify-center align-middle h-screen w-screen py-20 px-4">
       <Card className="p-10 space-y-4 h-fit">
-        <h1 className="text-4xl">{t("application.form.title")}</h1>
+        <h1 className="text-2xl md:text-4xl">{t("application.form.title")}</h1>
         <Separator />
         <RenderMemberData member={currentMember} variant="enduser" />
         <div>{t("application.form.instructions")}</div>

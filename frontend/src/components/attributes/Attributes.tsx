@@ -80,7 +80,7 @@ const Attributes = () => {
   return (
     <div className="space-y-4">
       <div className="flex justify-between">
-        <h1 className="text-4xl">Attributes</h1>
+        <h1 className="text-2xl md:text-4xl">Attributes</h1>
         <Button onClick={() => setCreateOpen(true)}>New attribute</Button>
       </div>
 

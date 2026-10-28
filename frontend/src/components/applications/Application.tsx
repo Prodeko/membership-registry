@@ -106,7 +106,7 @@ const Application = () => {
   return (
     <div className="flex justify-center align-middle p-14">
       <Card className="p-8 space-y-6 max-w-2xl w-full">
-        <h1 className="text-3xl font-bold">Application</h1>
+        <h1 className="text-2xl md:text-3xl font-bold">Application</h1>
 
         <div className="grid grid-cols-2 gap-y-3 gap-x-6 text-sm">
           <span className="font-medium">Applicant</span>

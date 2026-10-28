@@ -147,7 +147,7 @@ const UserHome = () => {
       <div className="max-w-2xl w-full space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">
+            <h1 className="text-2xl md:text-3xl font-bold">
               {t("home.welcome", { name: member.first_name })}
             </h1>
             <p className="text-muted-foreground mt-1">{t("home.subtitle")}</p>

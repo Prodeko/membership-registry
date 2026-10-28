@@ -145,7 +145,7 @@ const DataManagement = () => {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-4xl">Data Management</h1>
+      <h1 className="text-2xl md:text-4xl">Data Management</h1>
       <div className="flex space-x-2">
         <Button
           variant={activeTab === "export" ? "default" : "outline"}

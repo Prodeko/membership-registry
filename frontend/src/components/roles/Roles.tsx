@@ -41,9 +41,9 @@ const Roles = () => {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-between">
-        <h1 className="text-4xl">Roles</h1>
-        <div className="space-x-4">
+      <div className="flex flex-wrap justify-between items-center gap-2">
+        <h1 className="text-2xl md:text-4xl">Roles</h1>
+        <div className="flex flex-wrap gap-2 md:gap-4">
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
