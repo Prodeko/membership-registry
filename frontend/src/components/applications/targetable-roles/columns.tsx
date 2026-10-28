@@ -1,11 +1,11 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { DataTableColumnDef } from "@/components/ui/data-table-features";
 import { Checkbox } from "../../ui/checkbox";
 import { DataTableColumnHeader } from "../../ui/column-header";
 import { ApplicationTargetableRole } from "@/common/types";
 import RoleBadge from "@/components/ui/role-badge";
 import RowActions from "./RowActions";
 
-export const columns: ColumnDef<ApplicationTargetableRole>[] = [
+export const columns: DataTableColumnDef<ApplicationTargetableRole>[] = [
   {
     id: "select",
     header: ({ table }) => (

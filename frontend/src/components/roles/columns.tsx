@@ -1,4 +1,4 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { DataTableColumnDef } from "@/components/ui/data-table-features";
 import {
   Copy as CopyIcon,
   File as FileIcon,
@@ -19,7 +19,7 @@ import {
 import { RoleStats } from "@/common/types";
 import DeleteRoleMenuItem from "./DeleteRoleMenuItem";
 
-export const columns: ColumnDef<unknown, unknown>[] = [
+export const columns: DataTableColumnDef<RoleStats>[] = [
   {
     id: "select",
     header: ({ table }) => (
@@ -48,7 +48,7 @@ export const columns: ColumnDef<unknown, unknown>[] = [
       <DataTableColumnHeader column={column} title="Role Name" />
     ),
     cell: ({ row }) => {
-      const roleStats = row.original as RoleStats;
+      const roleStats = row.original;
       return (
         <Link to={`/roles/${roleStats.name}`} className="flex items-center">
           {roleStats.name}
@@ -63,13 +63,13 @@ export const columns: ColumnDef<unknown, unknown>[] = [
     ),
   },
   {
-    accessorKey: "member_count" as const,
+    accessorKey: "member_count",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Member Count" />
     ),
   },
   {
-    accessorKey: "active_member_count" as const,
+    accessorKey: "active_member_count",
     header: ({ column }) => (
       <DataTableColumnHeader column={column} title="Active Member Count" />
     ),
@@ -80,7 +80,7 @@ export const columns: ColumnDef<unknown, unknown>[] = [
       <DataTableColumnHeader column={column} title="Actions" />
     ),
     cell: ({ row }) => {
-      const roleStats = row.original as RoleStats;
+      const roleStats = row.original;
       return (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

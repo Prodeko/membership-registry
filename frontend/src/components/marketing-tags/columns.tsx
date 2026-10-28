@@ -1,4 +1,4 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { DataTableColumnDef } from "@/components/ui/data-table-features";
 import {
   MoreHorizontal,
   Trash as TrashIcon,
@@ -20,7 +20,7 @@ import { useDeleteMarketingTag } from "@/lib/api";
 import { useState } from "react";
 import MarketingTagFormModal from "./MarketingTagFormModal";
 
-export const columns: ColumnDef<MarketingTag>[] = [
+export const columns: DataTableColumnDef<MarketingTag>[] = [
   {
     id: "select",
     header: ({ table }) => (

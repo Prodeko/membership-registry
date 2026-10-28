@@ -1,8 +1,8 @@
 import { AuditLogEntryWithActor } from "@/common/types";
-import { ColumnDef } from "@tanstack/react-table";
+import { DataTableColumnDef } from "@/components/ui/data-table-features";
 import { DataTableColumnHeader } from "../ui/column-header";
 
-export const columns: ColumnDef<AuditLogEntryWithActor>[] = [
+export const columns: DataTableColumnDef<AuditLogEntryWithActor>[] = [
   {
     accessorKey: "created_at",
     header: ({ column }) => (

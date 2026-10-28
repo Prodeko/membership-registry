@@ -1,4 +1,4 @@
-import { ColumnDef } from "@tanstack/react-table";
+import { DataTableColumnDef } from "@/components/ui/data-table-features";
 import { MoreHorizontal } from "lucide-react";
 import { Link } from "react-router";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
 import { RoleGroup } from "@/common/types";
 import DeleteGroupMenuItem from "./DeleteGroupMenuItem";
 
-export const columns: ColumnDef<RoleGroup>[] = [
+export const columns: DataTableColumnDef<RoleGroup>[] = [
   {
     id: "select",
     header: ({ table }) => (

@@ -1,7 +1,8 @@
 "use client";
 
 import { Cross2Icon, PlusIcon } from "@radix-ui/react-icons";
-import { Table } from "@tanstack/react-table";
+import { RowData } from "@tanstack/react-table";
+import { DataTableInstance } from "./data-table-features";
 import { Search, SlidersHorizontal, ChevronDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -22,8 +23,8 @@ import {
 import { ReactNode, useState } from "react";
 import { cn } from "@/lib/utils";
 
-interface DataTableToolbarProps<TData> {
-  table: Table<TData>;
+interface DataTableToolbarProps<TData extends RowData> {
+  table: DataTableInstance<TData>;
   searchColumn?: string;
   modelName: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,7 +42,7 @@ interface DataTableToolbarProps<TData> {
   onClearFilters?: () => void;
 }
 
-export function DataTableToolbar<TData>({
+export function DataTableToolbar<TData extends RowData>({
   table,
   searchColumn,
   modelName,
@@ -56,7 +57,7 @@ export function DataTableToolbar<TData>({
   onClearFilters,
 }: DataTableToolbarProps<TData>) {
   const [filterToDelete, setFilterToDelete] = useState<string | null>(null);
-  const isFiltered = table.getState().columnFilters.length > 0;
+  const isFiltered = table.state.columnFilters.length > 0;
   const savedFilters = useGetSavedFilters(modelName);
   const deleteSavedFilter = useDeleteSavedFilter();
 
@@ -67,8 +68,8 @@ export function DataTableToolbar<TData>({
     search: searchColumn
       ? ((table.getColumn(searchColumn)?.getFilterValue() as string) ?? null)
       : null,
-    sorting_col: table.getState().sorting[0]?.id ?? null,
-    sorting_desc: table.getState().sorting[0]?.desc ?? false,
+    sorting_col: table.state.sorting[0]?.id ?? null,
+    sorting_desc: table.state.sorting[0]?.desc ?? false,
     custom_filters: customFilters ?? null,
   };
 
