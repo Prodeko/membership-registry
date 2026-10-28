@@ -17,9 +17,9 @@ const TargetableRoles = () => {
       : "/applications";
   return (
     <div className="space-y-4">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-wrap justify-between items-center gap-2">
         <h1 className="text-4xl">Targetable Roles</h1>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Link to={backTo} className={buttonVariants({ variant: "outline" })}>
             {fromRoles ? "Back to roles" : "Back to applications"}
           </Link>
