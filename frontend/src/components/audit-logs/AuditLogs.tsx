@@ -5,7 +5,7 @@ import { columns } from "./columns";
 const AuditLogs: React.FC = () => {
   return (
     <div className="space-y-4">
-      <h1 className="text-4xl">Audit Logs</h1>
+      <h1 className="text-2xl md:text-4xl">Audit Logs</h1>
       <DataTable
         modelName="audit_logs"
         columns={columns}

@@ -121,7 +121,9 @@ const Members: React.FC = () => {
       <div className="space-y-4">
         {/* Heading + count badge */}
         <div className="flex items-center gap-3">
-          <h1 className="text-4xl font-bold tracking-tight">Members</h1>
+          <h1 className="text-2xl md:text-4xl font-bold tracking-tight">
+            Members
+          </h1>
           <Badge
             variant="secondary"
             className="text-sm font-semibold rounded-full px-3"

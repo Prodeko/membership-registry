@@ -134,7 +134,9 @@ export default function AccessEvents() {
         <ArrowLeft className="h-4 w-4 mr-1" /> Back
       </Link>
       <div className="flex items-center justify-between gap-2">
-        <h1 className="text-3xl font-bold tracking-tight">Access control</h1>
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight">
+          Access control
+        </h1>
         {isAdmin && (
           <Button onClick={() => setEditing(null)}>
             <Plus className="h-4 w-4 mr-1" /> New event

@@ -166,7 +166,7 @@ const Role = () => {
 
       <Card className="p-8 space-y-6">
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold">{role.name}</h1>
+          <h1 className="text-2xl md:text-3xl font-bold">{role.name}</h1>
           <div className="flex items-center gap-3">
             <RoleBadge role={role.name} />
             {role.color && (

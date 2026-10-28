@@ -2,18 +2,76 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+/// Where the visible part of a horizontally scrolling box sits, as fractions
+/// of its full width. Null while everything fits.
+function useHorizontalScroll(ref: React.RefObject<HTMLDivElement | null>) {
+  const [view, setView] = React.useState<{
+    start: number
+    size: number
+  } | null>(null)
+
+  React.useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const update = () => {
+      const { scrollLeft, scrollWidth, clientWidth } = el
+      setView(
+        scrollWidth > clientWidth + 1
+          ? { start: scrollLeft / scrollWidth, size: clientWidth / scrollWidth }
+          : null,
+      )
+    }
+    update()
+    el.addEventListener("scroll", update, { passive: true })
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    if (el.firstElementChild) observer.observe(el.firstElementChild)
+    return () => {
+      el.removeEventListener("scroll", update)
+      observer.disconnect()
+    }
+  }, [ref])
+
+  return view
+}
+
 const Table = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
->(({ className, ...props }, ref) => (
-  <div className="relative w-full overflow-auto">
-    <table
-      ref={ref}
-      className={cn("w-full caption-bottom text-sm", className)}
-      {...props}
-    />
-  </div>
-))
+>(({ className, ...props }, ref) => {
+  const scrollRef = React.useRef<HTMLDivElement>(null)
+  const view = useHorizontalScroll(scrollRef)
+  return (
+    <div className="relative w-full overflow-hidden">
+      <div
+        ref={scrollRef}
+        className="w-full overflow-auto [scrollbar-width:none] md:[scrollbar-width:auto]"
+      >
+        <table
+          ref={ref}
+          className={cn("w-full caption-bottom text-sm", className)}
+          {...props}
+        />
+      </div>
+      {/* Phones hide scrollbars, so show where you are in a wide table.
+          The native one is hidden there so the two don't stack. */}
+      {view && (
+        <div
+          aria-hidden
+          className="mx-2 my-1.5 h-1 rounded-full bg-muted md:hidden"
+        >
+          <div
+            className="h-full rounded-full bg-muted-foreground/60"
+            style={{
+              marginLeft: `${view.start * 100}%`,
+              width: `${view.size * 100}%`,
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+})
 Table.displayName = "Table"
 
 const TableHeader = React.forwardRef<

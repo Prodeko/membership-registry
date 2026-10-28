@@ -155,7 +155,7 @@ export default function RoleGroup() {
             <span>/</span>
             <span>{group.name}</span>
           </div>
-          <h1 className="text-4xl">{group.name}</h1>
+          <h1 className="text-2xl md:text-4xl">{group.name}</h1>
           {group.description && (
             <p className="mt-1 text-muted-foreground">{group.description}</p>
           )}

@@ -113,7 +113,7 @@ const Error = () => {
   return (
     <div className="flex flex-col items-center justify-center text-center h-screen p-10 space-y-8">
       <img src="/prodeko.svg" alt="Prodeko" className="h-28" />
-      <h1 className="text-4xl">{`${getStatus()} ${details.title}`}</h1>
+      <h1 className="text-2xl md:text-4xl">{`${getStatus()} ${details.title}`}</h1>
       <div className="space-y-8 h-30 flex flex-col justify-between items-center text-center">
         {details.details}
       </div>
