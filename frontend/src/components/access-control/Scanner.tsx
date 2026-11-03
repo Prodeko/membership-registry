@@ -70,6 +70,12 @@ const toneClass: Record<Tone, string> = {
   error: "bg-red-600 text-white",
 };
 
+/** Each mode has its own colour so staff see at a glance which one is on. */
+const modeClass: Record<AccessDirection, string> = {
+  in: "bg-green-600 text-white hover:bg-green-600/90",
+  out: "bg-orange-600 text-white hover:bg-orange-600/90",
+};
+
 /// The door: pick in or out, scan member passes with the camera, or find a
 /// member by name. Each result shows big for a moment.
 export default function Scanner() {
@@ -97,15 +103,22 @@ export default function Scanner() {
   directionRef.current = direction;
   const busyRef = useRef(false);
   const lastTokenRef = useRef<string | null>(null);
+  const hideTimerRef = useRef<number | undefined>(undefined);
+
+  const hide = () => {
+    window.clearTimeout(hideTimerRef.current);
+    setShown(null);
+    busyRef.current = false;
+  };
 
   const show = (result: ScanResult, dir: AccessDirection) => {
     setShown({ result, direction: dir });
     if ("vibrate" in navigator) navigator.vibrate(80);
-    window.setTimeout(() => {
-      setShown(null);
-      busyRef.current = false;
-    }, RESULT_MS);
+    window.clearTimeout(hideTimerRef.current);
+    hideTimerRef.current = window.setTimeout(hide, RESULT_MS);
   };
+
+  useEffect(() => () => window.clearTimeout(hideTimerRef.current), []);
 
   const active =
     data?.event.status === "running" || data?.event.status === "paused";
@@ -159,41 +172,55 @@ export default function Scanner() {
   const shownText = shown && describe(shown.result, shown.direction, t);
 
   return (
-    <div className="max-w-lg mx-auto p-4 space-y-4">
-      <div className="flex items-center justify-between">
-        <Link
-          to={`/access-control/${id}`}
-          className="inline-flex items-center text-sm text-muted-foreground"
-        >
-          <ArrowLeft className="h-4 w-4 mr-1" /> {t("access.back_to_event")}
-        </Link>
-        <LanguageSwitcher />
-      </div>
+    <div className="max-w-lg mx-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-4">
+      {/* Stays on top while scrolling to the manual search, so the mode is
+          always visible and one tap away. */}
+      <div className="sticky top-0 z-10 -mx-4 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3 space-y-3 bg-background border-b">
+        <div className="flex items-center justify-between gap-2">
+          <Link
+            to={`/access-control/${id}`}
+            className="inline-flex items-center min-h-10 text-sm text-muted-foreground"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" /> {t("access.back_to_event")}
+          </Link>
+          <LanguageSwitcher />
+        </div>
 
-      <div>
-        <h1 className="text-2xl font-bold">{data?.event.name ?? "…"}</h1>
+        <div className="flex items-baseline justify-between gap-3">
+          <h1 className="text-xl font-bold truncate">
+            {data?.event.name ?? "…"}
+          </h1>
+          {data && (
+            <p className="shrink-0 text-sm text-muted-foreground">
+              {t(statusKey[data.event.status])}
+            </p>
+          )}
+        </div>
         {data && (
-          <p className="text-muted-foreground">
-            {t(statusKey[data.event.status])} ·{" "}
+          <p className="text-lg font-semibold -mt-2">
             {t("access.present_count", {
               count: String(data.present.length),
             })}
           </p>
         )}
-      </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        {(["in", "out"] as AccessDirection[]).map((d) => (
-          <Button
-            key={d}
-            size="lg"
-            className="h-14 text-lg"
-            variant={direction === d ? "default" : "outline"}
-            onClick={() => setDirection(d)}
-          >
-            {t(d === "in" ? "access.mode_in" : "access.mode_out")}
-          </Button>
-        ))}
+        <div className="grid grid-cols-2 gap-2">
+          {(["in", "out"] as AccessDirection[]).map((d) => (
+            <Button
+              key={d}
+              size="lg"
+              aria-pressed={direction === d}
+              className={cn(
+                "h-14 text-xl font-bold",
+                direction === d && modeClass[d],
+              )}
+              variant={direction === d ? "default" : "outline"}
+              onClick={() => setDirection(d)}
+            >
+              {t(d === "in" ? "access.mode_in" : "access.mode_out")}
+            </Button>
+          ))}
+        </div>
       </div>
 
       {!active && data && (
@@ -203,8 +230,18 @@ export default function Scanner() {
       )}
 
       {active && (
-        <div className="relative rounded-lg overflow-hidden bg-black aspect-square">
+        // Square, but never taller than about half the screen, so the
+        // manual search stays reachable on short phones and in landscape.
+        <div className="relative mx-auto w-full max-w-[55dvh] aspect-square rounded-lg overflow-hidden bg-black">
           <video ref={videoRef} className="w-full h-full object-cover" muted />
+          <span
+            className={cn(
+              "absolute top-2 left-2 rounded-md px-3 py-1 text-base font-bold",
+              modeClass[direction],
+            )}
+          >
+            {t(direction === "in" ? "access.mode_in" : "access.mode_out")}
+          </span>
           {!cameraReady && !cameraError && (
             <p className="absolute inset-0 flex items-center justify-center text-white">
               {t("access.camera_starting")}
@@ -215,19 +252,6 @@ export default function Scanner() {
               {t("access.camera_error")}
             </p>
           )}
-          {shown && shownText && (
-            <div
-              className={cn(
-                "absolute inset-0 flex flex-col items-center justify-center p-6 text-center",
-                toneClass[shownText.tone],
-              )}
-            >
-              <p className="text-4xl font-bold">{shownText.text}</p>
-              {shown.result.member && (
-                <p className="text-2xl mt-3">{shown.result.member.name}</p>
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -235,6 +259,15 @@ export default function Scanner() {
         <div className="space-y-2">
           <h2 className="font-semibold">{t("access.manual_title")}</h2>
           <Input
+            type="search"
+            inputMode="search"
+            enterKeyHint="search"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            // 16px text keeps iOS from zooming in on focus.
+            className="h-12 text-base"
             value={query}
             placeholder={t("access.manual_search")}
             onChange={(e) => setQuery(e.target.value)}
@@ -247,19 +280,35 @@ export default function Scanner() {
           {matches?.map((m) => (
             <div
               key={m.member.user_id}
-              className="flex items-center justify-between gap-2 border rounded-md p-2"
+              className="flex items-center justify-between gap-3 border rounded-md p-3"
             >
               <div className="min-w-0">
                 <p className="font-medium truncate">{m.member.name}</p>
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-sm text-muted-foreground truncate">
                   {m.member.email}
-                  {m.inside && ` · ${t("access.manual_inside")}`}
-                  {!m.eligible && ` · ${t("access.manual_no_role")}`}
                 </p>
+                {(m.inside || !m.eligible) && (
+                  <p className="text-sm font-medium">
+                    {m.inside && t("access.manual_inside")}
+                    {m.inside && !m.eligible && " · "}
+                    {!m.eligible && (
+                      <span className="text-red-600">
+                        {t("access.manual_no_role")}
+                      </span>
+                    )}
+                  </p>
+                )}
               </div>
               <Button
+                size="lg"
+                className={cn(
+                  "h-12 min-w-20 px-4 text-base font-bold",
+                  modeClass[direction],
+                )}
                 disabled={manual.isPending}
-                onClick={() =>
+                onClick={() => {
+                  // Drop the keyboard so the result is seen in full.
+                  (document.activeElement as HTMLElement | null)?.blur();
                   manual.mutate(
                     { user_id: m.member.user_id, direction },
                     {
@@ -270,14 +319,33 @@ export default function Scanner() {
                       },
                       onError: (e) => toast.error(describeError(e)),
                     },
-                  )
-                }
+                  );
+                }}
               >
                 {t(direction === "in" ? "access.mode_in" : "access.mode_out")}
               </Button>
             </div>
           ))}
         </div>
+      )}
+
+      {/* Covers the whole screen, not just the camera, so a result from the
+          manual search is seen even when the camera is scrolled away. Tap to
+          go on to the next member straight away. */}
+      {shown && shownText && (
+        <button
+          type="button"
+          onClick={hide}
+          className={cn(
+            "fixed inset-0 z-50 flex flex-col items-center justify-center p-6 text-center",
+            toneClass[shownText.tone],
+          )}
+        >
+          <p className="text-5xl font-bold">{shownText.text}</p>
+          {shown.result.member && (
+            <p className="text-3xl mt-4">{shown.result.member.name}</p>
+          )}
+        </button>
       )}
     </div>
   );

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeft, Camera, Download, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { AccessEventStatus } from "@/common/types";
+import { AccessEntry, AccessEventStatus } from "@/common/types";
 import {
   useChangeAccessEventStatus,
   useDeleteAccessEntry,
@@ -10,7 +10,7 @@ import {
   useGetAccessEvent,
   useTakeAccessSnapshot,
 } from "@/lib/api";
-import { describeError } from "@/lib/utils";
+import { cn, describeError } from "@/lib/utils";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
@@ -50,6 +50,28 @@ export default function AccessEventView() {
   const { event, present, entries, status_changes, snapshots } = data;
   const active = event.status === "running" || event.status === "paused";
 
+  // Scans and status changes in one list, newest first.
+  const log = [
+    ...entries.map((e) => ({ at: e.recorded_at, entry: e, change: null })),
+    ...status_changes.map((c) => ({
+      at: c.changed_at,
+      entry: null,
+      change: c,
+    })),
+  ].sort((a, b) => b.at.localeCompare(a.at));
+
+  const confirmDelete = (entry: AccessEntry) => {
+    if (
+      !confirm(
+        `Delete the ${entry.direction === "in" ? "in" : "out"} entry of ${entry.member_name} at ${localTime(entry.recorded_at)}?`,
+      )
+    )
+      return;
+    deleteEntry.mutate(entry.id, {
+      onError: (e) => toast.error(describeError(e)),
+    });
+  };
+
   return (
     <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-4">
       <Link
@@ -71,9 +93,10 @@ export default function AccessEventView() {
         {localDate(event.event_date)} · Roles: {event.allowed_roles.join(", ")}
       </p>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Two columns on phones, with the scanner across the top. */}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         {active && (
-          <Button asChild size="lg">
+          <Button asChild size="lg" className="col-span-2 h-14 text-base">
             <Link to={`/access-control/${event.id}/scan`}>
               <Camera className="h-5 w-5 mr-2" /> Open scanner
             </Link>
@@ -84,6 +107,7 @@ export default function AccessEventView() {
             key={next}
             variant={next === "ended" ? "destructive" : "outline"}
             size="lg"
+            className="px-4"
             disabled={changeStatus.isPending}
             onClick={() => {
               if (
@@ -105,6 +129,11 @@ export default function AccessEventView() {
         <Button
           variant="outline"
           size="lg"
+          className={cn(
+            "px-4",
+            // Alone on its row otherwise; fill it rather than leave a gap.
+            transitions[event.status].length % 2 === 0 && "col-span-2",
+          )}
           disabled={exportEvent.isPending}
           onClick={() =>
             exportEvent.mutate(event, {
@@ -126,10 +155,12 @@ export default function AccessEventView() {
               <p className="text-sm text-muted-foreground">Nobody inside.</p>
             )}
             {present.map((m) => (
-              <p key={m.user_id} className="text-sm">
-                {m.name}{" "}
-                <span className="text-muted-foreground">{m.email}</span>
-              </p>
+              <div key={m.user_id} className="text-sm min-w-0">
+                <p className="truncate">{m.name}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {m.email}
+                </p>
+              </div>
             ))}
           </CardContent>
         </Card>
@@ -144,6 +175,7 @@ export default function AccessEventView() {
             </p>
             <div className="flex gap-2">
               <Input
+                className="text-base sm:text-sm"
                 value={label}
                 placeholder="Label (optional), e.g. Vote 1: chair"
                 onChange={(e) => setLabel(e.target.value)}
@@ -187,7 +219,64 @@ export default function AccessEventView() {
           <CardTitle>Log ({entries.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          {/* Phones: one compact row per entry instead of a wide table. */}
+          <ul className="sm:hidden divide-y">
+            {log.map((row, i) =>
+              row.entry ? (
+                <li key={row.entry.id} className="flex items-center gap-3 py-2">
+                  <span className="w-12 shrink-0 text-sm tabular-nums text-muted-foreground">
+                    {localTime(row.at)}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">
+                      {row.entry.member_name}
+                    </p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {methodLabel[row.entry.method]}
+                      {row.entry.recorded_by_name &&
+                        ` · ${row.entry.recorded_by_name}`}
+                    </p>
+                  </div>
+                  <Badge
+                    variant={
+                      row.entry.direction === "in" ? "default" : "outline"
+                    }
+                  >
+                    {row.entry.direction === "in" ? "In" : "Out"}
+                  </Badge>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label="Delete entry"
+                    onClick={() => row.entry && confirmDelete(row.entry)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </li>
+              ) : (
+                <li
+                  key={`status-${i}`}
+                  className="flex items-center gap-3 py-2 -mx-2 px-2 bg-muted/40"
+                >
+                  <span className="w-12 shrink-0 text-sm tabular-nums text-muted-foreground">
+                    {localTime(row.at)}
+                  </span>
+                  <p className="min-w-0 flex-1 truncate text-sm">
+                    <span className="font-medium">
+                      {row.change && statusLabel[row.change.status]}
+                    </span>
+                    {row.change?.changed_by_name && (
+                      <span className="text-muted-foreground">
+                        {` · ${row.change.changed_by_name}`}
+                      </span>
+                    )}
+                  </p>
+                </li>
+              ),
+            )}
+          </ul>
+
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="text-left text-muted-foreground">
                 <tr>
@@ -200,68 +289,45 @@ export default function AccessEventView() {
                 </tr>
               </thead>
               <tbody>
-                {[
-                  ...entries.map((e) => ({ at: e.recorded_at, entry: e })),
-                  ...status_changes.map((c) => ({
-                    at: c.changed_at,
-                    change: c,
-                  })),
-                ]
-                  .sort((a, b) => b.at.localeCompare(a.at))
-                  .map((row, i) =>
-                    "entry" in row && row.entry ? (
-                      <tr key={row.entry.id} className="border-t">
-                        <td className="py-1 pr-3">{localTime(row.at)}</td>
-                        <td className="py-1 pr-3">{row.entry.member_name}</td>
-                        <td className="py-1 pr-3">
-                          {row.entry.direction === "in" ? "In" : "Out"}
-                        </td>
-                        <td className="py-1 pr-3">
-                          {methodLabel[row.entry.method]}
-                        </td>
-                        <td className="py-1 pr-3">
-                          {row.entry.recorded_by_name ?? ""}
-                        </td>
-                        <td className="py-1 text-right">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7"
-                            aria-label="Delete entry"
-                            onClick={() => {
-                              const entry = row.entry;
-                              if (
-                                !confirm(
-                                  `Delete the ${entry.direction === "in" ? "in" : "out"} entry of ${entry.member_name} at ${localTime(entry.recorded_at)}?`,
-                                )
-                              )
-                                return;
-                              deleteEntry.mutate(entry.id, {
-                                onError: (e) => toast.error(describeError(e)),
-                              });
-                            }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
-                        </td>
-                      </tr>
-                    ) : (
-                      <tr key={`status-${i}`} className="border-t bg-muted/40">
-                        <td className="py-1 pr-3">{localTime(row.at)}</td>
-                        <td className="py-1 pr-3 font-medium" colSpan={3}>
-                          {"change" in row && row.change
-                            ? statusLabel[row.change.status]
-                            : ""}
-                        </td>
-                        <td className="py-1 pr-3">
-                          {"change" in row && row.change
-                            ? (row.change.changed_by_name ?? "")
-                            : ""}
-                        </td>
-                        <td />
-                      </tr>
-                    ),
-                  )}
+                {log.map((row, i) =>
+                  row.entry ? (
+                    <tr key={row.entry.id} className="border-t">
+                      <td className="py-1 pr-3">{localTime(row.at)}</td>
+                      <td className="py-1 pr-3">{row.entry.member_name}</td>
+                      <td className="py-1 pr-3">
+                        {row.entry.direction === "in" ? "In" : "Out"}
+                      </td>
+                      <td className="py-1 pr-3">
+                        {methodLabel[row.entry.method]}
+                      </td>
+                      <td className="py-1 pr-3">
+                        {row.entry.recorded_by_name ?? ""}
+                      </td>
+                      <td className="py-1 text-right">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-7 w-7"
+                          aria-label="Delete entry"
+                          onClick={() => row.entry && confirmDelete(row.entry)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr key={`status-${i}`} className="border-t bg-muted/40">
+                      <td className="py-1 pr-3">{localTime(row.at)}</td>
+                      <td className="py-1 pr-3 font-medium" colSpan={3}>
+                        {row.change ? statusLabel[row.change.status] : ""}
+                      </td>
+                      <td className="py-1 pr-3">
+                        {row.change?.changed_by_name ?? ""}
+                      </td>
+                      <td />
+                    </tr>
+                  ),
+                )}
               </tbody>
             </table>
           </div>

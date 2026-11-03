@@ -56,6 +56,7 @@ function EventFormDialog({
             <Label htmlFor="access-event-name">Name</Label>
             <Input
               id="access-event-name"
+              className="text-base sm:text-sm"
               value={name}
               placeholder="e.g. Syysvaalikokous 2026"
               onChange={(e) => setName(e.target.value)}
@@ -65,6 +66,7 @@ function EventFormDialog({
             <Label htmlFor="access-event-date">Date</Label>
             <Input
               id="access-event-date"
+              className="text-base sm:text-sm"
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -154,18 +156,31 @@ export default function AccessEvents() {
 
       {events?.map((event) => (
         <Card key={event.id}>
-          <CardContent className="pt-6 flex items-center justify-between gap-3">
-            <Link to={`/access-control/${event.id}`} className="flex-1 min-w-0">
-              <p className="font-semibold truncate">{event.name}</p>
+          <CardContent className="p-0 flex items-stretch">
+            {/* The whole row opens the event, which is easier to hit on a
+                phone than the name alone. */}
+            <Link
+              to={`/access-control/${event.id}`}
+              className="flex-1 min-w-0 p-4 sm:p-6 space-y-1"
+            >
+              <div className="flex items-center gap-2">
+                <p className="font-semibold truncate">{event.name}</p>
+                <Badge
+                  className="shrink-0"
+                  variant={event.status === "running" ? "default" : "outline"}
+                >
+                  {statusLabel[event.status]}
+                </Badge>
+              </div>
               <p className="text-sm text-muted-foreground">
-                {localDate(event.event_date)} · {event.allowed_roles.join(", ")}
+                {localDate(event.event_date)}
+              </p>
+              <p className="text-sm text-muted-foreground line-clamp-2">
+                {event.allowed_roles.join(", ")}
               </p>
             </Link>
-            <Badge variant={event.status === "running" ? "default" : "outline"}>
-              {statusLabel[event.status]}
-            </Badge>
             {isAdmin && (
-              <>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-1 pr-2 sm:pr-4">
                 <Button
                   size="icon"
                   variant="ghost"
@@ -193,7 +208,7 @@ export default function AccessEvents() {
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
-              </>
+              </div>
             )}
           </CardContent>
         </Card>
