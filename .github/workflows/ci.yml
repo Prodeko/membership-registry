@@ -106,6 +106,10 @@ jobs:
       # 0.24 / http-types stack never executes. The `rand` 0.7/0.8 unsoundness
       # only triggers via a custom logger calling `rand::rng()` from drop, which
       # we do not install. Re-evaluate when async-stripe is upgraded or dropped.
+      # RUSTSEC-2026-0459 (libsqlite3-sys): only in Cargo.lock as sqlx's optional
+      # SQLite driver; we enable only `postgres`, so `cargo tree -i
+      # libsqlite3-sys` is empty and no SQLite is compiled in. Drop the ignore
+      # once sqlx moves to libsqlite3-sys >= 0.39.
       - name: cargo audit
         working-directory: backend
         if: always()
@@ -115,7 +119,8 @@ jobs:
             --ignore RUSTSEC-2026-0099 \
             --ignore RUSTSEC-2026-0104 \
             --ignore RUSTSEC-2024-0384 \
-            --ignore RUSTSEC-2026-0097
+            --ignore RUSTSEC-2026-0097 \
+            --ignore RUSTSEC-2026-0459
       - run: pnpm audit --audit-level high
         working-directory: frontend
         if: always()

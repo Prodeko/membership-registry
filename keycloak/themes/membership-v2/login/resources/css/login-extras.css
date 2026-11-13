@@ -1,0 +1,201 @@
+/*
+ * Additions on top of the theme-editor styles (quick-start.css, styles.css)
+ * for login-username.ftl and login-reset-password.ftl.
+ */
+
+/* Remember me ............ Forgot password? */
+.kc-login-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0 1.25rem;
+  font-size: 0.875rem;
+  color: var(--quickstart-text-secondary-light);
+}
+
+.kc-remember-me {
+  margin: 0;
+  line-height: 1.25;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.kc-remember-me input {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  vertical-align: middle;
+  accent-color: var(--quickstart-primary-color);
+}
+
+#kc-forgot-password {
+  line-height: 1.25;
+}
+
+#kc-forgot-password,
+.kc-back-link a,
+#kc-registration a {
+  color: var(--quickstart-primary-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+#kc-forgot-password:hover,
+.kc-back-link a:hover,
+#kc-registration a:hover {
+  text-decoration: underline;
+}
+
+/* ─── or ─── divider before the passkey button */
+.kc-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0 1rem;
+  color: #6b7280;
+  font-size: 0.8125rem;
+}
+
+.kc-divider span {
+  flex: none;
+}
+
+/* the passkey macro renders hidden forms between the divider and the button */
+.kc-divider ~ #authenticateWebAuthnButton {
+  margin-top: 0;
+}
+
+.kc-divider::before,
+.kc-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* "Don't have an account? Register" — one centred, muted line */
+#kc-info,
+#kc-info-wrapper,
+#kc-registration {
+  text-align: center;
+  justify-content: center;
+}
+
+#kc-registration {
+  margin-top: 1.25rem;
+  color: #6b7280;
+}
+
+/* styles.css hides this text (font-size: 0) to show only the link */
+#kc-registration > span {
+  font-size: 0.875rem;
+}
+
+#kc-registration > span > a {
+  margin: 0 0 0 0.25rem;
+  font-size: 0.875rem;
+}
+
+/* Password reset page */
+.kc-page-intro {
+  margin: 0 0 1.25rem;
+  color: var(--quickstart-text-secondary-light);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.kc-back-link {
+  margin-top: 1.25rem;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+/* Dark mode */
+html.kcDarkModeClass .kc-login-options,
+html.kcDarkModeClass .kc-page-intro {
+  color: var(--quickstart-text-secondary-dark);
+}
+
+html.kcDarkModeClass #kc-forgot-password,
+html.kcDarkModeClass .kc-back-link a,
+html.kcDarkModeClass #kc-registration a {
+  color: var(--quickstart-secondary-color);
+}
+
+html.kcDarkModeClass .kc-divider,
+html.kcDarkModeClass #kc-registration {
+  color: var(--quickstart-text-secondary-dark);
+}
+
+html.kcDarkModeClass .kc-divider::before,
+html.kcDarkModeClass .kc-divider::after {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+/* ---------------------------------------------------------------------------
+   "Restart login" button next to the email on the password step
+   (template.ftl `username` macro). It reuses the password-visibility button
+   class, so styles.css gave it the eye icon and never hid its tooltip label.
+   ------------------------------------------------------------------------- */
+#reset-login {
+  position: relative;
+  background: #f9fafb;
+}
+
+#reset-login:hover {
+  background: #f3f4f6;
+}
+
+html.kcDarkModeClass #reset-login {
+  background: transparent;
+}
+
+/* Circular-arrow "start over" icon instead of the eye */
+#reset-login::before,
+.kcInputGroup:has(input[type="text"]) #reset-login::before {
+  -webkit-mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2.2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M3%2012a9%209%200%201%200%203-6.7'/%3E%3Cpath%20d='M3%204v5h5'/%3E%3C/svg%3E") no-repeat center / contain;
+  mask: url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2024%2024'%20fill='none'%20stroke='black'%20stroke-width='2.2'%20stroke-linecap='round'%20stroke-linejoin='round'%3E%3Cpath%20d='M3%2012a9%209%200%201%200%203-6.7'/%3E%3Cpath%20d='M3%204v5h5'/%3E%3C/svg%3E") no-repeat center / contain;
+}
+
+/* Label: hidden, shown as a small tooltip on hover / keyboard focus */
+#reset-login .kc-tooltip-text {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 10;
+  padding: 0.3rem 0.55rem;
+  border-radius: 6px;
+  background: #1f2937;
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease;
+}
+
+#reset-login:hover .kc-tooltip-text,
+#reset-login:focus-visible .kc-tooltip-text {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Read-only email: look like a filled field, not an editable one */
+#kc-attempted-username {
+  color: var(--quickstart-text-secondary-light);
+  background: #f9fafb;
+  cursor: default;
+}
+
+html.kcDarkModeClass #kc-attempted-username {
+  color: var(--quickstart-text-secondary-dark);
+  background: transparent;
+}

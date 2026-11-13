@@ -2,6 +2,7 @@ FROM quay.io/keycloak/keycloak:26.8.1-2 AS builder
 ENV KC_DB=postgres
 ENV KC_HEALTH_ENABLED=true
 COPY themes/membership /opt/keycloak/themes/membership
+COPY themes/membership-v2 /opt/keycloak/themes/membership-v2
 COPY realm-export.json /opt/keycloak/data/import/realm-export.json
 COPY providers/ /opt/keycloak/providers/
 RUN /opt/keycloak/bin/kc.sh build
