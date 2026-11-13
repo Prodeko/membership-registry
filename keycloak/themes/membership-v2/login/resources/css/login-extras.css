@@ -1,0 +1,138 @@
+/*
+ * Additions on top of the theme-editor styles (quick-start.css, styles.css)
+ * for login-username.ftl and login-reset-password.ftl.
+ */
+
+/* Remember me ............ Forgot password? */
+.kc-login-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin: 0.25rem 0 1.25rem;
+  font-size: 0.875rem;
+  color: var(--quickstart-text-secondary-light);
+}
+
+.kc-remember-me {
+  margin: 0;
+  line-height: 1.25;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+.kc-remember-me input {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  vertical-align: middle;
+  accent-color: var(--quickstart-primary-color);
+}
+
+#kc-forgot-password {
+  line-height: 1.25;
+}
+
+#kc-forgot-password,
+.kc-back-link a,
+#kc-registration a {
+  color: var(--quickstart-primary-color);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+#kc-forgot-password:hover,
+.kc-back-link a:hover,
+#kc-registration a:hover {
+  text-decoration: underline;
+}
+
+/* ─── or ─── divider before the passkey button */
+.kc-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.5rem 0 1rem;
+  color: #6b7280;
+  font-size: 0.8125rem;
+}
+
+.kc-divider span {
+  flex: none;
+}
+
+/* the passkey macro renders hidden forms between the divider and the button */
+.kc-divider ~ #authenticateWebAuthnButton {
+  margin-top: 0;
+}
+
+.kc-divider::before,
+.kc-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* "Don't have an account? Register" — one centred, muted line */
+#kc-info,
+#kc-info-wrapper,
+#kc-registration {
+  text-align: center;
+  justify-content: center;
+}
+
+#kc-registration {
+  margin-top: 1.25rem;
+  color: #6b7280;
+}
+
+/* styles.css hides this text (font-size: 0) to show only the link */
+#kc-registration > span {
+  font-size: 0.875rem;
+}
+
+#kc-registration > span > a {
+  margin: 0 0 0 0.25rem;
+  font-size: 0.875rem;
+}
+
+/* Password reset page */
+.kc-page-intro {
+  margin: 0 0 1.25rem;
+  color: var(--quickstart-text-secondary-light);
+  font-size: 0.9375rem;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.kc-back-link {
+  margin-top: 1.25rem;
+  text-align: center;
+  font-size: 0.875rem;
+}
+
+/* Dark mode */
+html.kcDarkModeClass .kc-login-options,
+html.kcDarkModeClass .kc-page-intro {
+  color: var(--quickstart-text-secondary-dark);
+}
+
+html.kcDarkModeClass #kc-forgot-password,
+html.kcDarkModeClass .kc-back-link a,
+html.kcDarkModeClass #kc-registration a {
+  color: var(--quickstart-secondary-color);
+}
+
+html.kcDarkModeClass .kc-divider,
+html.kcDarkModeClass #kc-registration {
+  color: var(--quickstart-text-secondary-dark);
+}
+
+html.kcDarkModeClass .kc-divider::before,
+html.kcDarkModeClass .kc-divider::after {
+  border-color: rgba(255, 255, 255, 0.2);
+}

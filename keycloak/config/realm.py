@@ -42,13 +42,14 @@ def configure_realm(kc: KeycloakAdmin) -> None:
     sendgrid_api_key = os.environ.get("SENDGRID_API_KEY", "")
 
     realm_payload: dict[str, object] = {
-        "loginTheme": "membership",
+        "loginTheme": "membership-v2",
         "accountTheme": "membership",
         "emailTheme": "membership",
         "displayName": "Prodeko membership registry",
         "registrationAllowed": True,
         "verifyEmail": True,
         "resetPasswordAllowed": True,
+        "rememberMe": True,
         "loginWithEmailAllowed": True,
         "registrationEmailAsUsername": True,
         "duplicateEmailsAllowed": False,
