@@ -9,7 +9,9 @@ env:
 jobs:
   e2e:
     name: End-to-end tests
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to 26.04, which Playwright's chromium
+    # install doesn't support yet. Bump once Playwright adds 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     services:
